@@ -1,0 +1,150 @@
+# Changelog
+
+All notable public changes to KnoArbor will be documented in this file.
+
+This project follows a simple release-note format while it is in alpha.
+
+## Unreleased
+
+- No public changes yet.
+
+## 0.7.0 - 2026-05-31
+
+### Added
+
+- Added `scripts/prepare-release.py` to synchronize release metadata and create release-note placeholders from a clean tree.
+- Added explicit `wiki_query.v1` and `query_trace.v1` contract versions to query responses and trace payloads.
+- Added a Knowledge Base page to the local console for browsing generated wiki pages, metadata, outbound links, backlinks, and page content.
+- Added report artifacts that connect ingest outputs and lint changes back to concrete wiki pages.
+- Added failure reports for ingest, lint, and query runs so failed workflows still leave inspectable diagnostics.
+
+### Changed
+
+- Upgraded the frontend build stack to Vite 8 and added `npm audit --audit-level=moderate` to the local development gate.
+- Improved management console refresh/save feedback so manual refresh and YAML saves update visible UI state consistently.
+- Refined the management console navigation, report readability, inline page expansion, and diff rendering.
+- Hardened source provenance maintenance so scalar source fields stay valid while source sections may retain additional provenance lines.
+- Removed internal maintainer planning documents from the public documentation tree and release line.
+
+### Validation
+
+- Rebuilt the bundled web console and ran Python maintenance/report tests before release.
+
+## 0.5.1 - 2026-05-30
+
+### Changed
+
+- Extended the public error contract into run records, run events, semantic retry events, ingest source failures, ingest reports, CLI output, and UI API error messages.
+- Added stable remediation hints for every public error code and preserved retryability metadata for monitor/report consumers.
+- Added a machine-readable public API compatibility contract and tightened API surface tests against that contract.
+- Converted unexpected FastAPI exceptions into the public `KA-INTERNAL-001` error envelope.
+- Added UI recovery details for failed or partially failed ingest runs.
+- Added a live release-candidate smoke test that validates Markdown ingest, Codex session ingest, lint, query, and missing-preprocessor errors against a real model provider.
+
+### Validation
+
+- Verified a temporary-vault live DeepSeek smoke: `init -> ingest -> lint-run -> query`, processing Markdown and Codex sources, writing four wiki pages, and checking the `KA-DOC-001` non-Markdown preprocessor path.
+- `scripts/dev-check.sh` passes: frontend build, Python tests, read-only doctor, and package build.
+
+## 0.5.0 - 2026-05-30
+
+### Added
+
+- Read-only readiness diagnostics through `knoar doctor` and `GET /doctor`, covering config loading, vault structure, model environment, connector discovery, optional document processing, and recent runs.
+- Management UI readiness panel and run preflight view backed by the same `/doctor` contract used by CLI and API callers.
+- Public API stability table for the v0.x alpha surface, clearly separating stable workflow/run/query/diagnostic routes from internal `/ui/api/*` routes.
+- `doctor` checks in local development and clean-clone smoke gates.
+
+### Changed
+
+- Improved readable report labels for compact metric keys such as `runid`, `writtenpages`, and `tokenspersecond`.
+- Clarified machine-index ownership: query, graph, UI page summaries, and UI status use machine index; deterministic lint keeps full-content maintenance scanning.
+- Updated internal capability, roadmap, and engineering governance docs to align diagnostics, release gates, and machine-index boundaries.
+- Synchronized runtime package version metadata.
+
+### Validation
+
+- Verified a temporary-vault live-model smoke with `examples/agent-loop.md`: `doctor -> ingest -> lint-run -> query`.
+- `scripts/dev-check.sh` passes: frontend build, Python tests, read-only doctor, and package build.
+
+## 0.4.0 - 2026-05-28
+
+### Added
+
+- Shared tolerant JSONL session reader for Codex, Claude Code, and OpenClaw connectors. Malformed or incomplete JSONL lines are skipped with connector warnings instead of failing the whole source preflight.
+- Compact `sources --json` preflight output by default, with `--include-content` available when full normalized `SourceDocument.content` is intentionally needed.
+- CLI progress policy for long human-facing workflows: `ingest`, `ingest-file`, and `lint-run` now follow local run progress by default, while `--json` remains machine-readable and `--no-follow` preserves synchronous summaries.
+- `ingest-file` queue-follow support, so single-file Markdown or MinerU-preprocessed document ingest can surface run events and heartbeat progress like connector ingest.
+- v0.4 ingest acceptance matrix for Markdown, Hermes, Codex, Claude Code, OpenClaw, and MinerU-preprocessed documents.
+
+### Changed
+
+- Strengthened multi-source ingest documentation around real local chat sources, source segmentation, and long-run progress.
+- Unified lint service behavior with CLI behavior: structural lint can still run without a configured model provider when semantic structural mode has no model available.
+
+### Validation
+
+- Added and updated CLI and connector tests for compact source preflight, JSONL tolerance, queue-follow defaults, and structural lint fallback.
+- Verified representative real-source preflight for Codex, Claude Code, and OpenClaw local session directories.
+- Verified a write-capable smoke flow with Codex, Claude Code, and OpenClaw into a temporary vault, followed by lint and query.
+
+## 0.3.0 - 2026-05-27
+
+### Added
+
+- Centralized semantic execution reliability through `SemanticRunner`, including retry policy, structured-output validation, error classification, run events, and token/latency metrics.
+- Deterministic golden harnesses for query context packs, query reports, source segmentation, segmented ingest aggregation, lint scans, lint maintenance execution, operation verification, and lint run reports.
+- Long-note and chat-session ingest quality golden datasets that lock source digest merging, page-boundary variety, written page links, and ingest report structure.
+- Query gap trend visibility through API and the management UI.
+- `scripts/release-check.sh` as the release gate wrapper for local gates, release readiness, and clean-clone smoke validation.
+
+### Changed
+
+- Refined v0.3 public API compatibility wording and release documentation around reliability and evaluation.
+- Updated internal capability maps to make semantic contracts, harness coverage, and release gates explicit architecture boundaries.
+
+## 0.2.0 - 2026-05-27
+
+### Changed
+
+- Started v0.2 engine-foundation work by refreshing stale machine indexes before index-backed readers use them.
+- Moved graph and UI page-summary reads onto the machine-index boundary.
+- Consolidated draft write indexing so batch writes update the index once at the pipeline boundary.
+- Improved CLI error output to use the shared public error taxonomy.
+- Formalized partial-failure run completion and richer query trace/report metadata.
+- Routed FastAPI HTTP exceptions through the same public error envelope as service errors.
+- Added a workflow result policy so background runs report partial completion when ingest or lint results contain failed sub-work.
+- Updated the management UI to display localized run statuses, including partially completed runs, across monitors and reports.
+- Surfaced partially failed run details in report timelines, moved UI status counts onto the machine index, and added a read-only `/query/trends` endpoint for repeated query gaps.
+
+### Added
+
+- Transaction-boundary tests for surfacing index update failures after page writes.
+- Run-monitor tests for partial-failure terminal status.
+- Run-result policy tests for ingest, lint, and query completion decisions.
+
+## 0.1.0 - 2026-05-25
+
+First public alpha release.
+
+### Added
+
+- Local-first Markdown wiki vault initialization.
+- Connector-based ingest for Markdown notes, Hermes sessions, Codex sessions, OpenClaw sessions, and Claude Code sessions.
+- Single-file ingest for Markdown and preprocessed documents.
+- Optional MinerU-compatible document preprocessing into Markdown.
+- Source segmentation for long Markdown and conversation sources.
+- Semantic ingest workflow with source normalization, relation planning, draft compilation, draft review, quality gate, scoped lint, reports, and checkpoints.
+- Lint maintenance workflow with deterministic scan, semantic structural diagnosis, semantic quality diagnosis, maintenance review, operation execution, verification, reports, and ledgers.
+- Retrieval-only query workflow for host AI tools, including ranked pages, excerpts, source pointers, graph context, context packs, and optional query reports.
+- FastAPI service, CLI commands, local run queue, run monitor, structured logs, vault file locks, and bundled local web console.
+- Generic local wiki skill template.
+- Public architecture, configuration, CLI, API, concepts, provenance, development, security, and quickstart documentation.
+- Scripted release gates for local development checks, release-readiness checks, and clean-clone smoke validation.
+- Apache-2.0 license, security policy, and public documentation.
+
+### Notes
+
+- KnoArbor is early alpha. v0.1 workflow API paths and core semantics are intended to remain stable during the v0.1 line, while schemas may still receive additive fields before a later stable release.
+- The first release is local-first and single-user. It does not include hosted SaaS deployment, built-in chat answer generation, a built-in vector database, a bundled MinerU runtime, or packaged external workflow templates.
+- Runtime wiki data, raw sources, local configs, caches, and private workflow files are intentionally excluded from the repository.

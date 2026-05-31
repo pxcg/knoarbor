@@ -1,0 +1,323 @@
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
+
+from knoarbor.core.markdown import compact_inline_text, extract_heading, extract_section, extract_tags, parse_frontmatter
+from knoarbor.core.schemas.wiki_lint import WikiScanRequest
+from knoarbor.pipelines.lint import WikiLintPipeline
+from knoarbor.retrieval import IndexRequest, MachineIndexProvider
+from knoarbor.retrieval.markdown import SearchPage
+from knoarbor.services.ui_config import (
+    UiConfigDiagnostics,
+    UiConfigFormResponse,
+    UiConfigFormUpdateRequest,
+    UiConfigResponse,
+    UiConfigService,
+    UiConfigUpdateRequest,
+    UiConfigUpdateResponse,
+    summarize_default_config,
+)
+from knoarbor.services.wiki_graph import WikiGraph, build_wiki_graph
+
+
+class UiStatusResponse(BaseModel):
+    vault_path: str
+    pages: int
+    raw_sources: int
+    issues: int
+    errors: int
+    warnings: int
+    info: int
+    directories: dict[str, int] = Field(default_factory=dict)
+
+
+class UiPageSummary(BaseModel):
+    path: str
+    directory: str
+    title: str
+    page_type: str | None = None
+    status: str | None = None
+    updated: str | None = None
+    source: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    summary: str = ""
+    headings: list[str] = Field(default_factory=list)
+
+
+class UiPagesResponse(BaseModel):
+    vault_path: str
+    pages: list[UiPageSummary]
+
+
+class UiPageDetail(BaseModel):
+    path: str
+    content: str
+    metadata: dict[str, str] = Field(default_factory=dict)
+    summary: UiPageSummary
+
+
+class UiReportSummary(BaseModel):
+    path: str
+    title: str
+    kind: str
+    updated: str | None = None
+    size: int
+    preview: str = ""
+
+
+class UiReportsResponse(BaseModel):
+    vault_path: str
+    reports: list[UiReportSummary]
+
+
+class UiReportDetail(BaseModel):
+    path: str
+    content: str
+    summary: UiReportSummary
+
+
+class UiProjectDoc(BaseModel):
+    path: str
+    content: str
+
+
+def create_ui_router() -> APIRouter:
+    router = APIRouter()
+    config_service = UiConfigService()
+
+    @router.get("/", include_in_schema=False)
+    async def root_index() -> FileResponse:
+        return FileResponse(_resolve_ui_asset("index.html"), media_type="text/html; charset=utf-8")
+
+    @router.get("/ui", tags=["ui"])
+    async def ui_index() -> FileResponse:
+        return FileResponse(_resolve_ui_asset("index.html"), media_type="text/html; charset=utf-8")
+
+    @router.get("/ui/assets/{asset_path:path}", tags=["ui"])
+    async def ui_asset(asset_path: str) -> FileResponse:
+        asset = _resolve_ui_asset(f"assets/{asset_path}")
+        return FileResponse(asset)
+
+    @router.get("/ui/api/config", response_model=UiConfigResponse, tags=["ui"])
+    async def read_ui_config(config_path: str | None = Query(default=None)) -> UiConfigResponse:
+        return config_service.read_raw(config_path)
+
+    @router.put("/ui/api/config", response_model=UiConfigUpdateResponse, tags=["ui"])
+    async def write_ui_config(request: UiConfigUpdateRequest) -> UiConfigUpdateResponse:
+        return config_service.write_raw(request)
+
+    @router.get("/ui/api/config/form", response_model=UiConfigFormResponse, tags=["ui"])
+    async def read_ui_config_form(config_path: str | None = Query(default=None)) -> UiConfigFormResponse:
+        return config_service.read_form(config_path)
+
+    @router.put("/ui/api/config/form", response_model=UiConfigUpdateResponse, tags=["ui"])
+    async def write_ui_config_form(request: UiConfigFormUpdateRequest) -> UiConfigUpdateResponse:
+        return config_service.write_form(request)
+
+    @router.get("/ui/api/config/diagnostics", response_model=UiConfigDiagnostics, tags=["ui"])
+    async def read_ui_config_diagnostics(config_path: str | None = Query(default=None)) -> UiConfigDiagnostics:
+        return config_service.read_diagnostics(config_path)
+
+    @router.get("/ui/api/status", response_model=UiStatusResponse, tags=["ui"])
+    async def read_ui_status(vault_path: str | None = Query(default=None)) -> UiStatusResponse:
+        path = Path(vault_path or _summary_from_default_config().get("vault_path") or "./wiki").expanduser().resolve()
+        index_pages = MachineIndexProvider().collect(IndexRequest(vault_path=path))
+        directories: dict[str, int] = {}
+        for page in index_pages:
+            directories[page.directory] = directories.get(page.directory, 0) + 1
+        scan = WikiLintPipeline().scan(WikiScanRequest(obsidian_vault_path=str(path), max_chars_per_page=0))
+        return UiStatusResponse(
+            vault_path=str(path),
+            pages=len(index_pages),
+            raw_sources=_count_raw_sources(path),
+            issues=len(scan.issues),
+            errors=int(scan.stats.get("error_count", 0)),
+            warnings=int(scan.stats.get("warning_count", 0)),
+            info=int(scan.stats.get("info_count", 0)),
+            directories=directories,
+        )
+
+    @router.get("/ui/api/graph", response_model=WikiGraph, tags=["ui"])
+    async def read_ui_graph(vault_path: str | None = Query(default=None)) -> WikiGraph:
+        path = Path(vault_path or _summary_from_default_config().get("vault_path") or "./wiki").expanduser().resolve()
+        return build_wiki_graph(path)
+
+    @router.get("/ui/api/pages", response_model=UiPagesResponse, tags=["ui"])
+    async def read_ui_pages(vault_path: str | None = Query(default=None)) -> UiPagesResponse:
+        path = _resolve_vault_path(vault_path)
+        return UiPagesResponse(vault_path=str(path), pages=_collect_pages(path))
+
+    @router.get("/ui/api/page", response_model=UiPageDetail, tags=["ui"])
+    async def read_ui_page(path: str, vault_path: str | None = Query(default=None)) -> UiPageDetail:
+        vault = _resolve_vault_path(vault_path)
+        page_path = _resolve_vault_file(vault, path)
+        if not page_path.suffix.lower() == ".md":
+            raise HTTPException(status_code=400, detail="Only Markdown pages can be previewed")
+        content = page_path.read_text(encoding="utf-8")
+        summary = _page_summary(vault, page_path, content)
+        return UiPageDetail(path=summary.path, content=content, metadata=parse_frontmatter(content), summary=summary)
+
+    @router.get("/ui/api/reports", response_model=UiReportsResponse, tags=["ui"])
+    async def read_ui_reports(vault_path: str | None = Query(default=None)) -> UiReportsResponse:
+        path = _resolve_vault_path(vault_path)
+        return UiReportsResponse(vault_path=str(path), reports=_collect_reports(path))
+
+    @router.get("/ui/api/report", response_model=UiReportDetail, tags=["ui"])
+    async def read_ui_report(path: str, vault_path: str | None = Query(default=None)) -> UiReportDetail:
+        vault = _resolve_vault_path(vault_path)
+        report_path = _resolve_vault_file(vault, path)
+        if not report_path.suffix.lower() == ".md":
+            raise HTTPException(status_code=400, detail="Only Markdown reports can be previewed")
+        content = report_path.read_text(encoding="utf-8")
+        summary = _report_summary(vault, report_path, content)
+        return UiReportDetail(path=summary.path, content=content, summary=summary)
+
+    @router.get("/ui/api/docs/{doc_path:path}", response_model=UiProjectDoc, tags=["ui"])
+    async def read_ui_doc(doc_path: str) -> UiProjectDoc:
+        doc = _resolve_project_doc(doc_path)
+        return UiProjectDoc(path=doc.relative_to(_project_docs_root()).as_posix(), content=doc.read_text(encoding="utf-8"))
+
+    @router.get("/ui/{asset_path:path}", tags=["ui"])
+    async def ui_root_asset(asset_path: str) -> FileResponse:
+        asset = _resolve_ui_asset(asset_path)
+        return FileResponse(asset)
+
+    return router
+
+
+def _resolve_ui_asset(name: str) -> Path:
+    ui_root = Path(__file__).resolve().parents[2] / "ui" / "dist"
+    asset_path = (ui_root / name).resolve()
+    try:
+        asset_path.relative_to(ui_root.resolve())
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Unknown UI asset") from exc
+    if not asset_path.exists() or not asset_path.is_file():
+        raise HTTPException(status_code=404, detail="UI build asset is missing. Run `npm run build` in web/ first.")
+    return asset_path
+
+
+def _resolve_project_doc(name: str) -> Path:
+    docs_root = _project_docs_root()
+    doc_path = (docs_root / name).resolve()
+    try:
+        doc_path.relative_to(docs_root.resolve())
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Unknown project document") from exc
+    if not doc_path.exists() or not doc_path.is_file() or doc_path.suffix.lower() != ".md":
+        raise HTTPException(status_code=404, detail="Project document not found")
+    return doc_path
+
+
+def _project_docs_root() -> Path:
+    return Path(__file__).resolve().parents[4] / "docs"
+
+
+def _summary_from_default_config() -> dict[str, object]:
+    return summarize_default_config()
+
+
+def _count_raw_sources(vault_path: Path) -> int:
+    raw_path = vault_path / "raw"
+    if not raw_path.exists():
+        return 0
+    return sum(1 for path in raw_path.rglob("*") if path.is_file() and path.name != ".gitkeep")
+
+
+def _resolve_vault_path(vault_path: str | None) -> Path:
+    return Path(vault_path or _summary_from_default_config().get("vault_path") or "./wiki").expanduser().resolve()
+
+
+def _resolve_vault_file(vault_path: Path, relative_path: str) -> Path:
+    page_path = (vault_path / relative_path).resolve()
+    try:
+        page_path.relative_to(vault_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Path must stay inside the configured vault") from exc
+    if not page_path.exists() or not page_path.is_file():
+        raise HTTPException(status_code=404, detail=f"Vault file not found: {relative_path}")
+    return page_path
+
+
+def _collect_pages(vault_path: Path) -> list[UiPageSummary]:
+    if not vault_path.exists():
+        return []
+    pages = MachineIndexProvider().collect(IndexRequest(vault_path=vault_path))
+    return [_page_summary_from_index(page) for page in pages]
+
+
+def _page_summary_from_index(page: SearchPage) -> UiPageSummary:
+    return UiPageSummary(
+        path=page.relative_path,
+        directory=page.directory,
+        title=page.title,
+        page_type=page.page_type,
+        status=page.status,
+        updated=None,
+        source=page.source,
+        tags=page.tags,
+        summary=compact_inline_text(page.summary, 280),
+        headings=page.headings[:12],
+    )
+
+
+def _page_summary(vault_path: Path, path: Path, content: str) -> UiPageSummary:
+    relative = path.relative_to(vault_path).as_posix()
+    metadata = parse_frontmatter(content)
+    directory = relative.split("/", 1)[0] if "/" in relative else "root"
+    title = metadata.get("title") or extract_heading(content, path.stem)
+    return UiPageSummary(
+        path=relative,
+        directory=directory,
+        title=title,
+        page_type=metadata.get("type"),
+        status=metadata.get("status"),
+        updated=metadata.get("updated") or metadata.get("created"),
+        source=metadata.get("source"),
+        tags=extract_tags(content, metadata),
+        summary=compact_inline_text(extract_section(content, "Summary") or extract_section(content, "摘要"), 280),
+        headings=re.findall(r"^#{1,3}\s+(.+)$", content, flags=re.MULTILINE)[:12],
+    )
+
+
+def _collect_reports(vault_path: Path) -> list[UiReportSummary]:
+    maintenance_path = vault_path / "maintenance"
+    if not maintenance_path.exists():
+        return []
+    reports: list[UiReportSummary] = []
+    for path in sorted(maintenance_path.glob("*report*.md"), key=lambda item: item.stat().st_mtime, reverse=True):
+        content = path.read_text(encoding="utf-8")
+        reports.append(_report_summary(vault_path, path, content))
+    return reports
+
+
+def _report_summary(vault_path: Path, path: Path, content: str) -> UiReportSummary:
+    relative = path.relative_to(vault_path).as_posix()
+    name = path.name.lower()
+    if "lint" in name:
+        kind = "lint"
+    elif "quality" in name:
+        kind = "quality"
+    elif "ingest" in name:
+        kind = "ingest"
+    else:
+        kind = "maintenance"
+    return UiReportSummary(
+        path=relative,
+        title=extract_heading(content, path.stem),
+        kind=kind,
+        updated=_mtime_iso(path),
+        size=path.stat().st_size,
+        preview=compact_inline_text(re.sub(r"\s+", " ", content), 280),
+    )
+
+
+def _mtime_iso(path: Path) -> str:
+    from datetime import datetime
+
+    return datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds")

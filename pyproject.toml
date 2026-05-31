@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "knoarbor"
+version = "0.7.0"
+description = "KnoArbor is a local-first AI knowledge system for compiling, maintaining, and querying documents, conversations, and wiki pages."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]
+authors = [
+  { name = "KnoArbor contributors" }
+]
+keywords = ["llm", "wiki", "knowledge-base", "markdown", "obsidian", "rag"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Text Processing",
+]
+dependencies = [
+  "fastapi==0.115.0",
+  "uvicorn==0.32.0",
+  "pydantic==2.9.2",
+  "PyYAML==6.0.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/pxcg/knoarbor"
+Repository = "https://github.com/pxcg/knoarbor"
+Issues = "https://github.com/pxcg/knoarbor/issues"
+Documentation = "https://github.com/pxcg/knoarbor/tree/main/docs"
+
+[project.optional-dependencies]
+dev = [
+  "httpx==0.27.2",
+]
+
+[project.scripts]
+knoarbor = "knoarbor.cli:main"
+knoar = "knoarbor.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"knoarbor" = ["config.example.yaml"]
+"knoarbor.semantic.prompts" = ["*.md"]
+"knoarbor.ui" = ["dist/*.html", "dist/*.ico", "dist/*.png", "dist/*.svg", "dist/*.webmanifest", "dist/assets/*"]

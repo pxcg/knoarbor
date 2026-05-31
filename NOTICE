@@ -1,0 +1,21 @@
+KnoArbor
+Copyright 2026 KnoArbor contributors
+
+This product includes software developed by the KnoArbor contributors.
+
+KnoArbor is distributed under the Apache License, Version 2.0.
+See the LICENSE file for the full license text.
+
+The name "KnoArbor" identifies this project and its official distribution.
+The Apache License does not grant trademark rights.
+
+Third-party names such as OpenAI, Codex, Claude, DeepSeek, Ollama, vLLM,
+MinerU, Obsidian, Hermes, and OpenClaw may appear only to identify compatible
+tools, services, formats, or optional integrations. Those names and any related
+marks belong to their respective owners. KnoArbor is not affiliated with,
+endorsed by, or sponsored by those owners unless explicitly stated.
+
+The bundled management console may display selected compatibility icons from
+Lobe Icons (`@lobehub/icons-static-svg`, MIT License) for source/tool
+identification. Those icon assets represent third-party marks and remain subject
+to the trademark rights of their respective owners.

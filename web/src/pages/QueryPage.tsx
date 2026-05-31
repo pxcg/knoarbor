@@ -1,0 +1,187 @@
+import { useState } from "react";
+
+import { getQueryTrends, searchWiki } from "../api/client";
+import type { AppContext } from "../App";
+
+type Props = {
+  context: AppContext;
+  embedded?: boolean;
+};
+
+export function QueryPage({ context, embedded = false }: Props) {
+  const [query, setQuery] = useState("Agent Loop 控制模式");
+  const [mode, setMode] = useState<"quick" | "balanced" | "deep">("balanced");
+  const [contextFormat, setContextFormat] = useState<"compact" | "full">("compact");
+  const [pageDirs, setPageDirs] = useState("");
+
+  async function handleSearch() {
+    if (!query.trim()) {
+      context.setNotice({ message: context.t("queryCannotBeEmpty"), error: true });
+      return;
+    }
+    try {
+      const response = await searchWiki(context.vaultPath, query.trim(), {
+        mode,
+        context_format: contextFormat,
+        page_dirs: pageDirs
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+      });
+      context.setQueryResults(response.results || []);
+      context.setQueryContextPack(response.context_pack || "");
+      const trend = await getQueryTrends(context.vaultPath);
+      context.setQueryTrend(trend);
+    } catch (error) {
+      context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
+    }
+  }
+
+  const repeatedGaps = context.queryTrend?.repeated_gap_queries || [];
+  const hasQueryResults = context.queryResults.length > 0;
+  const hasContextPack = Boolean(context.queryContextPack);
+
+  return (
+    <section className={embedded ? "embedded-section" : "view active"}>
+      <article className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>{context.t("queryTitle")}</h2>
+            <p className="panel-copy">{context.t("querySubtitle")}</p>
+          </div>
+          <button className="button primary" onClick={handleSearch}>
+            {context.t("search")}
+          </button>
+        </div>
+        <label className="field">
+          <span>{context.t("questionOrTopic")}</span>
+          <input value={query} onChange={(event) => setQuery(event.target.value)} />
+        </label>
+        <div className="query-controls">
+          <label className="field">
+            <span>{context.t("queryRetrievalMode")}</span>
+            <select value={mode} onChange={(event) => setMode(event.target.value as "quick" | "balanced" | "deep")}>
+              <option value="quick">{context.t("quickQuery")}</option>
+              <option value="balanced">{context.t("balancedQuery")}</option>
+              <option value="deep">{context.t("deepQuery")}</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>{context.t("queryContextFormat")}</span>
+            <select value={contextFormat} onChange={(event) => setContextFormat(event.target.value as "compact" | "full")}>
+              <option value="compact">{context.t("compactContext")}</option>
+              <option value="full">{context.t("fullContext")}</option>
+            </select>
+            <small>{context.t("fullContextHint")}</small>
+          </label>
+          <label className="field">
+            <span>{context.t("initialPageDirs")}</span>
+            <input value={pageDirs} onChange={(event) => setPageDirs(event.target.value)} placeholder="concepts, entities" />
+            <small>{context.t("initialPageDirsHint")}</small>
+          </label>
+        </div>
+        <div className="query-health">
+          <article>
+            <span>{context.t("queryTrendSample")}</span>
+            <strong>{context.queryTrend?.sample_size ?? 0}</strong>
+          </article>
+          <article>
+            <span>{context.t("queryNoResultCount")}</span>
+            <strong>{context.queryTrend?.no_result_count ?? 0}</strong>
+          </article>
+          <article>
+            <span>{context.t("queryLowConfidenceCount")}</span>
+            <strong>{context.queryTrend?.low_confidence_count ?? 0}</strong>
+          </article>
+        </div>
+        {!!repeatedGaps.length && (
+          <aside className="query-gap-panel">
+            <h3>{context.t("repeatedQueryGaps")}</h3>
+            <p>{context.t("repeatedQueryGapsCopy")}</p>
+            <div className="query-gap-list">
+              {repeatedGaps.map((item) => (
+                <span key={item.query}>
+                  {item.query} <strong>{item.count}</strong>
+                </span>
+              ))}
+            </div>
+          </aside>
+        )}
+        <div className="result-list">
+          {hasQueryResults ? (
+            context.queryResults.map((result) => (
+              <article className="result-item" key={result.path}>
+                <div className="result-item-header">
+                  <h3>{result.title || result.path}</h3>
+                  <div className="button-row compact-row">
+                    <button className="button secondary small-button" type="button" onClick={() => context.openWikiPage(result.path)}>
+                      {context.t("openInWiki")}
+                    </button>
+                    <button className="button secondary small-button" type="button" onClick={() => context.openPageInGraph(result.path)}>
+                      {context.t("openInGraph")}
+                    </button>
+                  </div>
+                </div>
+                <div className="result-meta">
+                  <span className={`origin-badge ${result.match_kind === "related" ? "related" : "direct"}`}>
+                    {result.match_kind === "related" ? context.t("relatedContext") : context.t("directMatch")}
+                  </span>
+                  <span>{result.path}</span>
+                  <span>{result.relevance}</span>
+                  <span>{context.t("score")} {Number(result.score || 0).toFixed(1)}</span>
+                  <span>{context.t("matched")} {(result.matched_fields || []).join(", ") || context.t("unknown")}</span>
+                </div>
+                {result.reason && <p className="result-reason">{result.reason}</p>}
+                <p>{result.summary || context.t("noSummary")}</p>
+                {!!result.key_points?.length && (
+                  <ul className="compact-list">
+                    {result.key_points.slice(0, 3).map((point) => (
+                      <li key={point}>{point}</li>
+                    ))}
+                  </ul>
+                )}
+                {!!result.excerpts?.length && (
+                  <details>
+                    <summary>{context.t("excerpts")}</summary>
+                    {result.excerpts.slice(0, 2).map((excerpt) => (
+                      <blockquote key={`${result.path}:${excerpt.heading}:${excerpt.score}`}>
+                        <strong>{excerpt.heading || context.t("excerpt")}</strong>
+                        <p>{excerpt.content}</p>
+                      </blockquote>
+                    ))}
+                  </details>
+                )}
+              </article>
+            ))
+          ) : (
+            <article className="query-empty-state">
+              <h3>{context.t("queryEmptyTitle")}</h3>
+              <p>{context.t("queryEmptyCopy")}</p>
+              <div className="query-empty-hints">
+                <button type="button" onClick={() => context.navigate("ingest")}>
+                  {context.t("queryEmptyHintIngest")}
+                </button>
+                <button type="button" onClick={() => context.navigate("settings")}>
+                  {context.t("queryEmptyHintDirs")}
+                </button>
+                <span>{context.t("queryEmptyHintBody")}</span>
+              </div>
+            </article>
+          )}
+        </div>
+      </article>
+      <article className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>{context.t("contextPack")}</h2>
+            <p className="panel-copy">{context.t("contextPackCopy")}</p>
+          </div>
+          <button className="button secondary" onClick={() => void navigator.clipboard?.writeText(context.queryContextPack || "")}>
+            {context.t("copy")}
+          </button>
+        </div>
+        <pre className={`output light ${hasContextPack ? "" : "output-empty"}`}>{context.queryContextPack || context.t("runSearchForContext")}</pre>
+      </article>
+    </section>
+  );
+}

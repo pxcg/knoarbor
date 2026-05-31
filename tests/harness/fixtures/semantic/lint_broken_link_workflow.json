@@ -1,0 +1,86 @@
+{
+  "candidates": {
+    "candidates": [
+      {
+        "candidate_id": "structural:concepts/Agent.md:broken_link:0",
+        "confidence": 0.9,
+        "evidence": [
+          {
+            "kind": "scan_issue",
+            "quote": "[[Missing Page]]",
+            "ref": "concepts/Agent.md"
+          }
+        ],
+        "executor_hint": "deterministic_wiki_operation",
+        "expected_effect": "Fix broken link.",
+        "issue_type": "broken_link",
+        "recommended_action": {
+          "action": "replace_wikilink",
+          "params": {
+            "new_target": "concepts/Agent Loop",
+            "old_target": "Missing Page"
+          }
+        },
+        "related_pages": [
+          "concepts/Agent Loop.md"
+        ],
+        "review_notes": "Verify target exists.",
+        "risk_hint": "low",
+        "severity": "high",
+        "source": "structural",
+        "target_page": "concepts/Agent.md"
+      }
+    ],
+    "page_reviews": [],
+    "schema_version": "maintenance_candidates.v1",
+    "summary": "One candidate.",
+    "warnings": []
+  },
+  "drafts": {
+    "batch_summary": "One draft.",
+    "drafts": [
+      {
+        "answer": "This source describes Agent Loop.",
+        "confidence": 0.8,
+        "key_points": [
+          "Mentions Agent Loop."
+        ],
+        "model_name": "unit",
+        "model_provider": "fake",
+        "operation_index": 0,
+        "page_dir": "sources",
+        "patches": [],
+        "question": "Source digest",
+        "source_file": "raw/notes/Agent.md",
+        "summary": "Source digest for Agent notes.",
+        "tags": [
+          "source-digest"
+        ],
+        "target_page": null,
+        "title": "Agent Source Digest",
+        "write_action": "create"
+      }
+    ],
+    "warnings": []
+  },
+  "review": {
+    "decisions": [
+      {
+        "completeness": "complete",
+        "confidence": 0.9,
+        "constraints": [],
+        "correctness": "correct",
+        "decision": "approve",
+        "executor_fit": "supported_by_wiki_operation",
+        "necessity": "necessary",
+        "operation_index": 0,
+        "reason": "The operation is explicit and supported.",
+        "required_followups": [],
+        "risk_level": "low"
+      }
+    ],
+    "schema_version": "lint_maintenance_review.v1",
+    "summary": "Approved.",
+    "warnings": []
+  }
+}

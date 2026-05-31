@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SOURCE="${1:-$ROOT_DIR}"
+TMP_DIR="$(mktemp -d)"
+
+cleanup() {
+  rm -rf "$TMP_DIR"
+}
+trap cleanup EXIT
+
+echo "== Clean clone smoke test =="
+echo "source: $SOURCE"
+echo "workdir: $TMP_DIR"
+
+git clone --quiet "$SOURCE" "$TMP_DIR/knoarbor"
+cd "$TMP_DIR/knoarbor"
+
+uv sync --extra dev
+(cd web && npm install && npm run build)
+uv run python -m unittest discover -s tests
+uv run knoar --help >/dev/null
+uv run knoar init --vault wiki >/dev/null
+DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY:-knoarbor-release-smoke-key}" uv run knoar --config config.example.yaml doctor >/dev/null
+uv run knoar status --vault wiki >/dev/null
+uv build >/dev/null
+
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "Clean clone smoke test left tracked changes:" >&2
+  git status --short >&2
+  exit 1
+fi
+
+echo "Clean clone smoke test passed."

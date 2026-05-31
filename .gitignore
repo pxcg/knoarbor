@@ -1,0 +1,51 @@
+.DS_Store
+.local-dev/
+.env
+.env.*
+!.env.example
+config.yaml
+config.local.yaml
+wiki/
+.knoarbor/
+__pycache__/
+*.pyc
+
+# Generated presentation exports
+docs/slides/
+docs/slides/*.html
+docs/slides/*.pdf
+docs/slides/*.pptx
+
+# Local Python environments
+.venv/
+venv/
+env/
+.uv-python/
+
+# Runtime caches
+.uv-cache/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+!src/knoarbor/ui/dist/
+!src/knoarbor/ui/dist/**
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo
+web/test-results/
+web/playwright-report/
+knoarbor_logo_asset_kit/
+n8n/
+
+# Internal maintainer planning docs are kept locally, not in public releases.
+docs/maintainer/
+docs/zh/maintainer/
+
+# Obsidian local UI state
+.obsidian/
+wiki/.obsidian/

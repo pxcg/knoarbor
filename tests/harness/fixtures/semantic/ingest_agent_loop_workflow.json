@@ -1,0 +1,120 @@
+{
+  "ingest_draft_review": {
+    "batch_decision": "approve",
+    "decisions": [
+      {
+        "checks": {
+          "complete_enough": true,
+          "directory_fit": true,
+          "maintainable": true,
+          "not_duplicate": true,
+          "operation_aligned": true,
+          "page_boundary_clear": true,
+          "patch_safe": true,
+          "relation_quality": true,
+          "source_supported": true,
+          "write_safe": true
+        },
+        "decision": "approve",
+        "dimension_scores": {
+          "completeness": 0.9,
+          "directory_fit": 0.9,
+          "duplication_risk": 0.9,
+          "maintainability": 0.9,
+          "page_boundary": 0.9,
+          "patch_safety": 0.9,
+          "relation_quality": 0.9,
+          "source_support": 0.9
+        },
+        "operation_index": 0,
+        "quality_score": 0.9,
+        "reason": "The draft is source-supported.",
+        "required_changes": [],
+        "risk_level": "low",
+        "write_safety": "safe_create"
+      }
+    ],
+    "schema_version": "ingest_draft_review.v2",
+    "summary": "Approved.",
+    "warnings": []
+  },
+  "knowledge_extract": {
+    "compile_context": {
+      "latest_unit_indexes": [
+        0
+      ],
+      "links": [],
+      "primary_content": "Agent loop is observe, decide, act, feedback.",
+      "supporting_evidence": []
+    },
+    "confidence": 0.9,
+    "content_units": [
+      {
+        "content": "Agent loop is observe, decide, act, feedback.",
+        "index": 0,
+        "is_primary": true,
+        "metadata": {},
+        "role": "note",
+        "timestamp": null,
+        "title": "Agent",
+        "unit_type": "note"
+      }
+    ],
+    "schema_version": "knowledge_extract.v1",
+    "source": {
+      "created_at": null,
+      "source_app": "markdown",
+      "source_id": "markdown:agent",
+      "source_path": "raw/notes/Agent.md",
+      "source_type": "markdown",
+      "title": "Agent",
+      "updated_at": null
+    },
+    "warnings": []
+  },
+  "wiki_draft_batch": {
+    "batch_summary": "One concept draft.",
+    "drafts": [
+      {
+        "answer": "Agent Loop is an observe, decide, act, feedback cycle.",
+        "confidence": 0.9,
+        "key_points": [
+          "It includes feedback."
+        ],
+        "model_name": "unit",
+        "model_provider": "fake",
+        "operation_index": 0,
+        "page_dir": "concepts",
+        "patches": [],
+        "question": "Agent Loop",
+        "source_file": "raw/notes/Agent.md",
+        "summary": "Agent Loop is a basic control cycle for agents.",
+        "tags": [
+          "agent",
+          "control"
+        ],
+        "target_page": null,
+        "title": "Agent Loop",
+        "write_action": "create"
+      }
+    ],
+    "warnings": []
+  },
+  "wiki_relation_plan": {
+    "confidence": 0.9,
+    "operations": [
+      {
+        "action": "create",
+        "candidate_pages": [],
+        "decision_reason": "The source defines a durable concept.",
+        "knowledge_object": "Agent Loop",
+        "page_dir": "concepts",
+        "related_pages": [],
+        "target_page": null,
+        "title": "Agent Loop"
+      }
+    ],
+    "overall_summary": "Create one concept page.",
+    "warnings": []
+  }
+}

@@ -1,0 +1,260 @@
+{
+  "fixes": [
+    {
+      "action": "add_missing_section",
+      "description": "Add the missing standard section through reviewed deterministic wiki operation.",
+      "issue_code": "missing_required_section",
+      "mode": "manual",
+      "path": "sources/Agent-Loop-Source.md"
+    },
+    {
+      "action": "rebuild_index",
+      "description": "Rebuild index.md from generated wiki pages.",
+      "issue_code": "missing_index",
+      "mode": "safe_auto",
+      "path": "index.md"
+    },
+    {
+      "action": "repair_wikilink",
+      "description": "Update the link target to an existing page or create the missing page through ingest.",
+      "issue_code": "broken_wikilink",
+      "mode": "manual",
+      "path": "concepts/Agent-Loop.md"
+    },
+    {
+      "action": "review_relationships",
+      "description": "Review whether this page should be linked from a source, entity, concept, query, or index-facing hub page.",
+      "issue_code": "orphan_page",
+      "mode": "manual",
+      "path": "sources/Agent-Loop-Source.md"
+    },
+    {
+      "action": "review_relationships",
+      "description": "Review whether this page should be linked from a source, entity, concept, query, or index-facing hub page.",
+      "issue_code": "orphan_page",
+      "mode": "manual",
+      "path": "entities/OpenClaw.md"
+    },
+    {
+      "action": "review_relationships",
+      "description": "Review whether this page should be linked from a source, entity, concept, query, or index-facing hub page.",
+      "issue_code": "orphan_page",
+      "mode": "manual",
+      "path": "concepts/Agent-Loop.md"
+    },
+    {
+      "action": "review_graph_density",
+      "description": "Review whether this page needs contextual links, relationship pruning, or a hub page.",
+      "issue_code": "weak_link_graph",
+      "mode": "manual",
+      "path": "entities/OpenClaw.md"
+    },
+    {
+      "action": "review_graph_density",
+      "description": "Review whether this page needs contextual links, relationship pruning, or a hub page.",
+      "issue_code": "weak_link_graph",
+      "mode": "manual",
+      "path": "concepts/Agent-Loop.md"
+    },
+    {
+      "action": "repair_source_provenance",
+      "description": "Review source provenance and connect the source digest to generated knowledge pages.",
+      "issue_code": "source_digest_missing_related_pages",
+      "mode": "manual",
+      "path": "sources/Agent-Loop-Source.md"
+    },
+    {
+      "action": "repair_source_provenance",
+      "description": "Review source provenance and connect the source digest to generated knowledge pages.",
+      "issue_code": "knowledge_without_source_digest",
+      "mode": "manual",
+      "path": "entities/OpenClaw.md"
+    },
+    {
+      "action": "repair_source_provenance",
+      "description": "Review source provenance and connect the source digest to generated knowledge pages.",
+      "issue_code": "knowledge_missing_source_digest_link",
+      "mode": "manual",
+      "path": "concepts/Agent-Loop.md"
+    }
+  ],
+  "issues": [
+    {
+      "code": "missing_required_section",
+      "details": {
+        "directory": "sources",
+        "page_type": "source",
+        "section": "Source Focus"
+      },
+      "message": "Page is missing required sources section: Source Focus.",
+      "path": "sources/Agent-Loop-Source.md",
+      "severity": "info"
+    },
+    {
+      "code": "missing_index",
+      "details": {},
+      "message": "Wiki index.md is missing.",
+      "path": "index.md",
+      "severity": "error"
+    },
+    {
+      "code": "broken_wikilink",
+      "details": {
+        "target": "Missing Page"
+      },
+      "message": "Wiki link target does not exist.",
+      "path": "concepts/Agent-Loop.md",
+      "severity": "error"
+    },
+    {
+      "code": "orphan_page",
+      "details": {},
+      "message": "No other wiki page links to this page.",
+      "path": "sources/Agent-Loop-Source.md",
+      "severity": "info"
+    },
+    {
+      "code": "orphan_page",
+      "details": {},
+      "message": "No other wiki page links to this page.",
+      "path": "entities/OpenClaw.md",
+      "severity": "info"
+    },
+    {
+      "code": "orphan_page",
+      "details": {},
+      "message": "No other wiki page links to this page.",
+      "path": "concepts/Agent-Loop.md",
+      "severity": "info"
+    },
+    {
+      "code": "weak_link_graph",
+      "details": {
+        "incoming_count": 0,
+        "outgoing_count": 0
+      },
+      "message": "Generated knowledge page has no resolved incoming or outgoing wiki links.",
+      "path": "entities/OpenClaw.md",
+      "severity": "info"
+    },
+    {
+      "code": "weak_link_graph",
+      "details": {
+        "incoming_count": 0,
+        "outgoing_count": 0
+      },
+      "message": "Generated knowledge page has no resolved incoming or outgoing wiki links.",
+      "path": "concepts/Agent-Loop.md",
+      "severity": "info"
+    },
+    {
+      "code": "source_digest_missing_related_pages",
+      "details": {
+        "related_pages": [
+          "concepts/Agent-Loop.md"
+        ],
+        "source": "raw/notes/agent.md"
+      },
+      "message": "Source digest does not list all generated knowledge pages for the same raw source in Related Pages.",
+      "path": "sources/Agent-Loop-Source.md",
+      "severity": "info"
+    },
+    {
+      "code": "knowledge_without_source_digest",
+      "details": {
+        "source": "raw/notes/openclaw.md"
+      },
+      "message": "Generated knowledge page points to a raw source without a matching source digest page.",
+      "path": "entities/OpenClaw.md",
+      "severity": "info"
+    },
+    {
+      "code": "knowledge_missing_source_digest_link",
+      "details": {
+        "source": "raw/notes/agent.md",
+        "source_digest": "sources/Agent-Loop-Source.md"
+      },
+      "message": "Generated knowledge page does not link back to its matching source digest.",
+      "path": "concepts/Agent-Loop.md",
+      "severity": "info"
+    }
+  ],
+  "pages": [
+    {
+      "directory": "sources",
+      "headings": [
+        "Agent Loop Source",
+        "Summary",
+        "Answer",
+        "Key Points",
+        "Related Pages",
+        "Tags",
+        "Source"
+      ],
+      "outgoing_links": [],
+      "page_type": "source",
+      "path": "sources/Agent-Loop-Source.md",
+      "source": "raw/notes/agent.md",
+      "title": "Agent Loop Source"
+    },
+    {
+      "directory": "entities",
+      "headings": [
+        "OpenClaw",
+        "Summary",
+        "Answer",
+        "Key Points",
+        "Related Pages",
+        "Tags",
+        "Source"
+      ],
+      "outgoing_links": [],
+      "page_type": "entity",
+      "path": "entities/OpenClaw.md",
+      "source": "raw/notes/openclaw.md",
+      "title": "OpenClaw"
+    },
+    {
+      "directory": "concepts",
+      "headings": [
+        "Agent Loop",
+        "Summary",
+        "Answer",
+        "Key Points",
+        "Related Pages",
+        "Tags",
+        "Source"
+      ],
+      "outgoing_links": [
+        "Missing Page"
+      ],
+      "page_type": "concept",
+      "path": "concepts/Agent-Loop.md",
+      "source": "raw/notes/agent.md",
+      "title": "Agent Loop"
+    }
+  ],
+  "stats": {
+    "directories": {
+      "concepts": 1,
+      "entities": 1,
+      "sources": 1
+    },
+    "error_count": 2,
+    "graph_health": {
+      "component_count": 3,
+      "hub_pages": [],
+      "isolated_page_count": 3,
+      "largest_component_size": 1,
+      "node_count": 3,
+      "small_component_count": 0
+    },
+    "info_count": 9,
+    "issue_count": 11,
+    "page_count": 3,
+    "scan_max_chars_per_page": 2500,
+    "scope": "global",
+    "scoped": false,
+    "warning_count": 0
+  }
+}

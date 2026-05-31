@@ -1,0 +1,342 @@
+# Configuration
+
+KnoArbor uses two local files:
+
+- `config.yaml`: non-secret local settings.
+- `.env`: secrets and tokens.
+
+Both files are ignored by git. Copy the examples before running:
+
+```bash
+cp config.example.yaml config.yaml
+cp .env.example .env
+set -a && source .env && set +a
+```
+
+The CLI/API reads secrets from process environment variables. Loading `.env` is a shell step; the project does not automatically read secret files.
+
+`config_version` identifies the configuration schema. The first public schema is:
+
+```yaml
+config_version: 1
+```
+
+Future incompatible configuration changes should ship with migration helpers instead of silently changing behavior.
+
+Config loading follows a fixed order:
+
+```text
+read YAML/JSON -> migrate schema -> resolve local paths -> validate typed config
+```
+
+Migration helpers are structural only. They may move or rename fields in a future schema, but they do not guess user intent, repair secrets, or invent local paths. Config files newer than the running KnoArbor build fail explicitly.
+
+## Vault
+
+```yaml
+vault:
+  path: ./wiki
+```
+
+The vault is the runtime Markdown knowledge base. It is ignored by git because it can contain private notes, source documents, and generated pages.
+
+## Models
+
+The default configuration uses one model provider for all semantic workflows:
+
+```yaml
+models:
+  default_provider: deepseek
+  default_max_tokens: 30000
+  request_timeout_seconds: 600
+  retry:
+    enabled: true
+    max_attempts: 2
+    backoff_seconds: 2
+    retry_on_invalid_output: true
+    retryable_error_codes:
+      - KA-EXT-001
+      - KA-MODEL-001
+      - KA-SEM-001
+      - KA-STORAGE-001
+  providers:
+    deepseek:
+      base_url: https://api.deepseek.com
+      api_key_env: DEEPSEEK_API_KEY
+      model: deepseek-v4-flash
+```
+
+All providers currently use OpenAI-compatible Chat Completions APIs. You do not need to configure a provider `type`.
+
+`default_max_tokens` and `request_timeout_seconds` are intentionally generous. Ingest and lint are wiki compilation tasks, not short chat replies; relation planning, page drafting, and maintenance review often need longer outputs and more time.
+
+Configuration design follows the common shape used by AI workflow projects:
+
+- One global default model for most users.
+- A provider registry for users who need to switch between DeepSeek, OpenAI-compatible gateways, local servers, or hosted providers.
+- Secrets referenced by environment variable name instead of being stored in YAML.
+- Runtime limits such as output tokens and request timeout exposed as first-class configuration.
+- Prompt caching remains provider-owned and does not require a KnoArbor config switch. KnoArbor keeps semantic contract prompts stable and puts dynamic source/wiki payloads in later user-message content. It also records provider cache usage when returned by the API.
+
+Semantic model retries are an explicit runner policy, not a hidden downstream fallback. `SemanticRunner` may retry retryable provider failures and invalid structured model output before the result reaches ingest or lint. Page writes still happen only after a full source or reviewed maintenance batch is approved, so a retried model call cannot partially commit a page by itself.
+
+`retryable_error_codes` is the public retry allowlist. Keep it narrow: external service failures, model output/semantic contract failures, and storage conflicts are safe to retry; deterministic input/config/policy failures should be fixed rather than retried.
+
+Common examples:
+
+```yaml
+models:
+  default_provider: deepseek
+  providers:
+    deepseek:
+      base_url: https://api.deepseek.com
+      api_key_env: DEEPSEEK_API_KEY
+      model: deepseek-v4-flash
+    openai:
+      base_url: https://api.openai.com/v1
+      api_key_env: OPENAI_API_KEY
+      model: gpt-4.1
+    openrouter:
+      base_url: https://openrouter.ai/api/v1
+      api_key_env: OPENROUTER_API_KEY
+      model: deepseek/deepseek-chat-v3.1
+    ollama:
+      base_url: http://localhost:11434/v1
+      api_key_env: OLLAMA_API_KEY
+      model: qwen2.5:14b
+```
+
+Temporary CLI override:
+
+```bash
+uv run knoar ingest --provider openrouter --write
+uv run knoar lint-run --provider deepseek --mode quality
+```
+
+## Ingest Segmentation
+
+Long source segmentation is part of the core ingest pipeline. It runs after a
+connector has produced a standard `SourceDocument` and after chat checkpoints
+have selected the new message window.
+
+```yaml
+ingest:
+  segmentation:
+    enabled: true
+    max_chars_per_segment: 18000
+    soft_chars_per_segment: 12000
+    overlap_chars: 1200
+    max_segments_per_source: 20
+    min_segment_chars: 1000
+  recovery:
+    enabled: true
+    execution_ledger_path: maintenance/ingest_execution_ledger.jsonl
+  concurrency:
+    max_concurrent_sources: 1
+```
+
+The first implementation uses character budgets instead of tokenizer-specific
+token counts. Markdown is split by headings, Codex/Hermes/OpenClaw/Claude Code sessions by turn
+groups, parsed documents by sections/pages, and plain text by paragraphs.
+Checkpoint commits still happen at the source/window level after all segments
+finish, so a partially processed long source is not marked complete.
+
+`recovery` writes a machine-readable source/segment execution ledger for run recovery and debugging. `concurrency.max_concurrent_sources` applies only to dry-run/preflight ingest; write-capable ingest remains serial inside one vault to protect page writes and checkpoints.
+
+## Connectors
+
+Connectors convert external sources into the shared source pipeline.
+
+```yaml
+connectors:
+  markdown:
+    enabled: true
+    settings:
+      roots:
+        - ./wiki/raw/notes
+        - ./wiki/raw/documents/markdown
+      recursive: true
+      raw_output_dir: ./wiki/raw/notes
+      preserve_relative_paths: true
+```
+
+Supported connector categories in the current codebase:
+
+- `codex`: Codex JSONL session files.
+- `hermes`: Hermes TUI session files.
+- `openclaw`: OpenClaw JSONL session files.
+- `claude_code`: Claude Code JSONL transcript files.
+- `generic_chat`: custom local JSONL or SQLite chat transcripts with common `role`/`content`-style fields.
+- `markdown`: local Markdown notes.
+
+Enable Codex only when the local Codex session directory exists:
+
+```yaml
+connectors:
+  codex:
+    enabled: true
+    settings:
+      sessions_dir: ~/.codex/sessions
+      pattern: "rollout-*.jsonl"
+      recursive: true
+      raw_output_dir: ./wiki/raw/chats
+```
+
+Enable Hermes only when the local Hermes session directory exists:
+
+```yaml
+connectors:
+  hermes:
+    enabled: true
+    settings:
+      sessions_dir: ~/.hermes/sessions
+      raw_output_dir: ./wiki/raw/chats
+```
+
+Enable OpenClaw only when the local OpenClaw session directory exists. The
+connector reads the main session `.jsonl` files and intentionally excludes
+`.trajectory.jsonl` runtime traces.
+
+```yaml
+connectors:
+  openclaw:
+    enabled: true
+    settings:
+      sessions_dir: ~/.openclaw/agents/main/sessions
+      pattern: "*.jsonl"
+      recursive: false
+      raw_output_dir: ./wiki/raw/chats
+```
+
+Enable Claude Code only when the local Claude Code project transcript directory exists:
+
+```yaml
+connectors:
+  claude_code:
+    enabled: true
+    settings:
+      sessions_dir: ~/.claude/projects
+      pattern: "*.jsonl"
+      recursive: true
+      raw_output_dir: ./wiki/raw/chats
+```
+
+Use `generic_chat` for custom local chat exports only when no dedicated connector exists:
+
+```yaml
+connectors:
+  generic_chat:
+    enabled: true
+    settings:
+      roots:
+        - /path/to/chat/exports
+      patterns:
+        - "*.jsonl"
+        - "*.sqlite"
+        - "*.db"
+      recursive: true
+      raw_output_dir: ./wiki/raw/chats
+```
+
+Markdown is the default stable input path. Put notes under a configured root, such as `./wiki/raw/notes`, or add another root:
+
+```yaml
+connectors:
+  markdown:
+    enabled: true
+    settings:
+      roots:
+        - ./wiki/raw/notes
+        - /path/to/your/markdown-notes
+      recursive: true
+```
+
+Optional document processors live under `document_processing`, not under
+`connectors`. For example, `document_processing.mineru` can call a user-managed
+MinerU-compatible HTTP service and write Markdown into
+`wiki/raw/documents/markdown/`; the normal `markdown` connector then ingests that
+directory.
+
+Enable MinerU preprocessing only if you already run a compatible service. For a
+local source install of MinerU 3.x, start the API with a port that does not
+conflict with KnoArbor:
+
+```bash
+cd /path/to/MinerU
+.venv/bin/mineru-api --host 127.0.0.1 --port 18000
+```
+
+Then configure KnoArbor:
+
+```yaml
+document_processing:
+  mineru:
+    enabled: true
+    endpoint: http://127.0.0.1:18000/file_parse
+    input_dir: ./wiki/raw/documents/originals
+    output_dir: ./wiki/raw/documents/markdown
+    mode: auto
+    timeout_seconds: 600
+    patterns:
+      - "*.pdf"
+      - "*.docx"
+      - "*.pptx"
+    recursive: true
+    file_field: files
+    mode_field: parse_method
+    extra_fields:
+      backend: pipeline
+      lang_list: ch
+      formula_enable: true
+      table_enable: true
+      start_page_id: 0
+      end_page_id: 99999
+      return_md: true
+      return_middle_json: false
+      return_model_output: false
+      return_content_list: false
+      return_images: false
+      response_format_zip: false
+```
+
+MinerU is intentionally not listed as a source connector. It prepares Markdown;
+the source connector that compiles the result is still `markdown`.
+
+The management UI keeps only the endpoint visible by default. Use the folded
+advanced section when your MinerU deployment needs a different backend such as
+`pipeline`, `vlm-auto-engine`, or `hybrid-auto-engine`, a different
+`parse_method`, custom file patterns, or extra multipart fields.
+
+KnoArbor does not vendor or redistribute the MinerU runtime, model weights, or
+assets. If you enable this adapter, install and run MinerU separately and review
+MinerU's own license and attribution requirements. KnoArbor only interoperates
+with a MinerU-compatible HTTP endpoint.
+
+For a single file path, `ingest-file` chooses the path automatically:
+
+- `.md` / `.markdown` files go directly to the Markdown ingest path;
+- non-Markdown files call the configured MinerU adapter first;
+- if MinerU is disabled, missing, or unreachable, the run stops with an explicit
+  configuration error instead of silently skipping or falling back.
+
+Future connectors belong in the roadmap until they are implemented. They should
+not be added to `config.example.yaml` ahead of working code, because that makes
+the deployable surface ambiguous.
+
+## Privacy
+
+Privacy redaction runs before semantic model calls. Raw sources remain unchanged; the model receives a redacted copy.
+
+```yaml
+privacy:
+  redaction_enabled: true
+  redact_emails: true
+  redact_phone_numbers: true
+  redact_api_keys: true
+  redact_private_keys: true
+  redact_local_paths: true
+  redact_source_paths_in_pages: true
+  redact_private_ips: false
+```
+
+`redact_source_paths_in_pages` keeps internal checkpoints on the real source path, but writes a redacted path into generated wiki pages. Use local models or private endpoints for sensitive personal or company data.

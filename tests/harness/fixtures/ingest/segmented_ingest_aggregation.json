@@ -1,0 +1,152 @@
+{
+  "report": "# Ingest Report\n\n- run_id: golden-ingest-run\n- started_at: 2026-01-01 00:00:00\n- finished_at: 2026-01-01 00:00:01\n- sources: 1\n- processed: 1\n- skipped: 0\n- failed: 0\n- written_pages: 1\n- segments: 3 total, 0 failed, max 1607 chars\n- document_processing: 0 processed, 0 failed\n- elapsed_seconds: <elapsed>\n- semantic_calls: 3\n- total_tokens: 0\n- tokens_per_second: <tokens_per_second>\n- lifecycle_candidates: 0\n- recovery_candidates: 0\n- source_concurrency: 1 effective / 1 configured\n- execution_ledger: n/a\n- repeated_failed_sources: 0\n- repeated_skipped_sources: 0\n\n## Run Summary\n\n- source_status: written=1\n- segment_status: processed=3\n- write_summary: 1 page(s) written across 1 source(s)\n- failure_summary: none\n- recovery_summary: none\n\n## Sources\n\n### raw/notes/long-agent-loop.md\n\n- connector: markdown\n- source_id: markdown:golden-long-note\n- mode: full\n- status: written\n- checkpoint_type: source\n- should_process: True\n- wrote: True\n- reason: Explicit source document input.\n- semantic_skip_reason: n/a\n- redacted_count: 0\n- candidate_count: 0\n- quality_gate_passed: True\n- touched_pages: 1\n- scoped_lint_issues: not_run\n- maintenance_policy: not_run\n- maintenance_policy_triggered: False\n- elapsed_seconds: <elapsed>\n- semantic_calls: 0\n- total_tokens: 0\n- tokens_per_second: <tokens_per_second>\n- approved_operations: [0, 1000, 2000]\n- segmentation: heading / 3 segment(s)\n- segment_status: processed=3\n\nRelation operations:\n- None.\n\nSegments:\n- [0] Agent Loop Overview / 1301 chars / status: processed / semantic_calls: 0 / tokens: 0 / elapsed: <elapsed>s\n  - `create` `sources` Long Source Digest -> new page\n  - written_pages: sources/Long-Source-Digest.md\n  - page_change: `sources/Long-Source-Digest.md` action=create sections=none\n- [1] Workflow Boundaries / 1607 chars / status: processed / semantic_calls: 0 / tokens: 0 / elapsed: <elapsed>s\n  - `create` `sources` Long Source Digest -> new page\n- [2] Evaluation Harness / 1480 chars / status: processed / semantic_calls: 0 / tokens: 0 / elapsed: <elapsed>s\n  - `create` `sources` Long Source Digest -> new page\n\nGenerated pages:\n- sources/Long-Source-Digest.md\n\nScoped lint pages:\n- sources/Long-Source-Digest.md\n\n## Source Lifecycle Candidates\n\n- None.\n\n## Recovery Candidates\n\n- None.\n",
+  "source": {
+    "approved_operation_indexes": [
+      0,
+      1000,
+      2000
+    ],
+    "connector": "markdown",
+    "context": {
+      "semantic_metrics": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0,
+        "semantic_call_count": 0,
+        "total_tokens": 0
+      },
+      "write_policy": {
+        "changes": [
+          "merged_source_digest_creates:3->1"
+        ]
+      }
+    },
+    "generated_pages": [
+      "sources/Long-Source-Digest.md"
+    ],
+    "quality_gate": {
+      "passed": true,
+      "segment_count": 3
+    },
+    "segmentation": {
+      "enabled": true,
+      "max_segment_chars": 1607,
+      "mode": "heading",
+      "segment_count": 3,
+      "total_segment_chars": 4388,
+      "warnings": []
+    },
+    "segments": [
+      {
+        "approved_operation_indexes": [
+          0
+        ],
+        "chars": 1301,
+        "generated_pages": [
+          "sources/Long-Source-Digest.md"
+        ],
+        "index": 0,
+        "is_full_source": false,
+        "metrics": {
+          "semantic": {
+            "completion_tokens": 0,
+            "prompt_tokens": 0,
+            "semantic_call_count": 0,
+            "total_tokens": 0
+          }
+        },
+        "relation_operations": [
+          {
+            "action": "create",
+            "decision_reason": "Create one digest for the source, not one page per segment.",
+            "knowledge_object": "Long source provenance",
+            "operation_index": 0,
+            "page_dir": "sources",
+            "target_page": null,
+            "title": "Long Source Digest"
+          }
+        ],
+        "source_range": {
+          "from_index": null,
+          "to_index": null
+        },
+        "status": "processed",
+        "title": "Agent Loop Overview",
+        "warnings": []
+      },
+      {
+        "approved_operation_indexes": [
+          0
+        ],
+        "chars": 1607,
+        "generated_pages": [],
+        "index": 1,
+        "is_full_source": false,
+        "metrics": {
+          "semantic": {
+            "completion_tokens": 0,
+            "prompt_tokens": 0,
+            "semantic_call_count": 0,
+            "total_tokens": 0
+          }
+        },
+        "relation_operations": [
+          {
+            "action": "create",
+            "decision_reason": "Create one digest for the source, not one page per segment.",
+            "knowledge_object": "Long source provenance",
+            "operation_index": 0,
+            "page_dir": "sources",
+            "target_page": null,
+            "title": "Long Source Digest"
+          }
+        ],
+        "source_range": {
+          "from_index": null,
+          "to_index": null
+        },
+        "status": "processed",
+        "title": "Workflow Boundaries",
+        "warnings": []
+      },
+      {
+        "approved_operation_indexes": [
+          0
+        ],
+        "chars": 1480,
+        "generated_pages": [],
+        "index": 2,
+        "is_full_source": false,
+        "metrics": {
+          "semantic": {
+            "completion_tokens": 0,
+            "prompt_tokens": 0,
+            "semantic_call_count": 0,
+            "total_tokens": 0
+          }
+        },
+        "relation_operations": [
+          {
+            "action": "create",
+            "decision_reason": "Create one digest for the source, not one page per segment.",
+            "knowledge_object": "Long source provenance",
+            "operation_index": 0,
+            "page_dir": "sources",
+            "target_page": null,
+            "title": "Long Source Digest"
+          }
+        ],
+        "source_range": {
+          "from_index": null,
+          "to_index": null
+        },
+        "status": "processed",
+        "title": "Evaluation Harness",
+        "warnings": []
+      }
+    ],
+    "source_file": "raw/notes/long-agent-loop.md",
+    "source_id": "markdown:golden-long-note",
+    "status": "written",
+    "wrote": true
+  }
+}
