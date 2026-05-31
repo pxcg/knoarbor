@@ -24,6 +24,7 @@
 
 - [接口说明](API.md)：本地 HTTP API 的用途和边界。
 - [开发说明](DEVELOPMENT.md)：本地开发、测试、构建和发布流程。
+- [发布前审查清单](RELEASE_CHECKLIST.md)：公开发布前的仓库、隐私、测试、文档、UI 和发布门禁。
 - [v0.7.0 发布说明](../releases/v0.7.0.md)：UI 与知识库浏览版本说明。
 
 ## 推荐阅读顺序
@@ -38,4 +39,10 @@
 
 ```text
 核心概念 -> 架构设计 -> 溯源设计 -> 开发说明
+```
+
+发布准备：
+
+```text
+发布前审查清单 -> Changelog -> Release Notes -> Security
 ```

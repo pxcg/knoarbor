@@ -21,6 +21,7 @@ Chinese documentation lives in [zh/](zh/). This documentation tree is intended f
 
 ## Operations
 
+- [Release Preflight Checklist](RELEASE_CHECKLIST.md): repository, privacy, tests, docs, UI, and release gates before tagging.
 - [Changelog](../CHANGELOG.md): public release notes.
 - [v0.7.0 Release Notes](releases/v0.7.0.md): UI and knowledge-base browsing alpha release content.
 - [v0.6.0 Release Notes](releases/v0.6.0.md): UI foundation release content.
@@ -54,5 +55,5 @@ Core Concepts -> Architecture -> Provenance Design -> Development -> Contributin
 For release preparation:
 
 ```text
-Changelog -> Release Notes -> Security
+Release Preflight Checklist -> Changelog -> Release Notes -> Security
 ```

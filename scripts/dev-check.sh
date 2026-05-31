@@ -18,6 +18,7 @@ echo "4/6 Python tests"
 uv run python -m unittest discover -s tests
 
 echo "5/6 CLI diagnostics"
+uv run knoar init --vault wiki >/dev/null
 DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY:-knoarbor-release-smoke-key}" uv run knoar --config config.example.yaml doctor >/dev/null
 
 echo "6/6 Python package build"
