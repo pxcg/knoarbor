@@ -51,6 +51,13 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 - 维护验证的编排位于 `maintenance/operation_verification.py`；具体 action 的验证规则位于 `maintenance/operation_verifiers.py`。
 - 报告模块通过 `audit/report_formatting.py` 共享基础 Markdown 格式化工具；ingest 和 lint 报告仍各自负责工作流专属摘要。
 
+粒度规则：
+
+- 当一个模块混合多个架构层、包含可单独测试的策略，或迫使调用方引入无关依赖时，应该拆分。
+- 当一个模块本质上是内聚的 registry、命令处理集合、验证规则集合或报告渲染器时，可以保持聚合；文件偏长本身不是继续拆分的充分理由。
+- 相比大量微小文件，优先保留一个职责清楚、局部 helper 可读的文件。
+- 新增子包应表达稳定概念，而不是只为了隐藏一个长函数。
+
 ## 系统层
 
 ### 来源层

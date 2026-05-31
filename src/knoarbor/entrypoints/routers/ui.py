@@ -11,15 +11,14 @@ from knoarbor.core.markdown import compact_inline_text, extract_heading
 from knoarbor.core.schemas.wiki_lint import WikiScanRequest
 from knoarbor.pipelines.lint import WikiLintPipeline
 from knoarbor.retrieval import IndexRequest, MachineIndexProvider
-from knoarbor.services.ui_config import (
+from knoarbor.services.ui_config import UiConfigService, summarize_default_config
+from knoarbor.services.ui_config_models import (
     UiConfigDiagnostics,
     UiConfigFormResponse,
     UiConfigFormUpdateRequest,
     UiConfigResponse,
-    UiConfigService,
     UiConfigUpdateRequest,
     UiConfigUpdateResponse,
-    summarize_default_config,
 )
 from knoarbor.services.wiki_graph import WikiGraph, build_wiki_graph
 

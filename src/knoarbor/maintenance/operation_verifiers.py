@@ -22,6 +22,7 @@ CHATTY_SUMMARY_PATTERN = re.compile(
     flags=re.IGNORECASE,
 )
 
+
 def verify_wiki_operation(vault_path: Path, operation: dict[str, Any]) -> LintPostFixVerification:
     action = str(operation.get("action") or "")
     target_page = _optional_str(operation.get("output_page")) or _optional_str(operation.get("target_page"))

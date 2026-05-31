@@ -53,6 +53,13 @@ Implementation notes:
 - Maintenance verification keeps orchestration in `maintenance/operation_verification.py`; action-specific verification rules live in `maintenance/operation_verifiers.py`.
 - Report modules share primitive Markdown formatting helpers through `audit/report_formatting.py`; ingest and lint reports still own their workflow-specific summaries.
 
+Granularity rule:
+
+- Split a module when it mixes different architectural layers, has separately testable policies, or forces unrelated imports into callers.
+- Keep a module together when it is a cohesive registry, command-handler set, verifier-rule set, or report renderer whose main cost is local length rather than unclear ownership.
+- Prefer one clear file with local helper functions over many tiny files that make a workflow harder to trace.
+- New subpackages should describe a durable concept, not just hide a long function.
+
 ## System Layers
 
 ### Source Layer

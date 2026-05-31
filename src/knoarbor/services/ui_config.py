@@ -28,6 +28,7 @@ from knoarbor.services.ui_config_models import (
     UiModelProviderForm,
 )
 
+
 class UiConfigService:
     """Owns UI-facing config read, validation, diagnostics, and writes."""
 
