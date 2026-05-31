@@ -187,6 +187,13 @@ Responsibilities:
 - execute only reviewed operations;
 - keep high-risk refresh, merge/split, conflict, and external-fact work as queued or report-only actions unless explicitly supported by a reviewed executor.
 
+Implementation boundary:
+
+- `lint_collection` owns page collection, wikilink lookup maps, graph health, and scoped page expansion.
+- `lint_scanners` owns deterministic scan rules and issue generation.
+- `lint_candidates` owns scan-page previews and quality/freshness candidate scoring.
+- `wiki_lint` is the public orchestration facade for scan, candidate selection, safe fixes, and legacy lint reports.
+
 User-facing modes:
 
 - `structural`: structure, links, and provenance maintenance;

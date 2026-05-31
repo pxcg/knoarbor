@@ -185,6 +185,13 @@ scan
 - 只执行已审核 operation。
 - 高风险 refresh、merge/split、conflict 和外部事实工作保持 queue/report-only，除非已有明确审核执行器支持。
 
+实现边界：
+
+- `lint_collection` 负责页面收集、wikilink lookup、图谱健康度和 scoped page 扩展。
+- `lint_scanners` 负责确定性扫描规则和 issue 生成。
+- `lint_candidates` 负责 scan page 预览、质量候选和 freshness 候选评分。
+- `wiki_lint` 是公开编排门面，只保留 scan、candidate selection、safe fixes 和旧版 lint report 入口。
+
 用户可见模式：
 
 - `structural`：结构、链接和溯源维护。
