@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getPage, getReport, getRunEvents, type ReportDetail } from "../api/client";
 import type { AppContext } from "../App";
-import { ReportReadableView, parseReportRunId } from "../components/report/ReportReadableView";
+import { ReportReadableView } from "../components/report/ReportReadableView";
+import { parseReportRunId } from "../components/report/reportParser";
 import { localizeReportKind, localizeReportLabel, localizeReportTitle } from "../components/reportLabels";
 import { runStatusLabel } from "../components/runStatus";
 import type { RunEvent } from "../types";
