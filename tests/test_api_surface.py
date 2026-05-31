@@ -247,7 +247,7 @@ class ApiSurfaceTests(unittest.TestCase):
             client = TestClient(create_app())
 
             response = client.get(
-                "/ui/api/page",
+                "/wiki/page",
                 params={"vault_path": str(vault), "path": "concepts/Missing.md"},
             )
 

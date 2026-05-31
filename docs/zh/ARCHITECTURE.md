@@ -226,6 +226,19 @@ KnoArbor 是本地优先的 Wiki 引擎，但仍需要明确运行时基础设�
 - **供应商 prompt cache**：prompt caching 由模型供应商负责。语义契约把长且稳定的指令和输出 schema 放在 system message，动态 source/wiki payload 放在后续 user message。runner 不应在稳定契约 prompt 前注入时间戳、run id、本地路径等易变内容。供应商返回 cached prompt tokens 或 DeepSeek cache hit/miss tokens 时，KnoArbor 会记录到运行指标中。
 - **Docker**：Docker 是部署适配层，不是核心架构层。
 
+## 读取 API 边界
+
+生成后的 Wiki 页面拥有独立稳定的读取边界：
+
+```text
+storage / retrieval metadata
+  -> WikiPagesService
+  -> /wiki/pages, /wiki/page, /wiki/backlinks
+  -> UI, skills, CLI wrappers, external clients
+```
+
+UI 不应拥有另一套页面读取逻辑。UI 可以拥有配置表单、项目文档预览、报告列表渲染等界面专用适配器；但 Wiki 页面列表、页面详情和反向链接属于 `wiki` API/service 边界。
+
 ## 智能体边界
 
 KnoArbor 使用窄功能语义契约，而不是自治多智能体团队。
@@ -247,6 +260,25 @@ KnoArbor 使用窄功能语义契约，而不是自治多智能体团队。
 - CLI 是同一批 pipeline 的执行适配器。
 - 外部工作流工具是可选适配器，应调用稳定 pipeline API。
 - UI 是配置、运行、报告、文档和图谱检查的管理控制台，不是独立工作流引擎。
+
+## 前端边界
+
+Web UI 是建立在公开 API 和 UI 专用 HTTP 适配器之上的本地管理控制台。它需要提供清晰的产品交互，但不应成为后端业务逻辑的第二套实现。
+
+职责：
+
+- 展示配置、来源状态、运行任务、报告、Wiki 页面、图谱数据和项目文档；
+- 通过稳定核心 API 运行流程、读取运行状态、查询上下文和 Wiki 页面；
+- 只在配置表单、诊断摘要、内置文档和报告预览等界面专用场景调用 `/ui/api/*`；
+- 使用可复用本地组件渲染 Markdown、diff、报告和图谱。
+
+不负责：
+
+- 来源发现、checkpoint、分段、页面 operation 规划、lint 执行、重试策略、vault 写入和报告生成；
+- 在已有核心 `/wiki/*` 页面读取 API 时，再实现一套 UI 专用页面解析逻辑；
+- 静默修复本应由 Python Core 校验的异常 API payload。
+
+v0.x 阶段，KnoArbor 暂时保留轻量本地组件体系，不引入完整 UI 组件框架。如果表单、菜单、弹窗、表格和报告视图继续膨胀，下一步应有意识地抽取共享 UI primitives，或正式引入小型组件库，而不是继续追加页面级样式补丁。
 
 ## 可靠性原则
 

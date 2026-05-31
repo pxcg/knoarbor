@@ -38,6 +38,7 @@ v0.x 稳定公开接口范围：
 | 同步工作流 | `POST /ingest/*`, `POST /lint/run`, `POST /query/search` | 稳定公开流程接口 |
 | 运行队列 | `POST /runs/*`, `GET /runs*`, `POST /runs/{run_id}/cancel`, `POST /runs/{run_id}/rerun-failed` | 稳定公开长任务接口 |
 | 查询反馈 | `POST /query/feedback`, `GET /query/trends` | 稳定公开遥测接口 |
+| Wiki 页面 | `GET /wiki/pages`, `GET /wiki/page`, `GET /wiki/backlinks` | 稳定公开页面读取接口 |
 | 管理界面 | `GET /`, `GET /ui`, `/ui/api/*` | UI 入口公开；`/ui/api/*` 为内部接口 |
 
 ## 错误契约
@@ -247,6 +248,20 @@ KnoArbor 当前采用本地单机队列：
 - 后续如果引入写入型 source/segment 并发，必须先汇总草稿和审核结果，再统一写入，并且只有完整 source 成功后才提交检查点。
 
 第一版优先保证正确性、可复现和写入一致性，而不是追求最大吞吐量。
+
+## Wiki 页面接口
+
+这些接口用于从 UI、Skill、CLI 包装器或外部工具中查看已经生成的 Wiki 页面。
+
+```http
+GET /wiki/pages?vault_path=/path/to/wiki
+GET /wiki/page?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
+GET /wiki/backlinks?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
+```
+
+`/wiki/pages` 返回页面摘要和链接元数据。`/wiki/page` 返回单个 Markdown 页面、元数据和摘要字段。`/wiki/backlinks` 返回链接到当前页面的其他页面。
+
+这些路由是稳定公开读取 API。本地 UI 也使用这些接口；外部工具应依赖 `/wiki/*`，不要依赖 `/ui/api/*`。
 
 ## 管理界面接口
 

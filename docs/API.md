@@ -38,6 +38,7 @@ Stable public surface for v0.x:
 | Synchronous workflows | `POST /ingest/*`, `POST /lint/run`, `POST /query/search` | Stable public workflow API |
 | Run queue | `POST /runs/*`, `GET /runs*`, `POST /runs/{run_id}/cancel`, `POST /runs/{run_id}/rerun-failed` | Stable public long-run API |
 | Query feedback | `POST /query/feedback`, `GET /query/trends` | Stable public telemetry API |
+| Wiki pages | `GET /wiki/pages`, `GET /wiki/page`, `GET /wiki/backlinks` | Stable public page read API |
 | Management UI | `GET /`, `GET /ui`, `/ui/api/*` | UI is public; `/ui/api/*` is internal |
 
 ## Error Contract
@@ -253,6 +254,20 @@ KnoArbor currently uses a local single-machine queue:
 - Future write-capable source/segment concurrency must aggregate drafts before writing and commit checkpoints only after the whole source succeeds.
 
 This design favors correctness and reproducibility over maximum throughput for the first public version.
+
+## Wiki Page API
+
+Use these endpoints to inspect generated wiki pages from a UI, skill, CLI wrapper, or external tool.
+
+```http
+GET /wiki/pages?vault_path=/path/to/wiki
+GET /wiki/page?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
+GET /wiki/backlinks?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
+```
+
+`/wiki/pages` returns page summaries and link metadata. `/wiki/page` returns one Markdown page with metadata and rendered summary fields. `/wiki/backlinks` returns pages that link to the selected page.
+
+These routes are stable public read APIs. The local UI uses them too; external tools should depend on `/wiki/*` instead of `/ui/api/*`.
 
 ## UI Endpoints
 

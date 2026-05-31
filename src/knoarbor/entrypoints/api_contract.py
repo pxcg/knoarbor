@@ -28,6 +28,9 @@ PUBLIC_STABLE_ROUTES: tuple[str, ...] = (
     "/runs/{run_id}/stream",
     "/runs/{run_id}/cancel",
     "/runs/{run_id}/rerun-failed",
+    "/wiki/pages",
+    "/wiki/page",
+    "/wiki/backlinks",
 )
 
 UI_PUBLIC_ROUTES: tuple[str, ...] = (
@@ -38,8 +41,6 @@ UI_PUBLIC_ROUTES: tuple[str, ...] = (
     "/ui/api/config/diagnostics",
     "/ui/api/status",
     "/ui/api/graph",
-    "/ui/api/pages",
-    "/ui/api/page",
     "/ui/api/reports",
     "/ui/api/report",
     "/ui/api/docs/{doc_path}",

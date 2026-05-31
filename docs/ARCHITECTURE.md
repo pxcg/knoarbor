@@ -231,6 +231,19 @@ KnoArbor remains a local-first wiki engine, but it still needs explicit runtime 
 - **Provider prompt cache**: prompt caching is owned by the model provider. Semantic contracts keep long, stable instructions and output schemas in the system message; dynamic source/wiki payloads are appended in the user message. The runner must not inject timestamps, run IDs, local paths, or other volatile data before the stable contract prompt. Provider cache telemetry such as cached prompt tokens or DeepSeek cache hit/miss tokens is collected when available.
 - **Docker**: Docker is a deployment adapter, not a core architecture layer. It should package the Python Core, CLI/FastAPI entrypoints, static UI, and config templates after the local execution path is stable.
 
+## Read API Boundaries
+
+Generated wiki pages have their own stable read boundary:
+
+```text
+storage / retrieval metadata
+  -> WikiPagesService
+  -> /wiki/pages, /wiki/page, /wiki/backlinks
+  -> UI, skills, CLI wrappers, external clients
+```
+
+The UI must not own separate page-reading logic. It may own UI-only adapters such as configuration forms, project documentation previews, and report list rendering, but generated wiki page listing, page detail, and backlinks belong to the `wiki` API/service boundary.
+
 ## Agent Boundaries
 
 KnoArbor uses narrow semantic contracts rather than autonomous multi-agent teams.
@@ -252,6 +265,25 @@ Agents do not read files, write pages, execute operations, or repair malformed u
 - CLI is an execution adapter over the same pipelines.
 - External workflow tools are optional adapters and should call stable pipeline-level APIs.
 - UI is a management console for configuration, running, reports, docs, and graph inspection; it is not a separate workflow engine.
+
+## Frontend Boundaries
+
+The web UI is a local management console over the public and UI-only HTTP adapters. It should keep product interaction clear without becoming a second implementation of the backend.
+
+Responsibilities:
+
+- present configuration, source status, runs, reports, wiki pages, graph data, and project documentation;
+- call stable core APIs for workflow execution, run state, query context, and wiki page reads;
+- call `/ui/api/*` only for UI-specific adapters such as config forms, diagnostics summaries, bundled docs, and report previews;
+- render Markdown, diffs, reports, and graph views with reusable local components.
+
+Non-responsibilities:
+
+- source discovery, checkpoint logic, segmentation, page operation planning, lint execution, retry policy, vault writes, and report generation;
+- parsing wiki pages through a separate UI-only code path when a core `/wiki/*` read API exists;
+- silently repairing malformed API payloads that should have been validated by Python Core.
+
+For the v0.x line, KnoArbor keeps a lightweight local component system instead of adopting a full UI component framework. If forms, menus, dialogs, tables, and report views continue to grow, the next architectural step should be extracting shared UI primitives or adopting a small component library deliberately, not adding page-specific styling patches.
 
 ## Reliability Principles
 

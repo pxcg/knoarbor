@@ -7,11 +7,10 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from knoarbor.core.markdown import compact_inline_text, extract_heading, extract_section, extract_tags, parse_frontmatter
+from knoarbor.core.markdown import compact_inline_text, extract_heading
 from knoarbor.core.schemas.wiki_lint import WikiScanRequest
 from knoarbor.pipelines.lint import WikiLintPipeline
 from knoarbor.retrieval import IndexRequest, MachineIndexProvider
-from knoarbor.retrieval.markdown import SearchPage
 from knoarbor.services.ui_config import (
     UiConfigDiagnostics,
     UiConfigFormResponse,
@@ -34,31 +33,6 @@ class UiStatusResponse(BaseModel):
     warnings: int
     info: int
     directories: dict[str, int] = Field(default_factory=dict)
-
-
-class UiPageSummary(BaseModel):
-    path: str
-    directory: str
-    title: str
-    page_type: str | None = None
-    status: str | None = None
-    updated: str | None = None
-    source: str | None = None
-    tags: list[str] = Field(default_factory=list)
-    summary: str = ""
-    headings: list[str] = Field(default_factory=list)
-
-
-class UiPagesResponse(BaseModel):
-    vault_path: str
-    pages: list[UiPageSummary]
-
-
-class UiPageDetail(BaseModel):
-    path: str
-    content: str
-    metadata: dict[str, str] = Field(default_factory=dict)
-    summary: UiPageSummary
 
 
 class UiReportSummary(BaseModel):
@@ -147,21 +121,6 @@ def create_ui_router() -> APIRouter:
         path = Path(vault_path or _summary_from_default_config().get("vault_path") or "./wiki").expanduser().resolve()
         return build_wiki_graph(path)
 
-    @router.get("/ui/api/pages", response_model=UiPagesResponse, tags=["ui"])
-    async def read_ui_pages(vault_path: str | None = Query(default=None)) -> UiPagesResponse:
-        path = _resolve_vault_path(vault_path)
-        return UiPagesResponse(vault_path=str(path), pages=_collect_pages(path))
-
-    @router.get("/ui/api/page", response_model=UiPageDetail, tags=["ui"])
-    async def read_ui_page(path: str, vault_path: str | None = Query(default=None)) -> UiPageDetail:
-        vault = _resolve_vault_path(vault_path)
-        page_path = _resolve_vault_file(vault, path)
-        if not page_path.suffix.lower() == ".md":
-            raise HTTPException(status_code=400, detail="Only Markdown pages can be previewed")
-        content = page_path.read_text(encoding="utf-8")
-        summary = _page_summary(vault, page_path, content)
-        return UiPageDetail(path=summary.path, content=content, metadata=parse_frontmatter(content), summary=summary)
-
     @router.get("/ui/api/reports", response_model=UiReportsResponse, tags=["ui"])
     async def read_ui_reports(vault_path: str | None = Query(default=None)) -> UiReportsResponse:
         path = _resolve_vault_path(vault_path)
@@ -242,47 +201,6 @@ def _resolve_vault_file(vault_path: Path, relative_path: str) -> Path:
     if not page_path.exists() or not page_path.is_file():
         raise HTTPException(status_code=404, detail=f"Vault file not found: {relative_path}")
     return page_path
-
-
-def _collect_pages(vault_path: Path) -> list[UiPageSummary]:
-    if not vault_path.exists():
-        return []
-    pages = MachineIndexProvider().collect(IndexRequest(vault_path=vault_path))
-    return [_page_summary_from_index(page) for page in pages]
-
-
-def _page_summary_from_index(page: SearchPage) -> UiPageSummary:
-    return UiPageSummary(
-        path=page.relative_path,
-        directory=page.directory,
-        title=page.title,
-        page_type=page.page_type,
-        status=page.status,
-        updated=None,
-        source=page.source,
-        tags=page.tags,
-        summary=compact_inline_text(page.summary, 280),
-        headings=page.headings[:12],
-    )
-
-
-def _page_summary(vault_path: Path, path: Path, content: str) -> UiPageSummary:
-    relative = path.relative_to(vault_path).as_posix()
-    metadata = parse_frontmatter(content)
-    directory = relative.split("/", 1)[0] if "/" in relative else "root"
-    title = metadata.get("title") or extract_heading(content, path.stem)
-    return UiPageSummary(
-        path=relative,
-        directory=directory,
-        title=title,
-        page_type=metadata.get("type"),
-        status=metadata.get("status"),
-        updated=metadata.get("updated") or metadata.get("created"),
-        source=metadata.get("source"),
-        tags=extract_tags(content, metadata),
-        summary=compact_inline_text(extract_section(content, "Summary") or extract_section(content, "摘要"), 280),
-        headings=re.findall(r"^#{1,3}\s+(.+)$", content, flags=re.MULTILINE)[:12],
-    )
 
 
 def _collect_reports(vault_path: Path) -> list[UiReportSummary]:
