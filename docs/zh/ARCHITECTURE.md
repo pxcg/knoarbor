@@ -138,6 +138,8 @@ IndexProvider
 connector discovery
   -> source normalization
   -> privacy redaction
+  -> checkpoint window
+  -> source segmentation
   -> source normalize agent
   -> candidate page retrieval
   -> relation planning
@@ -163,6 +165,16 @@ connector discovery
 - `IngestWritePolicy` 在写入前执行 source/window 级不变量：同一 raw source 在同一批 ingest 中最多创建一个 source digest。
 - ingest 默认不做宽泛词面 Related Pages 扫描，只保留 source digest 与同源生成页面之间的确定性 provenance 链接。
 - `ingest-file` 是单文件边界：Markdown 直接进入共享 ingest；非 Markdown 必须先经过已配置的 MinerU-compatible 预处理器，缺少预处理器时显式失败。
+
+实现边界：
+
+- `pipelines/ingest.py` 是编排外壳：connector 执行、segment 执行、写入/scoped lint/report 协调和 checkpoint 提交。
+- `pipelines/ingest_checkpoint.py` 负责 checkpoint 计划和提交载荷。
+- `pipelines/source_segmentation.py` 负责分段计划和 source-window 切分边界。
+- `pipelines/ingest_context.py` 负责候选页面检索和 materialization。
+- `pipelines/ingest_metrics.py` 负责 source/segment 指标、脱敏统计聚合和语义 token 统计。
+- `pipelines/ingest_lifecycle.py` 负责从 checkpoint 状态生成 missing/moved source 生命周期候选。
+- `pipelines/ingest_quality.py` 与 `pipelines/ingest_write_policy.py` 负责写入前校验和写入不变量。
 
 ### Lint / 校验维护
 

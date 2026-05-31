@@ -14,11 +14,6 @@ from knoarbor.core.errors import error_info
 from knoarbor.core.ignore import KnoArborIgnore
 from knoarbor.core.redaction import redact_display_text, redact_source_document
 from knoarbor.core.schemas.ingest_pipeline import IngestPipelineResult, IngestSourceResult
-from knoarbor.core.schemas.lint_candidates import (
-    MaintenanceCandidate,
-    MaintenanceEvidence,
-    MaintenanceRecommendedAction,
-)
 from knoarbor.core.schemas.maintenance import MaintenanceScope, MaintenanceScopeSource
 from knoarbor.core.schemas.sources import SourceDocument
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
@@ -38,6 +33,19 @@ from knoarbor.pipelines.ingest_checkpoint import (
     _commit_checkpoint_plan,
     _document_for_checkpoint,
     _prepare_checkpoint_plan,
+)
+from knoarbor.pipelines.ingest_lifecycle import relative_or_absolute, source_lifecycle_candidates
+from knoarbor.pipelines.ingest_metrics import (
+    as_dict,
+    combine_redactions,
+    combine_semantic_metrics,
+    ingest_run_metrics,
+    max_segment_chars,
+    recovery_candidate_count,
+    segment_count,
+    segment_status_count,
+    semantic_metrics,
+    source_processed,
 )
 from knoarbor.pipelines.lint import WikiLintPipeline
 from knoarbor.pipelines.source import SourcePipeline, SourcePipelineFailure, SourcePipelineItem
@@ -446,8 +454,8 @@ class IngestSourceExecutor:
                 )
 
         result.segments = [_segment_record(batch, index, segment_result) for index, segment_result in enumerate(segment_results)]
-        result.redaction = _combine_redactions([segment.redaction for segment in segment_results])
-        result.context = {"semantic_metrics": _combine_semantic_metrics([_semantic_metrics(segment) for segment in segment_results])}
+        result.redaction = combine_redactions([segment.redaction for segment in segment_results])
+        result.context = {"semantic_metrics": combine_semantic_metrics([semantic_metrics(segment) for segment in segment_results])}
         result.metrics = {
             "elapsed_seconds": time.perf_counter() - started,
             "semantic": result.context["semantic_metrics"],
@@ -665,41 +673,6 @@ def _semantic_result_warnings(semantic_result: IngestSemanticWorkflowResult | No
     ]
 
 
-def _combine_redactions(redactions: list[dict[str, object]]) -> dict[str, object]:
-    counts: dict[str, int] = {}
-    enabled = any(bool(redaction.get("enabled")) for redaction in redactions)
-    for redaction in redactions:
-        for key, value in _as_dict(redaction.get("counts")).items():
-            counts[key] = counts.get(key, 0) + _metric_int(value)
-    return {
-        "enabled": enabled,
-        "counts": counts,
-        "redacted_count": sum(counts.values()),
-    }
-
-
-def _combine_semantic_metrics(metrics: list[dict[str, object]]) -> dict[str, object]:
-    prompt_tokens = sum(_metric_int(metric.get("prompt_tokens")) for metric in metrics)
-    prompt_cached_tokens = sum(_metric_int(metric.get("prompt_cached_tokens")) for metric in metrics)
-    prompt_cache_hit_tokens = sum(_metric_int(metric.get("prompt_cache_hit_tokens")) for metric in metrics)
-    prompt_cache_miss_tokens = sum(_metric_int(metric.get("prompt_cache_miss_tokens")) for metric in metrics)
-    completion_tokens = sum(_metric_int(metric.get("completion_tokens")) for metric in metrics)
-    total_tokens = sum(_metric_int(metric.get("total_tokens")) for metric in metrics)
-    elapsed_seconds = sum(_metric_float(metric.get("elapsed_seconds")) for metric in metrics)
-    semantic_call_count = sum(_metric_int(metric.get("semantic_call_count")) for metric in metrics)
-    return {
-        "semantic_call_count": semantic_call_count,
-        "prompt_tokens": prompt_tokens,
-        "prompt_cached_tokens": prompt_cached_tokens,
-        "prompt_cache_hit_tokens": prompt_cache_hit_tokens,
-        "prompt_cache_miss_tokens": prompt_cache_miss_tokens,
-        "completion_tokens": completion_tokens,
-        "total_tokens": total_tokens,
-        "elapsed_seconds": elapsed_seconds,
-        "tokens_per_second": _tokens_per_second(completion_tokens, elapsed_seconds),
-    }
-
-
 def _combined_segment_skip_reason(segment_results: list[IngestSourceResult]) -> str | None:
     reasons = [result.semantic_skip_reason for result in segment_results if result.semantic_skip_reason]
     if len(reasons) == len(segment_results) and reasons:
@@ -715,7 +688,7 @@ def _attach_written_pages_to_segment_records(
     pages_by_segment: dict[int, list[str]] = {}
     details_by_segment: dict[int, list[dict[str, object]]] = {}
     for page, write_result in zip(generated_pages, write_results, strict=False):
-        stats = _as_dict(getattr(write_result, "stats", {}))
+        stats = as_dict(getattr(write_result, "stats", {}))
         operation_index = stats.get("operation_index")
         if not isinstance(operation_index, int):
             continue
@@ -855,7 +828,7 @@ class IngestPipeline:
                 )
             for failure in batch.failures:
                 results.append(_failed_source_result_from_pipeline_failure(failure))
-            discovered_source_files.update(_relative_or_absolute(vault_path, Path(item.raw.raw_path)) for item in batch.items)
+            discovered_source_files.update(relative_or_absolute(vault_path, Path(item.raw.raw_path)) for item in batch.items)
             results.extend(
                 self._run_connector_items(
                     connector_name=connector_name,
@@ -870,31 +843,31 @@ class IngestPipeline:
                     max_tokens=max_tokens,
                 )
             )
-        lifecycle_candidates = _source_lifecycle_candidates(vault_path, state, discovered_source_files)
+        lifecycle_candidates = source_lifecycle_candidates(vault_path, state, discovered_source_files)
 
         result = IngestPipelineResult(
             results=results,
             stats={
                 "source_count": len(results),
-                "processed_count": sum(1 for result in results if _source_processed(result)),
+                "processed_count": sum(1 for result in results if source_processed(result)),
                 "skipped_count": sum(1 for result in results if result.status == "skipped"),
                 "written_count": sum(len(result.generated_pages) for result in results),
                 "failed_count": sum(1 for result in results if result.status == "failed"),
-                "segment_count": _segment_count(results),
-                "processed_segment_count": _segment_status_count(results, {"processed", "written", "skipped", "rejected"}),
-                "failed_segment_count": _segment_status_count(results, {"failed"}),
-                "max_segment_chars": _max_segment_chars(results),
+                "segment_count": segment_count(results),
+                "processed_segment_count": segment_status_count(results, {"processed", "written", "skipped", "rejected"}),
+                "failed_segment_count": segment_status_count(results, {"failed"}),
+                "max_segment_chars": max_segment_chars(results),
                 "lifecycle_candidate_count": len(lifecycle_candidates),
                 "document_processing_count": document_processing_result.stats.get("item_count", 0),
                 "document_processing_failed_count": document_processing_result.stats.get("failed_count", 0),
-                "recovery_candidate_count": _recovery_candidate_count(results),
+                "recovery_candidate_count": recovery_candidate_count(results),
                 "configured_max_concurrent_sources": config.ingest.concurrency.max_concurrent_sources,
                 "effective_max_concurrent_sources": _effective_source_concurrency(config, write),
             },
             document_processing=document_processing_result,
             lifecycle_candidates=lifecycle_candidates,
         )
-        result.metrics = _ingest_run_metrics(results, time.perf_counter() - started)
+        result.metrics = ingest_run_metrics(results, time.perf_counter() - started)
         run_id = monitor.run_id if monitor else datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         if config.ingest.recovery.enabled:
             result.stats["execution_records"] = len(results)
@@ -1029,18 +1002,18 @@ class IngestPipeline:
                 results=[result],
                 stats={
                     "source_count": 1,
-                    "processed_count": 1 if _source_processed(result) else 0,
+                    "processed_count": 1 if source_processed(result) else 0,
                     "skipped_count": 0 if result.status != "skipped" else 1,
                     "written_count": len(result.generated_pages),
                     "failed_count": 1 if result.status == "failed" else 0,
-                    "segment_count": _segment_count([result]),
-                    "processed_segment_count": _segment_status_count([result], {"processed", "written", "skipped", "rejected"}),
-                    "failed_segment_count": _segment_status_count([result], {"failed"}),
-                    "max_segment_chars": _max_segment_chars([result]),
-                    "recovery_candidate_count": _recovery_candidate_count([result]),
+                    "segment_count": segment_count([result]),
+                    "processed_segment_count": segment_status_count([result], {"processed", "written", "skipped", "rejected"}),
+                    "failed_segment_count": segment_status_count([result], {"failed"}),
+                    "max_segment_chars": max_segment_chars([result]),
+                    "recovery_candidate_count": recovery_candidate_count([result]),
                 },
             )
-            run_result.metrics = _ingest_run_metrics([result], time.perf_counter() - started)
+            run_result.metrics = ingest_run_metrics([result], time.perf_counter() - started)
             ledger_path, report_path = write_ingest_run_artifacts(
                 vault_path,
                 run_result,
@@ -1062,192 +1035,11 @@ def _read_index_payload(vault_path: Path) -> dict[str, object]:
     return {"available": True, "path": "index.md", "content": index_path.read_text(encoding="utf-8")}
 
 
-def _source_lifecycle_candidates(
-    vault_path: Path,
-    state: dict[str, object],
-    discovered_source_files: set[str],
-) -> list[MaintenanceCandidate]:
-    candidates: list[MaintenanceCandidate] = []
-    for source_id, checkpoint in _checkpoint_items(state.get("sources")):
-        source_file = _checkpoint_source_file(checkpoint)
-        if not source_file or _source_file_exists(vault_path, source_file):
-            continue
-        generated_pages = _checkpoint_pages(checkpoint)
-        issue_type = "source_moved_candidate" if _has_same_basename(source_file, discovered_source_files) else "source_missing"
-        for page in generated_pages:
-            candidates.append(_source_lifecycle_candidate(source_id, source_file, page, issue_type))
-    for session_id, checkpoint in _checkpoint_items(state.get("sessions")):
-        source_file = _checkpoint_source_file(checkpoint)
-        if not source_file or _source_file_exists(vault_path, source_file):
-            continue
-        for page in _checkpoint_pages(checkpoint):
-            candidates.append(_source_lifecycle_candidate(f"hermes:{session_id}", source_file, page, "source_missing"))
-    return candidates
-
-
-def _segment_count(results: list[IngestSourceResult]) -> int:
-    return sum(len(result.segments) for result in results)
-
-
-def _segment_status_count(results: list[IngestSourceResult], statuses: set[str]) -> int:
-    return sum(1 for result in results for segment in result.segments if str(segment.get("status")) in statuses)
-
-
-def _max_segment_chars(results: list[IngestSourceResult]) -> int:
-    chars = [
-        int(segment.get("chars") or 0)
-        for result in results
-        for segment in result.segments
-        if isinstance(segment, dict)
-    ]
-    return max(chars) if chars else 0
-
-
-def _recovery_candidate_count(results: list[IngestSourceResult]) -> int:
-    return sum(
-        1
-        for result in results
-        if result.status == "failed"
-        and (
-            result.error_retryable
-            or any(bool(segment.get("error_retryable")) for segment in result.segments)
-        )
-    )
-
-
 def _effective_source_concurrency(config: KnoArborConfig, write: bool) -> int:
     configured = config.ingest.concurrency.max_concurrent_sources
     if write:
         return 1
     return configured
-
-
-def _source_lifecycle_candidate(source_id: str, source_file: str, page: str, issue_type: str) -> MaintenanceCandidate:
-    return MaintenanceCandidate(
-        candidate_id=f"ingest:{issue_type}:{source_id}:{page}",
-        source="provenance",
-        target_page=page,
-        issue_type=issue_type,
-        severity="medium",
-        confidence=0.85,
-        risk_hint="medium",
-        executor_hint="report_only",
-        evidence=[
-            MaintenanceEvidence(
-                kind="checkpoint",
-                ref=source_file,
-                quote=f"Checkpoint source is no longer present: {source_file}",
-            )
-        ],
-        recommended_action=MaintenanceRecommendedAction(
-            action="review_source_lifecycle",
-            params={"source_id": source_id, "source_file": source_file, "target_page": page},
-        ),
-        related_pages=[page],
-        expected_effect="Keeps generated knowledge pages stable while routing missing or moved source provenance to lint/maintenance.",
-        review_notes="Ingest reports the lifecycle event only; deletion, archive, relink, or refresh decisions belong to lint/maintenance.",
-    )
-
-
-def _checkpoint_items(value: object) -> list[tuple[str, dict[str, object]]]:
-    if not isinstance(value, dict):
-        return []
-    return [(str(key), item) for key, item in value.items() if isinstance(item, dict)]
-
-
-def _checkpoint_source_file(checkpoint: dict[str, object]) -> str | None:
-    source_file = checkpoint.get("source_file")
-    return source_file if isinstance(source_file, str) and source_file.strip() else None
-
-
-def _checkpoint_pages(checkpoint: dict[str, object]) -> list[str]:
-    pages = checkpoint.get("generated_pages")
-    return [str(page) for page in pages if str(page).strip()] if isinstance(pages, list) else []
-
-
-def _source_file_exists(vault_path: Path, source_file: str) -> bool:
-    path = Path(source_file).expanduser()
-    if not path.is_absolute():
-        path = vault_path / path
-    return path.exists()
-
-
-def _has_same_basename(source_file: str, discovered_source_files: set[str]) -> bool:
-    basename = Path(source_file).name
-    return any(Path(candidate).name == basename and candidate != source_file for candidate in discovered_source_files)
-
-
-def _relative_or_absolute(vault_path: Path, path: Path) -> str:
-    resolved = path.expanduser().resolve()
-    try:
-        return resolved.relative_to(vault_path).as_posix()
-    except ValueError:
-        return str(resolved)
-
-
-def _ingest_run_metrics(results: list[IngestSourceResult], elapsed_seconds: float) -> dict[str, object]:
-    prompt_tokens = 0
-    prompt_cached_tokens = 0
-    prompt_cache_hit_tokens = 0
-    prompt_cache_miss_tokens = 0
-    completion_tokens = 0
-    total_tokens = 0
-    semantic_elapsed = 0.0
-    semantic_call_count = 0
-    for result in results:
-        semantic = _semantic_metrics(result)
-        prompt_tokens += _metric_int(semantic.get("prompt_tokens"))
-        prompt_cached_tokens += _metric_int(semantic.get("prompt_cached_tokens"))
-        prompt_cache_hit_tokens += _metric_int(semantic.get("prompt_cache_hit_tokens"))
-        prompt_cache_miss_tokens += _metric_int(semantic.get("prompt_cache_miss_tokens"))
-        completion_tokens += _metric_int(semantic.get("completion_tokens"))
-        total_tokens += _metric_int(semantic.get("total_tokens"))
-        semantic_elapsed += _metric_float(semantic.get("elapsed_seconds"))
-        semantic_call_count += _metric_int(semantic.get("semantic_call_count"))
-    return {
-        "elapsed_seconds": elapsed_seconds,
-        "semantic": {
-            "semantic_call_count": semantic_call_count,
-            "prompt_tokens": prompt_tokens,
-            "prompt_cached_tokens": prompt_cached_tokens,
-            "prompt_cache_hit_tokens": prompt_cache_hit_tokens,
-            "prompt_cache_miss_tokens": prompt_cache_miss_tokens,
-            "completion_tokens": completion_tokens,
-            "total_tokens": total_tokens,
-            "elapsed_seconds": semantic_elapsed,
-            "tokens_per_second": _tokens_per_second(completion_tokens, semantic_elapsed),
-        },
-    }
-
-
-def _semantic_metrics(result: IngestSourceResult) -> dict[str, object]:
-    context_semantic = _as_dict(result.context.get("semantic_metrics"))
-    if context_semantic:
-        return context_semantic
-    metrics_semantic = _as_dict(result.metrics.get("semantic"))
-    return metrics_semantic
-
-
-def _source_processed(result: IngestSourceResult) -> bool:
-    return result.semantic_result is not None or any(_as_dict(segment).get("relation_operations") for segment in result.segments)
-
-
-def _tokens_per_second(completion_tokens: int, elapsed_seconds: float) -> float | None:
-    if completion_tokens <= 0 or elapsed_seconds <= 0:
-        return None
-    return completion_tokens / elapsed_seconds
-
-
-def _metric_int(value: object) -> int:
-    return value if isinstance(value, int) else 0
-
-
-def _metric_float(value: object) -> float:
-    return float(value) if isinstance(value, (int, float)) else 0.0
-
-
-def _as_dict(value: object) -> dict[str, object]:
-    return value if isinstance(value, dict) else {}
 
 
 def _semantic_history_length(semantic_workflow: object) -> int:

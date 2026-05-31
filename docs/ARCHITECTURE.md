@@ -140,6 +140,8 @@ Goal: turn new or changed source material into coordinated wiki page operations.
 connector discovery
   -> source normalization
   -> privacy redaction
+  -> checkpoint window
+  -> source segmentation
   -> source normalize agent
   -> candidate page retrieval
   -> relation planning
@@ -165,6 +167,16 @@ Responsibilities:
 - `IngestWritePolicy` enforces source/window-level write invariants before vault writes: one raw source may create at most one source digest in one ingest batch.
 - ingest writes disable broad lexical Related Pages scanning by default. They keep deterministic provenance links between the source digest and pages generated from the same source; weak topical links should be reviewed by lint or surfaced by query.
 - `ingest-file` is the single-file boundary: Markdown files enter the shared ingest path directly; non-Markdown files must pass through the configured MinerU-compatible preprocessor first, and missing preprocessors fail explicitly.
+
+Implementation boundary:
+
+- `pipelines/ingest.py` is the orchestration shell: connector execution, segment execution, write/scoped-lint/report coordination, and checkpoint commit.
+- `pipelines/ingest_checkpoint.py` owns checkpoint planning and commit payloads.
+- `pipelines/source_segmentation.py` owns segment planning and source-window chunk boundaries.
+- `pipelines/ingest_context.py` owns candidate page retrieval and materialization.
+- `pipelines/ingest_metrics.py` owns source/segment metrics, redaction aggregation, and semantic token statistics.
+- `pipelines/ingest_lifecycle.py` owns missing/moved source lifecycle candidates emitted from checkpoint state.
+- `pipelines/ingest_quality.py` and `pipelines/ingest_write_policy.py` own pre-write validation and write invariants.
 
 ### Lint
 
