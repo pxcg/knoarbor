@@ -44,6 +44,13 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 | Config / Policy | 运行路径、模型供应商、connector、隐私、执行限制和功能开关。 | 配置不可见的隐藏行为。 |
 | Report / Audit | 人可读报告、机器 ledger、失败运行报告、查询记录、运行摘要和报告渲染。 | 页面正文事实来源或维护操作决策。 |
 
+实现说明：
+
+- CLI 保持 `cli.py` 作为入口和统一错误边界。命令注册位于 `cli_commands/parser.py`，命令行为位于 `cli_commands/handlers.py`。
+- UI 配置的请求/响应模型位于 `services/ui_config_models.py`；`services/ui_config.py` 负责配置读写、表单转换和诊断。
+- 维护验证的编排位于 `maintenance/operation_verification.py`；具体 action 的验证规则位于 `maintenance/operation_verifiers.py`。
+- 报告模块通过 `audit/report_formatting.py` 共享基础 Markdown 格式化工具；ingest 和 lint 报告仍各自负责工作流专属摘要。
+
 ## 系统层
 
 ### 来源层

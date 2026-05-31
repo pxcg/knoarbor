@@ -46,6 +46,13 @@ leaking into each other.
 | Config / Policy | Runtime paths, model providers, connectors, privacy, execution limits, and feature switches. | Hidden behavior not visible through configuration. |
 | Report / Audit | Human-readable reports, machine ledgers, failure reports, query records, run summaries, and report rendering. | Source of truth for page content or maintenance execution decisions. |
 
+Implementation notes:
+
+- CLI keeps `cli.py` as the entry/error boundary. Command registration lives in `cli_commands/parser.py`; command behavior lives in `cli_commands/handlers.py`.
+- UI configuration keeps request/response schemas in `services/ui_config_models.py`; `services/ui_config.py` owns config read/write, form conversion, and diagnostics.
+- Maintenance verification keeps orchestration in `maintenance/operation_verification.py`; action-specific verification rules live in `maintenance/operation_verifiers.py`.
+- Report modules share primitive Markdown formatting helpers through `audit/report_formatting.py`; ingest and lint reports still own their workflow-specific summaries.
+
 ## System Layers
 
 ### Source Layer
