@@ -2,7 +2,7 @@ import type { AppContext } from "../App";
 import { LineIcon, type IconName } from "../components/LineIcon";
 import { MetricCard } from "../components/MetricCard";
 import type { ViewName } from "../types";
-import { ActiveRunsPanel } from "./RunPage";
+import { ActiveRunsPanel } from "../components/runs/RunPanels";
 
 type Props = {
   context: AppContext;

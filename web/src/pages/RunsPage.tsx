@@ -1,6 +1,6 @@
 import type { AppContext } from "../App";
 import { runStatusClass, runStatusLabel } from "../components/runStatus";
-import { ActiveRunsPanel, RunPreflight } from "./RunPage";
+import { ActiveRunsPanel, RunPreflight } from "../components/runs/RunPanels";
 
 type Props = {
   context: AppContext;

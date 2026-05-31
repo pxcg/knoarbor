@@ -7,7 +7,8 @@ any external workflow adapter.
 
 from knoarbor.pipelines.source import SourcePipeline, SourcePipelineBatchResult, SourcePipelineItem, SourcePipelineResult
 from knoarbor.pipelines.source_segmentation import SourceSegmentBatch, SourceSegmenter
-from knoarbor.pipelines.ingest import IngestPipeline, IngestPipelineResult, IngestSourceResult
+from knoarbor.core.schemas.ingest_pipeline import IngestPipelineResult, IngestSourceResult
+from knoarbor.pipelines.ingest import IngestPipeline
 from knoarbor.pipelines.ingest_context import IngestContextProvider, IngestWikiContext, IngestCandidatePageContext
 from knoarbor.pipelines.ingest_quality import IngestQualityGate, IngestQualityGateResult
 from knoarbor.pipelines.ingest_write_policy import IngestWritePolicy, IngestWritePolicyResult

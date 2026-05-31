@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.entrypoints.api import create_app
-from knoarbor.pipelines.ingest import IngestPipelineResult, IngestSourceResult
+from knoarbor.core.schemas.ingest_pipeline import IngestPipelineResult, IngestSourceResult
 from knoarbor.services import ApplicationServices
 
 

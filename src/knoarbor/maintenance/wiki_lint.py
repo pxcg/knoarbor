@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -25,37 +24,17 @@ from knoarbor.core.wiki_schema import (
     SYSTEM_PAGE_DIRS,
     is_index_excluded_file,
 )
+from knoarbor.maintenance.lint_models import LintPage
+from knoarbor.maintenance.lint_rules import (
+    IGNORED_LINK_PREFIXES,
+    KNOWLEDGE_DIRS,
+    OVERDENSE_LINK_THRESHOLD,
+    OVERDENSE_RELATED_THRESHOLD,
+    REQUIRED_FRONTMATTER_KEYS,
+    REQUIRED_SECTIONS_BY_DIR,
+    WEAK_GRAPH_DIRS,
+)
 from knoarbor.storage import update_index
-
-
-REQUIRED_FRONTMATTER_KEYS = ("created", "updated", "type", "status", "source", "content_hash")
-IGNORED_LINK_PREFIXES = ("http://", "https://", "mailto:", "#")
-KNOWLEDGE_DIRS = {"entities", "concepts", "comparisons", "queries", "claims", "timelines", "workflows"}
-WEAK_GRAPH_DIRS = KNOWLEDGE_DIRS - {"claims"}
-OVERDENSE_LINK_THRESHOLD = 30
-OVERDENSE_RELATED_THRESHOLD = 20
-REQUIRED_SECTIONS_BY_DIR = {
-    "sources": ("Summary", "Source Focus", "Answer", "Related Pages", "Tags", "Source"),
-    "entities": ("Summary", "Answer", "Key Points", "Related Pages", "Tags", "Source"),
-    "concepts": ("Summary", "Answer", "Key Points", "Related Pages", "Tags", "Source"),
-    "comparisons": ("Summary", "Answer", "Key Points", "Related Pages", "Tags", "Source"),
-    "queries": ("Summary", "Question", "Answer", "Key Points", "Related Pages", "Tags", "Source"),
-    "claims": ("Summary", "Evidence", "Related Pages", "Tags", "Source"),
-    "timelines": ("Summary", "Answer", "Related Pages", "Tags", "Source"),
-    "workflows": ("Summary", "Answer", "Related Pages", "Tags", "Source"),
-}
-
-
-@dataclass(frozen=True)
-class LintPage:
-    path: Path
-    relative_path: str
-    directory: str
-    stem: str
-    title: str
-    content: str
-    metadata: dict[str, str]
-    links: list[str]
 
 
 def lint_vault(

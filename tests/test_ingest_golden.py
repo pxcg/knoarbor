@@ -14,7 +14,8 @@ from knoarbor.audit.ingest_report import build_ingest_run_record, render_ingest_
 from knoarbor.core.config import IngestSegmentationConfig, PrivacyConfig
 from knoarbor.core.markdown import parse_frontmatter
 from knoarbor.core.schemas.sources import SourceDocument
-from knoarbor.pipelines.ingest import IngestPipeline, IngestPipelineResult
+from knoarbor.core.schemas.ingest_pipeline import IngestPipelineResult
+from knoarbor.pipelines.ingest import IngestPipeline
 from knoarbor.pipelines.source_segmentation import SourceSegmentBatch, SourceSegmenter
 
 from tests.harness.ingest_cases import (
