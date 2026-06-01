@@ -67,6 +67,7 @@ class SemanticRunner:
         request = ChatCompletionRequest(
             messages=[
                 ChatMessage(role="system", content=contract.prompt_text),
+                ChatMessage(role="user", content=_cacheable_contract_preamble(contract)),
                 ChatMessage(role="user", content=_build_user_content(payload, user_instruction)),
             ],
             temperature=temperature,
@@ -261,3 +262,14 @@ def _build_user_content(payload: dict[str, Any], user_instruction: str | None) -
         lines.extend([user_instruction.strip(), ""])
     lines.extend(["Input JSON:", json.dumps(payload, ensure_ascii=False, indent=2)])
     return "\n".join(lines)
+
+
+def _cacheable_contract_preamble(contract: SemanticContract) -> str:
+    return (
+        "Stable contract execution preamble.\n"
+        f"- contract_name: {contract.name}\n"
+        f"- schema_version: {contract.schema_version}\n"
+        "- Return only valid JSON for the declared contract.\n"
+        "- The dynamic source payload appears in the next message.\n"
+        "- Treat this preamble and the system contract as stable instructions."
+    )

@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from knoarbor.audit.reports import write_maintenance_report
-from knoarbor.audit.report_formatting import as_dict, as_list, cache_metric_lines, fmt_number, format_list
+from knoarbor.audit.report_formatting import as_dict, as_list, cache_metric_lines, fmt_number, format_list, semantic_token_report_lines
 from knoarbor.storage.ledger import append_jsonl_ledger, read_jsonl_ledger
 from knoarbor.storage.wiki_index import relative_wiki_path
 
@@ -91,6 +91,7 @@ def render_ingest_report(record: dict[str, object]) -> str:
         f"- repeated_failed_sources: {quality_trend.get('repeated_failed_sources', 0)}",
         f"- repeated_skipped_sources: {quality_trend.get('repeated_skipped_sources', 0)}",
         "",
+        *semantic_token_report_lines(semantic_metrics),
         "## Run Summary",
         "",
         f"- source_status: {_status_summary(sources, 'status')}",
@@ -155,6 +156,7 @@ def render_ingest_report(record: dict[str, object]) -> str:
                 f"- elapsed_seconds: {fmt_number(source_metrics.get('elapsed_seconds'))}",
                 f"- semantic_calls: {source_semantic.get('semantic_call_count', 0)}",
                 f"- total_tokens: {source_semantic.get('total_tokens', 0)}",
+                *[f"- {line[2:]}" for line in cache_metric_lines(source_semantic)],
                 f"- tokens_per_second: {fmt_number(source_semantic.get('tokens_per_second'))}",
                 f"- approved_operations: {source.get('approved_operation_indexes', [])}",
                 f"- segmentation: {segmentation.get('mode', 'none')} / {segmentation.get('segment_count', 0)} segment(s)",
@@ -194,6 +196,7 @@ def render_ingest_report(record: dict[str, object]) -> str:
                     f"{segment.get('chars')} chars / status: {segment.get('status')} / "
                     f"semantic_calls: {segment_metrics.get('semantic_call_count', 0)} / "
                     f"tokens: {segment_metrics.get('total_tokens', 0)} / "
+                    f"cached: {segment_metrics.get('prompt_cached_tokens', 0)} / "
                     f"elapsed: {fmt_number(as_dict(segment.get('metrics')).get('elapsed_seconds'))}s"
                 )
                 if segment.get("error_message"):

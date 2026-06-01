@@ -6,7 +6,7 @@ from typing import Any
 
 from knoarbor.core.schemas.wiki_lint import LintRunResult
 from knoarbor.audit.reports import write_maintenance_report
-from knoarbor.audit.report_formatting import as_dict, as_list, cache_metric_lines, fmt_number, format_list
+from knoarbor.audit.report_formatting import as_dict, as_list, cache_metric_lines, fmt_number, format_list, semantic_token_report_lines
 from knoarbor.storage.ledger import append_jsonl_ledger, read_jsonl_ledger
 from knoarbor.storage.wiki_index import relative_wiki_path
 
@@ -132,6 +132,7 @@ def render_lint_run_report(record: dict[str, object]) -> str:
         *cache_metric_lines(semantic_metrics),
         f"- tokens_per_second: {fmt_number(semantic_metrics.get('tokens_per_second'))}",
         "",
+        *semantic_token_report_lines(semantic_metrics),
         "## Issue Summary",
         "",
         f"- before_rescan: {issue_summary.get('before_issue_count', 0)}",

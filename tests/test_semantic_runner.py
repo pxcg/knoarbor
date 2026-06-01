@@ -194,7 +194,8 @@ class SemanticRunnerTests(unittest.TestCase):
         self.assertIsNotNone(client.last_request)
         assert client.last_request is not None
         self.assertEqual(client.last_request.messages[0].role, "system")
-        self.assertIn("source_document", client.last_request.messages[1].content)
+        self.assertIn("Stable contract execution preamble", client.last_request.messages[1].content)
+        self.assertIn("source_document", client.last_request.messages[2].content)
 
     def test_semantic_runner_retries_retryable_provider_failure(self) -> None:
         valid = """
