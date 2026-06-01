@@ -27,6 +27,7 @@ echo "4/6 Python tests"
 uv run python -m unittest discover -s tests
 
 echo "5/6 CLI diagnostics"
+# Keep release checks isolated from the maintainer's real config.yaml and wiki/.
 uv run python - "$TEMP_CONFIG" "$TEMP_VAULT" <<'PY'
 from pathlib import Path
 import sys

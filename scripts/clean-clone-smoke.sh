@@ -17,6 +17,8 @@ echo "workdir: $TMP_DIR"
 git clone --quiet "$SOURCE" "$TMP_DIR/knoarbor"
 cd "$TMP_DIR/knoarbor"
 
+# Safe: all writes below happen inside this temporary clone, never in the
+# maintainer's working tree or real runtime vault.
 uv sync --extra dev
 (cd web && npm install && npm run build)
 uv run python -m unittest discover -s tests

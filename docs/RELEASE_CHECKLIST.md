@@ -21,6 +21,13 @@ Expected result:
 - Runtime vaults, local workflow exports, build artifacts, virtual environments, caches, and private design notes are not tracked.
 - `src/knoarbor/ui/dist/` is allowed because it is the bundled console asset shipped with the Python package.
 
+Runtime data isolation:
+
+- Review scripts that reference `wiki`, `config.yaml`, `.env`, local source directories, or connector session paths.
+- Release/test scripts may read `config.example.yaml`, but any writable config or vault must live under `mktemp -d`.
+- Block the release if any automated gate writes to project-root `wiki/`, `config.yaml`, `.env`, or private connector source directories.
+- The acceptable exception is a clean-clone smoke test that writes `wiki/` inside its temporary clone, never inside the maintainer's working tree.
+
 ## 2. Privacy And Secret Review
 
 Confirm that the release contains no personal data, local private vaults, API keys, raw chat logs, or private workflow exports.

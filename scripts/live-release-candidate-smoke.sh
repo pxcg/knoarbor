@@ -17,6 +17,9 @@ trap cleanup EXIT
 cd "$TMP_DIR"
 mkdir -p wiki/raw/notes codex-sessions
 
+# This live smoke intentionally calls a real model provider, but all config,
+# sources, reports, and vault writes stay inside TMP_DIR.
+
 cat > config.yaml <<'YAML'
 project:
   name: release-candidate-smoke

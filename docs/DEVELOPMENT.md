@@ -57,6 +57,40 @@ If your environment blocks the default uv cache path, use a project-local cache:
 UV_CACHE_DIR=.uv-cache uv run --extra dev python -m unittest discover tests
 ```
 
+## Runtime Data Isolation
+
+Test and release scripts must never operate on a maintainer's real runtime data by default.
+
+User-owned runtime data includes:
+
+- `config.yaml` and `.env` in the project root.
+- The project-root `wiki/` runtime vault.
+- Connector source directories such as local chat sessions, Markdown note folders, raw document folders, or private export directories.
+- Any local workflow export, cache, or private development record that is ignored by git.
+
+Required rule:
+
+- Automated gates may read `config.example.yaml`, but they must write a temporary config when a command needs configuration.
+- Automated gates that need a vault must create one under `mktemp -d` and remove it with `trap` cleanup.
+- Automated gates must not initialize, rewrite, lint, ingest, or clean the project-root `wiki/`, `config.yaml`, or `.env`.
+- Only explicit user-facing product commands, such as `knoar init`, `knoar ingest`, API calls, or UI actions, may operate on the configured real vault.
+- Repository scripts must not use broad cleanup commands such as `git clean -fdx` or `rm -rf` against ignored project-root runtime paths.
+
+Safe script pattern:
+
+```bash
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+TEMP_CONFIG="$TMP_DIR/config.yaml"
+TEMP_VAULT="$TMP_DIR/wiki"
+
+# Copy config.example.yaml into TEMP_CONFIG, rewrite vault.path to TEMP_VAULT,
+# then run CLI/API checks against TEMP_CONFIG only.
+```
+
+The only intentional tracked generated path is `src/knoarbor/ui/dist/`, because it is bundled into the Python package. All runtime vault content remains local user data.
+
 ## Web Console
 
 The web console is bundled into the Python package, but it is not published as a standalone npm package.

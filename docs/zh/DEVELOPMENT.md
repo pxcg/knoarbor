@@ -67,6 +67,40 @@ scripts/release-check.sh
 
 `live-release-candidate-smoke.sh` 不放入默认 `release-check.sh`，因为它会调用真实模型供应商并需要 `DEEPSEEK_API_KEY`。
 
+## 运行时数据隔离
+
+测试脚本和发布脚本默认不得操作维护者本机的真实运行数据。
+
+用户运行时数据包括：
+
+- 项目根目录下的 `config.yaml` 和 `.env`。
+- 项目根目录下的 `wiki/` 运行时知识库。
+- 各类 connector 读取的来源目录，例如本地聊天记录、Markdown 笔记目录、原始文档目录或私有导出目录。
+- 所有被 git ignore 的本地工作流导出、缓存和私有开发记录。
+
+强制规则：
+
+- 自动门禁可以读取 `config.example.yaml`，但需要配置文件时必须写入临时 config。
+- 自动门禁如果需要知识库，必须在 `mktemp -d` 下创建临时 vault，并用 `trap` 清理。
+- 自动门禁不得初始化、重写、lint、ingest 或清理项目根目录下的 `wiki/`、`config.yaml`、`.env`。
+- 只有用户明确触发的产品命令，例如 `knoar init`、`knoar ingest`、API 调用或 UI 操作，才可以作用于用户配置的真实知识库。
+- 仓库脚本不得对项目根目录下被 ignore 的运行时路径使用 `git clean -fdx` 或宽泛的 `rm -rf`。
+
+安全脚本模式：
+
+```bash
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+TEMP_CONFIG="$TMP_DIR/config.yaml"
+TEMP_VAULT="$TMP_DIR/wiki"
+
+# 将 config.example.yaml 复制为 TEMP_CONFIG，把 vault.path 改到 TEMP_VAULT，
+# 后续 CLI/API 检查只使用 TEMP_CONFIG。
+```
+
+唯一允许被跟踪的生成目录是 `src/knoarbor/ui/dist/`，因为它会被打包进 Python 包。所有运行时知识库内容都属于用户本地数据。
+
 ## 分支与发布模型
 
 KnoArbor 使用小型发布分支模型：

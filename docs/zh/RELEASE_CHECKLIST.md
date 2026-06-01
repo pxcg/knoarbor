@@ -21,6 +21,13 @@ git ls-files | rg '(^wiki/|^n8n/|^dist/|node_modules|\.venv|\.uv-cache|\.pytest_
 - 运行时知识库、本地工作流导出、构建产物、虚拟环境、缓存和私有设计记录没有被跟踪。
 - `src/knoarbor/ui/dist/` 允许被跟踪，因为它是 Python 包内置控制台资源。
 
+运行时数据隔离：
+
+- 审查所有引用 `wiki`、`config.yaml`、`.env`、本地资料目录或 connector 会话路径的脚本。
+- 发布/测试脚本可以读取 `config.example.yaml`，但任何可写 config 或 vault 都必须放在 `mktemp -d` 创建的临时目录下。
+- 如果任何自动门禁会写入项目根目录下的 `wiki/`、`config.yaml`、`.env` 或私有来源目录，应阻止发布。
+- 唯一可接受例外是 clean-clone smoke 在临时克隆目录内写入 `wiki/`，不得写入维护者当前工作区。
+
 ## 2. 隐私和密钥审查
 
 确认发布内容不包含个人数据、本地私有知识库、API Key、原始聊天记录或私有工作流导出。
