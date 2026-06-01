@@ -7,50 +7,28 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
 from knoarbor.core.errors import RunNotFound, error_info
-from knoarbor.core.schemas.ingest_run import IngestFileRunRequest, IngestRecoveryRunRequest, IngestRunRequest
 from knoarbor.core.schemas.run_monitor import RunEventsResponse, RunListResponse, RunRecord, RunStartResponse, TERMINAL_RUN_STATUSES
-from knoarbor.core.schemas.wiki_lint import LintRunRequest
-from knoarbor.core.schemas.wiki_query import WikiSearchRequest
+from knoarbor.core.schemas.run_start import RunStartRequest
 from knoarbor.services import ApplicationServices
 
 
 def create_runs_router(services: ApplicationServices) -> APIRouter:
     router = APIRouter()
 
-    @router.post("/runs/ingest", response_model=RunStartResponse, tags=["runs"])
-    async def start_ingest(request: IngestRunRequest) -> RunStartResponse:
-        return services.runs.start_ingest(request, services.ingest.run)
-
-    @router.post("/runs/ingest-file", response_model=RunStartResponse, tags=["runs"])
-    async def start_ingest_file(request: IngestFileRunRequest) -> RunStartResponse:
-        return services.runs.start_ingest_file(request, services.ingest.run_file)
-
-    @router.post("/runs/{run_id}/rerun-failed", response_model=RunStartResponse, tags=["runs"])
-    async def rerun_failed(vault_path: str, run_id: str, request: IngestRecoveryRunRequest | None = None) -> RunStartResponse:
-        return services.runs.start_ingest_recovery(
-            vault_path,
-            run_id,
-            request or IngestRecoveryRunRequest(),
-            services.ingest.run,
-            services.ingest.run_file,
+    @router.post("/runs", response_model=RunStartResponse, tags=["runs"])
+    async def start_run(request: RunStartRequest) -> RunStartResponse:
+        return services.runs.start(
+            request,
+            ingest_runner=services.ingest.run,
+            ingest_file_runner=services.ingest.run_file,
+            ingest_document_runner=services.ingest.run_document,
+            lint_runner=services.wiki_linter.run_maintenance,
+            query_runner=services.wiki_search.search,
         )
-
-    @router.post("/runs/lint", response_model=RunStartResponse, tags=["runs"])
-    async def start_lint(request: LintRunRequest) -> RunStartResponse:
-        return services.runs.start_lint(request, services.wiki_linter.run_maintenance)
-
-    @router.post("/runs/query", response_model=RunStartResponse, tags=["runs"])
-    async def start_query(request: WikiSearchRequest) -> RunStartResponse:
-        effective_request = request if request.caller is not None else request.model_copy(update={"caller": "api"})
-        return services.runs.start_query(effective_request, services.wiki_search.search)
 
     @router.get("/runs", response_model=RunListResponse, tags=["runs"])
     async def list_run_records(vault_path: str, active_only: bool = False, limit: int = 50) -> RunListResponse:
         return services.runs.list(vault_path, active_only=active_only, limit=limit)
-
-    @router.get("/runs/active", response_model=RunListResponse, tags=["runs"])
-    async def active_run_records(vault_path: str, limit: int = 20) -> RunListResponse:
-        return services.runs.list(vault_path, active_only=True, limit=limit)
 
     @router.get("/runs/{run_id}", response_model=RunRecord, tags=["runs"])
     async def get_run(vault_path: str, run_id: str) -> RunRecord:

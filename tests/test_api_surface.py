@@ -177,11 +177,14 @@ class ApiSurfaceTests(unittest.TestCase):
             client = TestClient(create_app())
 
             response = client.post(
-                "/runs/query",
+                "/runs",
                 json={
-                    "obsidian_vault_path": str(vault),
-                    "query": "agent loop",
-                    "record_query": False,
+                    "flow": "query",
+                    "query": {
+                        "obsidian_vault_path": str(vault),
+                        "query": "agent loop",
+                        "record_query": False,
+                    },
                 },
             )
             self.assertEqual(response.status_code, 200)
@@ -217,8 +220,8 @@ class ApiSurfaceTests(unittest.TestCase):
             client = TestClient(create_app())
 
             response = client.post(
-                "/ingest/file",
-                json={"config_path": str(config), "input_path": str(pdf), "write": False},
+                "/ingest",
+                json={"kind": "file", "config_path": str(config), "input_path": str(pdf), "write": False},
             )
 
         self.assertEqual(response.status_code, 400)

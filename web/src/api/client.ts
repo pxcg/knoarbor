@@ -325,15 +325,15 @@ export async function getProjectDoc(path: string): Promise<ProjectDoc> {
 }
 
 export async function runIngest(body: Record<string, unknown>): Promise<unknown> {
-  return requestJson("/runs/ingest", { method: "POST", body });
+  return requestJson("/runs", { method: "POST", body: { flow: "ingest", ingest: { kind: "connectors", ...body } } });
 }
 
 export async function runIngestFile(body: Record<string, unknown>): Promise<unknown> {
-  return requestJson("/runs/ingest-file", { method: "POST", body });
+  return requestJson("/runs", { method: "POST", body: { flow: "ingest", ingest: { kind: "file", ...body } } });
 }
 
 export async function runLint(body: Record<string, unknown>): Promise<unknown> {
-  return requestJson("/runs/lint", { method: "POST", body });
+  return requestJson("/runs", { method: "POST", body: { flow: "lint", lint: body } });
 }
 
 export async function getRuns(vaultPath: string, activeOnly = false): Promise<{ runs: import("../types").RunRecord[] }> {
@@ -341,7 +341,7 @@ export async function getRuns(vaultPath: string, activeOnly = false): Promise<{ 
 }
 
 export async function getActiveRuns(vaultPath: string): Promise<{ runs: import("../types").RunRecord[] }> {
-  return requestJson(`/runs/active?vault_path=${encodeURIComponent(vaultPath)}`);
+  return requestJson(`/runs?vault_path=${encodeURIComponent(vaultPath)}&active_only=true`);
 }
 
 export async function getRunEvents(vaultPath: string, runId: string, after = 0): Promise<{ events: import("../types").RunEvent[] }> {
@@ -353,9 +353,9 @@ export async function cancelRun(vaultPath: string, runId: string): Promise<impor
 }
 
 export async function rerunFailedRun(vaultPath: string, runId: string, body: Record<string, unknown> = {}): Promise<unknown> {
-  return requestJson(`/runs/${encodeURIComponent(runId)}/rerun-failed?vault_path=${encodeURIComponent(vaultPath)}`, {
+  return requestJson("/runs", {
     method: "POST",
-    body,
+    body: { flow: "ingest", vault_path: vaultPath, recovery_of_run_id: runId, recovery: body },
   });
 }
 

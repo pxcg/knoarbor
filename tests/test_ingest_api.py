@@ -14,6 +14,11 @@ from knoarbor.services import ApplicationServices
 
 
 class FakeIngestService:
+    def run_unified(self, request):
+        if request.kind == "document":
+            return self.run_document(request.to_document_request())
+        return self.run(request.to_connectors_request())
+
     def run(self, request) -> IngestPipelineResult:
         return IngestPipelineResult(
             results=[
@@ -46,7 +51,7 @@ class IngestApiTests(unittest.TestCase):
         services.ingest = FakeIngestService()
         client = TestClient(create_app(services))
 
-        response = client.post("/ingest/run", json={"write": False})
+        response = client.post("/ingest", json={"kind": "connectors", "write": False})
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
@@ -59,8 +64,9 @@ class IngestApiTests(unittest.TestCase):
         client = TestClient(create_app(services))
 
         response = client.post(
-            "/ingest/document",
+            "/ingest",
             json={
+                "kind": "document",
                 "source_document": {
                     "schema_version": "source_document.v1",
                     "source_id": "note:test",

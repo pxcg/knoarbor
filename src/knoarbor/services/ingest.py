@@ -4,7 +4,7 @@ from pathlib import Path
 
 from knoarbor.connectors.base import ConnectorConfig
 from knoarbor.core.config import KnoArborConfig, default_config_path, load_config
-from knoarbor.core.schemas.ingest_run import IngestDocumentRunRequest, IngestFileRunRequest, IngestRunRequest
+from knoarbor.core.schemas.ingest_run import IngestDocumentRunRequest, IngestFileRunRequest, IngestRunRequest, UnifiedIngestRequest
 from knoarbor.audit.run_failure import write_run_failure_artifacts
 from knoarbor.document_processing import DocumentProcessingPipeline
 from knoarbor.pipelines import IngestContextProvider, IngestPipeline, IngestPipelineResult, IngestSourceResult
@@ -16,6 +16,13 @@ logger = runtime_logger(__name__)
 
 class IngestService:
     """Runs the high-level ingest pipeline for API callers."""
+
+    def run_unified(self, request: UnifiedIngestRequest) -> IngestPipelineResult | IngestSourceResult:
+        if request.kind == "document":
+            return self.run_document(request.to_document_request())
+        if request.kind == "file":
+            return self.run_file(request.to_file_request())
+        return self.run(request.to_connectors_request())
 
     def run(self, request: IngestRunRequest) -> IngestPipelineResult:
         config: KnoArborConfig | None = None

@@ -1,88 +1,48 @@
-# API 兼容性策略
+# API 兼容策略
 
-KnoArbor 提供本地 HTTP API，供内置控制台、CLI 辅助命令、外部工作流工具和 AI 工具技能使用。本文定义 v0.x 阶段哪些内容稳定，以及破坏性变更应如何处理。
+KnoArbor 尚未发布稳定 v1 API，因此预发布阶段优先保持公开接口清晰，而不是兼容早期原型路径。
 
-## 公开稳定接口
+## 公开 API
 
-公开 v0.x API 面由 [接口说明](API.md) 记录，并由 `src/knoarbor/entrypoints/api_contract.py` 跟踪。
-
-稳定接口族：
+公开集成 API 保持精简：
 
 - `GET /health`
 - `GET /doctor`
-- `POST /ingest/run`
-- `POST /ingest/document`
-- `POST /ingest/file`
+- `POST /ingest`
 - `POST /lint/run`
 - `POST /query/search`
 - `POST /query/feedback`
 - `GET /query/trends`
-- `POST /runs/ingest`
-- `POST /runs/ingest-file`
-- `POST /runs/lint`
-- `POST /runs/query`
+- `POST /runs`
 - `GET /runs`
-- `GET /runs/active`
 - `GET /runs/{run_id}`
 - `GET /runs/{run_id}/events`
 - `GET /runs/{run_id}/stream`
 - `POST /runs/{run_id}/cancel`
-- `POST /runs/{run_id}/rerun-failed`
 - `GET /wiki/pages`
 - `GET /wiki/page`
 - `GET /wiki/backlinks`
 
-## 内部 UI 接口
+不同功能通过 `flow`、`kind`、`mode`、`context_format` 等请求字段选择。
 
-`/ui/api/*` 只服务内置 Web 控制台，后续会随着 UI 演进变化。外部工具应使用上面的公开接口。
+## 移除的原型路径
 
-`GET /` 是主要控制台入口。`GET /ui` 是兼容别名。
+以下原型路径不属于公开 API：
 
-## 兼容性规则
+- `POST /ingest/run`
+- `POST /ingest/document`
+- `POST /ingest/file`
+- `POST /runs/ingest`
+- `POST /runs/ingest-file`
+- `POST /runs/lint`
+- `POST /runs/query`
+- `GET /runs/active`
+- `POST /runs/{run_id}/rerun-failed`
 
-v0.x alpha 阶段：
+请改用 `POST /ingest` 或 `POST /runs`。
 
-- Endpoint 路径和 HTTP 方法应保持稳定。
-- 必需请求字段不应被删除或静默改变含义。
-- 核心响应字段含义应保持稳定。
-- 可以新增可选请求字段。
-- 可以新增响应字段。
-- 错误响应必须使用统一错误 envelope 和稳定错误码。
-- 已废弃公开 endpoint 至少保留一个 minor 版本，除非它本身不安全。
+## 变更规则
 
-破坏性变更必须包含：
-
-1. Changelog 条目。
-2. Release note 迁移说明。
-3. API 文档更新。
-4. 契约测试更新。
-5. 尽可能提供替代路径。
-
-## Schema Version
-
-如果响应结构会被外部工具长期消费，应包含 `schema_version` 字段。
-
-示例：
-
-- `wiki_query.v1`
-- `query_trace.v1`
-- `run_record.v1`
-- `source_document.v1`
-
-新增字段不需要变更 schema version。删除字段或改变字段含义则需要。
-
-## 测试要求
-
-API 兼容性应由以下内容守护：
-
-- `api_contract.py` 中的契约列表；
-- 稳定 endpoint 存在性单元测试；
-- OpenAPI 公开路由检查；
-- 发布前 API/CLI 兼容性审查。
-
-发布前检查：
-
-```bash
-uv run python -m unittest discover tests
-scripts/release-readiness.py
-```
+- 公开路径和必填字段变更必须同步更新本文档和 API 表面测试。
+- 响应可以增加可选字段。
+- `/ui/api/*` 是本地管理界面的内部接口，不作为稳定集成 API。

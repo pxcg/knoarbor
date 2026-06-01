@@ -26,8 +26,7 @@ def create_health_router() -> APIRouter:
                     "primary": [
                         "CLI: knoarbor ingest",
                         "CLI: knoarbor ingest-document",
-                        "/ingest/run",
-                        "/ingest/document",
+                        "/ingest",
                     ],
                 },
                 "lint": {
@@ -37,6 +36,7 @@ def create_health_router() -> APIRouter:
                     ],
                 },
                 "query": ["CLI: knoarbor query", "/query/search"],
+                "runs": ["/runs"],
                 "diagnostics": ["CLI: knoarbor doctor", "/doctor"],
                 "ui": ["/", "/ui", "/ui/api/config", "/ui/api/status"],
             },
