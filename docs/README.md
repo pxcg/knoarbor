@@ -27,6 +27,7 @@ Chinese documentation lives in [zh/](zh/). This documentation tree is intended f
 - [Release Preflight Checklist](RELEASE_CHECKLIST.md): repository, privacy, tests, docs, UI, and release gates before tagging.
 - [Testing And Quality Gates](TESTING.md): unit tests, frontend smoke, release checks, and live model smoke boundaries.
 - [Changelog](../CHANGELOG.md): public release notes.
+- [v0.8.0 Release Notes](releases/v0.8.0.md): API contract and token-observability release content.
 - [v0.7.0 Release Notes](releases/v0.7.0.md): UI and knowledge-base browsing alpha release content.
 - [v0.6.0 Release Notes](releases/v0.6.0.md): UI foundation release content.
 - [v0.5.1 Release Notes](releases/v0.5.1.md): release-hardening patch for stable API contracts and live smoke validation.
