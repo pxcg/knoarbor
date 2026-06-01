@@ -26,6 +26,12 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Run Python lint
+        run: uv run --extra dev ruff check src tests scripts
+
+      - name: Check documentation links
+        run: uv run python scripts/check-doc-links.py
+
       - name: Run tests
         run: uv run --extra dev python -m unittest discover tests
 

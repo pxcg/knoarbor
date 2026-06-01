@@ -37,6 +37,7 @@ Documentation = "https://github.com/pxcg/knoarbor/tree/main/docs"
 [project.optional-dependencies]
 dev = [
   "httpx==0.27.2",
+  "ruff==0.8.6",
 ]
 
 [project.scripts]
@@ -54,3 +55,16 @@ where = ["src"]
 "knoarbor" = ["config.example.yaml"]
 "knoarbor.semantic.prompts" = ["*.md"]
 "knoarbor.ui" = ["dist/*.html", "dist/*.ico", "dist/*.png", "dist/*.svg", "dist/*.webmanifest", "dist/assets/*"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 140
+exclude = [
+  ".git",
+  ".venv",
+  ".uv-cache",
+  "build",
+  "dist",
+  "web",
+  "wiki",
+]

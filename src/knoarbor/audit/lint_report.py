@@ -261,7 +261,7 @@ def render_lint_run_report(record: dict[str, object]) -> str:
             )
             diff = str(write_details.get("diff") or "")
             if diff:
-                lines.extend(["", f"```diff", diff, "```", ""])
+                lines.extend(["", "```diff", diff, "```", ""])
             if write_details.get("diff_truncated"):
                 lines.append("- diff_truncated: True")
 

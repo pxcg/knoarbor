@@ -70,10 +70,13 @@ scripts/dev-check.sh
 
 The gate should cover:
 
+- Python lint with Ruff.
+- Local Markdown documentation link checks.
 - Python unit tests.
-- Type checking or import checks used by the project.
 - Frontend build.
+- Frontend dependency audit and UI smoke.
 - CLI smoke checks.
+- Package build.
 
 Known acceptable warnings should be documented. Unexpected test skips, uncaught exceptions, or build failures block the release.
 

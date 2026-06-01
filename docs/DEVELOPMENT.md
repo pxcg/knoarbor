@@ -23,6 +23,8 @@ uv run knoar serve
 Run the current test suite:
 
 ```bash
+uv run --extra dev ruff check src tests scripts
+uv run python scripts/check-doc-links.py
 uv run --extra dev python -m unittest discover tests
 ```
 
@@ -32,13 +34,13 @@ Run the local development gate when preparing a release candidate:
 scripts/dev-check.sh
 ```
 
-The script runs frontend build, Python unit tests, read-only `doctor`, and Python package build in the required order. For final release candidates, run the full release gate:
+The script runs frontend build, Ruff, documentation link checks, Python unit tests, read-only `doctor`, and Python package build in the required order. For final release candidates, run the full release gate:
 
 ```bash
 scripts/release-check.sh
 ```
 
-`release-check.sh` runs `dev-check.sh`, `release-readiness.py`, and `clean-clone-smoke.sh` in order. `dev-check.sh` includes frontend build, frontend dependency audit, Playwright UI smoke, Python tests, read-only `doctor`, and package build.
+`release-check.sh` runs `dev-check.sh`, `release-readiness.py`, and `clean-clone-smoke.sh` in order. `dev-check.sh` includes frontend build, frontend dependency audit, Playwright UI smoke, Ruff, documentation link checks, Python tests, read-only `doctor`, and package build.
 
 When a model provider is available, run the live release-candidate smoke test:
 
@@ -128,7 +130,7 @@ Build the Python package before release candidates:
 uv build
 ```
 
-These are the current required gates: Python unit tests, frontend build, frontend dependency audit, Playwright UI smoke, read-only `doctor`, and package build. Python linting, type checks, and frontend linting are target gates and should not be treated as required until the tools are configured in the repository and CI.
+These are the current required gates: Python unit tests, Ruff, documentation link checks, frontend build, frontend dependency audit, Playwright UI smoke, read-only `doctor`, and package build. Type checks and frontend linting are target gates and should not be treated as required until the tools are configured in the repository and CI.
 
 When running checks in the same working tree, run them sequentially. The frontend build rewrites `src/knoarbor/ui/dist/`, while Python UI tests read that directory.
 

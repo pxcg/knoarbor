@@ -5,7 +5,7 @@
 ## 本地单元测试
 
 ```bash
-uv run python -m unittest discover -s tests
+uv run --extra dev python -m unittest discover -s tests
 ```
 
 覆盖范围：
@@ -47,11 +47,22 @@ scripts/dev-check.sh
 - 前端构建；
 - 前端依赖安全扫描；
 - Playwright UI 冒烟；
+- Ruff Python lint；
+- 本地 Markdown 文档链接检查；
 - Python 单元测试；
 - 使用临时 config 和临时 vault 的 CLI 诊断；
 - Python 包构建。
 
 该脚本不得写入维护者真实的 `wiki/`、`config.yaml` 或 `.env`。
+
+## 单项质量门禁
+
+```bash
+uv run --extra dev ruff check src tests scripts
+uv run python scripts/check-doc-links.py
+```
+
+这两项已经纳入 `scripts/dev-check.sh` 和 CI。修改 Python 代码或公开文档时，可以单独运行。
 
 ## 发布门禁
 
@@ -92,7 +103,6 @@ scripts/live-release-candidate-smoke.sh
 
 以下是目标门禁，但当前还不是必需发布门禁：
 
-- 配置规则后的 Python lint。
 - 部分 Python 模块静态类型检查。
 - 前端 lint。
 - API schema snapshot 测试。

@@ -32,6 +32,8 @@ For semantic workflows, set at least one model provider key in `.env`.
 Run before opening a pull request:
 
 ```bash
+uv run --extra dev ruff check src tests scripts
+uv run python scripts/check-doc-links.py
 uv run --extra dev python -m unittest discover tests
 ```
 

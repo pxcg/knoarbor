@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 from typing import Sequence
 
 from knoarbor.cli_commands.parser import build_parser

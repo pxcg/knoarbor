@@ -12,6 +12,8 @@ npm run build
 ## 常用检查
 
 ```bash
+uv run --extra dev ruff check src tests scripts
+uv run python scripts/check-doc-links.py
 uv run --extra dev python -m unittest discover tests
 cd web && npm run build
 uv build
@@ -23,13 +25,13 @@ uv build
 scripts/dev-check.sh
 ```
 
-该脚本会按正确顺序运行前端构建、Python 单元测试、只读 `doctor` 诊断和 Python 包构建。最终 release candidate 运行完整发布门禁：
+该脚本会按正确顺序运行前端构建、Ruff、文档链接检查、Python 单元测试、只读 `doctor` 诊断和 Python 包构建。最终 release candidate 运行完整发布门禁：
 
 ```bash
 scripts/release-check.sh
 ```
 
-`release-check.sh` 会按顺序执行 `dev-check.sh`、`release-readiness.py` 和 `clean-clone-smoke.sh`。`dev-check.sh` 包含前端构建、前端依赖安全扫描、Playwright UI 冒烟测试、Python 单元测试、只读 `doctor` 和 Python 包构建。
+`release-check.sh` 会按顺序执行 `dev-check.sh`、`release-readiness.py` 和 `clean-clone-smoke.sh`。`dev-check.sh` 包含前端构建、前端依赖安全扫描、Playwright UI 冒烟测试、Ruff、文档链接检查、Python 单元测试、只读 `doctor` 和 Python 包构建。
 
 当模型供应商可用时，运行真实 release candidate 冒烟测试：
 
@@ -42,7 +44,7 @@ scripts/live-release-candidate-smoke.sh
 
 完整测试矩阵和发布门禁边界见 [测试与质量门禁](TESTING.md)。
 
-当前发布门禁包含 Python 单元测试、前端构建、前端依赖安全扫描、Playwright UI 冒烟测试、只读 `doctor` 诊断和 Python 包构建。`ruff`、类型检查和前端 lint 是目标门禁；在工具链正式加入 `pyproject.toml`、`web/package.json` 和 CI 之前，不应把它们写成当前必跑命令。
+当前发布门禁包含 Python 单元测试、Ruff、文档链接检查、前端构建、前端依赖安全扫描、Playwright UI 冒烟测试、只读 `doctor` 诊断和 Python 包构建。类型检查和前端 lint 是目标门禁；在工具链正式加入 `pyproject.toml`、`web/package.json` 和 CI 之前，不应把它们写成当前必跑命令。
 
 修改管理控制台导航、布局或 API 连接时，运行浏览器冒烟测试：
 

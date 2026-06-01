@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from knoarbor.core.errors import InvalidConfig, SourceNotFound, VaultPathError
 from knoarbor.runtime import vault_write_lock

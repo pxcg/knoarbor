@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from knoarbor.core.schemas.ingest_review import IngestDraftReview
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract

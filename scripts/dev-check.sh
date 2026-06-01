@@ -14,19 +14,25 @@ TEMP_CONFIG="$TMP_DIR/config.yaml"
 TEMP_VAULT="$TMP_DIR/wiki"
 
 echo "== KnoArbor local gates =="
-echo "1/6 Frontend build"
+echo "1/8 Frontend build"
 (cd web && npm run build)
 
-echo "2/6 Frontend dependency audit"
+echo "2/8 Frontend dependency audit"
 (cd web && npm audit --audit-level=moderate)
 
-echo "3/6 Frontend e2e smoke"
+echo "3/8 Frontend e2e smoke"
 (cd web && npm run test:e2e)
 
-echo "4/6 Python tests"
+echo "4/8 Python lint"
+uv run --extra dev ruff check src tests scripts
+
+echo "5/8 Documentation links"
+uv run python scripts/check-doc-links.py
+
+echo "6/8 Python tests"
 uv run python -m unittest discover -s tests
 
-echo "5/6 CLI diagnostics"
+echo "7/8 CLI diagnostics"
 # Keep release checks isolated from the maintainer's real config.yaml and wiki/.
 uv run python - "$TEMP_CONFIG" "$TEMP_VAULT" <<'PY'
 from pathlib import Path
@@ -46,7 +52,7 @@ PY
 uv run knoar --config "$TEMP_CONFIG" init --vault "$TEMP_VAULT" >/dev/null
 DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY:-knoarbor-release-smoke-key}" uv run knoar --config "$TEMP_CONFIG" doctor >/dev/null
 
-echo "6/6 Python package build"
+echo "8/8 Python package build"
 uv build
 
 echo "All local gates passed."

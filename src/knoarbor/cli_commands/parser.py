@@ -260,9 +260,3 @@ def build_parser() -> argparse.ArgumentParser:
     run_contract_parser.set_defaults(handler=run_contract)
 
     return parser
-
-
-def add_vault_argument(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--vault", default=None, help="Path to the Obsidian wiki vault. Overrides config.yaml.")
-
-

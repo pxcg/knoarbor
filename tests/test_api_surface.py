@@ -42,6 +42,14 @@ class ApiSurfaceTests(unittest.TestCase):
         self.assertTrue(ui_route_set().issubset(paths))
         self.assertFalse(removed_legacy_route_set() & paths)
 
+    def test_api_docs_cover_stable_public_routes(self) -> None:
+        docs = (Path(__file__).resolve().parents[1] / "docs" / "API.md").read_text(encoding="utf-8")
+
+        for route in sorted(stable_route_set()):
+            self.assertIn(route, docs)
+        for route in sorted(removed_legacy_route_set()):
+            self.assertNotIn(route, docs)
+
     def test_unexpected_api_errors_still_use_public_error_envelope(self) -> None:
         app = create_app()
 

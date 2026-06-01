@@ -6,7 +6,7 @@ to keep local checks predictable without touching user runtime data.
 ## Local Unit Tests
 
 ```bash
-uv run python -m unittest discover -s tests
+uv run --extra dev python -m unittest discover -s tests
 ```
 
 Scope:
@@ -49,12 +49,24 @@ Current scope:
 - frontend build;
 - frontend dependency audit;
 - Playwright UI smoke;
+- Python lint with Ruff;
+- local Markdown documentation link check;
 - Python unit tests;
 - CLI diagnostics against a temporary config and temporary vault;
 - Python package build.
 
 This script must not write to the maintainer's real `wiki/`, `config.yaml`, or
 `.env`.
+
+## Individual Quality Gates
+
+```bash
+uv run --extra dev ruff check src tests scripts
+uv run python scripts/check-doc-links.py
+```
+
+These checks are part of `scripts/dev-check.sh` and CI. Run them directly when
+iterating on Python code or public documentation.
 
 ## Release Gate
 
@@ -98,7 +110,6 @@ documentation, UI, API/CLI compatibility, and long-run safety.
 
 The following are desired but not yet required release gates:
 
-- Python linting with a configured rule set.
 - Static type checks for selected Python modules.
 - Frontend linting.
 - API schema snapshot tests.

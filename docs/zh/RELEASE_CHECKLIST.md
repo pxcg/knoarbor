@@ -70,10 +70,13 @@ scripts/dev-check.sh
 
 该门禁应覆盖：
 
+- Ruff Python lint。
+- 本地 Markdown 文档链接检查。
 - Python 单元测试。
-- 项目使用的类型检查或导入检查。
 - 前端构建。
+- 前端依赖安全扫描和 UI 冒烟测试。
 - CLI smoke 检查。
+- Python 包构建。
 
 已知且可接受的 warning 应记录下来。非预期跳过、未捕获异常或构建失败会阻止发布。
 
