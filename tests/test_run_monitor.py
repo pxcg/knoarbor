@@ -7,12 +7,14 @@ import unittest
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 from knoarbor.core.schemas.ingest_run import IngestFileRunRequest, IngestRecoveryRunRequest
 from knoarbor.core.schemas.wiki_query import WikiSearchRequest
 from knoarbor.runtime import KNOWN_RUN_EVENT_TYPES, RunReporter, run_monitor_context
 from knoarbor.runtime.run_monitor import RunMonitor, list_runs, read_run, read_run_events, request_cancel
 from knoarbor.services.run_manager import RunManager
+from knoarbor.services.wiki_search import WikiSearchService
 
 
 class RunMonitorTests(unittest.TestCase):
@@ -138,6 +140,37 @@ class RunMonitorTests(unittest.TestCase):
 
         self.assertEqual(record.status, "completed")
         self.assertTrue(any(event.event_type == "worker_started" for event in events))
+
+    def test_run_manager_failure_keeps_report_event_and_error_consistent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            manager = RunManager()
+
+            with patch("knoarbor.services.wiki_search.search_query", side_effect=RuntimeError("query failed")):
+                started = manager.start_query(
+                    WikiSearchRequest(
+                        obsidian_vault_path=str(vault),
+                        query="agent",
+                        record_query=True,
+                        write_report=True,
+                    ),
+                    WikiSearchService().search,
+                )
+                for _ in range(20):
+                    record = manager.read(str(vault), started.run_id)
+                    if record.status == "failed":
+                        break
+                    time.sleep(0.05)
+                events = manager.events(str(vault), started.run_id).events
+            reports = sorted((vault / "maintenance").glob("query_run_report_*.md"))
+            report_text = reports[0].read_text(encoding="utf-8") if reports else ""
+
+        self.assertEqual(record.status, "failed")
+        self.assertEqual(record.error_info["code"], "KA-INTERNAL-001")
+        self.assertEqual(len(reports), 1)
+        self.assertIn(f"- run_id: {started.run_id}", report_text)
+        self.assertIn("- status: failed", report_text)
+        self.assertTrue(any(event.event_type == "run_failed" for event in events))
 
     def test_run_manager_marks_ingest_result_with_failures_as_partial(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

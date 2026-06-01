@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterable
 
 from pydantic import BaseModel, Field
 
+from knoarbor.core.errors import UserInputError, VaultPathError, WikiPageNotFound
 from knoarbor.core.markdown import compact_inline_text, extract_heading, extract_section, extract_tags, parse_frontmatter
 from knoarbor.storage import ensure_machine_index, machine_index_dir
 
@@ -97,11 +98,11 @@ def _resolve_vault_file(vault_path: Path, relative_path: str) -> Path:
     try:
         page_path.relative_to(vault_path)
     except ValueError as exc:
-        raise ValueError("Path must stay inside the configured vault") from exc
+        raise VaultPathError("Path must stay inside the configured vault") from exc
     if not page_path.exists() or not page_path.is_file():
-        raise FileNotFoundError(f"Vault file not found: {relative_path}")
+        raise WikiPageNotFound(f"Vault file not found: {relative_path}")
     if page_path.suffix.lower() != ".md":
-        raise ValueError("Only Markdown wiki pages can be previewed")
+        raise UserInputError("Only Markdown wiki pages can be previewed")
     return page_path
 
 

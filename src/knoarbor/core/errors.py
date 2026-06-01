@@ -90,6 +90,10 @@ class InputFileNotFound(UserInputError):
     code: ErrorCode = "KA-INPUT-002"
 
 
+class WikiPageNotFound(InputFileNotFound):
+    http_status = 404
+
+
 class ConfigNotFound(UserInputError):
     code: ErrorCode = "KA-CFG-001"
 

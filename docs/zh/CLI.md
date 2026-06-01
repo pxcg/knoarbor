@@ -85,14 +85,23 @@ uv run knoar query --write-report "Agent Loop 是什么？"
 
 查询阶段返回的是本地 Wiki 上下文，不负责替代宿主 AI 生成最终聊天回答。使用 `--write-report` 时，会在 `maintenance/query_report_*.md` 写入一次查询报告。
 
+记录一次查询反馈：
+
+```bash
+uv run knoar query-feedback "Agent Loop 是什么？" --useful --selected-path concepts/Agent-Loop.md
+```
+
 ## 异步运行
 
 长任务可以通过 run 命令查看进度、事件和取消状态。
 
 ```bash
 uv run knoar runs --vault ./wiki
+uv run knoar runs --active --vault ./wiki
 uv run knoar run-events RUN_ID --vault ./wiki
+uv run knoar run-events RUN_ID --follow --vault ./wiki
 uv run knoar run-cancel RUN_ID --vault ./wiki
+uv run knoar run-rerun-failed RUN_ID --write --vault ./wiki
 ```
 
 ## 调试语义契约
@@ -100,4 +109,5 @@ uv run knoar run-cancel RUN_ID --vault ./wiki
 ```bash
 uv run knoar contracts
 uv run knoar run-contract source_normalize --input /path/to/input.json
+uv run knoar lint-plan --mode structural
 ```

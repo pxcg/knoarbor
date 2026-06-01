@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 
 from knoarbor.core.config import default_config_path, load_config
 from knoarbor.services.wiki_pages import WikiPageBacklinksResponse, WikiPageDetail, WikiPageService, WikiPagesResponse
@@ -18,12 +18,7 @@ def create_wiki_router() -> APIRouter:
 
     @router.get("/page", response_model=WikiPageDetail)
     async def read_page(path: str, vault_path: str | None = Query(default=None)) -> WikiPageDetail:
-        try:
-            return service.read_page(_resolve_vault_path(vault_path), path)
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return service.read_page(_resolve_vault_path(vault_path), path)
 
     @router.get("/backlinks", response_model=WikiPageBacklinksResponse)
     async def read_backlinks(path: str, vault_path: str | None = Query(default=None)) -> WikiPageBacklinksResponse:

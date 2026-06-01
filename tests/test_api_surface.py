@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.entrypoints.api import create_app
 from knoarbor.entrypoints.api_contract import removed_legacy_route_set, stable_route_set, ui_route_set
+from knoarbor.core.errors import ERROR_HINTS
 from knoarbor import __version__
 
 
@@ -49,6 +50,15 @@ class ApiSurfaceTests(unittest.TestCase):
             self.assertIn(route, docs)
         for route in sorted(removed_legacy_route_set()):
             self.assertNotIn(route, docs)
+
+    def test_error_code_docs_cover_public_error_catalog(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        docs = (root / "docs" / "ERROR_CODES.md").read_text(encoding="utf-8")
+        zh_docs = (root / "docs" / "zh" / "ERROR_CODES.md").read_text(encoding="utf-8")
+
+        for code in sorted(ERROR_HINTS):
+            self.assertIn(code, docs)
+            self.assertIn(code, zh_docs)
 
     def test_unexpected_api_errors_still_use_public_error_envelope(self) -> None:
         app = create_app()
@@ -260,7 +270,7 @@ class ApiSurfaceTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json()["error"]["code"], "KA-INPUT-001")
+        self.assertEqual(response.json()["error"]["code"], "KA-INPUT-002")
         self.assertEqual(response.json()["error"]["category"], "user_input_error")
         self.assertIn("Vault file not found", response.json()["error"]["message"])
 

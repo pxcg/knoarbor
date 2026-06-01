@@ -5,6 +5,7 @@ import json
 import sys
 import tempfile
 import unittest
+from argparse import _SubParsersAction
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
@@ -14,7 +15,57 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from knoarbor.cli import build_parser, main
 
 
+def _subcommand_names(parser) -> set[str]:
+    for action in parser._actions:
+        if isinstance(action, _SubParsersAction):
+            return set(action.choices)
+    return set()
+
+
 class CliTests(unittest.TestCase):
+    def test_cli_command_contract_is_stable_and_documented(self) -> None:
+        parser = build_parser()
+        commands = _subcommand_names(parser)
+        docs = (Path(__file__).resolve().parents[1] / "docs" / "CLI.md").read_text(encoding="utf-8")
+
+        expected_commands = {
+            "contracts",
+            "doctor",
+            "ingest",
+            "ingest-document",
+            "ingest-file",
+            "init",
+            "lint",
+            "lint-plan",
+            "lint-run",
+            "query",
+            "query-feedback",
+            "run-cancel",
+            "run-contract",
+            "run-events",
+            "run-rerun-failed",
+            "runs",
+            "scan",
+            "serve",
+            "sources",
+            "status",
+        }
+
+        self.assertEqual(commands, expected_commands)
+        for command in sorted(commands):
+            self.assertIn(f"### `{command}`", docs)
+
+    def test_cli_help_keeps_core_command_groups_visible(self) -> None:
+        output = io.StringIO()
+
+        with redirect_stdout(output), self.assertRaises(SystemExit) as raised:
+            main(["--help"])
+
+        self.assertEqual(raised.exception.code, 0)
+        help_text = output.getvalue()
+        for command in ("ingest", "lint-run", "query", "runs", "serve"):
+            self.assertIn(command, help_text)
+
     def test_cli_errors_include_code_and_hint(self) -> None:
         stderr = io.StringIO()
 

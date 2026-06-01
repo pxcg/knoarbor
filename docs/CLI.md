@@ -102,6 +102,8 @@ Run semantic ingest for one prepared `source_document.v1` JSON file.
 uv run knoar ingest-document --input /path/to/source_document.json --write
 ```
 
+### `ingest-file`
+
 `ingest-file` also follows progress by default for human-readable output:
 
 ```bash
@@ -136,6 +138,52 @@ Use `--write-report` when you want the query run to leave an audit artifact unde
 
 ```bash
 uv run knoar query --write-report "Agent Loop 是什么？"
+```
+
+### `query-feedback`
+
+Record relevance feedback for a previous query. Feedback is stored in the query
+feedback ledger and is used for later retrieval diagnostics.
+
+```bash
+uv run knoar query-feedback "Agent Loop 是什么？" --useful --selected-path concepts/Agent-Loop.md
+uv run knoar query-feedback "Agent Loop 是什么？" --no-useful --rejected-path concepts/Old-Page.md
+```
+
+### `runs`
+
+List recent or active workflow runs from the local run monitor.
+
+```bash
+uv run knoar runs
+uv run knoar runs --active
+uv run knoar runs --json
+```
+
+### `run-events`
+
+Show the event log for one workflow run. Use `--follow` for a terminal-style
+progress stream.
+
+```bash
+uv run knoar run-events RUN_ID
+uv run knoar run-events RUN_ID --follow
+```
+
+### `run-cancel`
+
+Request cooperative cancellation for an active run.
+
+```bash
+uv run knoar run-cancel RUN_ID
+```
+
+### `run-rerun-failed`
+
+Start a recovery ingest run from a failed or partially failed ingest run.
+
+```bash
+uv run knoar run-rerun-failed RUN_ID --write
 ```
 
 ### `scan`
@@ -174,6 +222,16 @@ scheduled or occasional deep audits.
 Like ingest, `lint-run` follows progress by default for human-readable output.
 Use `--json` for machine-readable output or `--no-follow` for synchronous
 summary output.
+
+### `lint-plan`
+
+Run semantic lint diagnosis and review without writing changes. This is a
+diagnostic command for prompt/schema behavior and maintenance planning.
+
+```bash
+uv run knoar lint-plan --mode structural
+uv run knoar lint-plan --mode quality --json
+```
 
 ### `contracts`
 
