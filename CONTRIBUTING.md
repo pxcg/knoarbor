@@ -51,6 +51,9 @@ uv build
 
 The web console is bundled into the Python package from `src/knoarbor/ui/dist/`. It is not published as a standalone npm package.
 
+See [Testing And Quality Gates](docs/TESTING.md) for the full local gate matrix,
+including release checks and live model smoke tests.
+
 ## Documentation
 
 Update documentation when behavior changes:
@@ -59,8 +62,10 @@ Update documentation when behavior changes:
 - `docs/CONFIGURATION.md` for config options.
 - `docs/CLI.md` for CLI commands.
 - `docs/API.md` for public HTTP API changes.
+- `docs/API_COMPATIBILITY.md` for stable API contract changes.
 - `docs/ARCHITECTURE.md` for module or boundary changes.
 - `docs/PROVENANCE_DESIGN.md` for source-chain semantics.
+- `docs/BACKUP_AND_RECOVERY.md` for runtime data, backup, restore, or test isolation changes.
 
 Keep internal planning notes, private workflow JSON, slides, local vaults, and generated reports out of the public branch.
 
@@ -71,7 +76,7 @@ Do not commit:
 - `.env`, API keys, tokens, cookies, or credentials.
 - `config.yaml` with private local paths.
 - `wiki/` runtime vault contents.
-- `n8n/` workflows or credentials.
+- Local workflow exports or credentials.
 - Personal notes, Hermes sessions, PDFs, screenshots, or company documents.
 - `.local-dev/` internal working notes.
 

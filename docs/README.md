@@ -11,17 +11,21 @@ Chinese documentation lives in [zh/](zh/). This documentation tree is intended f
 - [Configuration](CONFIGURATION.md): model providers, vault paths, connectors, document processing, and privacy redaction.
 - [CLI Reference](CLI.md): command-line usage for ingest, lint, query, service, and debugging.
 - [API Reference](API.md): FastAPI endpoints and boundary rules.
+- [API Compatibility](API_COMPATIBILITY.md): stable endpoint policy, schema versioning, and deprecation rules.
 - [Error Codes](ERROR_CODES.md): stable CLI/API error codes and troubleshooting hints.
+- [Troubleshooting](TROUBLESHOOTING.md): common setup, model, UI, ingest, and runtime issues.
 - [Core Concepts](CONCEPTS.md): raw sources, source documents, wiki page types, ingest, lint, query, and runtime vault.
 
 ## Architecture
 
 - [Architecture](ARCHITECTURE.md): current system architecture and implementation boundaries.
 - [Provenance Design](PROVENANCE_DESIGN.md): source chain semantics across raw sources, source digests, and knowledge pages.
+- [Backup And Recovery](BACKUP_AND_RECOVERY.md): runtime vault backup, git recovery boundaries, and safe index rebuilds.
 
 ## Operations
 
 - [Release Preflight Checklist](RELEASE_CHECKLIST.md): repository, privacy, tests, docs, UI, and release gates before tagging.
+- [Testing And Quality Gates](TESTING.md): unit tests, frontend smoke, release checks, and live model smoke boundaries.
 - [Changelog](../CHANGELOG.md): public release notes.
 - [v0.7.0 Release Notes](releases/v0.7.0.md): UI and knowledge-base browsing alpha release content.
 - [v0.6.0 Release Notes](releases/v0.6.0.md): UI foundation release content.
@@ -37,23 +41,25 @@ Chinese documentation lives in [zh/](zh/). This documentation tree is intended f
 - [Development](DEVELOPMENT.md): setup, tests, package layout, design rules, and release notes.
 - [Contributing](../CONTRIBUTING.md): contribution process, branch model, tests, and privacy rules.
 - [Security](../SECURITY.md): vulnerability reporting and secret handling.
+- [Support](../SUPPORT.md): where to ask questions and how to file useful reports.
+- [Code Of Conduct](../CODE_OF_CONDUCT.md): contribution conduct expectations.
 
 ## Reading Order
 
 For users:
 
 ```text
-Showcase -> Quickstart -> Configuration -> CLI Reference -> Core Concepts
+Showcase -> Quickstart -> Configuration -> Troubleshooting -> CLI Reference -> Core Concepts
 ```
 
 For contributors:
 
 ```text
-Core Concepts -> Architecture -> Provenance Design -> Development -> Contributing
+Core Concepts -> Architecture -> Provenance Design -> API Compatibility -> Development -> Testing -> Contributing
 ```
 
 For release preparation:
 
 ```text
-Release Preflight Checklist -> Changelog -> Release Notes -> Security
+Release Preflight Checklist -> Testing -> Backup And Recovery -> Changelog -> Release Notes -> Security
 ```

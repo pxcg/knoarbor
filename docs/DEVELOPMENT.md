@@ -51,6 +51,9 @@ This creates a temporary vault, runs Markdown ingest, Codex-session ingest,
 structural lint, query, and a negative non-Markdown preprocessor check. The
 temporary directory is removed automatically.
 
+For the complete test matrix and release gate boundaries, see
+[Testing And Quality Gates](TESTING.md).
+
 If your environment blocks the default uv cache path, use a project-local cache:
 
 ```bash

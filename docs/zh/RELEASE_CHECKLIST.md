@@ -12,7 +12,7 @@
 
 ```bash
 git status --short
-git ls-files | rg '(^wiki/|^n8n/|^dist/|node_modules|\.venv|\.uv-cache|\.pytest_cache|egg-info|knoarbor_logo_asset_kit|\.obsidian)' || true
+git ls-files | rg '(^wiki/|^dist/|node_modules|\.venv|\.uv-cache|\.pytest_cache|egg-info|knoarbor_logo_asset_kit|\.obsidian)' || true
 ```
 
 预期结果：
@@ -118,12 +118,15 @@ scripts/clean-clone-smoke.sh
 
 当缺少凭证或网络不可用时，可以跳过真实模型调用，但发布决策中必须注明。
 
+当前自动和人工测试边界见 [测试与质量门禁](TESTING.md)。
+
 ## 8. API 和 CLI 兼容性
 
 发布前审查所有公开入口：
 
 - `docs/CLI.md` 中记录的 CLI 命令。
 - `docs/API.md` 中记录的 HTTP 接口。
+- `docs/API_COMPATIBILITY.md` 中记录的兼容性规则。
 - `docs/ERROR_CODES.md` 中记录的稳定错误码。
 - `docs/CONFIGURATION.md` 中记录的配置字段。
 
@@ -143,8 +146,18 @@ scripts/clean-clone-smoke.sh
 - `docs/zh/CONFIGURATION.md`
 - `docs/API.md`
 - `docs/zh/API.md`
+- `docs/API_COMPATIBILITY.md`
+- `docs/zh/API_COMPATIBILITY.md`
 - `docs/CLI.md`
 - `docs/zh/CLI.md`
+- `docs/TROUBLESHOOTING.md`
+- `docs/zh/TROUBLESHOOTING.md`
+- `docs/BACKUP_AND_RECOVERY.md`
+- `docs/zh/BACKUP_AND_RECOVERY.md`
+- `docs/TESTING.md`
+- `docs/zh/TESTING.md`
+- `SUPPORT.md`
+- `CODE_OF_CONDUCT.md`
 
 文档应说明：
 

@@ -12,7 +12,7 @@ Required checks:
 
 ```bash
 git status --short
-git ls-files | rg '(^wiki/|^n8n/|^dist/|node_modules|\.venv|\.uv-cache|\.pytest_cache|egg-info|knoarbor_logo_asset_kit|\.obsidian)' || true
+git ls-files | rg '(^wiki/|^dist/|node_modules|\.venv|\.uv-cache|\.pytest_cache|egg-info|knoarbor_logo_asset_kit|\.obsidian)' || true
 ```
 
 Expected result:
@@ -118,12 +118,16 @@ At minimum, verify the following without requiring private data:
 
 External model-provider calls may be skipped only when credentials or network are unavailable. If skipped, note it in the release decision.
 
+See [Testing And Quality Gates](TESTING.md) for the current automated and manual
+test boundary.
+
 ## 8. API And CLI Compatibility
 
 Review all public entry points before release:
 
 - CLI commands documented in `docs/CLI.md`.
 - HTTP endpoints documented in `docs/API.md`.
+- Compatibility rules documented in `docs/API_COMPATIBILITY.md`.
 - Stable error codes documented in `docs/ERROR_CODES.md`.
 - Configuration fields documented in `docs/CONFIGURATION.md`.
 
@@ -143,8 +147,18 @@ Review both English and Chinese public docs:
 - `docs/zh/CONFIGURATION.md`
 - `docs/API.md`
 - `docs/zh/API.md`
+- `docs/API_COMPATIBILITY.md`
+- `docs/zh/API_COMPATIBILITY.md`
 - `docs/CLI.md`
 - `docs/zh/CLI.md`
+- `docs/TROUBLESHOOTING.md`
+- `docs/zh/TROUBLESHOOTING.md`
+- `docs/BACKUP_AND_RECOVERY.md`
+- `docs/zh/BACKUP_AND_RECOVERY.md`
+- `docs/TESTING.md`
+- `docs/zh/TESTING.md`
+- `SUPPORT.md`
+- `CODE_OF_CONDUCT.md`
 
 The docs should explain:
 

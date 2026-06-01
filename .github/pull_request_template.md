@@ -20,7 +20,7 @@ Describe the change and the user/system problem it solves.
 
 ## Privacy Check
 
-- [ ] No `.env`, API key, private path, raw source, runtime wiki, or n8n credential is committed.
+- [ ] No `.env`, API key, private path, raw source, runtime wiki, or local workflow credential is committed.
 - [ ] Logs and examples are redacted.
 
 ## Validation

@@ -1,6 +1,6 @@
 # API Reference
 
-KnoArbor exposes a small public alpha HTTP API for local UI, CLI helpers, external workflow tools, and AI-tool skills. The API is plain JSON over HTTP and can be called from Apifox, Postman, curl, Python, n8n, or any OpenAPI-compatible client.
+KnoArbor exposes a small public alpha HTTP API for local UI, CLI helpers, external workflow tools, and AI-tool skills. The API is plain JSON over HTTP and can be called from Apifox, Postman, curl, Python, or any OpenAPI-compatible client.
 
 Start the service:
 

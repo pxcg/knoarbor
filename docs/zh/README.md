@@ -12,18 +12,22 @@
 - [快速开始](QUICKSTART.md)：安装、配置、初始化知识库、启动服务和运行查询。
 - [配置说明](CONFIGURATION.md)：模型供应商、知识库目录、输入来源和运行限制。
 - [命令行](CLI.md)：知识编译、校验维护、查询和服务启动命令。
+- [API 兼容性](API_COMPATIBILITY.md)：稳定 endpoint、schema version 和废弃策略。
 - [错误码](ERROR_CODES.md)：CLI/API 的稳定错误码和排查建议。
+- [故障排查](TROUBLESHOOTING.md)：配置、模型、UI、ingest 和运行时常见问题。
 - [核心概念](CONCEPTS.md)：raw source、source digest、wiki page、ingest、lint、query。
 
 ## 架构
 
 - [架构设计](ARCHITECTURE.md)：系统分层、流程边界和长期演进方向。
 - [溯源设计](PROVENANCE_DESIGN.md)：原始资料、来源摘要和知识页面之间的证据链。
+- [备份与恢复](BACKUP_AND_RECOVERY.md)：运行时知识库备份、git 恢复边界和索引重建。
 
 ## 参考
 
 - [接口说明](API.md)：本地 HTTP API 的用途和边界。
 - [开发说明](DEVELOPMENT.md)：本地开发、测试、构建和发布流程。
+- [测试与质量门禁](TESTING.md)：单元测试、前端冒烟、发布检查和真实模型冒烟边界。
 - [发布前审查清单](RELEASE_CHECKLIST.md)：公开发布前的仓库、隐私、测试、文档、UI 和发布门禁。
 - [v0.7.0 发布说明](../releases/v0.7.0.md)：UI 与知识库浏览版本说明。
 
@@ -32,17 +36,17 @@
 普通使用者：
 
 ```text
-展示导览 -> 快速开始 -> 配置说明 -> 命令行 -> 核心概念
+展示导览 -> 快速开始 -> 配置说明 -> 故障排查 -> 命令行 -> 核心概念
 ```
 
 贡献者：
 
 ```text
-核心概念 -> 架构设计 -> 溯源设计 -> 开发说明
+核心概念 -> 架构设计 -> 溯源设计 -> API 兼容性 -> 开发说明 -> 测试与质量门禁
 ```
 
 发布准备：
 
 ```text
-发布前审查清单 -> Changelog -> Release Notes -> Security
+发布前审查清单 -> 测试与质量门禁 -> 备份与恢复 -> Changelog -> Release Notes -> Security
 ```

@@ -1,6 +1,6 @@
 # API 说明
 
-KnoArbor 暴露一组小而明确的 public alpha HTTP API，供本地管理界面、CLI 辅助命令、外部工作流工具和 AI 工具技能调用。API 是普通 JSON over HTTP，可以直接通过 Apifox、Postman、curl、Python、n8n 或任何 OpenAPI 客户端调用。
+KnoArbor 暴露一组小而明确的 public alpha HTTP API，供本地管理界面、CLI 辅助命令、外部工作流工具和 AI 工具技能调用。API 是普通 JSON over HTTP，可以直接通过 Apifox、Postman、curl、Python 或任何 OpenAPI 客户端调用。
 
 启动服务：
 

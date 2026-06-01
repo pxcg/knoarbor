@@ -40,6 +40,8 @@ scripts/live-release-candidate-smoke.sh
 
 该脚本会创建临时知识库，依次运行 Markdown ingest、Codex 会话 ingest、结构维护、查询，以及一个非 Markdown 缺少预处理器时必须返回 `KA-DOC-001` 的负向检查。临时目录会自动删除。
 
+完整测试矩阵和发布门禁边界见 [测试与质量门禁](TESTING.md)。
+
 当前发布门禁包含 Python 单元测试、前端构建、前端依赖安全扫描、Playwright UI 冒烟测试、只读 `doctor` 诊断和 Python 包构建。`ruff`、类型检查和前端 lint 是目标门禁；在工具链正式加入 `pyproject.toml`、`web/package.json` 和 CI 之前，不应把它们写成当前必跑命令。
 
 修改管理控制台导航、布局或 API 连接时，运行浏览器冒烟测试：
