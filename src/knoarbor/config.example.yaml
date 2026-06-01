@@ -32,6 +32,18 @@ models:
       api_key_env: DEEPSEEK_API_KEY
       model: deepseek-v4-flash
       json_mode: true
+    # Local OpenAI-compatible presets. Keep only one default provider selected
+    # above; uncomment and edit one of these when using a local runtime.
+    # ollama:
+    #   base_url: http://127.0.0.1:11434/v1
+    #   api_key_env:
+    #   model: qwen3:14b
+    #   json_mode: true
+    # vllm:
+    #   base_url: http://127.0.0.1:8001/v1
+    #   api_key_env:
+    #   model: Qwen/Qwen3-32B-Instruct
+    #   json_mode: true
   retry:
     enabled: true
     max_attempts: 2

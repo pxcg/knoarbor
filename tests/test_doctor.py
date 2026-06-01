@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from knoarbor.cli import main
 from knoarbor.entrypoints.api import create_app
+from knoarbor.semantic import ProviderHealthCheck
 from knoarbor.services.doctor import DoctorService
 
 
@@ -42,7 +42,6 @@ class DoctorServiceTests(unittest.TestCase):
                 "    local:\n"
                 "      base_url: http://127.0.0.1:11434/v1\n"
                 "      model: qwen\n"
-                "      api_key_env: TEST_KNOARBOR_KEY\n"
                 "connectors:\n"
                 "  markdown:\n"
                 "    enabled: true\n"
@@ -51,12 +50,14 @@ class DoctorServiceTests(unittest.TestCase):
                 f"        - {notes}\n",
                 encoding="utf-8",
             )
-            with patch.dict(os.environ, {"TEST_KNOARBOR_KEY": "secret"}):
+            with patch("knoarbor.services.doctor.ModelGateway.check", return_value=ProviderHealthCheck(available=True, structured_output=True, message="ok")):
                 report = DoctorService().run(config_path=config)
 
         self.assertEqual(report.status, "ok")
         checks = {check.name: check for check in report.checks}
         self.assertEqual(checks["models.api_key_env"].status, "ok")
+        self.assertEqual(checks["models.endpoint"].status, "ok")
+        self.assertEqual(checks["models.structured_output"].status, "ok")
         self.assertEqual(checks["connectors.markdown"].details["source_count"], 1)
 
 

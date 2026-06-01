@@ -46,8 +46,9 @@ uv run knoar doctor
 修复：
 
 1. 确认 `config.yaml` 中的 `models.default_provider`。
-2. 确认该 provider 配置了 `api_key_env`。
+2. 如果使用托管供应商，确认该 provider 配置了 `api_key_env`。
 3. 确认运行 KnoArbor 的 shell 中已经导出对应环境变量。
+4. 如果使用 Ollama/vLLM 等本地或内网端点，将 `api_key_env` 设置为 `null`，并确认服务已启动。
 
 示例：
 

@@ -36,7 +36,7 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 | Connector / Source | 将 Markdown、聊天记录、文档和未来外部系统转换成 `SourceDocument`。 | Wiki 页面规划或页面生命周期治理。 |
 | Document Processing | 在共享 ingest 前把富文档转换成 Markdown。 | 知识对象分类或 Wiki 写入。 |
 | Semantic | 窄功能 LLM 契约、prompt、schema 校验和语义步骤。 | 读取本地文件、写页面、执行操作或管理进度。 |
-| Model Client | OpenAI-compatible 调用、JSON mode、timeout、retry 和 token 指标。 | ingest/lint/query 的业务决策。 |
+| Model Gateway | 稳定模型边界、ProviderAdapter 选择、OpenAI-compatible 调用、JSON mode、端点检测、retry 和 token 指标。 | ingest/lint/query 的业务决策。 |
 | Storage / Writer | Markdown 渲染、patch 应用、索引更新、checkpoint 和底层 vault 文件原语。 | 判断某个知识对象是否应该存在，或汇总报告。 |
 | Retrieval / Index | 页面元数据、链接图谱、相关扩展、query context pack 和未来 BM25/vector provider。 | 修改 Wiki 页面。 |
 | Maintenance | 确定性扫描、语义 lint 候选、operation 执行和验证。 | 原始来源摄入或审计制品归属。 |

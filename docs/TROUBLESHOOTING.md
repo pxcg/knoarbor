@@ -49,8 +49,9 @@ Symptoms:
 Fix:
 
 1. Confirm `models.default_provider` in `config.yaml`.
-2. Confirm the provider has `api_key_env`.
+2. For hosted providers, confirm the provider has `api_key_env`.
 3. Confirm that environment variable is exported in the shell running KnoArbor.
+4. For local or private endpoints such as Ollama/vLLM, set `api_key_env: null` and confirm the endpoint is running.
 
 Example:
 

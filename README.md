@@ -324,7 +324,7 @@ models:
       model: deepseek-v4-flash
 ```
 
-All model providers currently use OpenAI-compatible Chat Completions APIs. See [Configuration](docs/CONFIGURATION.md) for provider examples and connector settings.
+All model providers currently use OpenAI-compatible Chat Completions APIs through the ModelGateway boundary. Local endpoints such as Ollama or vLLM can run without `api_key_env`. See [Configuration](docs/CONFIGURATION.md) for provider examples and connector settings.
 
 ## Architecture
 

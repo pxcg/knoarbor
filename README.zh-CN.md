@@ -299,7 +299,7 @@ models:
       model: deepseek-v4-flash
 ```
 
-当前模型供应商使用 OpenAI 兼容 Chat Completions API。更多配置见 [配置说明](docs/zh/CONFIGURATION.md)。
+当前模型供应商通过 ModelGateway 使用 OpenAI 兼容 Chat Completions API。本地 Ollama 或 vLLM 端点可以不配置 `api_key_env`。更多配置见 [配置说明](docs/zh/CONFIGURATION.md)。
 
 ## 架构
 

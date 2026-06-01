@@ -38,7 +38,7 @@ leaking into each other.
 | Connector / Source | Converting Markdown, chats, documents, and future external systems into `SourceDocument`. | Wiki page planning or page lifecycle governance. |
 | Document Processing | Converting rich documents into Markdown before shared ingest. | Knowledge-object classification or wiki writes. |
 | Semantic | Narrow LLM contracts, prompts, schema validation, and semantic workflow steps. | Reading local files, writing pages, executing operations, or managing progress. |
-| Model Client | OpenAI-compatible provider calls, JSON mode, timeout, retry, and token metrics. | Ingest/lint/query decisions. |
+| Model Gateway | Stable model boundary, ProviderAdapter selection, OpenAI-compatible calls, JSON mode, endpoint checks, retry, and token metrics. | Ingest/lint/query decisions. |
 | Storage / Writer | Markdown rendering, patch application, index updates, checkpoints, and low-level vault file primitives. | Deciding whether a knowledge object should exist or how reports are summarized. |
 | Retrieval / Index | Page metadata, link graph, related expansion, query context packs, and future BM25/vector providers. | Mutating the wiki. |
 | Maintenance | Deterministic scans, semantic lint candidates, operation execution, and verification. | Raw source ingestion or audit artifact ownership. |

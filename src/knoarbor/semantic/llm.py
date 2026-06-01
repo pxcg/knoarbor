@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import http.client
+import ipaddress
 import socket
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import Protocol
@@ -41,6 +43,62 @@ class ChatClient(Protocol):
         ...
 
 
+class ProviderHealthCheck(BaseModel):
+    available: bool
+    structured_output: bool | None = None
+    message: str
+    details: dict[str, object] = Field(default_factory=dict)
+
+
+class ProviderAdapter(ChatClient, Protocol):
+    provider: str
+    model: str
+
+    def check(self) -> ProviderHealthCheck:
+        ...
+
+
+@dataclass(frozen=True)
+class ModelGateway:
+    """Stable model boundary used by semantic workflows.
+
+    Provider-specific transport stays behind ProviderAdapter. Ingest, lint, and
+    query only depend on ChatClient semantics and never branch on vendor names.
+    """
+
+    adapter: ProviderAdapter
+
+    @classmethod
+    def from_config(
+        cls,
+        provider: str,
+        config: ModelProviderConfig,
+        *,
+        timeout_seconds: float = 60.0,
+    ) -> ModelGateway:
+        return cls(
+            OpenAICompatibleChatClient.from_config(
+                provider,
+                config,
+                timeout_seconds=timeout_seconds,
+            )
+        )
+
+    @property
+    def provider(self) -> str:
+        return self.adapter.provider
+
+    @property
+    def model(self) -> str:
+        return self.adapter.model
+
+    def complete(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
+        return self.adapter.complete(request)
+
+    def check(self) -> ProviderHealthCheck:
+        return self.adapter.check()
+
+
 @dataclass(frozen=True)
 class OpenAICompatibleChatClient:
     provider: str
@@ -65,8 +123,6 @@ class OpenAICompatibleChatClient:
             raise UserInputError(f"Model provider {provider} is missing base_url")
         if not model:
             raise UserInputError(f"Model provider {provider} is missing model")
-        if not api_key:
-            raise UserInputError(f"Model provider {provider} is missing API key")
         return cls(
             provider=provider,
             base_url=base_url,
@@ -90,11 +146,7 @@ class OpenAICompatibleChatClient:
         http_request = urllib.request.Request(
             f"{self.base_url}/chat/completions",
             data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
+            headers=self._headers(content_type=True),
             method="POST",
         )
         started = time.perf_counter()
@@ -125,6 +177,74 @@ class OpenAICompatibleChatClient:
             elapsed_seconds=elapsed,
             tokens_per_second=_tokens_per_second(usage, elapsed),
         )
+
+    def check(self) -> ProviderHealthCheck:
+        started = time.perf_counter()
+        request = urllib.request.Request(
+            f"{self.base_url}/models",
+            headers=self._headers(content_type=False),
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=min(self.timeout_seconds, 5.0)) as response:  # noqa: S310
+                body = response.read().decode("utf-8", errors="replace")
+                status_code = getattr(response, "status", 200)
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            return ProviderHealthCheck(
+                available=False,
+                structured_output=self.json_mode,
+                message=f"Provider endpoint returned HTTP {exc.code} for /models.",
+                details={"status_code": exc.code, "body_preview": body[:500], "elapsed_seconds": round(time.perf_counter() - started, 3)},
+            )
+        except urllib.error.URLError as exc:
+            return ProviderHealthCheck(
+                available=False,
+                structured_output=self.json_mode,
+                message=f"Provider endpoint request failed: {exc.reason}",
+                details={"elapsed_seconds": round(time.perf_counter() - started, 3)},
+            )
+        except (http.client.IncompleteRead, TimeoutError, socket.timeout) as exc:
+            return ProviderHealthCheck(
+                available=False,
+                structured_output=self.json_mode,
+                message=f"Provider endpoint check was interrupted: {exc}",
+                details={"elapsed_seconds": round(time.perf_counter() - started, 3)},
+            )
+
+        return ProviderHealthCheck(
+            available=200 <= int(status_code) < 300,
+            structured_output=self.json_mode,
+            message="Provider endpoint responded to /models.",
+            details={"status_code": int(status_code), "body_preview": body[:500], "elapsed_seconds": round(time.perf_counter() - started, 3)},
+        )
+
+    def _headers(self, *, content_type: bool) -> dict[str, str]:
+        headers = {"Accept": "application/json"}
+        if content_type:
+            headers["Content-Type"] = "application/json"
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
+
+
+def is_local_or_private_model_endpoint(base_url: str | None) -> bool:
+    if not base_url:
+        return False
+    try:
+        host = urllib.parse.urlparse(base_url).hostname
+    except ValueError:
+        return False
+    if not host:
+        return False
+    normalized = host.lower()
+    if normalized in {"localhost", "127.0.0.1", "::1"}:
+        return True
+    try:
+        address = ipaddress.ip_address(normalized)
+    except ValueError:
+        return False
+    return address.is_private or address.is_loopback
 
 
 def _extract_openai_content(data: object) -> str:

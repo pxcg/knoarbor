@@ -14,6 +14,7 @@ from knoarbor.core.errors import ExternalServiceError
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 from knoarbor.semantic import (
     ChatCompletionRequest,
+    ModelGateway,
     OpenAICompatibleChatClient,
     SemanticRetryPolicy,
     SemanticRunner,
@@ -313,19 +314,34 @@ class SemanticRunnerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             OpenAICompatibleChatClient.from_config("deepseek", ModelProviderConfig(model="deepseek-chat"))
 
-    def test_openai_compatible_client_uses_configured_timeout(self) -> None:
-        with patch.dict("os.environ", {"TEST_MODEL_KEY": "test-key"}):
-            client = OpenAICompatibleChatClient.from_config(
-                "deepseek",
-                ModelProviderConfig(
-                    base_url="https://api.example.test",
-                    api_key_env="TEST_MODEL_KEY",
-                    model="deepseek-chat",
-                ),
-                timeout_seconds=300,
-            )
+    def test_model_gateway_wraps_openai_compatible_adapter(self) -> None:
+        gateway = ModelGateway.from_config(
+            "local",
+            ModelProviderConfig(base_url="http://127.0.0.1:11434/v1", model="qwen"),
+            timeout_seconds=300,
+        )
 
-        self.assertEqual(client.timeout_seconds, 300)
+        self.assertEqual(gateway.provider, "local")
+        self.assertEqual(gateway.model, "qwen")
+        self.assertEqual(gateway.adapter.timeout_seconds, 300)
+
+    def test_openai_compatible_client_allows_local_no_auth(self) -> None:
+        client = OpenAICompatibleChatClient.from_config(
+            "local",
+            ModelProviderConfig(base_url="http://127.0.0.1:11434/v1", model="qwen"),
+        )
+
+        captured_auth: str | None = "unset"
+
+        def fake_urlopen(request, timeout):
+            nonlocal captured_auth
+            captured_auth = request.get_header("Authorization")
+            return FakeHTTPResponse()
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            client.complete(ChatCompletionRequest(messages=[{"role": "user", "content": "hello"}]))
+
+        self.assertIsNone(captured_auth)
 
     def test_openai_compatible_client_requests_json_mode_by_default(self) -> None:
         client = OpenAICompatibleChatClient(

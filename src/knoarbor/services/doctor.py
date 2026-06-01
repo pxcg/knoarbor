@@ -8,9 +8,10 @@ from pydantic import ValidationError
 
 from knoarbor.connectors.registry import ConnectorRegistry
 from knoarbor.connectors.selection import selected_connector_configs
-from knoarbor.core.config import KnoArborConfig, default_config_path, load_config
+from knoarbor.core.config import KnoArborConfig, ModelProviderConfig, default_config_path, load_config
 from knoarbor.core.schemas.doctor import DoctorCheck, DoctorReport, DoctorStatus
 from knoarbor.runtime.run_monitor import list_runs
+from knoarbor.semantic.llm import ModelGateway, is_local_or_private_model_endpoint
 
 
 class DoctorService:
@@ -132,12 +133,36 @@ class DoctorService:
         else:
             checks.append(DoctorCheck(name="models.model", status="ok", message="Default provider has a model name.", details={"provider": provider_name, "model": provider.model}))
         if not provider.api_key_env:
-            checks.append(DoctorCheck(name="models.api_key_env", status="warning", message="Default provider has no api_key_env. This is only valid for local or unauthenticated endpoints.", details={"provider": provider_name}))
+            if is_local_or_private_model_endpoint(provider.base_url):
+                checks.append(DoctorCheck(name="models.api_key_env", status="ok", message="Default provider uses a local or private unauthenticated endpoint.", details={"provider": provider_name}))
+            else:
+                checks.append(DoctorCheck(name="models.api_key_env", status="warning", message="Default provider has no api_key_env. This is only valid for local or unauthenticated endpoints.", details={"provider": provider_name}))
         elif os.environ.get(provider.api_key_env):
             checks.append(DoctorCheck(name="models.api_key_env", status="ok", message="API key environment variable is set.", details={"provider": provider_name, "api_key_env": provider.api_key_env}))
         else:
             checks.append(DoctorCheck(name="models.api_key_env", status="error", message="API key environment variable is not set.", details={"provider": provider_name, "api_key_env": provider.api_key_env}))
+        checks.extend(self._provider_runtime_checks(provider_name, provider))
         return checks
+
+    def _provider_runtime_checks(self, provider_name: str, provider: ModelProviderConfig) -> list[DoctorCheck]:
+        if not provider.base_url or not provider.model:
+            return []
+        gateway = ModelGateway.from_config(provider_name, provider, timeout_seconds=5)
+        health = gateway.check()
+        return [
+            DoctorCheck(
+                name="models.endpoint",
+                status="ok" if health.available else "warning",
+                message=health.message,
+                details={"provider": provider_name, "model": provider.model, **health.details},
+            ),
+            DoctorCheck(
+                name="models.structured_output",
+                status="ok" if health.structured_output else "warning",
+                message="Provider is configured to request JSON object output." if health.structured_output else "Provider JSON mode is disabled; structured agent outputs may be less reliable.",
+                details={"provider": provider_name, "json_mode": bool(health.structured_output)},
+            ),
+        ]
 
     def _connector_checks(self, config: KnoArborConfig, connector_names: list[str] | None) -> list[DoctorCheck]:
         checks: list[DoctorCheck] = []
