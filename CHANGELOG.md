@@ -8,6 +8,21 @@ This project follows a simple release-note format while it is in alpha.
 
 - No public changes yet.
 
+## 0.8.0 - 2026-06-01
+
+### Added
+
+- Added stable public API envelopes for `/ingest` and `/lint`, so queued and direct execution return the same top-level response shape.
+- Added semantic token usage sections to ingest and lint reports, including per-agent call counts, prompt tokens, cached prompt tokens, cache rate, completion tokens, total tokens, elapsed time, and per-call details.
+- Added prompt-cache-aware semantic execution preambles so stable contract instructions are separated from dynamic source payloads.
+
+### Changed
+
+- Standardized public API request fields around `vault_path` while keeping internal schema names private to the implementation.
+- Tightened wiki page APIs into `/wiki/pages`, `/wiki/pages/content`, and `/wiki/pages/links`.
+- Made run inspection APIs easier to call by allowing `/runs`, `/runs/{run_id}`, `/runs/{run_id}/events`, `/runs/{run_id}/stream`, and `/runs/{run_id}/cancel` to resolve the configured vault when `vault_path` is omitted.
+- Updated API documentation and UI clients to use the stable `vault_path` contract.
+
 ## 0.7.0 - 2026-05-31
 
 ### Added
