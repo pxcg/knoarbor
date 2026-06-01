@@ -22,27 +22,30 @@ Interactive docs:
 
 ## Design Rule
 
-KnoArbor keeps the public API intentionally small. Different workflow variants are selected by request parameters, not by adding many separate endpoints.
+Public endpoints are organized by product capability, not by internal workflow shape. Variants are selected by request parameters.
 
 | Area | Endpoint | Purpose |
 | --- | --- | --- |
 | Service status | `GET /health` | Lightweight service heartbeat |
 | Diagnostics | `GET /doctor` | Read-only setup checks |
-| Synchronous ingest | `POST /ingest` | Compile configured sources, one normalized document, or one file |
-| Lint maintenance | `POST /lint/run` | Run deterministic, structural, quality, or full maintenance |
-| Query | `POST /query/search` | Retrieve wiki context for a host AI |
-| Query feedback | `POST /query/feedback`, `GET /query/trends` | Record and inspect query usefulness signals |
-| Run queue | `POST /runs`, `GET /runs`, `GET /runs/{run_id}` | Start and inspect long-running workflows |
+| Ingest | `POST /ingest` | Compile configured sources, one normalized document, one file, or recover a failed ingest |
+| Lint | `POST /lint` | Run deterministic, structural, quality, or full maintenance |
+| Query | `POST /query` | Retrieve wiki context for a host AI |
+| Query telemetry | `POST /query/feedback`, `GET /query/trends` | Record and inspect query usefulness signals |
+| Run monitor | `GET /runs`, `GET /runs/{run_id}` | Inspect queued/running/completed workflows |
 | Run events | `GET /runs/{run_id}/events`, `GET /runs/{run_id}/stream`, `POST /runs/{run_id}/cancel` | Observe or cancel a run |
 | Wiki pages | `GET /wiki/pages`, `GET /wiki/page`, `GET /wiki/backlinks` | Read generated wiki pages |
 
 `/ui/api/*` is reserved for the local management UI and is not a stable integration API.
 
-## Compatibility Policy
+## Execution Model
 
-The endpoints in this document are the v0.x public alpha API surface. Paths, methods, required request fields, and core response meanings are intended to remain stable during the v0.x line. Response schemas may receive additive optional fields before a later stable release.
+`/ingest` and `/lint` support:
 
-The machine-readable compatibility list lives in `src/knoarbor/entrypoints/api_contract.py`; API surface tests read that contract directly.
+- `execution: "queued"`: returns a `run_id` immediately and records progress under `/runs`.
+- `execution: "direct"`: blocks until the workflow returns a direct result.
+
+Default execution is `queued`, because ingest and semantic lint can call models and may take time. `/query` stays direct because it is a read-only retrieval endpoint intended for host AI tools.
 
 ## Error Contract
 
@@ -85,127 +88,45 @@ Runs read-only setup diagnostics for config loading, vault structure, model envi
 POST /ingest
 ```
 
-Runs ingest synchronously. Use `kind` to select the input shape:
+Use `kind` to select the input shape:
 
-```json
-{ "kind": "connectors", "config_path": "./config.yaml", "connector_names": ["markdown"], "write": true }
-```
+- `connectors`: run configured source connectors.
+- `file`: ingest one local input file.
+- `document`: ingest one already normalized `source_document`.
+- `recovery`: retry failed items from a previous ingest run.
 
-```json
-{ "kind": "file", "config_path": "./config.yaml", "input_path": "/path/to/file.pdf", "write": true }
-```
-
-```json
-{ "kind": "document", "source_document": { "schema_version": "source_document.v1" }, "write": true }
-```
-
-Markdown files run directly. Rich documents such as PDF/DOCX/PPTX require a configured document preprocessor such as MinerU.
-
-## Lint
-
-```http
-POST /lint/run
-```
-
-Runs deterministic lint plus optional semantic structural or quality maintenance. `mode` controls the behavior:
-
-- `deterministic`
-- `semantic_structural`
-- `semantic_quality`
-- `semantic_full`
-
-## Query
-
-```http
-POST /query/search
-```
-
-Retrieves relevant wiki pages, excerpts, related context, trace data, and a prompt-ready context pack. KnoArbor does not generate the final chat answer; the host AI decides how to use returned evidence.
-
-By default, query returns a bounded `compact` context pack. Set `context_format: "full"` when the caller wants complete matched wiki page bodies instead of a compressed context pack.
-
-The response carries an explicit contract version:
+Configured sources:
 
 ```json
 {
-  "schema_version": "wiki_query.v1",
-  "query": "agent loop",
-  "retrieval_mode": "machine_hybrid_balanced",
-  "results": [],
-  "context_pack": "...",
-  "trace": {
-    "schema_version": "query_trace.v1",
-    "initial_scope_dirs": ["concepts"],
-    "expanded_scope_dirs": ["concepts", "entities", "sources"],
-    "origin_counts": { "direct": 1, "related": 2 },
-    "returned_paths": ["concepts/Agent-Loop.md"]
-  }
+  "execution": "queued",
+  "kind": "connectors",
+  "config_path": "./config.yaml",
+  "connector_names": ["markdown"],
+  "write": true
 }
 ```
 
-`results` are evidence candidates, not final citations. `match_kind` explains whether a page matched the query directly or entered through the wiki link graph.
-
-## Query Feedback
-
-```http
-POST /query/feedback
-GET /query/trends?obsidian_vault_path=/path/to/wiki&limit=100
-```
-
-Feedback records whether retrieved pages were useful. Trends return recent no-result and low-confidence query patterns from the query ledger.
-
-## Long-Running Runs
-
-```http
-POST /runs
-```
-
-Starts a queued workflow. Use `flow` to select the workflow.
-
-Ingest connectors:
+One local file:
 
 ```json
 {
-  "flow": "ingest",
-  "ingest": { "kind": "connectors", "config_path": "./config.yaml", "write": true }
+  "execution": "queued",
+  "kind": "file",
+  "config_path": "./config.yaml",
+  "input_path": "/path/to/file.pdf",
+  "write": true
 }
 ```
 
-Ingest a file:
+One normalized source document:
 
 ```json
 {
-  "flow": "ingest",
-  "ingest": { "kind": "file", "config_path": "./config.yaml", "input_path": "/path/to/file.pdf", "write": true }
-}
-```
-
-Run lint:
-
-```json
-{
-  "flow": "lint",
-  "lint": {
-    "obsidian_vault_path": "/path/to/wiki",
-    "mode": "semantic_structural",
-    "scope": {
-      "scope_id": "manual:api",
-      "trigger": "manual",
-      "source": { "kind": "api" },
-      "changed_pages": [],
-      "recommended_lint_modes": ["semantic_structural"],
-      "reason": "Manual maintenance run."
-    }
-  }
-}
-```
-
-Run query:
-
-```json
-{
-  "flow": "query",
-  "query": { "obsidian_vault_path": "/path/to/wiki", "query": "agent loop" }
+  "execution": "queued",
+  "kind": "document",
+  "source_document": { "schema_version": "source_document.v1" },
+  "write": true
 }
 ```
 
@@ -213,14 +134,19 @@ Recover a failed ingest run:
 
 ```json
 {
-  "flow": "ingest",
-  "vault_path": "/path/to/wiki",
+  "execution": "queued",
+  "kind": "recovery",
+  "recovery_vault_path": "/path/to/wiki",
   "recovery_of_run_id": "20260525_123456_abcdef",
-  "recovery": { "write": true }
+  "write": true
 }
 ```
 
-The response is:
+`kind: "recovery"` only supports `execution: "queued"` because it is tied to a previous run record and may replay multiple failed items.
+
+Markdown files run directly. Rich documents such as PDF/DOCX/PPTX require a configured document preprocessor such as MinerU.
+
+Queued responses return:
 
 ```json
 {
@@ -233,6 +159,67 @@ The response is:
   }
 }
 ```
+
+## Lint
+
+```http
+POST /lint
+```
+
+Runs deterministic lint plus optional semantic structural or quality maintenance. `mode` controls behavior:
+
+- `deterministic`
+- `semantic_structural`
+- `semantic_quality`
+- `semantic_full`
+
+Example:
+
+```json
+{
+  "execution": "queued",
+  "obsidian_vault_path": "/path/to/wiki",
+  "mode": "semantic_structural",
+  "scope": {
+    "scope_id": "manual:api",
+    "trigger": "manual",
+    "source": { "kind": "api" },
+    "changed_pages": [],
+    "recommended_lint_modes": ["semantic_structural"],
+    "reason": "Manual maintenance run."
+  }
+}
+```
+
+## Query
+
+```http
+POST /query
+```
+
+Retrieves relevant wiki pages, excerpts, related context, trace data, and a prompt-ready context pack. KnoArbor does not generate the final chat answer; the host AI decides how to use returned evidence.
+
+```json
+{
+  "obsidian_vault_path": "/path/to/wiki",
+  "query": "agent loop",
+  "mode": "balanced",
+  "context_format": "compact"
+}
+```
+
+By default, query returns a bounded `compact` context pack. Set `context_format: "full"` when the caller wants complete matched wiki page bodies instead of a compressed context pack.
+
+## Query Telemetry
+
+```http
+POST /query/feedback
+GET /query/trends?obsidian_vault_path=/path/to/wiki&limit=100
+```
+
+Feedback records whether retrieved pages were useful. Trends return recent no-result and low-confidence query patterns from the query ledger.
+
+## Run Monitor
 
 Inspect runs:
 
@@ -299,7 +286,7 @@ GET /ui
 
 ## Removed Low-Level Endpoints
 
-Prototype connector, page-read, draft-write, scan, operation execution, and old split workflow endpoints are not public. Use `POST /ingest`, `POST /lint/run`, `POST /query/search`, and `POST /runs`.
+Prototype connector, page-read, draft-write, scan, operation execution, old split workflow endpoints, and generic run-start endpoints are not public. Use `POST /ingest`, `POST /lint`, `POST /query`, and the run monitor endpoints above.
 
 ## Architecture Boundary
 

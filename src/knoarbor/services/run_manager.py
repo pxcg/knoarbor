@@ -7,7 +7,6 @@ from knoarbor.core.config import default_config_path, load_config
 from knoarbor.core.errors import UserInputError
 from knoarbor.core.schemas.ingest_run import IngestDocumentRunRequest, IngestFileRunRequest, IngestRecoveryRunRequest, IngestRunRequest
 from knoarbor.core.schemas.run_monitor import RunEventsResponse, RunListResponse, RunRecord, RunStartResponse
-from knoarbor.core.schemas.run_start import RunStartRequest
 from knoarbor.core.schemas.wiki_lint import LintRunRequest
 from knoarbor.core.schemas.wiki_query import WikiSearchRequest
 from knoarbor.runtime import LocalRunQueue, RunMonitor, configure_runtime_logging
@@ -19,42 +18,6 @@ class RunManager:
 
     def __init__(self) -> None:
         self._queue = LocalRunQueue()
-
-    def start(
-        self,
-        request: RunStartRequest,
-        *,
-        ingest_runner: Callable[[IngestRunRequest], Any],
-        ingest_file_runner: Callable[[IngestFileRunRequest], Any],
-        ingest_document_runner: Callable[[IngestDocumentRunRequest], Any],
-        lint_runner: Callable[[LintRunRequest], Any],
-        query_runner: Callable[[WikiSearchRequest], Any],
-    ) -> RunStartResponse:
-        if request.flow == "ingest":
-            if request.recovery_of_run_id:
-                return self.start_ingest_recovery(
-                    request.vault_path or "",
-                    request.recovery_of_run_id,
-                    request.recovery or IngestRecoveryRunRequest(),
-                    ingest_runner,
-                    ingest_file_runner,
-                )
-            ingest = request.ingest
-            if ingest is None:
-                raise ValueError("ingest payload is required when flow='ingest'.")
-            if ingest.kind == "document":
-                return self.start_ingest_document(ingest.to_document_request(), ingest_document_runner)
-            if ingest.kind == "file":
-                return self.start_ingest_file(ingest.to_file_request(), ingest_file_runner)
-            return self.start_ingest(ingest.to_connectors_request(), ingest_runner)
-        if request.flow == "lint":
-            if request.lint is None:
-                raise ValueError("lint payload is required when flow='lint'.")
-            return self.start_lint(request.lint, lint_runner)
-        if request.query is None:
-            raise ValueError("query payload is required when flow='query'.")
-        effective_request = request.query if request.query.caller is not None else request.query.model_copy(update={"caller": "api"})
-        return self.start_query(effective_request, query_runner)
 
     def start_ingest(self, request: IngestRunRequest, runner: Callable[[IngestRunRequest], Any]) -> RunStartResponse:
         config = load_config(request.config_path or default_config_path())

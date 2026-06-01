@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sys
+import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -46,48 +48,108 @@ class FakeIngestService:
 
 
 class IngestApiTests(unittest.TestCase):
-    def test_ingest_run_endpoint_uses_high_level_ingest_service(self) -> None:
-        services = ApplicationServices()
-        services.ingest = FakeIngestService()
-        client = TestClient(create_app(services))
-
-        response = client.post("/ingest", json={"kind": "connectors", "write": False})
-
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertEqual(payload["stats"]["source_count"], 1)
-        self.assertEqual(payload["results"][0]["connector"], "markdown")
-
-    def test_ingest_document_endpoint_accepts_source_document(self) -> None:
+    def test_run_ingest_direct_returns_result_without_run_record(self) -> None:
         services = ApplicationServices()
         services.ingest = FakeIngestService()
         client = TestClient(create_app(services))
 
         response = client.post(
             "/ingest",
-            json={
-                "kind": "document",
-                "source_document": {
-                    "schema_version": "source_document.v1",
-                    "source_id": "note:test",
-                    "source_type": "markdown",
-                    "origin": {
-                        "connector": "markdown",
-                        "uri": "file:///tmp/test.md",
-                        "raw_path": "raw/notes/test.md",
-                    },
-                    "metadata": {"title": "Test"},
-                    "content": {"format": "markdown", "text": "# Test\n\nBody."},
-                    "fingerprint": {"content_hash": "abc123", "connector_version": "test"},
-                    "checkpoint": {"mode": "full"},
-                }
-            },
+            json={"execution": "direct", "kind": "connectors", "write": False},
         )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["connector"], "markdown")
-        self.assertEqual(payload["source_file"], "raw/notes/test.md")
+        self.assertEqual(payload["stats"]["source_count"], 1)
+        self.assertNotIn("run_id", payload)
+
+    def test_run_ingest_connectors_uses_high_level_ingest_service(self) -> None:
+        services = ApplicationServices()
+        services.ingest = FakeIngestService()
+        client = TestClient(create_app(services))
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "wiki"
+            vault.mkdir()
+            config = root / "config.yaml"
+            config.write_text(f"vault:\n  path: {vault}\n", encoding="utf-8")
+            response = client.post(
+                "/ingest",
+                json={"execution": "queued", "kind": "connectors", "config_path": str(config), "write": False},
+            )
+            self.assertEqual(response.status_code, 200)
+            run_id = response.json()["run_id"]
+            payload = _wait_for_run(client, str(vault), run_id)
+
+        self.assertEqual(payload["status"], "completed")
+
+    def test_recovery_kind_rejects_direct_execution(self) -> None:
+        client = TestClient(create_app())
+
+        response = client.post(
+            "/ingest",
+            json={
+                "execution": "direct",
+                "kind": "recovery",
+                "recovery_vault_path": "/tmp/wiki",
+                "recovery_of_run_id": "run-1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+
+    def test_run_ingest_document_accepts_source_document(self) -> None:
+        services = ApplicationServices()
+        services.ingest = FakeIngestService()
+        client = TestClient(create_app(services))
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "wiki"
+            vault.mkdir()
+            config = root / "config.yaml"
+            config.write_text(f"vault:\n  path: {vault}\n", encoding="utf-8")
+            response = client.post(
+                "/ingest",
+                json={
+                    "execution": "queued",
+                    "kind": "document",
+                    "config_path": str(config),
+                    "obsidian_vault_path": str(vault),
+                    "source_document": {
+                        "schema_version": "source_document.v1",
+                        "source_id": "note:test",
+                        "source_type": "markdown",
+                        "origin": {
+                            "connector": "markdown",
+                            "uri": "file:///tmp/test.md",
+                            "raw_path": "raw/notes/test.md",
+                        },
+                        "metadata": {"title": "Test"},
+                        "content": {"format": "markdown", "text": "# Test\n\nBody."},
+                        "fingerprint": {"content_hash": "abc123", "connector_version": "test"},
+                        "checkpoint": {"mode": "full"},
+                    },
+                },
+            )
+            self.assertEqual(response.status_code, 200)
+            run_id = response.json()["run_id"]
+            payload = _wait_for_run(client, str(vault), run_id)
+
+        self.assertEqual(payload["status"], "completed")
+
+
+def _wait_for_run(client: TestClient, vault_path: str, run_id: str) -> dict:
+    payload = {}
+    for _ in range(20):
+        response = client.get(f"/runs/{run_id}", params={"vault_path": vault_path})
+        response.raise_for_status()
+        payload = response.json()
+        if payload["status"] == "completed":
+            return payload
+        time.sleep(0.05)
+    return payload
 
 
 if __name__ == "__main__":

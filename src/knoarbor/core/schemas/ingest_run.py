@@ -4,9 +4,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from knoarbor.core.schemas.execution import WorkflowExecutionMode
 from knoarbor.core.schemas.sources import SourceDocument
 
-IngestRequestKind = Literal["connectors", "document", "file"]
+IngestRequestKind = Literal["connectors", "document", "file", "recovery"]
 
 
 class IngestRunRequest(BaseModel):
@@ -62,6 +63,7 @@ class UnifiedIngestRequest(BaseModel):
     """
 
     kind: IngestRequestKind = "connectors"
+    execution: WorkflowExecutionMode = "queued"
     config_path: str | None = None
     connector_names: list[str] | None = Field(default=None, min_length=1)
     source_document: SourceDocument | None = None
@@ -73,16 +75,33 @@ class UnifiedIngestRequest(BaseModel):
     write_report: bool = True
     append_ledger: bool = True
     recovery_of_run_id: str | None = None
+    recovery_vault_path: str | None = None
     auto_scoped_lint: bool | None = None
     auto_apply_safe_lint_fixes: bool | None = None
     scoped_lint_include_related: bool | None = None
 
     @model_validator(mode="after")
     def validate_kind_payload(self) -> "UnifiedIngestRequest":
+        if self.kind == "recovery":
+            if self.execution != "queued":
+                raise ValueError("kind='recovery' requires execution='queued'.")
+            if not self.recovery_of_run_id:
+                raise ValueError("recovery_of_run_id is required when kind='recovery'.")
+            if not (self.recovery_vault_path or self.obsidian_vault_path):
+                raise ValueError("recovery_vault_path or obsidian_vault_path is required when kind='recovery'.")
+            if self.source_document is not None or self.input_path:
+                raise ValueError("kind='recovery' cannot be combined with source_document or input_path.")
+            return self
         if self.kind == "document" and self.source_document is None:
             raise ValueError("source_document is required when kind='document'.")
+        if self.kind != "document" and self.source_document is not None:
+            raise ValueError("source_document is only valid when kind='document'.")
         if self.kind == "file" and not self.input_path:
             raise ValueError("input_path is required when kind='file'.")
+        if self.kind != "file" and self.input_path:
+            raise ValueError("input_path is only valid when kind='file'.")
+        if self.recovery_of_run_id:
+            raise ValueError("recovery_of_run_id is only valid when kind='recovery'.")
         return self
 
     def to_connectors_request(self) -> IngestRunRequest:

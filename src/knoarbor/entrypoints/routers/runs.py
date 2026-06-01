@@ -7,24 +7,12 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
 from knoarbor.core.errors import RunNotFound, error_info
-from knoarbor.core.schemas.run_monitor import RunEventsResponse, RunListResponse, RunRecord, RunStartResponse, TERMINAL_RUN_STATUSES
-from knoarbor.core.schemas.run_start import RunStartRequest
+from knoarbor.core.schemas.run_monitor import RunEventsResponse, RunListResponse, RunRecord, TERMINAL_RUN_STATUSES
 from knoarbor.services import ApplicationServices
 
 
 def create_runs_router(services: ApplicationServices) -> APIRouter:
     router = APIRouter()
-
-    @router.post("/runs", response_model=RunStartResponse, tags=["runs"])
-    async def start_run(request: RunStartRequest) -> RunStartResponse:
-        return services.runs.start(
-            request,
-            ingest_runner=services.ingest.run,
-            ingest_file_runner=services.ingest.run_file,
-            ingest_document_runner=services.ingest.run_document,
-            lint_runner=services.wiki_linter.run_maintenance,
-            query_runner=services.wiki_search.search,
-        )
 
     @router.get("/runs", response_model=RunListResponse, tags=["runs"])
     async def list_run_records(vault_path: str, active_only: bool = False, limit: int = 50) -> RunListResponse:

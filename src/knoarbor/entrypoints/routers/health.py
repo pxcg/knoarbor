@@ -32,11 +32,11 @@ def create_health_router() -> APIRouter:
                 "lint": {
                     "primary": [
                         "CLI: knoarbor lint-run",
-                        "/lint/run",
+                        "/lint",
                     ],
                 },
-                "query": ["CLI: knoarbor query", "/query/search"],
-                "runs": ["/runs"],
+                "query": ["CLI: knoarbor query", "/query"],
+                "runs": ["GET /runs", "GET /runs/{run_id}", "POST /runs/{run_id}/cancel"],
                 "diagnostics": ["CLI: knoarbor doctor", "/doctor"],
                 "ui": ["/", "/ui", "/ui/api/config", "/ui/api/status"],
             },

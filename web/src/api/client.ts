@@ -325,15 +325,15 @@ export async function getProjectDoc(path: string): Promise<ProjectDoc> {
 }
 
 export async function runIngest(body: Record<string, unknown>): Promise<unknown> {
-  return requestJson("/runs", { method: "POST", body: { flow: "ingest", ingest: { kind: "connectors", ...body } } });
+  return requestJson("/ingest", { method: "POST", body: { execution: "queued", kind: "connectors", ...body } });
 }
 
 export async function runIngestFile(body: Record<string, unknown>): Promise<unknown> {
-  return requestJson("/runs", { method: "POST", body: { flow: "ingest", ingest: { kind: "file", ...body } } });
+  return requestJson("/ingest", { method: "POST", body: { execution: "queued", kind: "file", ...body } });
 }
 
 export async function runLint(body: Record<string, unknown>): Promise<unknown> {
-  return requestJson("/runs", { method: "POST", body: { flow: "lint", lint: body } });
+  return requestJson("/lint", { method: "POST", body: { execution: "queued", ...body } });
 }
 
 export async function getRuns(vaultPath: string, activeOnly = false): Promise<{ runs: import("../types").RunRecord[] }> {
@@ -353,9 +353,9 @@ export async function cancelRun(vaultPath: string, runId: string): Promise<impor
 }
 
 export async function rerunFailedRun(vaultPath: string, runId: string, body: Record<string, unknown> = {}): Promise<unknown> {
-  return requestJson("/runs", {
+  return requestJson("/ingest", {
     method: "POST",
-    body: { flow: "ingest", vault_path: vaultPath, recovery_of_run_id: runId, recovery: body },
+    body: { execution: "queued", kind: "recovery", recovery_vault_path: vaultPath, recovery_of_run_id: runId, ...body },
   });
 }
 
@@ -380,7 +380,7 @@ export async function searchWiki(
   warnings: string[];
   trace?: Record<string, unknown>;
 }> {
-  return requestJson("/query/search", {
+  return requestJson("/query", {
     method: "POST",
     body: {
       obsidian_vault_path: vaultPath,

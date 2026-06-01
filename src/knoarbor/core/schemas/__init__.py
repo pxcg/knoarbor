@@ -1,5 +1,6 @@
 from knoarbor.core.schemas.connectors import ConnectorDiscoverResponse, ConnectorRunRequest
 from knoarbor.core.schemas.events import KnowledgeEvent
+from knoarbor.core.schemas.execution import WorkflowExecutionMode
 from knoarbor.core.schemas.knowledge_extract import (
     CompileContext,
     ContentUnit,
@@ -26,7 +27,6 @@ from knoarbor.core.schemas.ingest_review import (
 from knoarbor.core.schemas.ingest_run import IngestDocumentRunRequest, IngestFileRunRequest, IngestRunRequest, UnifiedIngestRequest
 from knoarbor.core.schemas.maintenance import MaintenanceScope, MaintenanceScopeSource
 from knoarbor.core.schemas.sources import RawSource, SourceDocument, SourceRef
-from knoarbor.core.schemas.run_start import RunStartRequest
 from knoarbor.core.schemas.wiki_lint import (
     LintPolicyDecision,
     LintRunMode,
@@ -87,6 +87,7 @@ from knoarbor.core.schemas.wiki_query import (
 
 __all__ = [
     "KnowledgeEvent",
+    "WorkflowExecutionMode",
     "KnowledgeExtract",
     "KnowledgeSource",
     "ContentUnit",
@@ -109,7 +110,6 @@ __all__ = [
     "IngestFileRunRequest",
     "IngestRunRequest",
     "UnifiedIngestRequest",
-    "RunStartRequest",
     "MaintenanceScope",
     "MaintenanceScopeSource",
     "LintPolicyDecision",

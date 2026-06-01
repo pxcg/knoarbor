@@ -15,7 +15,7 @@ from knoarbor.services import ApplicationServices
 def create_query_router(services: ApplicationServices) -> APIRouter:
     router = APIRouter()
 
-    @router.post("/query/search", response_model=WikiSearchResponse, tags=["query"])
+    @router.post("/query", response_model=WikiSearchResponse, tags=["query"])
     async def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
         effective_request = request if request.caller is not None else request.model_copy(update={"caller": "api"})
         return services.wiki_search.search(effective_request)

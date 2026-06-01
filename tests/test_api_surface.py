@@ -25,7 +25,7 @@ class ApiSurfaceTests(unittest.TestCase):
     def test_api_errors_use_public_error_catalog(self) -> None:
         client = TestClient(create_app())
 
-        validation = client.post("/query/search", json={"query": ""})
+        validation = client.post("/query", json={"query": ""})
 
         self.assertEqual(validation.status_code, 422)
         self.assertEqual(validation.json()["error"]["code"], "KA-INPUT-001")
@@ -90,7 +90,7 @@ class ApiSurfaceTests(unittest.TestCase):
             client = TestClient(create_app())
 
             response = client.post(
-                "/query/search",
+                "/query",
                 json={
                     "obsidian_vault_path": str(vault),
                     "query": "agent loop",
@@ -118,7 +118,7 @@ class ApiSurfaceTests(unittest.TestCase):
             client = TestClient(create_app())
             for _ in range(2):
                 response = client.post(
-                    "/query/search",
+                    "/query",
                     json={
                         "obsidian_vault_path": str(vault),
                         "query": "missing topic",
@@ -163,9 +163,8 @@ class ApiSurfaceTests(unittest.TestCase):
             self.assertTrue(payload["recorded"])
             self.assertTrue((vault / "maintenance" / "query_feedback_ledger.jsonl").exists())
 
-    def test_run_query_endpoint_creates_observable_run(self) -> None:
+    def test_query_endpoint_returns_context_pack(self) -> None:
         import tempfile
-        import time
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
@@ -177,37 +176,22 @@ class ApiSurfaceTests(unittest.TestCase):
             client = TestClient(create_app())
 
             response = client.post(
-                "/runs",
+                "/query",
                 json={
-                    "flow": "query",
-                    "query": {
-                        "obsidian_vault_path": str(vault),
-                        "query": "agent loop",
-                        "record_query": False,
-                    },
+                    "obsidian_vault_path": str(vault),
+                    "query": "agent loop",
+                    "record_query": False,
                 },
             )
             self.assertEqual(response.status_code, 200)
-            run_id = response.json()["run_id"]
-            run_payload = {}
-            for _ in range(20):
-                run_response = client.get(f"/runs/{run_id}", params={"vault_path": str(vault)})
-                self.assertEqual(run_response.status_code, 200)
-                run_payload = run_response.json()
-                if run_payload["status"] == "completed":
-                    break
-                time.sleep(0.05)
+            payload = response.json()
 
-            events_response = client.get(f"/runs/{run_id}/events", params={"vault_path": str(vault)})
-            self.assertEqual(events_response.status_code, 200)
-            events = events_response.json()["events"]
+        self.assertEqual(payload["schema_version"], "wiki_query.v1")
+        self.assertEqual(payload["results"][0]["path"], "concepts/Agent-Loop.md")
 
-        self.assertEqual(run_payload["status"], "completed")
-        self.assertTrue(any(event["event_type"] == "worker_started" for event in events))
-        self.assertTrue(any(event["event_type"] == "run_completed" for event in events))
-
-    def test_ingest_file_endpoint_requires_preprocessor_for_pdf(self) -> None:
+    def test_run_ingest_file_records_preprocessor_error_for_pdf(self) -> None:
         import tempfile
+        import time
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -221,16 +205,32 @@ class ApiSurfaceTests(unittest.TestCase):
 
             response = client.post(
                 "/ingest",
-                json={"kind": "file", "config_path": str(config), "input_path": str(pdf), "write": False},
+                json={
+                    "execution": "queued",
+                    "kind": "file",
+                    "config_path": str(config),
+                    "input_path": str(pdf),
+                    "write": False,
+                },
             )
+            self.assertEqual(response.status_code, 200)
+            run_id = response.json()["run_id"]
+            run_payload = {}
+            for _ in range(20):
+                run_response = client.get(f"/runs/{run_id}", params={"vault_path": str(vault)})
+                self.assertEqual(run_response.status_code, 200)
+                run_payload = run_response.json()
+                if run_payload["status"] == "failed":
+                    break
+                time.sleep(0.05)
 
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()["error"]["code"], "KA-DOC-001")
-        self.assertEqual(response.json()["error"]["category"], "user_input_error")
-        self.assertIn("document_processing.mineru.enabled", response.json()["error"]["message"])
+        self.assertEqual(run_payload["status"], "failed")
+        self.assertEqual(run_payload["error_info"]["code"], "KA-DOC-001")
+        self.assertIn("document_processing.mineru.enabled", run_payload["error"])
 
-    def test_lint_run_reports_missing_config_as_client_error(self) -> None:
+    def test_run_lint_records_missing_config_error(self) -> None:
         import tempfile
+        import time
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             missing_config = Path(tmp_dir) / "config.yaml"
@@ -239,8 +239,9 @@ class ApiSurfaceTests(unittest.TestCase):
             client = TestClient(create_app())
 
             response = client.post(
-                "/lint/run",
+                "/lint",
                 json={
+                    "execution": "queued",
                     "obsidian_vault_path": str(vault),
                     "config_path": str(missing_config),
                     "mode": "quality",
@@ -254,11 +255,20 @@ class ApiSurfaceTests(unittest.TestCase):
                     },
                 },
             )
+            self.assertEqual(response.status_code, 200)
+            run_id = response.json()["run_id"]
+            run_payload = {}
+            for _ in range(20):
+                run_response = client.get(f"/runs/{run_id}", params={"vault_path": str(vault)})
+                self.assertEqual(run_response.status_code, 200)
+                run_payload = run_response.json()
+                if run_payload["status"] == "failed":
+                    break
+                time.sleep(0.05)
 
-            self.assertEqual(response.status_code, 400)
-            self.assertEqual(response.json()["error"]["code"], "KA-CFG-001")
-            self.assertEqual(response.json()["error"]["category"], "user_input_error")
-            self.assertIn("Config file does not exist", response.json()["error"]["message"])
+            self.assertEqual(run_payload["status"], "failed")
+            self.assertEqual(run_payload["error_info"]["code"], "KA-CFG-001")
+            self.assertIn("Config file does not exist", run_payload["error"])
 
     def test_http_exception_uses_public_error_envelope(self) -> None:
         import tempfile

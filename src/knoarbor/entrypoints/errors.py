@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+
 from fastapi import HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -9,6 +11,20 @@ from knoarbor.runtime.logging import runtime_logger
 
 
 logger = runtime_logger(__name__)
+
+
+def _json_safe(value: object) -> object:
+    if isinstance(value, BaseException):
+        return str(value)
+    if isinstance(value, Mapping):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, bytes | bytearray):
+        return value.decode("utf-8", errors="replace")
+    return value
 
 
 def error_payload(exc: BaseException) -> tuple[int, dict[str, object]]:
@@ -40,7 +56,7 @@ def explicit_error_payload(
         "detail": message,
     }
     if details is not None:
-        payload["error"]["details"] = details  # type: ignore[index]
+        payload["error"]["details"] = _json_safe(details)  # type: ignore[index]
     return http_status, payload
 
 

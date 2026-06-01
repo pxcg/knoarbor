@@ -9,11 +9,10 @@ The public integration API is intentionally compact:
 - `GET /health`
 - `GET /doctor`
 - `POST /ingest`
-- `POST /lint/run`
-- `POST /query/search`
+- `POST /lint`
+- `POST /query`
 - `POST /query/feedback`
 - `GET /query/trends`
-- `POST /runs`
 - `GET /runs`
 - `GET /runs/{run_id}`
 - `GET /runs/{run_id}/events`
@@ -23,7 +22,7 @@ The public integration API is intentionally compact:
 - `GET /wiki/page`
 - `GET /wiki/backlinks`
 
-Different workflow variants are selected by request fields such as `flow`, `kind`, `mode`, and `context_format`.
+Different workflow variants are selected by request fields such as `execution`, `kind`, `mode`, and `context_format`.
 
 ## Removed Prototype Routes
 
@@ -38,8 +37,11 @@ The following prototype routes are intentionally not part of the public API:
 - `POST /runs/query`
 - `GET /runs/active`
 - `POST /runs/{run_id}/rerun-failed`
+- `POST /lint/run`
+- `POST /query/search`
+- `POST /runs`
 
-Use `POST /ingest` or `POST /runs` instead.
+Use `POST /ingest`, `POST /lint`, or `POST /query` instead. Use `GET /runs*` only for monitoring.
 
 ## Change Rules
 

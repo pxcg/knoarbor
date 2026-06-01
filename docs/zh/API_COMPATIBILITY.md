@@ -9,11 +9,10 @@ KnoArbor 尚未发布稳定 v1 API，因此预发布阶段优先保持公开接�
 - `GET /health`
 - `GET /doctor`
 - `POST /ingest`
-- `POST /lint/run`
-- `POST /query/search`
+- `POST /lint`
+- `POST /query`
 - `POST /query/feedback`
 - `GET /query/trends`
-- `POST /runs`
 - `GET /runs`
 - `GET /runs/{run_id}`
 - `GET /runs/{run_id}/events`
@@ -23,7 +22,7 @@ KnoArbor 尚未发布稳定 v1 API，因此预发布阶段优先保持公开接�
 - `GET /wiki/page`
 - `GET /wiki/backlinks`
 
-不同功能通过 `flow`、`kind`、`mode`、`context_format` 等请求字段选择。
+不同功能通过 `execution`、`kind`、`mode`、`context_format` 等请求字段选择。
 
 ## 移除的原型路径
 
@@ -38,8 +37,11 @@ KnoArbor 尚未发布稳定 v1 API，因此预发布阶段优先保持公开接�
 - `POST /runs/query`
 - `GET /runs/active`
 - `POST /runs/{run_id}/rerun-failed`
+- `POST /lint/run`
+- `POST /query/search`
+- `POST /runs`
 
-请改用 `POST /ingest` 或 `POST /runs`。
+请改用 `POST /ingest`、`POST /lint` 或 `POST /query`。`GET /runs*` 只用于运行监控。
 
 ## 变更规则
 

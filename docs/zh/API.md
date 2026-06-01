@@ -22,27 +22,30 @@ http://127.0.0.1:8000
 
 ## 设计原则
 
-KnoArbor 不对外暴露大量细分 API。不同运行方式通过请求参数选择，而不是通过新增多个路径区分。
+公开 API 按产品能力组织，不按内部工作流拆分。不同场景通过请求参数选择。
 
 | 范围 | 端点 | 用途 |
 | --- | --- | --- |
 | 服务状态 | `GET /health` | 轻量服务心跳 |
 | 诊断 | `GET /doctor` | 只读运行前检查 |
-| 知识编译 | `POST /ingest` | 编译配置来源、单个标准文档或单个文件 |
-| 校验维护 | `POST /lint/run` | 执行确定性、结构、质量或完整维护 |
-| 知识查询 | `POST /query/search` | 为宿主 AI 检索 Wiki 上下文 |
+| 知识编译 | `POST /ingest` | 编译配置来源、标准文档、单个文件或恢复失败编译 |
+| 校验维护 | `POST /lint` | 执行确定性、结构、质量或完整维护 |
+| 知识查询 | `POST /query` | 为宿主 AI 检索 Wiki 上下文 |
 | 查询反馈 | `POST /query/feedback`, `GET /query/trends` | 记录和查看查询反馈 |
-| 运行队列 | `POST /runs`, `GET /runs`, `GET /runs/{run_id}` | 启动和查看长任务 |
+| 运行监控 | `GET /runs`, `GET /runs/{run_id}` | 查看队列、运行中和已完成任务 |
 | 运行事件 | `GET /runs/{run_id}/events`, `GET /runs/{run_id}/stream`, `POST /runs/{run_id}/cancel` | 观察或取消运行 |
 | Wiki 页面 | `GET /wiki/pages`, `GET /wiki/page`, `GET /wiki/backlinks` | 读取生成后的 Wiki 页面 |
 
 `/ui/api/*` 仅供本地管理界面使用，不作为稳定集成 API。
 
-## 兼容策略
+## 执行模式
 
-本文档中的端点是 v0.x 公开 alpha API。路径、方法、必填字段和核心响应语义在 v0.x 内保持稳定；响应可增加可选字段。
+`/ingest` 和 `/lint` 支持：
 
-机器可读契约位于 `src/knoarbor/entrypoints/api_contract.py`，API 表面测试会直接读取该契约。
+- `execution: "queued"`：立即返回 `run_id`，进度通过 `/runs` 查看。
+- `execution: "direct"`：阻塞直到流程返回直接结果。
+
+默认是 `queued`，因为知识编译和语义维护可能调用模型并耗时较长。`/query` 保持同步只读，适合作为宿主 AI 的即时检索入口。
 
 ## 错误格式
 
@@ -68,26 +71,68 @@ KnoArbor 不对外暴露大量细分 API。不同运行方式通过请求参数�
 POST /ingest
 ```
 
-同步执行知识编译。通过 `kind` 选择输入形态：
+通过 `kind` 选择输入形态：
+
+- `connectors`：运行已配置的资料来源连接器。
+- `file`：编译一个本地输入文件。
+- `document`：编译一个已经标准化的 `source_document`。
+- `recovery`：重试上一次知识编译中失败的项目。
+
+配置来源：
 
 ```json
-{ "kind": "connectors", "config_path": "./config.yaml", "connector_names": ["markdown"], "write": true }
+{
+  "execution": "queued",
+  "kind": "connectors",
+  "config_path": "./config.yaml",
+  "connector_names": ["markdown"],
+  "write": true
+}
 ```
 
-```json
-{ "kind": "file", "config_path": "./config.yaml", "input_path": "/path/to/file.pdf", "write": true }
-```
+单个本地文件：
 
 ```json
-{ "kind": "document", "source_document": { "schema_version": "source_document.v1" }, "write": true }
+{
+  "execution": "queued",
+  "kind": "file",
+  "config_path": "./config.yaml",
+  "input_path": "/path/to/file.pdf",
+  "write": true
+}
 ```
+
+标准化资料对象：
+
+```json
+{
+  "execution": "queued",
+  "kind": "document",
+  "source_document": { "schema_version": "source_document.v1" },
+  "write": true
+}
+```
+
+恢复失败的知识编译：
+
+```json
+{
+  "execution": "queued",
+  "kind": "recovery",
+  "recovery_vault_path": "/path/to/wiki",
+  "recovery_of_run_id": "20260525_123456_abcdef",
+  "write": true
+}
+```
+
+`kind: "recovery"` 只支持 `execution: "queued"`，因为它依赖既有运行记录，且可能重放多个失败项目。
 
 Markdown 文件会直接处理。PDF/DOCX/PPTX 等富文档需要配置 MinerU 等文档预处理器。
 
 ## 校验维护
 
 ```http
-POST /lint/run
+POST /lint
 ```
 
 执行确定性校验，并可按 `mode` 启用结构或质量维护：
@@ -100,71 +145,23 @@ POST /lint/run
 ## 知识查询
 
 ```http
-POST /query/search
+POST /query
 ```
 
 返回相关 Wiki 页面、摘录、关联上下文、追踪信息和可交给宿主 AI 使用的上下文包。KnoArbor 不生成最终聊天答案。
 
+```json
+{
+  "obsidian_vault_path": "/path/to/wiki",
+  "query": "agent loop",
+  "mode": "balanced",
+  "context_format": "compact"
+}
+```
+
 默认返回压缩后的 `compact` 上下文包；如果调用方需要完整命中页面正文，可设置 `context_format: "full"`。
 
-## 运行队列
-
-```http
-POST /runs
-```
-
-启动一个队列任务。通过 `flow` 选择工作流。
-
-知识编译：
-
-```json
-{
-  "flow": "ingest",
-  "ingest": { "kind": "connectors", "config_path": "./config.yaml", "write": true }
-}
-```
-
-校验维护：
-
-```json
-{
-  "flow": "lint",
-  "lint": {
-    "obsidian_vault_path": "/path/to/wiki",
-    "mode": "semantic_structural",
-    "scope": {
-      "scope_id": "manual:api",
-      "trigger": "manual",
-      "source": { "kind": "api" },
-      "changed_pages": [],
-      "recommended_lint_modes": ["semantic_structural"],
-      "reason": "Manual maintenance run."
-    }
-  }
-}
-```
-
-知识查询：
-
-```json
-{
-  "flow": "query",
-  "query": { "obsidian_vault_path": "/path/to/wiki", "query": "agent loop" }
-}
-```
-
-恢复失败的知识编译：
-
-```json
-{
-  "flow": "ingest",
-  "vault_path": "/path/to/wiki",
-  "recovery_of_run_id": "20260525_123456_abcdef",
-  "recovery": { "write": true }
-}
-```
-
-查看运行：
+## 运行监控
 
 ```http
 GET /runs?vault_path=/path/to/wiki&active_only=false&limit=50
@@ -173,6 +170,8 @@ GET /runs/{run_id}/events?vault_path=/path/to/wiki&after=0&limit=200
 GET /runs/{run_id}/stream?vault_path=/path/to/wiki&after=0
 POST /runs/{run_id}/cancel?vault_path=/path/to/wiki
 ```
+
+`/stream` 使用 Server-Sent Events。取消是协作式的，正在进行的模型请求可能会在下一个检查点前先完成。
 
 ## Wiki 页面
 
@@ -186,4 +185,4 @@ GET /wiki/backlinks?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
 
 ## 移除的原型端点
 
-原型期的连接器、草稿写入、扫描、操作执行和拆分工作流端点都不再公开。请使用 `POST /ingest`、`POST /lint/run`、`POST /query/search` 和 `POST /runs`。
+原型期的连接器、草稿写入、扫描、操作执行、拆分工作流端点和通用 run-start 端点都不再公开。请使用 `POST /ingest`、`POST /lint`、`POST /query` 以及上述运行监控端点。
