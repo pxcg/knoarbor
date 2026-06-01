@@ -168,7 +168,7 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
               onClick={() =>
                 runOperation(() =>
                   runLint({
-                    obsidian_vault_path: context.vaultPath,
+                    vault_path: context.vaultPath,
                     config_path: context.configPath,
                     mode: lintMode,
                     apply_safe_fixes: lintApplySafe,

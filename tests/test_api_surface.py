@@ -92,7 +92,7 @@ class ApiSurfaceTests(unittest.TestCase):
             response = client.post(
                 "/query",
                 json={
-                    "obsidian_vault_path": str(vault),
+                    "vault_path": str(vault),
                     "query": "agent loop",
                     "max_results": 3,
                 },
@@ -120,7 +120,7 @@ class ApiSurfaceTests(unittest.TestCase):
                 response = client.post(
                     "/query",
                     json={
-                        "obsidian_vault_path": str(vault),
+                        "vault_path": str(vault),
                         "query": "missing topic",
                         "max_results": 3,
                     },
@@ -130,7 +130,7 @@ class ApiSurfaceTests(unittest.TestCase):
             trend_response = client.get(
                 "/query/trends",
                 params={
-                    "obsidian_vault_path": str(vault),
+                    "vault_path": str(vault),
                     "limit": 20,
                 },
             )
@@ -151,7 +151,7 @@ class ApiSurfaceTests(unittest.TestCase):
             response = client.post(
                 "/query/feedback",
                 json={
-                    "obsidian_vault_path": str(vault),
+                    "vault_path": str(vault),
                     "query": "agent loop",
                     "useful": True,
                     "selected_paths": ["concepts/Agent-Loop.md"],
@@ -178,7 +178,7 @@ class ApiSurfaceTests(unittest.TestCase):
             response = client.post(
                 "/query",
                 json={
-                    "obsidian_vault_path": str(vault),
+                    "vault_path": str(vault),
                     "query": "agent loop",
                     "record_query": False,
                 },
@@ -242,7 +242,7 @@ class ApiSurfaceTests(unittest.TestCase):
                 "/lint",
                 json={
                     "execution": "queued",
-                    "obsidian_vault_path": str(vault),
+                    "vault_path": str(vault),
                     "config_path": str(missing_config),
                     "mode": "quality",
                     "scope": {

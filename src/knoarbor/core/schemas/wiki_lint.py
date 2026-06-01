@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from knoarbor.core.schemas.execution import WorkflowExecutionMode
 from knoarbor.core.schemas.maintenance import MaintenanceScope
@@ -64,8 +64,10 @@ class LintPolicyDecision(BaseModel):
 
 
 class LintRunRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     execution: WorkflowExecutionMode = "queued"
-    obsidian_vault_path: str = Field(..., min_length=1)
+    obsidian_vault_path: str = Field(..., alias="vault_path", min_length=1)
     config_path: str | None = None
     provider: str | None = None
     scope: MaintenanceScope

@@ -383,7 +383,7 @@ export async function searchWiki(
   return requestJson("/query", {
     method: "POST",
     body: {
-      obsidian_vault_path: vaultPath,
+      vault_path: vaultPath,
       query,
       mode: options.mode || "balanced",
       context_format: options.context_format || "compact",
@@ -407,7 +407,7 @@ export async function sendQueryFeedback(
   return requestJson("/query/feedback", {
     method: "POST",
     body: {
-      obsidian_vault_path: vaultPath,
+      vault_path: vaultPath,
       query: body.query,
       useful: body.useful ?? null,
       selected_paths: body.selected_paths || [],
@@ -419,7 +419,7 @@ export async function sendQueryFeedback(
 }
 
 export async function getQueryTrends(vaultPath: string, limit = 100): Promise<QueryTrendResponse> {
-  return requestJson(`/query/trends?obsidian_vault_path=${encodeURIComponent(vaultPath)}&limit=${limit}`);
+  return requestJson(`/query/trends?vault_path=${encodeURIComponent(vaultPath)}&limit=${limit}`);
 }
 
 async function requestJson<T>(url: string, options: { method?: string; body?: unknown } = {}): Promise<T> {

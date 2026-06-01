@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class WikiPageReadRequest(BaseModel):
@@ -26,7 +26,9 @@ class WikiPageReadResponse(BaseModel):
 
 
 class WikiSearchRequest(BaseModel):
-    obsidian_vault_path: str = Field(..., min_length=1)
+    model_config = ConfigDict(populate_by_name=True)
+
+    obsidian_vault_path: str = Field(..., alias="vault_path", min_length=1)
     query: str = Field(..., min_length=1)
     mode: Literal["quick", "balanced", "deep"] = "balanced"
     page_dirs: list[str] = Field(default_factory=list)
@@ -69,7 +71,9 @@ class WikiQueryGapSuggestion(BaseModel):
 
 
 class WikiQueryFeedbackRequest(BaseModel):
-    obsidian_vault_path: str = Field(..., min_length=1)
+    model_config = ConfigDict(populate_by_name=True)
+
+    obsidian_vault_path: str = Field(..., alias="vault_path", min_length=1)
     query: str = Field(..., min_length=1)
     useful: bool | None = None
     selected_paths: list[str] = Field(default_factory=list)
@@ -134,7 +138,9 @@ class WikiSearchResponse(BaseModel):
 
 
 class WikiContextRequest(BaseModel):
-    obsidian_vault_path: str = Field(..., min_length=1)
+    model_config = ConfigDict(populate_by_name=True)
+
+    obsidian_vault_path: str = Field(..., alias="vault_path", min_length=1)
     query: str = Field(..., min_length=1)
     purpose: Literal["ingest_relation", "lint_quality", "lint_freshness", "query", "manual"] = "manual"
     page_dirs: list[str] = Field(default_factory=list)

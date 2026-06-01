@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from knoarbor.core.schemas.execution import WorkflowExecutionMode
 from knoarbor.core.schemas.sources import SourceDocument
@@ -62,13 +62,15 @@ class UnifiedIngestRequest(BaseModel):
     The narrow request classes remain internal service contracts.
     """
 
+    model_config = ConfigDict(populate_by_name=True)
+
     kind: IngestRequestKind = "connectors"
     execution: WorkflowExecutionMode = "queued"
     config_path: str | None = None
     connector_names: list[str] | None = Field(default=None, min_length=1)
     source_document: SourceDocument | None = None
     input_path: str | None = None
-    obsidian_vault_path: str | None = None
+    obsidian_vault_path: str | None = Field(default=None, alias="vault_path")
     provider: str | None = None
     max_tokens: int | None = Field(default=None, ge=1)
     write: bool = False
@@ -88,7 +90,7 @@ class UnifiedIngestRequest(BaseModel):
             if not self.recovery_of_run_id:
                 raise ValueError("recovery_of_run_id is required when kind='recovery'.")
             if not (self.recovery_vault_path or self.obsidian_vault_path):
-                raise ValueError("recovery_vault_path or obsidian_vault_path is required when kind='recovery'.")
+                raise ValueError("recovery_vault_path or vault_path is required when kind='recovery'.")
             if self.source_document is not None or self.input_path:
                 raise ValueError("kind='recovery' cannot be combined with source_document or input_path.")
             return self

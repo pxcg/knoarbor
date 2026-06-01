@@ -27,9 +27,9 @@ def create_query_router(services: ApplicationServices) -> APIRouter:
 
     @router.get("/query/trends", response_model=WikiQueryTrendResponse, tags=["query"])
     async def read_query_trends(
-        obsidian_vault_path: str = Query(..., min_length=1),
+        vault_path: str = Query(..., min_length=1),
         limit: int = Query(100, ge=1, le=1000),
     ) -> WikiQueryTrendResponse:
-        return services.wiki_search.trend(obsidian_vault_path, limit=limit)
+        return services.wiki_search.trend(vault_path, limit=limit)
 
     return router

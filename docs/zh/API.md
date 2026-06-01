@@ -183,7 +183,7 @@ POST /query
 
 ```json
 {
-  "obsidian_vault_path": "/path/to/wiki",
+  "vault_path": "/path/to/wiki",
   "query": "agent loop",
   "mode": "balanced",
   "context_format": "compact"
@@ -198,8 +198,8 @@ POST /query
 GET /runs?vault_path=/path/to/wiki&active_only=false&limit=50
 GET /runs/{run_id}?vault_path=/path/to/wiki
 GET /runs/{run_id}/events?vault_path=/path/to/wiki&after=0&limit=200
-GET /runs/{run_id}/stream?vault_path=/path/to/wiki&after=0
-POST /runs/{run_id}/cancel?vault_path=/path/to/wiki
+GET /runs/{run_id}/stream?after=0
+POST /runs/{run_id}/cancel
 ```
 
 `/stream` 使用 Server-Sent Events。取消是协作式的，正在进行的模型请求可能会在下一个检查点前先完成。

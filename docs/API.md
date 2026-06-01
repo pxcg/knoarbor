@@ -178,7 +178,7 @@ Example:
 ```json
 {
   "execution": "queued",
-  "obsidian_vault_path": "/path/to/wiki",
+  "vault_path": "/path/to/wiki",
   "mode": "semantic_structural",
   "scope": {
     "scope_id": "manual:api",
@@ -201,7 +201,7 @@ Retrieves relevant wiki pages, excerpts, related context, trace data, and a prom
 
 ```json
 {
-  "obsidian_vault_path": "/path/to/wiki",
+  "vault_path": "/path/to/wiki",
   "query": "agent loop",
   "mode": "balanced",
   "context_format": "compact"
@@ -214,7 +214,7 @@ By default, query returns a bounded `compact` context pack. Set `context_format:
 
 ```http
 POST /query/feedback
-GET /query/trends?obsidian_vault_path=/path/to/wiki&limit=100
+GET /query/trends?vault_path=/path/to/wiki&limit=100
 ```
 
 Feedback records whether retrieved pages were useful. Trends return recent no-result and low-confidence query patterns from the query ledger.
@@ -227,14 +227,14 @@ Inspect runs:
 GET /runs?vault_path=/path/to/wiki&active_only=false&limit=50
 GET /runs/{run_id}?vault_path=/path/to/wiki
 GET /runs/{run_id}/events?vault_path=/path/to/wiki&after=0&limit=200
-GET /runs/{run_id}/stream?vault_path=/path/to/wiki&after=0
-POST /runs/{run_id}/cancel?vault_path=/path/to/wiki
+GET /runs/{run_id}/stream?after=0
+POST /runs/{run_id}/cancel
 ```
 
 `/stream` uses Server-Sent Events:
 
 ```bash
-curl -N "http://127.0.0.1:8000/runs/RUN_ID/stream?vault_path=/absolute/wiki/path"
+curl -N "http://127.0.0.1:8000/runs/RUN_ID/stream"
 ```
 
 Cancellation is cooperative. A running model request may finish before the pipeline stops at the next checkpoint.
