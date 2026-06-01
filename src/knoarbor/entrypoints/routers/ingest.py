@@ -2,23 +2,22 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from knoarbor.core.schemas.execution import WorkflowResponse
 from knoarbor.core.schemas.ingest_run import IngestRecoveryRunRequest, UnifiedIngestRequest
-from knoarbor.core.schemas.run_monitor import RunStartResponse
-from knoarbor.pipelines import IngestPipelineResult, IngestSourceResult
 from knoarbor.services import ApplicationServices
 
 
 def create_ingest_router(services: ApplicationServices) -> APIRouter:
     router = APIRouter()
 
-    @router.post("/ingest", response_model=RunStartResponse | IngestPipelineResult | IngestSourceResult, tags=["ingest"])
-    async def run_ingest(request: UnifiedIngestRequest) -> RunStartResponse | IngestPipelineResult | IngestSourceResult:
+    @router.post("/ingest", response_model=WorkflowResponse, tags=["ingest"])
+    async def run_ingest(request: UnifiedIngestRequest) -> WorkflowResponse:
         if request.kind == "recovery":
             recovery_vault_path = request.recovery_vault_path or request.obsidian_vault_path
             recovery_run_id = request.recovery_of_run_id
             assert recovery_vault_path is not None
             assert recovery_run_id is not None
-            return services.runs.start_ingest_recovery(
+            started = services.runs.start_ingest_recovery(
                 recovery_vault_path,
                 recovery_run_id,
                 IngestRecoveryRunRequest(
@@ -32,12 +31,22 @@ def create_ingest_router(services: ApplicationServices) -> APIRouter:
                 services.ingest.run,
                 services.ingest.run_file,
             )
+            return WorkflowResponse(flow="ingest", execution="queued", status=started.status, run_id=started.run_id, run=started.run)
         if request.execution == "direct":
-            return services.ingest.run_unified(request)
+            result = services.ingest.run_unified(request)
+            return WorkflowResponse(
+                flow="ingest",
+                execution="direct",
+                status="completed",
+                result=result.model_dump(mode="json"),
+            )
         if request.kind == "document":
-            return services.runs.start_ingest_document(request.to_document_request(), services.ingest.run_document)
+            started = services.runs.start_ingest_document(request.to_document_request(), services.ingest.run_document)
+            return WorkflowResponse(flow="ingest", execution="queued", status=started.status, run_id=started.run_id, run=started.run)
         if request.kind == "file":
-            return services.runs.start_ingest_file(request.to_file_request(), services.ingest.run_file)
-        return services.runs.start_ingest(request.to_connectors_request(), services.ingest.run)
+            started = services.runs.start_ingest_file(request.to_file_request(), services.ingest.run_file)
+            return WorkflowResponse(flow="ingest", execution="queued", status=started.status, run_id=started.run_id, run=started.run)
+        started = services.runs.start_ingest(request.to_connectors_request(), services.ingest.run)
+        return WorkflowResponse(flow="ingest", execution="queued", status=started.status, run_id=started.run_id, run=started.run)
 
     return router

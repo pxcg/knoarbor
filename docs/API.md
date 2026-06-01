@@ -34,7 +34,7 @@ Public endpoints are organized by product capability, not by internal workflow s
 | Query telemetry | `POST /query/feedback`, `GET /query/trends` | Record and inspect query usefulness signals |
 | Run monitor | `GET /runs`, `GET /runs/{run_id}` | Inspect queued/running/completed workflows |
 | Run events | `GET /runs/{run_id}/events`, `GET /runs/{run_id}/stream`, `POST /runs/{run_id}/cancel` | Observe or cancel a run |
-| Wiki pages | `GET /wiki/pages`, `GET /wiki/page`, `GET /wiki/backlinks` | Read generated wiki pages |
+| Wiki pages | `GET /wiki/pages`, `GET /wiki/pages/content`, `GET /wiki/pages/links` | Read generated wiki pages |
 
 `/ui/api/*` is reserved for the local management UI and is not a stable integration API.
 
@@ -43,9 +43,22 @@ Public endpoints are organized by product capability, not by internal workflow s
 `/ingest` and `/lint` support:
 
 - `execution: "queued"`: returns a `run_id` immediately and records progress under `/runs`.
-- `execution: "direct"`: blocks until the workflow returns a direct result.
+- `execution: "direct"`: blocks until the workflow completes and returns the workflow output in `result`.
 
 Default execution is `queued`, because ingest and semantic lint can call models and may take time. `/query` stays direct because it is a read-only retrieval endpoint intended for host AI tools.
+
+Both endpoints always return the same workflow envelope:
+
+```json
+{
+  "flow": "ingest",
+  "execution": "queued",
+  "status": "queued",
+  "run_id": "20260525_123456_abcdef",
+  "run": { "schema_version": "run_record.v1" },
+  "result": null
+}
+```
 
 ## Error Contract
 
@@ -145,20 +158,7 @@ Recover a failed ingest run:
 `kind: "recovery"` only supports `execution: "queued"` because it is tied to a previous run record and may replay multiple failed items.
 
 Markdown files run directly. Rich documents such as PDF/DOCX/PPTX require a configured document preprocessor such as MinerU.
-
-Queued responses return:
-
-```json
-{
-  "run_id": "20260525_123456_abcdef",
-  "status": "queued",
-  "run": {
-    "schema_version": "run_record.v1",
-    "flow": "ingest",
-    "stage": "queued"
-  }
-}
-```
+The response always uses the workflow envelope described in [Execution Model](#execution-model).
 
 ## Lint
 
@@ -267,11 +267,11 @@ This design favors correctness and reproducibility over maximum throughput for t
 
 ```http
 GET /wiki/pages?vault_path=/path/to/wiki
-GET /wiki/page?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
-GET /wiki/backlinks?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
+GET /wiki/pages/content?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
+GET /wiki/pages/links?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
 ```
 
-`/wiki/pages` returns page summaries and link metadata. `/wiki/page` returns one Markdown page with metadata and rendered summary fields. `/wiki/backlinks` returns pages that link to the selected page.
+`/wiki/pages` returns page summaries and link metadata. `/wiki/pages/content` returns one Markdown page with metadata and rendered summary fields. `/wiki/pages/links` returns pages that link to the selected page.
 
 ## UI Endpoints
 

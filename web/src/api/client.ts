@@ -304,11 +304,11 @@ export async function getPages(vaultPath: string): Promise<{ vault_path: string;
 }
 
 export async function getPage(vaultPath: string, path: string): Promise<PageDetail> {
-  return requestJson(`/wiki/page?vault_path=${encodeURIComponent(vaultPath)}&path=${encodeURIComponent(path)}`);
+  return requestJson(`/wiki/pages/content?vault_path=${encodeURIComponent(vaultPath)}&path=${encodeURIComponent(path)}`);
 }
 
 export async function getPageLinks(vaultPath: string, path: string): Promise<{ path: string; outbound_links: PageLink[]; backlinks: PageLink[] }> {
-  return requestJson(`/wiki/backlinks?vault_path=${encodeURIComponent(vaultPath)}&path=${encodeURIComponent(path)}`);
+  return requestJson(`/wiki/pages/links?vault_path=${encodeURIComponent(vaultPath)}&path=${encodeURIComponent(path)}`);
 }
 
 export async function getReports(vaultPath: string): Promise<{ vault_path: string; reports: ReportSummary[] }> {

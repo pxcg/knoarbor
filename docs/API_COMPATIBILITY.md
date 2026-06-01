@@ -19,8 +19,8 @@ The public integration API is intentionally compact:
 - `GET /runs/{run_id}/stream`
 - `POST /runs/{run_id}/cancel`
 - `GET /wiki/pages`
-- `GET /wiki/page`
-- `GET /wiki/backlinks`
+- `GET /wiki/pages/content`
+- `GET /wiki/pages/links`
 
 Different workflow variants are selected by request fields such as `execution`, `kind`, `mode`, and `context_format`.
 
@@ -40,6 +40,8 @@ The following prototype routes are intentionally not part of the public API:
 - `POST /lint/run`
 - `POST /query/search`
 - `POST /runs`
+- `GET /wiki/page`
+- `GET /wiki/backlinks`
 
 Use `POST /ingest`, `POST /lint`, or `POST /query` instead. Use `GET /runs*` only for monitoring.
 

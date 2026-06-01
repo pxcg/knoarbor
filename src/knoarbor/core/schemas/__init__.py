@@ -1,6 +1,6 @@
 from knoarbor.core.schemas.connectors import ConnectorDiscoverResponse, ConnectorRunRequest
 from knoarbor.core.schemas.events import KnowledgeEvent
-from knoarbor.core.schemas.execution import WorkflowExecutionMode
+from knoarbor.core.schemas.execution import WorkflowExecutionMode, WorkflowFlow, WorkflowResponse
 from knoarbor.core.schemas.knowledge_extract import (
     CompileContext,
     ContentUnit,
@@ -88,6 +88,8 @@ from knoarbor.core.schemas.wiki_query import (
 __all__ = [
     "KnowledgeEvent",
     "WorkflowExecutionMode",
+    "WorkflowFlow",
+    "WorkflowResponse",
     "KnowledgeExtract",
     "KnowledgeSource",
     "ContentUnit",

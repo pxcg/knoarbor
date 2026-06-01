@@ -19,8 +19,8 @@ KnoArbor 尚未发布稳定 v1 API，因此预发布阶段优先保持公开接�
 - `GET /runs/{run_id}/stream`
 - `POST /runs/{run_id}/cancel`
 - `GET /wiki/pages`
-- `GET /wiki/page`
-- `GET /wiki/backlinks`
+- `GET /wiki/pages/content`
+- `GET /wiki/pages/links`
 
 不同功能通过 `execution`、`kind`、`mode`、`context_format` 等请求字段选择。
 
@@ -40,6 +40,8 @@ KnoArbor 尚未发布稳定 v1 API，因此预发布阶段优先保持公开接�
 - `POST /lint/run`
 - `POST /query/search`
 - `POST /runs`
+- `GET /wiki/page`
+- `GET /wiki/backlinks`
 
 请改用 `POST /ingest`、`POST /lint` 或 `POST /query`。`GET /runs*` 只用于运行监控。
 

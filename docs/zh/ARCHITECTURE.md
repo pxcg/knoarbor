@@ -266,7 +266,7 @@ KnoArbor 是本地优先的 Wiki 引擎，但仍需要明确运行时基础设�
 ```text
 storage / retrieval metadata
   -> WikiPagesService
-  -> /wiki/pages, /wiki/page, /wiki/backlinks
+  -> /wiki/pages, /wiki/pages/content, /wiki/pages/links
   -> UI, skills, CLI wrappers, external clients
 ```
 

@@ -60,8 +60,11 @@ class IngestApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["stats"]["source_count"], 1)
-        self.assertNotIn("run_id", payload)
+        self.assertEqual(payload["flow"], "ingest")
+        self.assertEqual(payload["execution"], "direct")
+        self.assertEqual(payload["status"], "completed")
+        self.assertEqual(payload["result"]["stats"]["source_count"], 1)
+        self.assertIsNone(payload["run_id"])
 
     def test_run_ingest_connectors_uses_high_level_ingest_service(self) -> None:
         services = ApplicationServices()
@@ -79,7 +82,10 @@ class IngestApiTests(unittest.TestCase):
                 json={"execution": "queued", "kind": "connectors", "config_path": str(config), "write": False},
             )
             self.assertEqual(response.status_code, 200)
-            run_id = response.json()["run_id"]
+            response_payload = response.json()
+            self.assertEqual(response_payload["flow"], "ingest")
+            self.assertEqual(response_payload["execution"], "queued")
+            run_id = response_payload["run_id"]
             payload = _wait_for_run(client, str(vault), run_id)
 
         self.assertEqual(payload["status"], "completed")
@@ -134,7 +140,10 @@ class IngestApiTests(unittest.TestCase):
                 },
             )
             self.assertEqual(response.status_code, 200)
-            run_id = response.json()["run_id"]
+            response_payload = response.json()
+            self.assertEqual(response_payload["flow"], "ingest")
+            self.assertEqual(response_payload["execution"], "queued")
+            run_id = response_payload["run_id"]
             payload = _wait_for_run(client, str(vault), run_id)
 
         self.assertEqual(payload["status"], "completed")

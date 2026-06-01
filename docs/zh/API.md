@@ -34,7 +34,7 @@ http://127.0.0.1:8000
 | 查询反馈 | `POST /query/feedback`, `GET /query/trends` | 记录和查看查询反馈 |
 | 运行监控 | `GET /runs`, `GET /runs/{run_id}` | 查看队列、运行中和已完成任务 |
 | 运行事件 | `GET /runs/{run_id}/events`, `GET /runs/{run_id}/stream`, `POST /runs/{run_id}/cancel` | 观察或取消运行 |
-| Wiki 页面 | `GET /wiki/pages`, `GET /wiki/page`, `GET /wiki/backlinks` | 读取生成后的 Wiki 页面 |
+| Wiki 页面 | `GET /wiki/pages`, `GET /wiki/pages/content`, `GET /wiki/pages/links` | 读取生成后的 Wiki 页面 |
 
 `/ui/api/*` 仅供本地管理界面使用，不作为稳定集成 API。
 
@@ -43,9 +43,22 @@ http://127.0.0.1:8000
 `/ingest` 和 `/lint` 支持：
 
 - `execution: "queued"`：立即返回 `run_id`，进度通过 `/runs` 查看。
-- `execution: "direct"`：阻塞直到流程返回直接结果。
+- `execution: "direct"`：阻塞直到流程结束，并把业务结果放在 `result` 字段中。
 
 默认是 `queued`，因为知识编译和语义维护可能调用模型并耗时较长。`/query` 保持同步只读，适合作为宿主 AI 的即时检索入口。
+
+两个接口始终返回统一的 workflow envelope：
+
+```json
+{
+  "flow": "ingest",
+  "execution": "queued",
+  "status": "queued",
+  "run_id": "20260525_123456_abcdef",
+  "run": { "schema_version": "run_record.v1" },
+  "result": null
+}
+```
 
 ## 错误格式
 
@@ -64,6 +77,23 @@ http://127.0.0.1:8000
 ```
 
 完整错误码见 [错误码](ERROR_CODES.md)。
+
+## 服务状态
+
+```http
+GET /health
+```
+
+返回服务是否可用。触发长任务前可先调用该接口。
+
+## 运行诊断
+
+```http
+GET /doctor
+GET /doctor?config_path=/path/to/config.yaml&connector=markdown
+```
+
+执行只读诊断，包括配置加载、知识库目录、模型环境变量、资料来源发现、可选文档预处理器和最近运行状态。该接口不调用模型，也不写入 Wiki 页面。
 
 ## 知识编译
 
@@ -128,6 +158,7 @@ POST /ingest
 `kind: "recovery"` 只支持 `execution: "queued"`，因为它依赖既有运行记录，且可能重放多个失败项目。
 
 Markdown 文件会直接处理。PDF/DOCX/PPTX 等富文档需要配置 MinerU 等文档预处理器。
+接口响应始终使用[执行模式](#执行模式)中的统一 workflow envelope。
 
 ## 校验维护
 
@@ -177,11 +208,11 @@ POST /runs/{run_id}/cancel?vault_path=/path/to/wiki
 
 ```http
 GET /wiki/pages?vault_path=/path/to/wiki
-GET /wiki/page?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
-GET /wiki/backlinks?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
+GET /wiki/pages/content?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
+GET /wiki/pages/links?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
 ```
 
-`/wiki/pages` 返回页面摘要和链接元数据。`/wiki/page` 返回单个 Markdown 页面及其元数据。`/wiki/backlinks` 返回指向目标页面的页面。
+`/wiki/pages` 返回页面摘要和链接元数据。`/wiki/pages/content` 返回单个 Markdown 页面及其元数据。`/wiki/pages/links` 返回指向目标页面的页面。
 
 ## 移除的原型端点
 

@@ -35,8 +35,11 @@ class LintApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["schema_version"], "lint_run.v1")
-        self.assertNotIn("run_id", payload)
+        self.assertEqual(payload["flow"], "lint")
+        self.assertEqual(payload["execution"], "direct")
+        self.assertEqual(payload["status"], "completed")
+        self.assertEqual(payload["result"]["schema_version"], "lint_run.v1")
+        self.assertIsNone(payload["run_id"])
 
     def test_run_lint_returns_observable_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -57,7 +60,10 @@ class LintApiTests(unittest.TestCase):
                 },
             )
             self.assertEqual(response.status_code, 200)
-            run_id = response.json()["run_id"]
+            response_payload = response.json()
+            self.assertEqual(response_payload["flow"], "lint")
+            self.assertEqual(response_payload["execution"], "queued")
+            run_id = response_payload["run_id"]
             payload = _wait_for_run(client, tmp_dir, run_id)
 
         self.assertEqual(payload["status"], "completed")

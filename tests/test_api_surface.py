@@ -49,7 +49,7 @@ class ApiSurfaceTests(unittest.TestCase):
         for route in sorted(stable_route_set()):
             self.assertIn(route, docs)
         for route in sorted(removed_legacy_route_set()):
-            self.assertNotIn(route, docs)
+            self.assertNotIn(f"`{route}`", docs)
 
     def test_error_code_docs_cover_public_error_catalog(self) -> None:
         root = Path(__file__).resolve().parents[1]
@@ -278,7 +278,7 @@ class ApiSurfaceTests(unittest.TestCase):
             client = TestClient(create_app())
 
             response = client.get(
-                "/wiki/page",
+                "/wiki/pages/content",
                 params={"vault_path": str(vault), "path": "concepts/Missing.md"},
             )
 

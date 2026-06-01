@@ -16,11 +16,11 @@ def create_wiki_router() -> APIRouter:
     async def list_pages(vault_path: str | None = Query(default=None)) -> WikiPagesResponse:
         return service.list_pages(_resolve_vault_path(vault_path))
 
-    @router.get("/page", response_model=WikiPageDetail)
+    @router.get("/pages/content", response_model=WikiPageDetail)
     async def read_page(path: str, vault_path: str | None = Query(default=None)) -> WikiPageDetail:
         return service.read_page(_resolve_vault_path(vault_path), path)
 
-    @router.get("/backlinks", response_model=WikiPageBacklinksResponse)
+    @router.get("/pages/links", response_model=WikiPageBacklinksResponse)
     async def read_backlinks(path: str, vault_path: str | None = Query(default=None)) -> WikiPageBacklinksResponse:
         return service.page_links(_resolve_vault_path(vault_path), path)
 

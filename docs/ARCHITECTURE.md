@@ -271,7 +271,7 @@ Generated wiki pages have their own stable read boundary:
 ```text
 storage / retrieval metadata
   -> WikiPagesService
-  -> /wiki/pages, /wiki/page, /wiki/backlinks
+  -> /wiki/pages, /wiki/pages/content, /wiki/pages/links
   -> UI, skills, CLI wrappers, external clients
 ```
 

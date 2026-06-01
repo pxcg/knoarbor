@@ -21,8 +21,8 @@ PUBLIC_STABLE_ROUTES: tuple[str, ...] = (
     "/runs/{run_id}/stream",
     "/runs/{run_id}/cancel",
     "/wiki/pages",
-    "/wiki/page",
-    "/wiki/backlinks",
+    "/wiki/pages/content",
+    "/wiki/pages/links",
 )
 
 UI_PUBLIC_ROUTES: tuple[str, ...] = (
@@ -63,6 +63,8 @@ REMOVED_LEGACY_ROUTES: tuple[str, ...] = (
     "/lint_wiki",
     "/apply_wiki_operations",
     "/wiki_context",
+    "/wiki/page",
+    "/wiki/backlinks",
 )
 
 
