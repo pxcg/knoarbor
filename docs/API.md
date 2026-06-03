@@ -91,9 +91,15 @@ Returns service availability. Use this before triggering long-running jobs.
 ```http
 GET /doctor
 GET /doctor?config_path=/path/to/config.yaml&connector=markdown
+GET /doctor?check_model_runtime=false&check_connector_runtime=false
 ```
 
-Runs read-only setup diagnostics for config loading, vault structure, model environment, connector discovery, optional document preprocessing, and recent run state. It does not call a model and does not write wiki pages.
+Runs read-only setup diagnostics for config loading, vault structure, model environment, connector discovery, optional document preprocessing, and recent run state. It never writes wiki pages. Runtime checks are controlled by query parameters:
+
+- `check_model_runtime`: when `true`, tests the configured model endpoint and structured-output support.
+- `check_connector_runtime`: when `true`, runs connector discovery and reports discovered source counts.
+
+Use `false` for UI/on-load checks and `true` for explicit readiness tests.
 
 ## Ingest
 

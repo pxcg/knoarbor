@@ -99,6 +99,38 @@ class DoctorServiceTests(unittest.TestCase):
         self.assertEqual(checks["wiki.content"].status, "warning")
         self.assertTrue(any("ingest" in step for step in report.next_steps))
 
+    def test_lightweight_doctor_skips_runtime_connector_discovery(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "wiki"
+            missing_notes = root / "missing-notes"
+            vault.mkdir()
+            for name in ["SCHEMA.md", "index.md", "log.md", ".knoarborignore"]:
+                (vault / name).write_text("", encoding="utf-8")
+            config = root / "config.yaml"
+            config.write_text(
+                f"vault:\n  path: {vault}\n"
+                "models:\n"
+                "  default_provider: local\n"
+                "  providers:\n"
+                "    local:\n"
+                "      base_url: http://127.0.0.1:11434/v1\n"
+                "      model: qwen\n"
+                "connectors:\n"
+                "  markdown:\n"
+                "    enabled: true\n"
+                "    settings:\n"
+                "      roots:\n"
+                f"        - {missing_notes}\n",
+                encoding="utf-8",
+            )
+
+            report = DoctorService().run(config_path=config, check_model_runtime=False, check_connector_runtime=False)
+
+        checks = {check.name: check for check in report.checks}
+        self.assertEqual(checks["connectors.enabled"].status, "ok")
+        self.assertNotIn("connectors.markdown", checks)
+
 
 class DoctorEntrypointTests(unittest.TestCase):
     def test_cli_doctor_json_returns_report(self) -> None:

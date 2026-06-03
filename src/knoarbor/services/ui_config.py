@@ -7,8 +7,7 @@ from typing import Any
 
 import yaml
 
-from knoarbor.connectors.base import ConnectorConfig as RuntimeConnectorConfig
-from knoarbor.connectors.base import ConnectorCapabilities, ConnectorHealth
+from knoarbor.connectors.base import ConnectorCapabilities
 from knoarbor.connectors.registry import ConnectorRegistry
 from knoarbor.core.config import KnoArborConfig, default_config_path, prepare_config_data
 from knoarbor.core.errors import UserInputError
@@ -28,6 +27,7 @@ from knoarbor.services.ui_config_models import (
     UiConfigUpdateResponse,
     UiModelProviderForm,
 )
+from knoarbor.storage.source_metrics import connector_source_metric_identity, load_source_counts, source_metric_key, update_source_counts
 
 
 class UiConfigService:
@@ -56,10 +56,10 @@ class UiConfigService:
         content = path.read_text(encoding="utf-8") if path.exists() else default_config_path().read_text(encoding="utf-8")
         return config_to_form(config_from_content(content, base_dir=path.parent))
 
-    def read_diagnostics(self, config_path: str | None = None) -> UiConfigDiagnostics:
+    def read_diagnostics(self, config_path: str | None = None, *, refresh_source_counts: bool = False) -> UiConfigDiagnostics:
         path = resolve_ui_config_path(config_path, for_write=False)
         content = path.read_text(encoding="utf-8") if path.exists() else default_config_path().read_text(encoding="utf-8")
-        return config_diagnostics(config_from_content(content, base_dir=path.parent))
+        return config_diagnostics(config_from_content(content, base_dir=path.parent), refresh_source_counts=refresh_source_counts)
 
     def write_form(self, request: UiConfigFormUpdateRequest) -> UiConfigUpdateResponse:
         path = resolve_ui_config_path(request.config_path, for_write=True)
@@ -203,18 +203,21 @@ def config_to_form(config: KnoArborConfig) -> UiConfigFormResponse:
     )
 
 
-def config_diagnostics(config: KnoArborConfig) -> UiConfigDiagnostics:
+def config_diagnostics(config: KnoArborConfig, *, refresh_source_counts: bool = False) -> UiConfigDiagnostics:
     connector_items: list[UiConfigDiagnosticItem] = []
     processor_items: list[UiConfigDiagnosticItem] = []
     provider_items: list[UiConfigDiagnosticItem] = []
     path_items: list[UiConfigDiagnosticItem] = []
-    connector_capabilities, connector_health = _connector_contracts(config)
-
+    connector_capabilities = _connector_contracts()
     vault = Path(config.vault.path).expanduser()
+    cached_counts = load_source_counts(vault)
+    refreshed_counts: dict[str, int] = {}
+
     path_items.append(_path_diagnostic("vault", "path", vault, enabled=True))
 
     codex = config.connectors.get("codex")
     codex_settings = codex.settings if codex else {}
+    codex_identity = connector_source_metric_identity("codex", codex_settings)
     codex_path = Path(str(codex_settings.get("sessions_dir") or "")).expanduser() if codex_settings.get("sessions_dir") else None
     connector_items.append(
         _connector_diagnostic(
@@ -224,14 +227,19 @@ def config_diagnostics(config: KnoArborConfig) -> UiConfigDiagnostics:
                 codex_path,
                 enabled=bool(codex.enabled) if codex else False,
                 pattern=str(codex_settings.get("pattern") or "rollout-*.jsonl"),
+                metric_path=codex_identity["path"] if codex_identity else None,
+                metric_pattern=codex_identity["pattern"] if codex_identity else None,
+                cached_counts=cached_counts,
+                refreshed_counts=refreshed_counts,
+                refresh_count=refresh_source_counts,
             ),
             connector_capabilities,
-            connector_health,
         )
     )
 
     hermes = config.connectors.get("hermes")
     hermes_settings = hermes.settings if hermes else {}
+    hermes_identity = connector_source_metric_identity("hermes", hermes_settings)
     hermes_path = Path(str(hermes_settings.get("sessions_dir") or "")).expanduser() if hermes_settings.get("sessions_dir") else None
     connector_items.append(
         _connector_diagnostic(
@@ -241,14 +249,19 @@ def config_diagnostics(config: KnoArborConfig) -> UiConfigDiagnostics:
                 hermes_path,
                 enabled=bool(hermes.enabled) if hermes else False,
                 pattern=str(hermes_settings.get("pattern") or "session_*.json"),
+                metric_path=hermes_identity["path"] if hermes_identity else None,
+                metric_pattern=hermes_identity["pattern"] if hermes_identity else None,
+                cached_counts=cached_counts,
+                refreshed_counts=refreshed_counts,
+                refresh_count=refresh_source_counts,
             ),
             connector_capabilities,
-            connector_health,
         )
     )
 
     openclaw = config.connectors.get("openclaw")
     openclaw_settings = openclaw.settings if openclaw else {}
+    openclaw_identity = connector_source_metric_identity("openclaw", openclaw_settings)
     openclaw_path = Path(str(openclaw_settings.get("sessions_dir") or "")).expanduser() if openclaw_settings.get("sessions_dir") else None
     connector_items.append(
         _connector_diagnostic(
@@ -258,14 +271,19 @@ def config_diagnostics(config: KnoArborConfig) -> UiConfigDiagnostics:
                 openclaw_path,
                 enabled=bool(openclaw.enabled) if openclaw else False,
                 pattern=str(openclaw_settings.get("pattern") or "*.jsonl"),
+                metric_path=openclaw_identity["path"] if openclaw_identity else None,
+                metric_pattern=openclaw_identity["pattern"] if openclaw_identity else None,
+                cached_counts=cached_counts,
+                refreshed_counts=refreshed_counts,
+                refresh_count=refresh_source_counts,
             ),
             connector_capabilities,
-            connector_health,
         )
     )
 
     claude_code = config.connectors.get("claude_code")
     claude_code_settings = claude_code.settings if claude_code else {}
+    claude_code_identity = connector_source_metric_identity("claude_code", claude_code_settings)
     claude_code_path = Path(str(claude_code_settings.get("sessions_dir") or "")).expanduser() if claude_code_settings.get("sessions_dir") else None
     connector_items.append(
         _connector_diagnostic(
@@ -275,14 +293,19 @@ def config_diagnostics(config: KnoArborConfig) -> UiConfigDiagnostics:
                 claude_code_path,
                 enabled=bool(claude_code.enabled) if claude_code else False,
                 pattern=str(claude_code_settings.get("pattern") or "*.jsonl"),
+                metric_path=claude_code_identity["path"] if claude_code_identity else None,
+                metric_pattern=claude_code_identity["pattern"] if claude_code_identity else None,
+                cached_counts=cached_counts,
+                refreshed_counts=refreshed_counts,
+                refresh_count=refresh_source_counts,
             ),
             connector_capabilities,
-            connector_health,
         )
     )
 
     generic_chat = config.connectors.get("generic_chat")
     generic_chat_settings = generic_chat.settings if generic_chat else {}
+    generic_chat_identity = connector_source_metric_identity("generic_chat", generic_chat_settings)
     generic_chat_roots = [Path(str(root)).expanduser() for root in generic_chat_settings.get("roots", []) if root]
     connector_items.append(
         _connector_diagnostic(
@@ -292,14 +315,19 @@ def config_diagnostics(config: KnoArborConfig) -> UiConfigDiagnostics:
                 generic_chat_roots,
                 enabled=bool(generic_chat.enabled) if generic_chat else False,
                 pattern="*",
+                metric_path=generic_chat_identity["path"] if generic_chat_identity else None,
+                metric_pattern=generic_chat_identity["pattern"] if generic_chat_identity else None,
+                cached_counts=cached_counts,
+                refreshed_counts=refreshed_counts,
+                refresh_count=refresh_source_counts,
             ),
             connector_capabilities,
-            connector_health,
         )
     )
 
     markdown = config.connectors.get("markdown")
     markdown_settings = markdown.settings if markdown else {}
+    markdown_identity = connector_source_metric_identity("markdown", markdown_settings)
     markdown_roots = [Path(str(root)).expanduser() for root in markdown_settings.get("roots", []) if root]
     connector_items.append(
         _connector_diagnostic(
@@ -309,9 +337,13 @@ def config_diagnostics(config: KnoArborConfig) -> UiConfigDiagnostics:
                 markdown_roots,
                 enabled=bool(markdown.enabled) if markdown else False,
                 pattern=str(markdown_settings.get("pattern") or "*.md"),
+                metric_path=markdown_identity["path"] if markdown_identity else None,
+                metric_pattern=markdown_identity["pattern"] if markdown_identity else None,
+                cached_counts=cached_counts,
+                refreshed_counts=refreshed_counts,
+                refresh_count=refresh_source_counts,
             ),
             connector_capabilities,
-            connector_health,
         )
     )
 
@@ -319,7 +351,19 @@ def config_diagnostics(config: KnoArborConfig) -> UiConfigDiagnostics:
     if mineru.enabled and not mineru.endpoint:
         processor_items.append(UiConfigDiagnosticItem(name="mineru", category="processor", enabled=True, ok=False, code="endpoint_missing", path=str(mineru.input_dir) if mineru.input_dir else None))
     else:
-        processor_items.append(_path_diagnostic("mineru", "processor", Path(mineru.input_dir).expanduser() if mineru.input_dir else None, enabled=mineru.enabled, pattern="*", detail=mineru.endpoint or ""))
+        processor_items.append(
+            _path_diagnostic(
+                "mineru",
+                "processor",
+                Path(mineru.input_dir).expanduser() if mineru.input_dir else None,
+                enabled=mineru.enabled,
+                pattern="*",
+                detail=mineru.endpoint or "",
+                cached_counts=cached_counts,
+                refreshed_counts=refreshed_counts,
+                refresh_count=refresh_source_counts,
+            )
+        )
 
     for name, provider in sorted(config.models.providers.items()):
         missing = []
@@ -335,27 +379,21 @@ def config_diagnostics(config: KnoArborConfig) -> UiConfigDiagnostics:
         ok = not missing
         provider_items.append(UiConfigDiagnosticItem(name=name, category="provider", enabled=True, ok=ok, code="ready" if ok else "provider_incomplete", detail=", ".join(missing)))
 
+    if refreshed_counts:
+        update_source_counts(vault, refreshed_counts)
     return UiConfigDiagnostics(connectors=connector_items, processors=processor_items, providers=provider_items, paths=path_items)
 
 
-def _connector_contracts(config: KnoArborConfig) -> tuple[dict[str, ConnectorCapabilities], dict[str, ConnectorHealth]]:
+def _connector_contracts() -> dict[str, ConnectorCapabilities]:
     registry = ConnectorRegistry()
-    runtime_configs = {
-        name: RuntimeConnectorConfig(enabled=connector.enabled, settings=connector.settings)
-        for name, connector in config.connectors.items()
-    }
-    capabilities = {item.name: item for item in registry.capabilities()}
-    health = {item.name: item for item in registry.health(runtime_configs)}
-    return capabilities, health
+    return {item.name: item for item in registry.capabilities()}
 
 
 def _connector_diagnostic(
     item: UiConfigDiagnosticItem,
     capabilities_by_name: dict[str, ConnectorCapabilities],
-    health_by_name: dict[str, ConnectorHealth],
 ) -> UiConfigDiagnosticItem:
     capability = capabilities_by_name.get(item.name)
-    health = health_by_name.get(item.name)
     data = item.model_dump()
     if capability:
         data.update(
@@ -367,12 +405,6 @@ def _connector_diagnostic(
                 "requires_external_service": capability.requires_external_service,
             }
         )
-    if item.enabled and health and not health.ok:
-        data["ok"] = False
-        data["code"] = health.code
-        data["detail"] = health.detail or item.detail
-    elif item.enabled and health and health.detail and not data.get("detail"):
-        data["detail"] = health.detail
     return UiConfigDiagnosticItem.model_validate(data)
 
 
@@ -586,24 +618,85 @@ def _path_diagnostic(
     pattern: str | None = None,
     detail: str = "",
     missing_code: str = "path_missing",
+    metric_path: str | None = None,
+    metric_pattern: str | None = None,
+    cached_counts: dict[str, int] | None = None,
+    refreshed_counts: dict[str, int] | None = None,
+    refresh_count: bool = False,
 ) -> UiConfigDiagnosticItem:
     if not enabled:
         return UiConfigDiagnosticItem(name=name, category=category, enabled=False, ok=True, code="disabled", path=str(path) if path else None, detail=detail)
     if path is None:
         return UiConfigDiagnosticItem(name=name, category=category, enabled=True, ok=False, code=missing_code, detail=detail)
     exists = path.exists()
-    count = _count_matching_files(path, pattern) if exists and pattern else None
+    count = _diagnostic_count(
+        category=category,
+        name=name,
+        path=metric_path or str(path),
+        pattern=metric_pattern or pattern,
+        exists=exists,
+        scan_paths=[path],
+        cached_counts=cached_counts,
+        refreshed_counts=refreshed_counts,
+        refresh_count=refresh_count,
+    )
     return UiConfigDiagnosticItem(name=name, category=category, enabled=True, ok=exists, code="path_ready" if exists else missing_code, path=str(path), count=count, detail=detail)
 
 
-def _multi_path_diagnostic(name: str, category: str, paths: list[Path], *, enabled: bool, pattern: str | None = None) -> UiConfigDiagnosticItem:
+def _multi_path_diagnostic(
+    name: str,
+    category: str,
+    paths: list[Path],
+    *,
+    enabled: bool,
+    pattern: str | None = None,
+    metric_path: str | None = None,
+    metric_pattern: str | None = None,
+    cached_counts: dict[str, int] | None = None,
+    refreshed_counts: dict[str, int] | None = None,
+    refresh_count: bool = False,
+) -> UiConfigDiagnosticItem:
     if not enabled:
         return UiConfigDiagnosticItem(name=name, category=category, enabled=False, ok=True, code="disabled")
     if not paths:
         return UiConfigDiagnosticItem(name=name, category=category, enabled=True, ok=False, code="no_paths")
     existing = [path for path in paths if path.exists()]
-    count = sum(_count_matching_files(path, pattern) for path in existing) if pattern else None
-    return UiConfigDiagnosticItem(name=name, category=category, enabled=True, ok=bool(existing), code="path_ready" if existing else "path_missing", path=", ".join(str(path) for path in paths), count=count)
+    path_text = ", ".join(str(path) for path in paths)
+    count = _diagnostic_count(
+        category=category,
+        name=name,
+        path=metric_path or path_text,
+        pattern=metric_pattern or pattern,
+        exists=bool(existing),
+        scan_paths=existing,
+        cached_counts=cached_counts,
+        refreshed_counts=refreshed_counts,
+        refresh_count=refresh_count,
+    )
+    return UiConfigDiagnosticItem(name=name, category=category, enabled=True, ok=bool(existing), code="path_ready" if existing else "path_missing", path=path_text, count=count)
+
+
+def _diagnostic_count(
+    *,
+    category: str,
+    name: str,
+    path: str,
+    pattern: str | None,
+    exists: bool,
+    scan_paths: list[Path],
+    cached_counts: dict[str, int] | None,
+    refreshed_counts: dict[str, int] | None,
+    refresh_count: bool,
+) -> int | None:
+    if not exists or not pattern:
+        return None
+    key = source_metric_key(category=category, name=name, path=path, pattern=pattern)
+    if refresh_count:
+        count = sum(_count_matching_files(item, pattern) for item in scan_paths)
+        if refreshed_counts is not None:
+            refreshed_counts[key] = count
+        return count
+    return (cached_counts or {}).get(key)
 
 
 def _count_matching_files(path: Path, pattern: str | None) -> int:
@@ -611,9 +704,14 @@ def _count_matching_files(path: Path, pattern: str | None) -> int:
         return 0
     if path.is_file():
         return 1 if pattern is None or path.match(pattern) else 0
+    count = 0
+    iterator = path.rglob("*") if pattern == "*" else path.rglob(pattern or "*")
+    for item in iterator:
+        if item.is_file():
+            count += 1
     if pattern == "*":
-        return sum(1 for item in path.rglob("*") if item.is_file())
-    return sum(1 for item in path.rglob(pattern or "*") if item.is_file())
+        return count
+    return count
 
 
 def _reject_inline_secrets(content: str) -> None:

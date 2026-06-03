@@ -86,7 +86,7 @@ export function ConfigPage({ context }: Props) {
   const saving = structuredSave.isPending || yamlSave.isPending;
 
   const modelTest = useMutation({
-    mutationFn: () => getDoctor(context.configPath),
+    mutationFn: () => getDoctor(context.configPath, { checkModelRuntime: true, checkConnectorRuntime: false }),
     onSuccess: async (report) => {
       context.setDoctorReport(report);
       await queryClient.invalidateQueries({ queryKey: ["config-diagnostics"] });

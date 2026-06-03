@@ -93,8 +93,11 @@ def create_ui_router() -> APIRouter:
         return config_service.write_form(request)
 
     @router.get("/ui/api/config/diagnostics", response_model=UiConfigDiagnostics, tags=["ui"])
-    async def read_ui_config_diagnostics(config_path: str | None = Query(default=None)) -> UiConfigDiagnostics:
-        return config_service.read_diagnostics(config_path)
+    async def read_ui_config_diagnostics(
+        config_path: str | None = Query(default=None),
+        refresh_source_counts: bool = Query(default=False),
+    ) -> UiConfigDiagnostics:
+        return config_service.read_diagnostics(config_path, refresh_source_counts=refresh_source_counts)
 
     @router.get("/ui/api/status", response_model=UiStatusResponse, tags=["ui"])
     async def read_ui_status(vault_path: str | None = Query(default=None)) -> UiStatusResponse:

@@ -2117,6 +2117,20 @@ button.action-card {
   font-size: 13px;
 }
 
+.page-loading,
+.route-error-panel {
+  color: var(--muted);
+  padding: 24px;
+}
+
+.route-error-panel {
+  align-items: start;
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  text-align: left;
+}
+
 .field span {
   color: var(--muted-strong);
   font-size: 13px;

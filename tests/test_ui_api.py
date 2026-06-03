@@ -299,7 +299,7 @@ models:
             )
             client = TestClient(create_app())
 
-            response = client.get("/ui/api/config/diagnostics", params={"config_path": str(config_path)})
+            response = client.get("/ui/api/config/diagnostics", params={"config_path": str(config_path), "refresh_source_counts": "true"})
 
             self.assertEqual(response.status_code, 200)
             markdown = next(item for item in response.json()["connectors"] if item["name"] == "markdown")
@@ -309,7 +309,12 @@ models:
             self.assertFalse(markdown["supports_segmentation_hint"])
             self.assertEqual(markdown["count"], 1)
 
-    def test_ui_config_diagnostics_keep_contracts_on_connector_error(self) -> None:
+            cached_response = client.get("/ui/api/config/diagnostics", params={"config_path": str(config_path)})
+            self.assertEqual(cached_response.status_code, 200)
+            cached_markdown = next(item for item in cached_response.json()["connectors"] if item["name"] == "markdown")
+            self.assertEqual(cached_markdown["count"], 1)
+
+    def test_ui_config_diagnostics_keep_contracts_on_missing_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             missing = Path(tmp_dir) / "missing"
             config_path = Path(tmp_dir) / "config.yaml"
@@ -336,9 +341,9 @@ models:
             self.assertEqual(response.status_code, 200)
             markdown = next(item for item in response.json()["connectors"] if item["name"] == "markdown")
             self.assertFalse(markdown["ok"])
-            self.assertEqual(markdown["code"], "SourceNotFound")
+            self.assertEqual(markdown["code"], "path_missing")
             self.assertEqual(markdown["source_types"], ["markdown"])
-            self.assertIn("does not exist", markdown["detail"])
+            self.assertEqual(markdown["detail"], "")
 
     def test_ui_config_rejects_inline_secrets(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

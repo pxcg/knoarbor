@@ -323,8 +323,15 @@ export async function getHealth(): Promise<HealthResponse> {
   return requestJson("/health");
 }
 
-export async function getDoctor(configPath?: string | null): Promise<DoctorReport> {
-  const suffix = configPath ? `?config_path=${encodeURIComponent(configPath)}` : "";
+export async function getDoctor(
+  configPath?: string | null,
+  options: { checkModelRuntime?: boolean; checkConnectorRuntime?: boolean } = {},
+): Promise<DoctorReport> {
+  const params = new URLSearchParams();
+  if (configPath) params.set("config_path", configPath);
+  if (options.checkModelRuntime === false) params.set("check_model_runtime", "false");
+  if (options.checkConnectorRuntime === false) params.set("check_connector_runtime", "false");
+  const suffix = params.toString() ? `?${params.toString()}` : "";
   return requestJson(`/doctor${suffix}`);
 }
 
@@ -344,8 +351,11 @@ export async function getConfigForm(configPath?: string | null): Promise<ConfigF
   return requestJson(`/ui/api/config/form${suffix}`);
 }
 
-export async function getConfigDiagnostics(configPath?: string | null): Promise<ConfigDiagnostics> {
-  const suffix = configPath ? `?config_path=${encodeURIComponent(configPath)}` : "";
+export async function getConfigDiagnostics(configPath?: string | null, options: { refreshSourceCounts?: boolean } = {}): Promise<ConfigDiagnostics> {
+  const params = new URLSearchParams();
+  if (configPath) params.set("config_path", configPath);
+  if (options.refreshSourceCounts) params.set("refresh_source_counts", "true");
+  const suffix = params.toString() ? `?${params.toString()}` : "";
   return requestJson(`/ui/api/config/diagnostics${suffix}`);
 }
 

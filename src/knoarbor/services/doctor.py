@@ -21,7 +21,14 @@ class DoctorService:
     def __init__(self, registry: ConnectorRegistry | None = None) -> None:
         self.registry = registry or ConnectorRegistry()
 
-    def run(self, *, config_path: str | Path | None = None, connector_names: list[str] | None = None) -> DoctorReport:
+    def run(
+        self,
+        *,
+        config_path: str | Path | None = None,
+        connector_names: list[str] | None = None,
+        check_model_runtime: bool = True,
+        check_connector_runtime: bool = True,
+    ) -> DoctorReport:
         resolved_config_path = Path(config_path).expanduser().resolve() if config_path else default_config_path()
         checks: list[DoctorCheck] = []
         config = self._load_config(resolved_config_path, checks)
@@ -29,8 +36,8 @@ class DoctorService:
             checks.extend(self._config_usage_checks(resolved_config_path))
             checks.extend(self._vault_checks(config))
             checks.extend(self._wiki_content_checks(config))
-            checks.extend(self._model_checks(config))
-            checks.extend(self._connector_checks(config, connector_names))
+            checks.extend(self._model_checks(config, check_model_runtime=check_model_runtime))
+            checks.extend(self._connector_checks(config, connector_names, check_connector_runtime=check_connector_runtime))
             checks.extend(self._document_processing_checks(config))
             checks.extend(self._run_checks(config))
         return _report(checks, config_path=str(resolved_config_path))
@@ -125,7 +132,7 @@ class DoctorService:
             )
         ]
 
-    def _model_checks(self, config: KnoArborConfig) -> list[DoctorCheck]:
+    def _model_checks(self, config: KnoArborConfig, *, check_model_runtime: bool) -> list[DoctorCheck]:
         checks: list[DoctorCheck] = []
         provider_name = config.models.default_provider
         if not provider_name:
@@ -161,7 +168,8 @@ class DoctorService:
             checks.append(DoctorCheck(name="models.api_key_env", status="ok", message="API key environment variable is set.", details={"provider": provider_name, "api_key_env": provider.api_key_env}))
         else:
             checks.append(DoctorCheck(name="models.api_key_env", status="error", message="API key environment variable is not set.", details={"provider": provider_name, "api_key_env": provider.api_key_env}))
-        checks.extend(self._provider_runtime_checks(provider_name, provider))
+        if check_model_runtime:
+            checks.extend(self._provider_runtime_checks(provider_name, provider))
         return checks
 
     def _provider_runtime_checks(self, provider_name: str, provider: ModelProviderConfig) -> list[DoctorCheck]:
@@ -184,7 +192,7 @@ class DoctorService:
             ),
         ]
 
-    def _connector_checks(self, config: KnoArborConfig, connector_names: list[str] | None) -> list[DoctorCheck]:
+    def _connector_checks(self, config: KnoArborConfig, connector_names: list[str] | None, *, check_connector_runtime: bool) -> list[DoctorCheck]:
         checks: list[DoctorCheck] = []
         try:
             selected = selected_connector_configs(config, connector_names)
@@ -207,6 +215,8 @@ class DoctorService:
                 details={"connectors": sorted(selected)},
             )
         )
+        if not check_connector_runtime:
+            return checks
         for name, connector_config in selected.items():
             try:
                 connector = self.registry.get(name)

@@ -30,6 +30,7 @@ import {
   type UiStatusResponse,
 } from "./api/client";
 import { AppShell } from "./components/AppShell";
+import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
 import { detectLanguage, translate } from "./i18n";
 import type { Language, ViewName } from "./types";
 import type { RunRecord } from "./types";
@@ -160,7 +161,7 @@ export function App() {
 
   const loadDoctor = useCallback(async (path: string | null) => {
     try {
-      const report = await getDoctor(path);
+      const report = await getDoctor(path, { checkModelRuntime: false, checkConnectorRuntime: false });
       setDoctorReport(report);
     } catch {
       // Doctor is advisory for onboarding and preflight; config/status loading remains authoritative.
@@ -424,20 +425,27 @@ export function App() {
           </section>
         )}
 
-        <Suspense fallback={<section className="panel page-loading">{t("loading")}</section>}>
-          {activeView === "overview" && <OverviewPage context={context} onNavigate={setActiveView} />}
-          {activeView === "runs" && <RunsPage context={context} />}
-          {activeView === "sources" && <SourcesPage context={context} />}
-          {activeView === "wiki" && <WikiPage context={context} focusedPagePath={focusedWikiPath} />}
-          {activeView === "ingest" && <IngestPage context={context} />}
-          {activeView === "lint" && <LintPage context={context} />}
-          {activeView === "query" && <QueryPage context={context} />}
-          {activeView === "graph" && <GraphPage graph={context.graph} context={context} />}
-          {activeView === "reports" && <ReportsPage context={context} focusedReportPath={focusedReportPath} />}
-          {activeView === "tokens" && <TokensPage context={context} />}
-          {activeView === "settings" && <ConfigPage context={context} />}
-          {activeView === "docs" && <DocsPage context={context} />}
-        </Suspense>
+        <RouteErrorBoundary
+          key={activeView}
+          fallbackTitle={t("routeLoadFailed")}
+          fallbackCopy={t("routeLoadFailedCopy")}
+          reloadLabel={t("reloadPage")}
+        >
+          <Suspense fallback={<section className="panel page-loading">{t("loading")}</section>}>
+            {activeView === "overview" && <OverviewPage context={context} onNavigate={setActiveView} />}
+            {activeView === "runs" && <RunsPage context={context} />}
+            {activeView === "sources" && <SourcesPage context={context} />}
+            {activeView === "wiki" && <WikiPage context={context} focusedPagePath={focusedWikiPath} />}
+            {activeView === "ingest" && <IngestPage context={context} />}
+            {activeView === "lint" && <LintPage context={context} />}
+            {activeView === "query" && <QueryPage context={context} />}
+            {activeView === "graph" && <GraphPage graph={context.graph} context={context} />}
+            {activeView === "reports" && <ReportsPage context={context} focusedReportPath={focusedReportPath} />}
+            {activeView === "tokens" && <TokensPage context={context} />}
+            {activeView === "settings" && <ConfigPage context={context} />}
+            {activeView === "docs" && <DocsPage context={context} />}
+          </Suspense>
+        </RouteErrorBoundary>
     </AppShell>
   );
 }

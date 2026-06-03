@@ -55,6 +55,7 @@ from knoarbor.pipelines.source import SourcePipeline, SourcePipelineFailure, Sou
 from knoarbor.pipelines.source_segmentation import SourceSegmentBatch, SourceSegmenter
 from knoarbor.pipelines.write import WikiWritePipeline
 from knoarbor.runtime import current_run_monitor
+from knoarbor.storage.source_metrics import connector_source_metric_key, update_source_counts
 
 
 class IngestSourceExecutor:
@@ -901,6 +902,9 @@ class IngestPipeline:
             except Exception as exc:
                 results.append(_failed_source_result(connector_name, "connector", exc))
                 continue
+            metric_key = connector_source_metric_key(connector_name, connector_config.settings)
+            if metric_key:
+                update_source_counts(vault_path, {metric_key: len(batch.items) + len(batch.failures)})
             if monitor:
                 monitor.event(
                     "connector_finished",

@@ -91,9 +91,15 @@ GET /health
 ```http
 GET /doctor
 GET /doctor?config_path=/path/to/config.yaml&connector=markdown
+GET /doctor?check_model_runtime=false&check_connector_runtime=false
 ```
 
-执行只读诊断，包括配置加载、知识库目录、模型环境变量、资料来源发现、可选文档预处理器和最近运行状态。该接口不调用模型，也不写入 Wiki 页面。
+执行只读诊断，包括配置加载、知识库目录、模型环境、资料来源发现、可选文档预处理器和最近运行状态。该接口不会写入 Wiki 页面。运行时检查由查询参数控制：
+
+- `check_model_runtime`：为 `true` 时测试已配置模型端点和结构化输出能力。
+- `check_connector_runtime`：为 `true` 时运行资料来源发现，并返回发现的资料数量。
+
+页面加载类检查建议传 `false`，显式就绪测试再传 `true`。
 
 ## 知识编译
 
