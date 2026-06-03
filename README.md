@@ -369,6 +369,7 @@ See [Architecture](docs/ARCHITECTURE.md) and [Provenance Design](docs/PROVENANCE
 - [Backup And Recovery](docs/BACKUP_AND_RECOVERY.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Provenance Design](docs/PROVENANCE_DESIGN.md)
+- [Roadmap](docs/ROADMAP.md)
 - [Testing And Quality Gates](docs/TESTING.md)
 - [Development](docs/DEVELOPMENT.md)
 - [Contributing](CONTRIBUTING.md)

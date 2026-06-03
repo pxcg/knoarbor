@@ -13,6 +13,7 @@
 - [配置说明](CONFIGURATION.md)：模型供应商、知识库目录、输入来源和运行限制。
 - [命令行](CLI.md)：知识编译、校验维护、查询和服务启动命令。
 - [API 兼容性](API_COMPATIBILITY.md)：稳定 endpoint、schema version 和废弃策略。
+- [路线图](ROADMAP.md)：从 1.0 公开版本到 2.0 长期兼容基线的发展路径。
 - [错误码](ERROR_CODES.md)：CLI/API 的稳定错误码和排查建议。
 - [故障排查](TROUBLESHOOTING.md)：配置、模型、UI、ingest 和运行时常见问题。
 - [核心概念](CONCEPTS.md)：raw source、source digest、wiki page、ingest、lint、query。
@@ -45,7 +46,7 @@
 贡献者：
 
 ```text
-核心概念 -> 架构设计 -> 溯源设计 -> API 兼容性 -> 开发说明 -> 测试与质量门禁
+核心概念 -> 架构设计 -> 溯源设计 -> API 兼容性 -> 路线图 -> 开发说明 -> 测试与质量门禁
 ```
 
 发布准备：

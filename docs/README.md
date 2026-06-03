@@ -12,6 +12,7 @@ Chinese documentation lives in [zh/](zh/). This documentation tree is intended f
 - [CLI Reference](CLI.md): command-line usage for ingest, lint, query, service, and debugging.
 - [API Reference](API.md): FastAPI endpoints and boundary rules.
 - [API Compatibility](API_COMPATIBILITY.md): stable endpoint policy, schema versioning, and deprecation rules.
+- [Roadmap](ROADMAP.md): planned path from the 1.0 public release to the 2.0 compatibility baseline.
 - [Error Codes](ERROR_CODES.md): stable CLI/API error codes and troubleshooting hints.
 - [Troubleshooting](TROUBLESHOOTING.md): common setup, model, UI, ingest, and runtime issues.
 - [Core Concepts](CONCEPTS.md): raw sources, source documents, wiki page types, ingest, lint, query, and runtime vault.
@@ -58,7 +59,7 @@ Showcase -> Quickstart -> Configuration -> Troubleshooting -> CLI Reference -> C
 For contributors:
 
 ```text
-Core Concepts -> Architecture -> Provenance Design -> API Compatibility -> Development -> Testing -> Contributing
+Core Concepts -> Architecture -> Provenance Design -> API Compatibility -> Roadmap -> Development -> Testing -> Contributing
 ```
 
 For release preparation:

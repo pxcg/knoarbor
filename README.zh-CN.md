@@ -345,6 +345,7 @@ src/knoarbor/
 - [备份与恢复](docs/zh/BACKUP_AND_RECOVERY.md)
 - [架构设计](docs/zh/ARCHITECTURE.md)
 - [溯源设计](docs/zh/PROVENANCE_DESIGN.md)
+- [路线图](docs/zh/ROADMAP.md)
 - [测试与质量门禁](docs/zh/TESTING.md)
 - [开发说明](docs/zh/DEVELOPMENT.md)
 - [贡献指南](CONTRIBUTING.md)
