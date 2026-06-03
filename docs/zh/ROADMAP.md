@@ -27,7 +27,7 @@ KnoArbor 1.0.0 是第一个公开的本地优先版本，已经具备知识编�
 
 重点：
 
-- 将 npm 包从占位包推进为可用的 launcher 或安装辅助入口。
+- 继续完善 npm launcher，让 Node 优先用户更容易发现并启动 Python runtime。
 - 保留 `uv`/Python 安装作为稳定参考路径。
 - 强化 `knoar init`、`knoar doctor`、`knoar serve` 的下一步提示。
 - 提供“生成第一篇 Wiki 页面”的最短路径。
@@ -37,7 +37,7 @@ KnoArbor 1.0.0 是第一个公开的本地优先版本，已经具备知识编�
 完成标准：
 
 - 新用户可以 clone 项目、配置一个模型供应商、启动控制台并生成页面，而不需要先阅读架构文档。
-- npm 安装要么成为真实 launcher，要么清晰说明它委托给 Python 运行时。
+- npm launcher 能清晰委托到 Python runtime，并在缺少本地 runtime 时给出可执行安装路径。
 
 ## 1.2.x：配置生命周期
 

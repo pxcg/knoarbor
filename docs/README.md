@@ -43,6 +43,7 @@ Chinese documentation lives in [zh/](zh/). This documentation tree is intended f
 ## Development
 
 - [Development](DEVELOPMENT.md): setup, tests, package layout, design rules, and release notes.
+- [Maintainer Guide](MAINTAINERS.md): long-term branch, architecture, fallback, compatibility, and release governance.
 - [Contributing](../CONTRIBUTING.md): contribution process, branch model, tests, and privacy rules.
 - [Security](../SECURITY.md): vulnerability reporting and secret handling.
 - [Support](../SUPPORT.md): where to ask questions and how to file useful reports.
@@ -59,7 +60,7 @@ Showcase -> Quickstart -> Configuration -> Troubleshooting -> CLI Reference -> C
 For contributors:
 
 ```text
-Core Concepts -> Architecture -> Provenance Design -> API Compatibility -> Roadmap -> Development -> Testing -> Contributing
+Core Concepts -> Architecture -> Provenance Design -> API Compatibility -> Roadmap -> Development -> Maintainer Guide -> Testing -> Contributing
 ```
 
 For release preparation:

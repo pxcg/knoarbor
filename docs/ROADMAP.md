@@ -27,7 +27,7 @@ Goal: make the first ten minutes reliable.
 
 Focus areas:
 
-- Turn the npm package from a placeholder into a practical launcher or installer helper.
+- Continue improving the npm launcher so Node-first users can discover and start the Python runtime with less friction.
 - Keep `uv`/Python installation as the reliable reference path.
 - Improve `knoar init`, `knoar doctor`, and `knoar serve` so users know exactly what to do next.
 - Provide a short "first wiki page" path using example content.

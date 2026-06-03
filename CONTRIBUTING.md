@@ -12,10 +12,13 @@ Avoid adding hidden fallback behavior. If a reliability mechanism is needed, mak
 
 ## Branch Model
 
-- `main`: public release branch.
-- `dev`: local development branch.
+- `main`: public release branch and release tag source.
+- `dev`: daily integration branch for the next release.
+- `feature/*`, `fix/*`, `docs/*`: focused short-lived branches from `dev`.
 
 Open pull requests against `dev` unless maintainers request otherwise. Release changes are promoted from `dev` to `main`.
+
+See [Development](docs/DEVELOPMENT.md#branch-and-release-model) for the full branch, release, and hotfix rules.
 
 ## Development Setup
 
