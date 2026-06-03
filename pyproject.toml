@@ -54,6 +54,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "knoarbor" = ["config.example.yaml"]
+"knoarbor.examples" = ["*.md"]
 "knoarbor.semantic.prompts" = ["*.md"]
 "knoarbor.ui" = ["dist/*.html", "dist/*.ico", "dist/*.png", "dist/*.svg", "dist/*.webmanifest", "dist/assets/*"]
 

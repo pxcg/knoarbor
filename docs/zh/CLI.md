@@ -22,10 +22,17 @@ uv run knoar --config ./config.yaml <command>
 ```bash
 uv run knoar first-run
 uv run knoar first-run --vault ./wiki
+uv run knoar first-run --no-example
 uv run knoar first-run --json
 ```
 
-该命令不会调用模型，也不会写入 Wiki 页面。它只准备本地运行环境并提示下一步命令。
+该命令不会调用模型，也不会写入 Wiki 页面。它只准备本地运行环境并提示下一步命令。默认情况下，它会把一个小型 Markdown 示例复制到
+`raw/notes/agent-loop.md`，新用户可以直接测试首个页面流程：
+
+```bash
+uv run knoar ingest --connector markdown --write
+uv run knoar query "Agent Loop 是什么？"
+```
 
 ## 初始化
 

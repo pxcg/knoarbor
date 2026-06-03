@@ -125,16 +125,19 @@ uv sync
 
 ## Quick Start
 
-Create local configuration files:
+Create local configuration and initialize a vault:
 
 ```bash
-cp config.example.yaml config.yaml
-cp .env.example .env
+uv run knoar first-run --vault ./wiki
 ```
 
-Edit `.env` and set at least one provider key:
+This creates `config.yaml`, initializes `./wiki`, and copies a small bundled
+Markdown example to `wiki/raw/notes/agent-loop.md`.
+
+Create `.env` and set at least one provider key:
 
 ```bash
+cp .env.example .env
 DEEPSEEK_API_KEY=your-key
 ```
 
@@ -144,17 +147,10 @@ Load environment variables:
 set -a && source .env && set +a
 ```
 
-Or let KnoArbor create `config.yaml` and initialize the vault in one read-only
-first-run pass:
+Compile the bundled example into wiki pages:
 
 ```bash
-uv run knoar first-run --vault ./wiki
-```
-
-Initialize a wiki vault explicitly:
-
-```bash
-uv run knoar init --vault ./wiki
+uv run knoar ingest --connector markdown --write
 ```
 
 Check local readiness before running semantic workflows:

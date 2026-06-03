@@ -250,7 +250,24 @@ class CliTests(unittest.TestCase):
             self.assertIn(exit_code, {0, 1})
             self.assertTrue((root / "config.yaml").exists())
             self.assertTrue((vault / "index.md").exists())
+            self.assertTrue((vault / "raw" / "notes" / "agent-loop.md").exists())
             self.assertIn("Next steps:", output.getvalue())
+            self.assertIn("example:", output.getvalue())
+
+    def test_first_run_can_skip_bundled_example(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "wiki"
+            output = io.StringIO()
+
+            with _chdir(root), redirect_stdout(output):
+                exit_code = main(["first-run", "--vault", str(vault), "--no-example"])
+
+            self.assertIn(exit_code, {0, 1})
+            self.assertFalse((vault / "raw" / "notes" / "agent-loop.md").exists())
+            self.assertNotIn("example:", output.getvalue())
+            self.assertNotIn("bundled example", output.getvalue())
+            self.assertIn("Put Markdown notes", output.getvalue())
 
     def test_contracts_command_prints_known_contracts(self) -> None:
         output = io.StringIO()

@@ -16,16 +16,19 @@
 uv sync
 ```
 
-## 2. 创建配置
+## 2. 首次运行
 
 ```bash
-cp config.example.yaml config.yaml
-cp .env.example .env
+uv run knoar first-run --vault ./wiki
 ```
 
-在 `.env` 中填写至少一个模型密钥：
+这会创建 `config.yaml`，初始化 `./wiki`，并把 `agent-loop.md` 示例复制到
+`wiki/raw/notes/`。
+
+创建 `.env` 并填写至少一个模型密钥：
 
 ```bash
+cp .env.example .env
 DEEPSEEK_API_KEY=your-key
 ```
 
@@ -35,14 +38,6 @@ DEEPSEEK_API_KEY=your-key
 set -a && source .env && set +a
 ```
 
-## 3. 初始化 Wiki 目录
-
-```bash
-uv run knoar init --vault ./wiki
-```
-
-`wiki/` 是运行时目录，默认不提交到 git。
-
 运行只读诊断，确认配置、模型环境变量、来源连接器和 Wiki 目录是否可用：
 
 ```bash
@@ -51,7 +46,7 @@ uv run knoar doctor
 
 `doctor` 不会调用模型，也不会写入 Wiki 页面。
 
-## 4. 启动服务和控制台
+## 3. 启动服务和控制台
 
 ```bash
 uv run knoar serve
@@ -65,14 +60,7 @@ uv run knoar serve
 http://127.0.0.1:8000
 ```
 
-## 5. 运行内置示例
-
-把示例 Markdown 笔记复制到默认 raw notes 目录：
-
-```bash
-mkdir -p wiki/raw/notes
-cp examples/agent-loop.md wiki/raw/notes/agent-loop.md
-```
+## 4. 运行内置示例
 
 编译为 Wiki 页面：
 
@@ -92,7 +80,7 @@ uv run knoar lint --mode structural
 uv run knoar query "Agent Loop 是什么？"
 ```
 
-## 6. 运行主要流程
+## 5. 运行主要流程
 
 知识编译：
 
