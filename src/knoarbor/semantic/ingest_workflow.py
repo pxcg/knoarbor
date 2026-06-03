@@ -122,7 +122,8 @@ class IngestSemanticWorkflow:
             },
             max_tokens=max_tokens,
         )
-        return _expect_output(result.output, WikiDraftBatch)
+        draft_batch = _expect_output(result.output, WikiDraftBatch)
+        return _with_runtime_model_metadata(draft_batch, provider=result.provider, model=result.model)
 
     def review_drafts(
         self,
@@ -158,6 +159,14 @@ def _expect_output(value: BaseModel, expected_type: type[Any]) -> Any:
     if not isinstance(value, expected_type):
         raise TypeError(f"Expected {expected_type.__name__}, got {type(value).__name__}")
     return value
+
+
+def _with_runtime_model_metadata(batch: WikiDraftBatch, *, provider: str, model: str) -> WikiDraftBatch:
+    """Model identity is runtime metadata, not an LLM-authored page fact."""
+    for draft in batch.drafts:
+        draft.model_provider = provider
+        draft.model_name = model
+    return batch
 
 
 def _compile_context_payload(
