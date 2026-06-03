@@ -43,6 +43,7 @@ export type DoctorReport = {
   config_path?: string | null;
   checks: DoctorCheck[];
   summary: Record<DoctorStatus, number>;
+  next_steps: string[];
 };
 
 export type ConfigDiagnosticItem = {

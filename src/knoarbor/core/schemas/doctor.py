@@ -21,3 +21,4 @@ class DoctorReport(BaseModel):
     config_path: str | None = None
     checks: list[DoctorCheck] = Field(default_factory=list)
     summary: dict[str, int] = Field(default_factory=dict)
+    next_steps: list[str] = Field(default_factory=list)

@@ -10,6 +10,7 @@ from knoarbor.connectors.registry import ConnectorRegistry
 from knoarbor.connectors.selection import selected_connector_configs
 from knoarbor.core.config import KnoArborConfig, ModelProviderConfig, default_config_path, load_config
 from knoarbor.core.schemas.doctor import DoctorCheck, DoctorReport, DoctorStatus
+from knoarbor.core.wiki_schema import CONTENT_PAGE_DIRS
 from knoarbor.runtime.run_monitor import list_runs
 from knoarbor.semantic.llm import ModelGateway, is_local_or_private_model_endpoint
 
@@ -27,6 +28,7 @@ class DoctorService:
         if config is not None:
             checks.extend(self._config_usage_checks(resolved_config_path))
             checks.extend(self._vault_checks(config))
+            checks.extend(self._wiki_content_checks(config))
             checks.extend(self._model_checks(config))
             checks.extend(self._connector_checks(config, connector_names))
             checks.extend(self._document_processing_checks(config))
@@ -104,6 +106,24 @@ class DoctorService:
             )
         )
         return checks
+
+    def _wiki_content_checks(self, config: KnoArborConfig) -> list[DoctorCheck]:
+        vault = config.vault.path
+        if not vault.exists() or not vault.is_dir():
+            return []
+        counts = {
+            page_dir: len([path for path in (vault / page_dir).glob("*.md") if path.is_file()]) if (vault / page_dir).exists() else 0
+            for page_dir in CONTENT_PAGE_DIRS
+        }
+        page_count = sum(counts.values())
+        return [
+            DoctorCheck(
+                name="wiki.content",
+                status="ok" if page_count else "warning",
+                message=f"Found {page_count} maintained wiki page(s)." if page_count else "No maintained wiki pages found yet.",
+                details={"page_count": page_count, "directory_counts": counts},
+            )
+        ]
 
     def _model_checks(self, config: KnoArborConfig) -> list[DoctorCheck]:
         checks: list[DoctorCheck] = []
@@ -271,4 +291,65 @@ def _report(checks: Iterable[DoctorCheck], *, config_path: str | None) -> Doctor
         status = "warning"
     else:
         status = "ok"
-    return DoctorReport(status=status, config_path=config_path, checks=items, summary=summary)
+    return DoctorReport(status=status, config_path=config_path, checks=items, summary=summary, next_steps=_next_steps(items))
+
+
+def _next_steps(checks: list[DoctorCheck]) -> list[str]:
+    by_name = {check.name: check for check in checks}
+    steps: list[str] = []
+
+    def add(step: str) -> None:
+        if step not in steps:
+            steps.append(step)
+
+    def status_of(name: str) -> DoctorStatus:
+        check = by_name.get(name)
+        return check.status if check else "ok"
+
+    if status_of("config.exists") == "error":
+        add("Run `uv run knoar first-run --vault ./wiki` to create config.yaml and initialize a local vault.")
+        return steps
+
+    if status_of("config.local_file") == "warning":
+        add("Copy config.example.yaml to config.yaml before editing persistent local settings.")
+
+    if status_of("vault.exists") == "error":
+        add("Run `uv run knoar init --vault ./wiki` or `uv run knoar first-run --vault ./wiki` to create the vault.")
+    elif status_of("vault.structure") == "warning":
+        add("Run `uv run knoar init --vault <vault-path>` to restore missing vault initialization files.")
+
+    if status_of("models.api_key_env") == "error":
+        check = by_name["models.api_key_env"]
+        api_key_env = check.details.get("api_key_env")
+        if api_key_env:
+            add(f"Set `{api_key_env}` in .env, then reload the environment before running semantic workflows.")
+        else:
+            add("Set the configured model API key environment variable before running semantic workflows.")
+    elif status_of("models.structured_output") == "warning":
+        add("Enable JSON mode for the model provider when available to make structured agent outputs more reliable.")
+
+    if status_of("connectors.enabled") == "warning":
+        add("Enable at least one connector or pass `--connector <name>` for the source you want to compile.")
+
+    connector_warnings = [check for check in checks if check.name.startswith("connectors.") and check.status == "warning"]
+    if connector_warnings:
+        add("Add source files under a configured input path, then run `uv run knoar ingest --write`.")
+
+    wiki_content = by_name.get("wiki.content")
+    if wiki_content and wiki_content.status == "warning":
+        add("Run `uv run knoar ingest --connector markdown --write` to compile the bundled example or your Markdown notes.")
+    elif wiki_content and wiki_content.status == "ok":
+        add("Run `uv run knoar query \"Agent Loop 是什么？\"` or open the local UI to query maintained pages.")
+
+    runs = by_name.get("runs.recent")
+    if runs and runs.status == "warning":
+        active_count = int(runs.details.get("active_count") or 0)
+        failed_count = int(runs.details.get("failed_count") or 0)
+        if active_count:
+            add("Open `uv run knoar serve` and check Run Monitor for active workflow progress.")
+        if failed_count:
+            add("Review recent run reports, then retry failed ingest or lint work from the Run page or CLI.")
+
+    if not steps:
+        add("Run `uv run knoar serve` to open the local console, or use `uv run knoar ingest`, `lint`, and `query` from the CLI.")
+    return steps

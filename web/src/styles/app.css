@@ -1058,6 +1058,36 @@ h2 {
   line-height: 1.45;
 }
 
+.doctor-next-steps {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 8px;
+  grid-column: 2;
+  min-width: 0;
+  padding-top: 12px;
+}
+
+.doctor-next-steps h3 {
+  color: var(--text);
+  font-size: 12px;
+  margin: 0;
+}
+
+.doctor-next-steps ul {
+  color: var(--muted);
+  display: grid;
+  font-size: 12px;
+  gap: 6px;
+  line-height: 1.45;
+  list-style-position: outside;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.doctor-next-steps li {
+  overflow-wrap: anywhere;
+}
+
 .doctor-counts {
   display: flex;
   flex-wrap: wrap;
@@ -4079,6 +4109,7 @@ blockquote {
   .panel-grid,
   .docs-workspace,
   .action-grid,
+  .next-steps-panel,
   .next-step-grid,
   .settings-card-grid,
   .diagnostic-grid,
@@ -4093,6 +4124,10 @@ blockquote {
   .run-summary-strip,
   .knowledge-header {
     grid-template-columns: 1fr;
+  }
+
+  .doctor-next-steps {
+    grid-column: 1;
   }
 
   .run-status-banner {

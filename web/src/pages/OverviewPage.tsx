@@ -55,6 +55,16 @@ export function OverviewPage({ context, onNavigate }: Props) {
             </button>
           ))}
         </div>
+        {!!context.doctorReport?.next_steps?.length && (
+          <div className="doctor-next-steps">
+            <h3>{context.t("doctorNextSteps")}</h3>
+            <ul>
+              {context.doctorReport.next_steps.slice(0, 4).map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </article>
     </section>
   );

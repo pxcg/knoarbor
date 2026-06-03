@@ -32,6 +32,8 @@ class DoctorServiceTests(unittest.TestCase):
             notes.mkdir()
             for name in ["SCHEMA.md", "index.md", "log.md", ".knoarborignore"]:
                 (vault / name).write_text("", encoding="utf-8")
+            (vault / "concepts").mkdir()
+            (vault / "concepts" / "Note.md").write_text("# Note\n\nCompiled page.", encoding="utf-8")
             (notes / "note.md").write_text("# Note\n\nBody.", encoding="utf-8")
             config = root / "config.yaml"
             config.write_text(
@@ -59,6 +61,43 @@ class DoctorServiceTests(unittest.TestCase):
         self.assertEqual(checks["models.endpoint"].status, "ok")
         self.assertEqual(checks["models.structured_output"].status, "ok")
         self.assertEqual(checks["connectors.markdown"].details["source_count"], 1)
+        self.assertEqual(checks["wiki.content"].status, "ok")
+        self.assertTrue(report.next_steps)
+
+    def test_reports_empty_vault_next_step(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "wiki"
+            notes = root / "notes"
+            vault.mkdir()
+            notes.mkdir()
+            for name in ["SCHEMA.md", "index.md", "log.md", ".knoarborignore"]:
+                (vault / name).write_text("", encoding="utf-8")
+            (notes / "note.md").write_text("# Note\n\nBody.", encoding="utf-8")
+            config = root / "config.yaml"
+            config.write_text(
+                f"vault:\n  path: {vault}\n"
+                "models:\n"
+                "  default_provider: local\n"
+                "  providers:\n"
+                "    local:\n"
+                "      base_url: http://127.0.0.1:11434/v1\n"
+                "      model: qwen\n"
+                "connectors:\n"
+                "  markdown:\n"
+                "    enabled: true\n"
+                "    settings:\n"
+                "      roots:\n"
+                f"        - {notes}\n",
+                encoding="utf-8",
+            )
+            with patch("knoarbor.services.doctor.ModelGateway.check", return_value=ProviderHealthCheck(available=True, structured_output=True, message="ok")):
+                report = DoctorService().run(config_path=config)
+
+        checks = {check.name: check for check in report.checks}
+        self.assertEqual(report.status, "warning")
+        self.assertEqual(checks["wiki.content"].status, "warning")
+        self.assertTrue(any("ingest" in step for step in report.next_steps))
 
 
 class DoctorEntrypointTests(unittest.TestCase):
@@ -71,6 +110,7 @@ class DoctorEntrypointTests(unittest.TestCase):
         self.assertEqual(output["exit_code"], 1)
         self.assertEqual(payload["schema_version"], "doctor_report.v1")
         self.assertEqual(payload["status"], "error")
+        self.assertTrue(payload["next_steps"])
 
     def test_api_doctor_returns_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

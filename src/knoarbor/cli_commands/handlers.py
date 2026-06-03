@@ -239,6 +239,10 @@ def run_doctor(args: argparse.Namespace) -> int:
     for check in report.checks:
         print(f"- [{check.status}] {check.name}: {check.message}")
         print_doctor_details(check.details)
+    if report.next_steps:
+        print("\nNext steps:")
+        for step in report.next_steps:
+            print(f"- {step}")
     return 0 if report.status != "error" else 1
 
 
