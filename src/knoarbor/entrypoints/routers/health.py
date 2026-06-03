@@ -24,20 +24,19 @@ def create_health_router() -> APIRouter:
             "phases": {
                 "ingest": {
                     "primary": [
-                        "CLI: knoarbor ingest",
-                        "CLI: knoarbor ingest-document",
+                        "CLI: knoar ingest",
                         "/ingest",
                     ],
                 },
                 "lint": {
                     "primary": [
-                        "CLI: knoarbor lint-run",
+                        "CLI: knoar lint",
                         "/lint",
                     ],
                 },
-                "query": ["CLI: knoarbor query", "/query"],
+                "query": ["CLI: knoar query", "/query"],
                 "runs": ["GET /runs", "GET /runs/{run_id}", "POST /runs/{run_id}/cancel"],
-                "diagnostics": ["CLI: knoarbor doctor", "/doctor"],
+                "diagnostics": ["CLI: knoar doctor", "/doctor"],
                 "ui": ["/", "/ui", "/ui/api/config", "/ui/api/status"],
             },
         }

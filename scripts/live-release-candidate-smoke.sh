@@ -94,11 +94,11 @@ uv run --project "$ROOT_DIR" knoar --config config.yaml init --force >/dev/null
 uv run --project "$ROOT_DIR" knoar --config config.yaml doctor >/dev/null
 uv run --project "$ROOT_DIR" knoar --config config.yaml ingest --connector markdown --write --write-report --append-ledger --no-follow --json > ingest-markdown.json
 uv run --project "$ROOT_DIR" knoar --config config.yaml ingest --connector codex --write --write-report --append-ledger --no-follow --json > ingest-codex.json
-uv run --project "$ROOT_DIR" knoar --config config.yaml lint-run --mode structural --write-report --append-ledger --no-follow --json > lint.json
+uv run --project "$ROOT_DIR" knoar --config config.yaml lint --mode structural --write-report --append-ledger --no-follow --json > lint.json
 uv run --project "$ROOT_DIR" knoar --config config.yaml query "Agent Loop 控制模式" --json > query.json
 
 set +e
-uv run --project "$ROOT_DIR" knoar --config config.yaml ingest-file --input missing-preprocessor.pdf --no-write --json > nonmarkdown.json 2>nonmarkdown.err
+uv run --project "$ROOT_DIR" knoar --config config.yaml ingest --input missing-preprocessor.pdf --no-write --json > nonmarkdown.json 2>nonmarkdown.err
 nonmarkdown_status=$?
 set -e
 if [[ "$nonmarkdown_status" -eq 0 ]]; then

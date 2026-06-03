@@ -117,13 +117,13 @@ Long semantic workflows may wait on model calls. Check the run monitor:
 
 ```bash
 uv run knoar runs --vault wiki
-uv run knoar run-events <run_id> --vault wiki
+uv run knoar runs events <run_id> --vault wiki
 ```
 
 If cancellation is needed:
 
 ```bash
-uv run knoar run-cancel <run_id> --vault wiki
+uv run knoar runs cancel <run_id> --vault wiki
 ```
 
 Cancellation is cooperative. An active model call may finish before the pipeline

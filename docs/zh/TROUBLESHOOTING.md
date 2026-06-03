@@ -112,13 +112,13 @@ KA-DOC-001
 
 ```bash
 uv run knoar runs --vault wiki
-uv run knoar run-events <run_id> --vault wiki
+uv run knoar runs events <run_id> --vault wiki
 ```
 
 需要取消时：
 
 ```bash
-uv run knoar run-cancel <run_id> --vault wiki
+uv run knoar runs cancel <run_id> --vault wiki
 ```
 
 取消是协作式的。正在进行的模型调用可能会先完成，流程随后在下一个检查点停止。

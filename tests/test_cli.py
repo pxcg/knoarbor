@@ -33,18 +33,12 @@ class CliTests(unittest.TestCase):
             "contracts",
             "doctor",
             "ingest",
-            "ingest-document",
-            "ingest-file",
             "init",
             "lint",
             "lint-plan",
-            "lint-run",
             "query",
             "query-feedback",
-            "run-cancel",
             "run-contract",
-            "run-events",
-            "run-rerun-failed",
             "runs",
             "scan",
             "serve",
@@ -64,7 +58,7 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.code, 0)
         help_text = output.getvalue()
-        for command in ("ingest", "lint-run", "query", "runs", "serve"):
+        for command in ("ingest", "lint", "query", "runs", "serve"):
             self.assertIn(command, help_text)
 
     def test_cli_errors_include_code_and_hint(self) -> None:
@@ -289,9 +283,14 @@ class CliTests(unittest.TestCase):
         ingest_args = parser.parse_args(["ingest"])
         ingest_no_follow_args = parser.parse_args(["ingest", "--no-follow"])
         ingest_json_args = parser.parse_args(["ingest", "--json"])
-        ingest_document_args = parser.parse_args(["ingest-document", "--input", "source.json"])
-        ingest_file_args = parser.parse_args(["ingest-file", "--input", "paper.pdf"])
-        lint_run_args = parser.parse_args(["lint-run"])
+        ingest_input_args = parser.parse_args(["ingest", "--input", "paper.pdf"])
+        ingest_source_document_args = parser.parse_args(["ingest", "--source-document", "source.json"])
+        ingest_recovery_args = parser.parse_args(["ingest", "--recover-run-id", "run-1"])
+        runs_list_args = parser.parse_args(["runs", "list", "--active"])
+        run_events_args = parser.parse_args(["runs", "events", "run-1"])
+        run_events_late_vault_args = parser.parse_args(["runs", "events", "run-1", "--vault", "./wiki"])
+        run_cancel_args = parser.parse_args(["runs", "cancel", "run-1"])
+        lint_primary_args = parser.parse_args(["lint"])
         lint_args = parser.parse_args(["lint-plan"])
 
         self.assertEqual(init_args.command, "init")
@@ -301,20 +300,28 @@ class CliTests(unittest.TestCase):
         self.assertIsNone(ingest_args.follow)
         self.assertFalse(ingest_no_follow_args.follow)
         self.assertIsNone(ingest_json_args.follow)
-        self.assertEqual(ingest_document_args.command, "ingest-document")
-        self.assertEqual(ingest_file_args.command, "ingest-file")
-        self.assertIsNone(ingest_file_args.follow)
-        self.assertEqual(lint_run_args.command, "lint-run")
+        self.assertEqual(ingest_input_args.input, "paper.pdf")
+        self.assertEqual(ingest_source_document_args.source_document, "source.json")
+        self.assertEqual(ingest_recovery_args.recover_run_id, "run-1")
+        self.assertEqual(runs_list_args.runs_command, "list")
+        self.assertTrue(runs_list_args.active)
+        self.assertEqual(run_events_args.runs_command, "events")
+        self.assertEqual(run_events_args.run_id, "run-1")
+        self.assertEqual(run_events_late_vault_args.vault, "./wiki")
+        self.assertEqual(run_cancel_args.runs_command, "cancel")
+        self.assertEqual(run_cancel_args.run_id, "run-1")
+        self.assertEqual(lint_primary_args.command, "lint")
+        self.assertEqual(lint_primary_args.mode, "structural")
         self.assertEqual(lint_args.command, "lint-plan")
 
-    def test_lint_run_command_prints_unified_maintenance_summary(self) -> None:
+    def test_lint_command_prints_unified_maintenance_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             config = Path(tmp_dir) / "config.yaml"
             config.write_text(f"vault:\n  path: {tmp_dir}\n", encoding="utf-8")
             output = io.StringIO()
 
             with redirect_stdout(output):
-                exit_code = main(["--config", str(config), "lint-run", "--no-follow"])
+                exit_code = main(["--config", str(config), "lint", "--no-follow"])
 
         self.assertEqual(exit_code, 0)
         self.assertIn("mode: semantic_structural", output.getvalue())
@@ -327,7 +334,7 @@ class CliTests(unittest.TestCase):
             output = io.StringIO()
 
             with redirect_stdout(output):
-                exit_code = main(["--config", str(config), "lint-run", "--follow"])
+                exit_code = main(["--config", str(config), "lint", "--follow"])
 
         self.assertEqual(exit_code, 0)
         self.assertIn("status=completed", output.getvalue())

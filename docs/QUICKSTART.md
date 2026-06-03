@@ -104,7 +104,7 @@ uv run knoar ingest --connector markdown --write
 Run structural maintenance:
 
 ```bash
-uv run knoar lint-run --mode structural
+uv run knoar lint --mode structural
 ```
 
 Query the generated wiki:
@@ -124,7 +124,7 @@ uv run knoar ingest --write
 For one prepared `source_document.v1` JSON file:
 
 ```bash
-uv run knoar ingest-document --input /path/to/source_document.json --write
+uv run knoar ingest --source-document /path/to/source_document.json --write
 ```
 
 ## 7. Run Lint
@@ -132,17 +132,17 @@ uv run knoar ingest-document --input /path/to/source_document.json --write
 Structural repair:
 
 ```bash
-uv run knoar lint-run
+uv run knoar lint
 ```
 
 Quality review:
 
 ```bash
-uv run knoar lint-run --mode quality
+uv run knoar lint --mode quality
 ```
 
 Apply reviewed semantic maintenance operations:
 
 ```bash
-uv run knoar lint-run --mode full --apply-reviewed
+uv run knoar lint --mode full --apply-reviewed
 ```

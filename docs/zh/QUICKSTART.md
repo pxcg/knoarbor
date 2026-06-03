@@ -83,7 +83,7 @@ uv run knoar ingest --connector markdown --write
 运行结构维护：
 
 ```bash
-uv run knoar lint-run --mode structural
+uv run knoar lint --mode structural
 ```
 
 查询生成后的 Wiki：
@@ -103,7 +103,7 @@ uv run knoar ingest --write
 校验维护：
 
 ```bash
-uv run knoar lint-run
-uv run knoar lint-run --mode quality
-uv run knoar lint-run --mode full --apply-reviewed
+uv run knoar lint
+uv run knoar lint --mode quality
+uv run knoar lint --mode full --apply-reviewed
 ```

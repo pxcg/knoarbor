@@ -118,7 +118,7 @@ uv run knoar init --vault ./wiki
 mkdir -p wiki/raw/notes
 cp examples/agent-loop.md wiki/raw/notes/agent-loop.md
 uv run knoar ingest --connector markdown --write
-uv run knoar lint-run --mode structural
+uv run knoar lint --mode structural
 uv run knoar query "Agent Loop 是什么？"
 uv run knoar serve
 ```

@@ -39,42 +39,9 @@ UI_PUBLIC_ROUTES: tuple[str, ...] = (
     "/ui/{asset_path}",
 )
 
-REMOVED_LEGACY_ROUTES: tuple[str, ...] = (
-    "/ingest/run",
-    "/ingest/document",
-    "/ingest/file",
-    "/runs/ingest",
-    "/runs/ingest-file",
-    "/runs/lint",
-    "/runs/query",
-    "/runs/active",
-    "/runs/{run_id}/rerun-failed",
-    "/lint/run",
-    "/query/search",
-    "/connectors/discover",
-    "/sources/normalize",
-    "/sources/normalize_batch",
-    "/read_wiki_pages",
-    "/write_wiki_drafts",
-    "/write_maintenance_report",
-    "/append_maintenance_ledger",
-    "/scan_wiki",
-    "/select_lint_candidates",
-    "/lint_wiki",
-    "/apply_wiki_operations",
-    "/wiki_context",
-    "/wiki/page",
-    "/wiki/backlinks",
-)
-
-
 def stable_route_set() -> set[str]:
     return set(PUBLIC_STABLE_ROUTES)
 
 
 def ui_route_set() -> set[str]:
     return set(UI_PUBLIC_ROUTES)
-
-
-def removed_legacy_route_set() -> set[str]:
-    return set(REMOVED_LEGACY_ROUTES)

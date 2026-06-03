@@ -180,7 +180,7 @@ Responsibilities:
 - segmented sources are processed segment by segment, then aggregated at the source/window boundary before write, report, and checkpoint commit.
 - `IngestWritePolicy` enforces source/window-level write invariants before vault writes: one raw source may create at most one source digest in one ingest batch.
 - ingest writes disable broad lexical Related Pages scanning by default. They keep deterministic provenance links between the source digest and pages generated from the same source; weak topical links should be reviewed by lint or surfaced by query.
-- `ingest-file` is the single-file boundary: Markdown files enter the shared ingest path directly; non-Markdown files must pass through the configured MinerU-compatible preprocessor first, and missing preprocessors fail explicitly.
+- `ingest --input` is the single-file boundary: Markdown files enter the shared ingest path directly; non-Markdown files must pass through the configured MinerU-compatible preprocessor first, and missing preprocessors fail explicitly.
 
 Implementation boundary:
 

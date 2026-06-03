@@ -9,9 +9,38 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.entrypoints.api import create_app
-from knoarbor.entrypoints.api_contract import removed_legacy_route_set, stable_route_set, ui_route_set
+from knoarbor.entrypoints.api_contract import stable_route_set, ui_route_set
 from knoarbor.core.errors import ERROR_HINTS
 from knoarbor import __version__
+
+
+REMOVED_PROTOTYPE_ROUTES = {
+    "/ingest/run",
+    "/ingest/document",
+    "/ingest/file",
+    "/runs/ingest",
+    "/runs/ingest-file",
+    "/runs/lint",
+    "/runs/query",
+    "/runs/active",
+    "/runs/{run_id}/rerun-failed",
+    "/lint/run",
+    "/query/search",
+    "/connectors/discover",
+    "/sources/normalize",
+    "/sources/normalize_batch",
+    "/read_wiki_pages",
+    "/write_wiki_drafts",
+    "/write_maintenance_report",
+    "/append_maintenance_ledger",
+    "/scan_wiki",
+    "/select_lint_candidates",
+    "/lint_wiki",
+    "/apply_wiki_operations",
+    "/wiki_context",
+    "/wiki/page",
+    "/wiki/backlinks",
+}
 
 
 class ApiSurfaceTests(unittest.TestCase):
@@ -41,14 +70,14 @@ class ApiSurfaceTests(unittest.TestCase):
 
         self.assertTrue(stable_route_set().issubset(paths))
         self.assertTrue(ui_route_set().issubset(paths))
-        self.assertFalse(removed_legacy_route_set() & paths)
+        self.assertFalse(REMOVED_PROTOTYPE_ROUTES & paths)
 
     def test_api_docs_cover_stable_public_routes(self) -> None:
         docs = (Path(__file__).resolve().parents[1] / "docs" / "API.md").read_text(encoding="utf-8")
 
         for route in sorted(stable_route_set()):
             self.assertIn(route, docs)
-        for route in sorted(removed_legacy_route_set()):
+        for route in sorted(REMOVED_PROTOTYPE_ROUTES):
             self.assertNotIn(f"`{route}`", docs)
 
     def test_error_code_docs_cover_public_error_catalog(self) -> None:

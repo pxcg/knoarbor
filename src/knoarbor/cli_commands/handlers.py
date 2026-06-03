@@ -176,35 +176,6 @@ def run_run_cancel(args: argparse.Namespace) -> int:
     return 0
 
 
-def run_run_rerun_failed(args: argparse.Namespace) -> int:
-    config = resolve_config(args)
-    vault_path = resolve_vault_path(args, config)
-    request = IngestRecoveryRunRequest(
-        config_path=args.config,
-        provider=args.provider,
-        max_tokens=args.max_tokens,
-        write=args.write,
-        write_report=args.write_report,
-        append_ledger=args.append_ledger,
-    )
-    started = RunManager().start_ingest_recovery(
-        str(vault_path),
-        args.run_id,
-        request,
-        IngestService().run,
-        IngestService().run_file,
-    )
-    stream = sys.stderr if args.json else sys.stdout
-    print(f"run_id: {started.run_id}", file=stream, flush=True)
-    if _should_follow(args):
-        exit_code = follow_run_events(vault_path, started.run_id, stream=stream)
-    else:
-        exit_code = 0
-    if args.json:
-        print_json(read_run(vault_path, started.run_id).model_dump())
-    return exit_code
-
-
 def run_query(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
@@ -351,15 +322,7 @@ def run_lint_run(args: argparse.Namespace) -> int:
             print_json(read_run(vault_path, started.run_id).model_dump())
         return exit_code
 
-    try:
-        semantic = LintSemanticWorkflow(build_semantic_runner(args, config))
-    except ValueError:
-        if internal_mode != "semantic_structural":
-            raise
-        semantic = None
-    response = WikiLintPipeline(semantic, privacy_config=config.privacy).run_maintenance(
-        request
-    )
+    response = WikiLinterService().run_maintenance(request)
     if args.json:
         print_json(response.model_dump())
         return 0
@@ -457,6 +420,13 @@ def _as_list(value: object) -> list[object]:
 
 def run_ingest(args: argparse.Namespace) -> int:
     config = resolve_config(args)
+    if getattr(args, "recover_run_id", None):
+        return _run_ingest_recovery_from_args(args, config, args.recover_run_id)
+    if getattr(args, "source_document", None):
+        args.input = args.source_document
+        return run_ingest_document(args)
+    if getattr(args, "input", None):
+        return run_ingest_file(args)
     if _should_follow(args):
         request = IngestRunRequest(
             config_path=args.config,
@@ -505,6 +475,31 @@ def run_ingest(args: argparse.Namespace) -> int:
         for page in item.generated_pages:
             print(f"  - {page}")
     return 0
+
+
+def _run_ingest_recovery_from_args(args: argparse.Namespace, config, run_id: str) -> int:
+    vault_path = resolve_vault_path(args, config)
+    request = IngestRecoveryRunRequest(
+        config_path=args.config,
+        provider=args.provider,
+        max_tokens=args.max_tokens,
+        write=args.write,
+        write_report=args.write_report,
+        append_ledger=args.append_ledger,
+    )
+    started = RunManager().start_ingest_recovery(
+        str(vault_path),
+        run_id,
+        request,
+        IngestService().run,
+        IngestService().run_file,
+    )
+    stream = sys.stderr if args.json else sys.stdout
+    print(f"run_id: {started.run_id}", file=stream, flush=True)
+    exit_code = follow_run_events(vault_path, started.run_id, stream=stream) if _should_follow(args) else 0
+    if args.json:
+        print_json(read_run(vault_path, started.run_id).model_dump())
+    return exit_code
 
 
 def run_ingest_document(args: argparse.Namespace) -> int:

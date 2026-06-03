@@ -114,7 +114,7 @@ Temporary CLI override:
 
 ```bash
 uv run knoar ingest --provider openrouter --write
-uv run knoar lint-run --provider deepseek --mode quality
+uv run knoar lint --provider deepseek --mode quality
 ```
 
 ## Ingest Segmentation
@@ -316,7 +316,7 @@ assets. If you enable this adapter, install and run MinerU separately and review
 MinerU's own license and attribution requirements. KnoArbor only interoperates
 with a MinerU-compatible HTTP endpoint.
 
-For a single file path, `ingest-file` chooses the path automatically:
+For a single file path, `ingest --input` chooses the path automatically:
 
 - `.md` / `.markdown` files go directly to the Markdown ingest path;
 - non-Markdown files call the configured MinerU adapter first;
