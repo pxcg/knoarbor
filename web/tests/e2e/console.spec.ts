@@ -16,5 +16,5 @@ test("management console renders core navigation", async ({ page }) => {
 
   await page.getByRole("button", { name: /^(Graph Explore links|知识图谱 查看页面关系)$/ }).click();
   await expect(page.locator("main").getByText(/Graph|知识图谱/).first()).toBeVisible();
-  await expect(page.getByText(/Page link graph|页面关系图|Graph data is loading|图谱数据加载中/)).toBeVisible();
+  await expect(page.getByText(/Directory mix|目录分布|Graph data is loading|正在加载知识图谱|Loading/)).toBeVisible();
 });
