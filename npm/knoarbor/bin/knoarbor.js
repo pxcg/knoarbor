@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 
-console.log(`KnoArbor short command placeholder.
+console.log(`KnoArbor npm command placeholder.
 
-Use the main package name: knoarbor
-
-Current runtime:
+KnoArbor is currently installed from the Python project:
 
   git clone https://github.com/pxcg/knoarbor.git
   cd knoarbor
