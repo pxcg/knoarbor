@@ -11,6 +11,7 @@ import {
 
 import {
   getConfig,
+  getDoctor,
   getPages,
   getGraph,
   getHealth,
@@ -157,6 +158,16 @@ export function App() {
     return config;
   }, []);
 
+  const loadDoctor = useCallback(async (path: string | null) => {
+    try {
+      const report = await getDoctor(path);
+      setDoctorReport(report);
+    } catch {
+      // Doctor is advisory for onboarding and preflight; config/status loading remains authoritative.
+      setDoctorReport(null);
+    }
+  }, []);
+
   const loadVaultState = useCallback(async (path: string) => {
     setGraphLoadedFor(null);
     setPagesLoadedFor(null);
@@ -265,13 +276,13 @@ export function App() {
     try {
       const config = await loadConfig();
       const path = config.summary?.vault_path || "./wiki";
-      await loadVaultState(path);
+      await Promise.all([loadVaultState(path), loadDoctor(config.config_path)]);
       return true;
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
       return false;
     }
-  }, [loadConfig, loadHealth, loadVaultState]);
+  }, [loadConfig, loadDoctor, loadHealth, loadVaultState]);
 
   useEffect(() => {
     void refreshAll();

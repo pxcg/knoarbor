@@ -88,6 +88,7 @@ export function ConfigPage({ context }: Props) {
   const modelTest = useMutation({
     mutationFn: () => getDoctor(context.configPath),
     onSuccess: async (report) => {
+      context.setDoctorReport(report);
       await queryClient.invalidateQueries({ queryKey: ["config-diagnostics"] });
       const summary = `${context.t("modelConnectivityTested")} ${context.t("status")}: ${context.t(`doctorStatus.${report.status}`)}`;
       setModelTestSummary(summary);
@@ -120,6 +121,8 @@ export function ConfigPage({ context }: Props) {
             </button>
           </div>
         </div>
+
+        <SettingsDoctorGuidance context={context} />
 
         {formQuery.isLoading && <SettingsLoadingState t={context.t} />}
 
@@ -157,6 +160,42 @@ export function ConfigPage({ context }: Props) {
         )}
       </article>
     </section>
+  );
+}
+
+function SettingsDoctorGuidance({ context }: { context: AppContext }) {
+  const report = context.doctorReport;
+  if (!report) return null;
+  const blockingChecks = report.checks.filter((check) => check.status === "error");
+  const warningChecks = report.checks.filter((check) => check.status === "warning");
+  const checksToShow = blockingChecks.length ? blockingChecks : warningChecks;
+  if (!checksToShow.length && !report.next_steps.length) return null;
+  return (
+    <div className="settings-doctor-guidance">
+      <div className="settings-guidance-header">
+        <h3>{context.t("doctorNextSteps")}</h3>
+        <span className={`pill ${report.status === "ok" ? "success" : report.status === "error" ? "danger" : ""}`}>
+          {context.t(`doctorStatus.${report.status}`)}
+        </span>
+      </div>
+      {!!checksToShow.length && (
+        <ul className={`preflight-list ${blockingChecks.length ? "error" : ""}`}>
+          {checksToShow.slice(0, 4).map((check) => (
+            <li key={check.name}>
+              <strong>{check.name}</strong>
+              <span>{check.message}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!!report.next_steps.length && (
+        <ul className="settings-next-steps">
+          {report.next_steps.slice(0, 5).map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

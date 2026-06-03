@@ -722,6 +722,16 @@ export function RunPreflight({ context }: { context: AppContext }) {
           {context.t("preflightWarning")}: {connectorProblems.map((item) => item.name).join(", ")}
         </p>
       )}
+      {!!report?.next_steps?.length && (
+        <div className="preflight-next-steps">
+          <h3>{context.t("doctorNextSteps")}</h3>
+          <ul>
+            {report.next_steps.slice(0, 5).map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </article>
   );
 }
