@@ -107,22 +107,48 @@ TEMP_VAULT="$TMP_DIR/wiki"
 
 ## 分支与发布模型
 
-KnoArbor 使用小型发布分支模型：
+KnoArbor 使用小型发布分支模型。目标是在保持公开历史清晰的同时，允许日常开发快速推进。
 
-- `main`：公开发布分支。保持可构建、文档完整，并适合作为 tag 来源。
-- `dev`：日常开发集成分支。功能变更先合入这里。
-- `feature/*`、`fix/*`、`docs/*`：从 `dev` 切出的短期聚焦分支。
+分支职责：
+
+- `main`：公开发布分支。它应该始终代表最新公开发布线，或处于可发布状态的文档更新。`main` 必须保持可构建、文档完整，并适合作为 tag 来源。
+- `dev`：下一个 minor 或 patch 版本的日常集成分支。功能变更先合入 `dev`。`dev` 可以比 `main` 更快，但推送前仍应通过常规开发门禁。
+- `feature/*`：从 `dev` 切出的聚焦功能或架构分支。
+- `fix/*`：从 `dev` 切出的聚焦修复分支；只有紧急公开热修才从 `main` 切出。
+- `docs/*`：从 `dev` 切出的文档分支；只有修复公开发布文档时才直接面向 `main`。
+- `release/*`：可选的短期 release candidate 稳定分支。当某次发布需要多轮验证时，从 `dev` 切出。
+
+日常开发流程：
+
+1. 新工作从 `dev` 开始，不从 `main` 开始。
+2. 使用聚焦分支名，例如 `feature/source-segmentation` 或 `fix/query-context-pack`。
+3. 每个提交尽量只处理一个架构问题或用户可感知问题。
+4. 合入 `dev` 前运行相关本地检查。
+5. 合并或 fast-forward 到 `dev`；不要从 `dev` 打 tag。
 
 发布流程：
 
 1. 在 `dev` 完成功能并通过测试。
-2. 冻结 `dev` 作为 release candidate。
-3. 运行 Python 测试、前端构建、前端依赖安全扫描、Playwright UI 冒烟测试、包构建和 clean-clone 冒烟测试。
+2. 冻结 `dev` 作为 release candidate。如果稳定阶段需要多次提交，创建 `release/vX.Y.Z`。
+3. 运行 Python 测试、前端构建、前端依赖安全扫描、Playwright UI 冒烟测试、包构建、clean-clone 冒烟测试，以及可用时的真实模型冒烟测试。
 4. 运行 `scripts/prepare-release.py <version>`，再整理 `CHANGELOG.md` 和 `docs/releases/v<version>.md`。
-5. 将 `dev` merge 或 fast-forward 到 `main`。
-6. 只从 `main` 打 tag，例如 `v0.1.1`。
+5. 将 release candidate merge 或 fast-forward 到 `main`。
+6. 只从 `main` 打 tag，例如 `v1.1.0`。
+7. 只有 `main` 上的 tag 创建后，才发布包制品。
+8. 如果 release notes、版本元数据或热修在 `main` 上变更，需要再把 `main` 合回 `dev`。
 
-不要从功能分支或 dirty working tree 直接打发布 tag。
+热修流程：
+
+1. 只有已发布版本需要紧急修复时，才从 `main` 切出 `fix/<issue>`。
+2. 保持改动最小，并运行与改动范围匹配的发布门禁。
+3. 合入 `main`，打 patch 版本 tag，然后把 `main` 合回 `dev`。
+
+硬性规则：
+
+- 不要从 `dev`、功能分支或 dirty working tree 直接打发布 tag。
+- 不要把运行时 wiki、私有配置、`.env`、本地工作流导出或维护者内部笔记推送到公开分支。
+- 公开 release tag 发布后不要重写；只有在用户尚未消费制品前修复发布流程错误时才允许例外。
+- `dev` 建立后，不再把 `main` 作为日常开发分支使用。
 
 ## 目录结构
 

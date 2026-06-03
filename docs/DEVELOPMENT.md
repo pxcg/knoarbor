@@ -151,22 +151,66 @@ scripts/release-check.sh
 
 ## Branch And Release Model
 
-KnoArbor uses a small release-oriented branch model:
+KnoArbor uses a small release-oriented branch model. The goal is to keep public
+history easy to understand while still allowing active development.
 
-- `main`: public release branch. Keep it buildable, documented, and suitable for tagging.
-- `dev`: daily integration branch. Merge feature work here first.
-- `feature/*`, `fix/*`, `docs/*`: short-lived focused branches from `dev`.
+Branch roles:
+
+- `main`: public release branch. It should always represent the latest public
+  release line or a release-ready documentation update. It must stay buildable,
+  documented, and suitable for tagging.
+- `dev`: daily integration branch for the next minor or patch release. Feature
+  work is merged here first. `dev` may move faster than `main`, but it should
+  still pass the normal development gate before being pushed.
+- `feature/*`: focused product or architecture work branched from `dev`.
+- `fix/*`: focused bug fixes branched from `dev`, or from `main` only for an
+  urgent public hotfix.
+- `docs/*`: documentation-only work branched from `dev`, unless it fixes public
+  release documentation on `main`.
+- `release/*`: optional short-lived release-candidate stabilization branches
+  created from `dev` when a release needs more than one validation pass.
+
+Daily development flow:
+
+1. Start new work from `dev`, not from `main`.
+2. Use a focused branch name, such as `feature/source-segmentation` or
+   `fix/query-context-pack`.
+3. Keep commits scoped to one architectural or user-facing concern.
+4. Run the relevant local checks before merging into `dev`.
+5. Merge or fast-forward into `dev`; do not tag from `dev`.
 
 Release flow:
 
 1. Finish and test changes on `dev`.
-2. Freeze `dev` for a release candidate.
-3. Run Python tests, frontend build, frontend dependency audit, Playwright UI smoke, package build, and clean-clone smoke checks.
-4. Run `scripts/prepare-release.py <version>`, then curate `CHANGELOG.md` and `docs/releases/v<version>.md`.
-5. Merge or fast-forward `dev` into `main`.
-6. Tag the release from `main` only, for example `v0.1.1`.
+2. Freeze `dev` for a release candidate. If stabilization needs multiple
+   commits, create `release/vX.Y.Z` from `dev`.
+3. Run Python tests, frontend build, frontend dependency audit, Playwright UI
+   smoke, package build, clean-clone smoke checks, and any available live-model
+   smoke test.
+4. Run `scripts/prepare-release.py <version>`, then curate `CHANGELOG.md` and
+   `docs/releases/v<version>.md`.
+5. Merge or fast-forward the release candidate into `main`.
+6. Tag the release from `main` only, for example `v1.1.0`.
+7. Publish package artifacts only after the `main` tag exists.
+8. Merge `main` back into `dev` if release notes, version metadata, or hotfixes
+   changed on `main`.
 
-Do not tag releases from feature branches or from a dirty working tree.
+Hotfix flow:
+
+1. Branch `fix/<issue>` from `main` only when the released version needs an
+   urgent patch.
+2. Keep the change minimal and run the release gate appropriate for the touched
+   area.
+3. Merge into `main`, tag a patch release, then merge `main` back into `dev`.
+
+Hard rules:
+
+- Do not tag releases from `dev`, feature branches, or a dirty working tree.
+- Do not push runtime vault data, private config, `.env`, local workflow exports,
+  or maintainer-only notes to any public branch.
+- Do not rewrite public release tags after they have been announced, except to
+  correct a release process failure before users have consumed the artifact.
+- Do not use `main` as the normal daily development branch after `dev` exists.
 
 ## Package Layout
 
