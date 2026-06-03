@@ -144,7 +144,14 @@ Load environment variables:
 set -a && source .env && set +a
 ```
 
-Initialize a wiki vault:
+Or let KnoArbor create `config.yaml` and initialize the vault in one read-only
+first-run pass:
+
+```bash
+uv run knoar first-run --vault ./wiki
+```
+
+Initialize a wiki vault explicitly:
 
 ```bash
 uv run knoar init --vault ./wiki

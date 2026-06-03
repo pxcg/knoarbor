@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import socket
 import sys
 import tempfile
 import unittest
 from argparse import _SubParsersAction
+from contextlib import contextmanager
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
@@ -14,6 +16,16 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.cli import build_parser, main
+
+
+@contextmanager
+def _chdir(path: Path):
+    previous = Path.cwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(previous)
 
 
 def _subcommand_names(parser) -> set[str]:
@@ -32,6 +44,7 @@ class CliTests(unittest.TestCase):
         expected_commands = {
             "contracts",
             "doctor",
+            "first-run",
             "ingest",
             "init",
             "lint",
@@ -208,6 +221,36 @@ class CliTests(unittest.TestCase):
         self.assertNotIn("text", content)
         self.assertNotIn("sections", content)
         self.assertGreater(content["text_chars"], 0)
+
+    def test_init_creates_local_config_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "my-wiki"
+            output = io.StringIO()
+
+            with _chdir(root), redirect_stdout(output):
+                exit_code = main(["init", "--vault", str(vault)])
+
+            config = root / "config.yaml"
+            self.assertEqual(exit_code, 0)
+            self.assertTrue(config.exists())
+            self.assertTrue((vault / "SCHEMA.md").exists())
+            self.assertIn("config:", output.getvalue())
+            self.assertIn("created", output.getvalue())
+
+    def test_first_run_creates_config_vault_and_prints_next_steps(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "wiki"
+            output = io.StringIO()
+
+            with _chdir(root), redirect_stdout(output):
+                exit_code = main(["first-run", "--vault", str(vault)])
+
+            self.assertIn(exit_code, {0, 1})
+            self.assertTrue((root / "config.yaml").exists())
+            self.assertTrue((vault / "index.md").exists())
+            self.assertIn("Next steps:", output.getvalue())
 
     def test_contracts_command_prints_known_contracts(self) -> None:
         output = io.StringIO()

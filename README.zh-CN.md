@@ -144,7 +144,13 @@ DEEPSEEK_API_KEY=your-key
 set -a && source .env && set +a
 ```
 
-初始化 Wiki 知识库：
+也可以让 KnoArbor 在一次只读首跑引导中创建 `config.yaml` 并初始化知识库：
+
+```bash
+uv run knoar first-run --vault ./wiki
+```
+
+显式初始化 Wiki 知识库：
 
 ```bash
 uv run knoar init --vault ./wiki

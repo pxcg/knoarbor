@@ -26,6 +26,20 @@ If `--config` is omitted, the CLI searches for `config.yaml` and falls back to
 These commands mirror the stable API surface: `/ingest`, `/lint`, `/query`,
 `/runs`, `/wiki/pages`, `/doctor`, and `/health`.
 
+### `first-run`
+
+Create a local `config.yaml` when missing, initialize the vault, and run
+read-only diagnostics.
+
+```bash
+uv run knoar first-run
+uv run knoar first-run --vault ./wiki
+uv run knoar first-run --json
+```
+
+This command does not call the model and does not write wiki pages. It prepares
+the local runtime and prints the next recommended commands.
+
 ### `init`
 
 Initialize a runtime wiki vault.
@@ -33,6 +47,10 @@ Initialize a runtime wiki vault.
 ```bash
 uv run knoar init --vault ./wiki
 ```
+
+When `config.yaml` is missing, `init` creates one from the bundled default
+configuration before initializing the vault. Existing local config files are not
+overwritten.
 
 ### `serve`
 

@@ -15,11 +15,26 @@ uv run knoar --config ./config.yaml <command>
 如果省略 `--config`，CLI 会优先查找 `config.yaml`，否则回退到
 `config.example.yaml`。
 
+## 首次运行
+
+创建本地 `config.yaml`、初始化 Wiki 知识库，并运行只读诊断：
+
+```bash
+uv run knoar first-run
+uv run knoar first-run --vault ./wiki
+uv run knoar first-run --json
+```
+
+该命令不会调用模型，也不会写入 Wiki 页面。它只准备本地运行环境并提示下一步命令。
+
 ## 初始化
 
 ```bash
 uv run knoar init --vault ./wiki
 ```
+
+如果 `config.yaml` 不存在，`init` 会先从内置默认配置创建本地配置，再初始化
+知识库。已有本地配置不会被覆盖。
 
 ## 启动服务
 

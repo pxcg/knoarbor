@@ -7,6 +7,7 @@ from knoarbor.cli_commands.handlers import (
     run_contract,
     run_contracts,
     run_doctor,
+    run_first_run,
     run_ingest,
     run_init,
     run_lint_plan,
@@ -26,6 +27,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="KnoArbor local command line interface.")
     parser.add_argument("--config", default=None, help="Path to config.yaml. Defaults to ./config.yaml or config.example.yaml.")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    first_run_parser = subparsers.add_parser("first-run", help="Create local config, initialize the vault, and run first-run diagnostics.")
+    first_run_parser.add_argument("--vault", default=None, help="Vault path to create. Defaults to ./wiki in the local config.")
+    first_run_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
+    first_run_parser.set_defaults(handler=run_first_run)
 
     serve_parser = subparsers.add_parser("serve", help="Start the local FastAPI service.")
     serve_parser.add_argument("--host", default=None)
