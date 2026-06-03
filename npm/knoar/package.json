@@ -1,5 +1,5 @@
 {
-  "name": "knoar",
+  "name": "@pxcg/knoar",
   "version": "0.1.0",
   "description": "Short command placeholder for KnoArbor.",
   "license": "Apache-2.0",
