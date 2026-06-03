@@ -18,8 +18,9 @@ SCRIPT_PATH = (
     / "query"
     / "knoarbor-local"
     / "scripts"
-    / "query.py"
+    / "knoarbor.py"
 )
+WRAPPER_PATH = SCRIPT_PATH.with_name("query.py")
 
 
 def load_query_helper():
@@ -73,7 +74,7 @@ class SkillQueryHelperTests(unittest.TestCase):
 
     def test_formats_retrieval_response_for_host_ai(self) -> None:
         helper = load_query_helper()
-        text = helper._format_response(
+        text = helper._format_query(
             {
                 "query": "Agent Loop",
                 "retrieval_mode": "machine_hybrid_balanced",
@@ -150,12 +151,15 @@ class SkillQueryHelperTests(unittest.TestCase):
         helper = load_query_helper()
 
         with patch.object(helper, "_get_json", return_value={"status": "ok"}), redirect_stdout(io.StringIO()):
-            exit_code = helper._run_check(
-                "http://127.0.0.1:8123",
-                "/tmp/wiki",
-                Path("/tmp/config.yaml"),
-                timeout=1,
-                raw=True,
+            exit_code = helper._cmd_check(
+                argparse.Namespace(),
+                helper.Runtime(
+                    base_url="http://127.0.0.1:8123",
+                    vault_path="/tmp/wiki",
+                    config_path=Path("/tmp/config.yaml"),
+                    timeout=1,
+                    raw=True,
+                ),
             )
 
         self.assertEqual(exit_code, 0)
@@ -168,15 +172,37 @@ class SkillQueryHelperTests(unittest.TestCase):
             redirect_stdout(io.StringIO()),
             redirect_stderr(io.StringIO()),
         ):
-            exit_code = helper._run_check(
-                "http://127.0.0.1:8123",
-                None,
-                Path("/tmp/config.yaml"),
-                timeout=1,
-                raw=True,
+            exit_code = helper._cmd_check(
+                argparse.Namespace(),
+                helper.Runtime(
+                    base_url="http://127.0.0.1:8123",
+                    vault_path=None,
+                    config_path=Path("/tmp/config.yaml"),
+                    timeout=1,
+                    raw=True,
+                ),
             )
 
         self.assertEqual(exit_code, 1)
+
+    def test_query_wrapper_rewrites_to_query_command(self) -> None:
+        spec = importlib.util.spec_from_file_location("knoarbor_skill_query_wrapper", WRAPPER_PATH)
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"Cannot load query wrapper from {WRAPPER_PATH}")
+        wrapper = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = wrapper
+        spec.loader.exec_module(wrapper)
+        with patch.object(
+            sys,
+            "argv",
+            ["query.py", "Agent Loop", "--raw", "--max-results", "1"],
+        ), patch.object(wrapper, "_load_main", return_value=lambda: 0) as load_main:
+            exit_code = wrapper.main()
+            rewritten_argv = list(sys.argv)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(rewritten_argv, ["query.py", "--raw", "query", "Agent Loop", "--max-results", "1"])
+        load_main.assert_called_once()
 
 
 if __name__ == "__main__":

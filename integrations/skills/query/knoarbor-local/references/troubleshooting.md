@@ -5,13 +5,13 @@
 Run:
 
 ```bash
-python3 scripts/query.py --check
+python3 scripts/knoarbor.py check
 ```
 
 Use `--raw` for machine-readable diagnostics:
 
 ```bash
-python3 scripts/query.py --check --raw
+python3 scripts/knoarbor.py --raw check
 ```
 
 ## Service is unavailable
@@ -39,8 +39,8 @@ Set one of:
 
 ```bash
 export KNOARBOR_VAULT_PATH=/absolute/path/to/wiki
-python3 scripts/query.py "agent loop" --vault /absolute/path/to/wiki
-python3 scripts/query.py "agent loop" --config /path/to/config.yaml
+python3 scripts/knoarbor.py --vault /absolute/path/to/wiki query "agent loop"
+python3 scripts/knoarbor.py --config /path/to/config.yaml query "agent loop"
 ```
 
 The helper resolves the vault path in this order:
@@ -61,13 +61,16 @@ The helper resolves the vault path in this order:
 Use full content only when the user explicitly asks for detailed page reading:
 
 ```bash
-python3 scripts/query.py "逐段分析 Agent Loop 页面全文" --context-format full --include-content
+python3 scripts/knoarbor.py page read concepts/Agent-Loop-and-Control-Patterns.md
 ```
+
+If the exact page path is not known, first run a query and then read the
+returned `results[].path`.
 
 ## Response is too large
 
 Use compact mode:
 
 ```bash
-python3 scripts/query.py "agent loop" --context-format compact --max-results 4
+python3 scripts/knoarbor.py query "agent loop" --context-format compact --max-results 4
 ```

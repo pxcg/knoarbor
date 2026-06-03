@@ -1,7 +1,8 @@
-# Install KnoArbor Local Query Skill
+# Install KnoArbor Local Skill
 
 This skill is a thin client for a local KnoArbor service. It does not include
-the KnoArbor server.
+the KnoArbor server. It can query, read pages, trigger ingest/lint runs, and
+inspect reports through the stable local API.
 
 ## 1. Install or clone KnoArbor
 
@@ -13,8 +14,8 @@ uv run knoar serve
 
 ## 2. Install the skill
 
-Copy the whole skill directory, including `scripts/` and `resources/`, into the
-host AI tool's skill directory.
+Copy the whole skill directory, including `scripts/`, `references/`, and
+`resources/`, into the host AI tool's skill directory.
 
 Example for Codex:
 
@@ -42,8 +43,9 @@ See `example.env`.
 From the skill directory:
 
 ```bash
-python3 scripts/query.py --check
-python3 scripts/query.py "agent loop control patterns"
+python3 scripts/knoarbor.py check
+python3 scripts/knoarbor.py query "agent loop control patterns"
+python3 scripts/knoarbor.py page read concepts/Agent-Loop-and-Control-Patterns.md
 ```
 
 Use `example-request.json` and `response-example.json` when adapting the skill
