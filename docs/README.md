@@ -12,6 +12,7 @@ Chinese documentation lives in [zh/](zh/). This documentation tree is intended f
 - [CLI Reference](CLI.md): command-line usage for ingest, lint, query, service, and debugging.
 - [API Reference](API.md): FastAPI endpoints and boundary rules.
 - [API Compatibility](API_COMPATIBILITY.md): stable endpoint policy, schema versioning, and deprecation rules.
+- [Roadmap](ROADMAP.md): planned path from the 1.0 public release to the 2.0 compatibility baseline.
 - [Error Codes](ERROR_CODES.md): stable CLI/API error codes and troubleshooting hints.
 - [Troubleshooting](TROUBLESHOOTING.md): common setup, model, UI, ingest, and runtime issues.
 - [Core Concepts](CONCEPTS.md): raw sources, source documents, wiki page types, ingest, lint, query, and runtime vault.
@@ -27,6 +28,8 @@ Chinese documentation lives in [zh/](zh/). This documentation tree is intended f
 - [Release Preflight Checklist](RELEASE_CHECKLIST.md): repository, privacy, tests, docs, UI, and release gates before tagging.
 - [Testing And Quality Gates](TESTING.md): unit tests, frontend smoke, release checks, and live model smoke boundaries.
 - [Changelog](../CHANGELOG.md): public release notes.
+- [v1.0.0 Release Notes](releases/v1.0.0.md): first public local-first release content.
+- [v0.9.0 Release Notes](releases/v0.9.0.md): runtime endpoint, skill integration, and observability release content.
 - [v0.8.0 Release Notes](releases/v0.8.0.md): API contract and token-observability release content.
 - [v0.7.0 Release Notes](releases/v0.7.0.md): UI and knowledge-base browsing alpha release content.
 - [v0.6.0 Release Notes](releases/v0.6.0.md): UI foundation release content.
@@ -40,6 +43,7 @@ Chinese documentation lives in [zh/](zh/). This documentation tree is intended f
 ## Development
 
 - [Development](DEVELOPMENT.md): setup, tests, package layout, design rules, and release notes.
+- [Maintainer Guide](MAINTAINERS.md): long-term branch, architecture, fallback, compatibility, and release governance.
 - [Contributing](../CONTRIBUTING.md): contribution process, branch model, tests, and privacy rules.
 - [Security](../SECURITY.md): vulnerability reporting and secret handling.
 - [Support](../SUPPORT.md): where to ask questions and how to file useful reports.
@@ -56,7 +60,7 @@ Showcase -> Quickstart -> Configuration -> Troubleshooting -> CLI Reference -> C
 For contributors:
 
 ```text
-Core Concepts -> Architecture -> Provenance Design -> API Compatibility -> Development -> Testing -> Contributing
+Core Concepts -> Architecture -> Provenance Design -> API Compatibility -> Roadmap -> Development -> Maintainer Guide -> Testing -> Contributing
 ```
 
 For release preparation:

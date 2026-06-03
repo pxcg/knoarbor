@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 
 import { getPage, getReport, runIngest, runIngestFile, runLint, type ReportDetail } from "../api/client";
 import type { AppContext } from "../App";
-import { ReportReadableView } from "../components/report/ReportReadableView";
 import { localizeReportKind, localizeReportTitle } from "../components/reportLabels";
 import { RunFlowGuide } from "../components/runs/RunPanels";
 import { runStatusLabel } from "../components/runStatus";
 import type { RunRecord } from "../types";
+
+const ReportReadableView = lazy(() => import("../components/report/ReportReadableView").then((module) => ({ default: module.ReportReadableView })));
 
 type Props = {
   context: AppContext;
@@ -22,7 +23,7 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
   const [ingestReport, setIngestReport] = useState(true);
   const [lintMode, setLintMode] = useState("structural");
   const [lintApplySafe, setLintApplySafe] = useState(true);
-  const [lintApplyReviewed, setLintApplyReviewed] = useState(false);
+  const [lintApplyReviewed, setLintApplyReviewed] = useState(true);
   const [runOutput, setRunOutput] = useState(() => context.t("noRunYet"));
   const [trackedRunId, setTrackedRunId] = useState<string | null>(null);
   const [terminalNoticeRunId, setTerminalNoticeRunId] = useState<string | null>(null);
@@ -225,7 +226,7 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
             {context.t("clear")}
           </button>
         </div>
-        <pre className="output">{runOutput}</pre>
+        <pre className={`output ${runOutput === context.t("noRunYet") ? "output-idle" : ""}`}>{runOutput}</pre>
       </article>
       <LatestWorkflowReport context={context} mode={mode} />
     </section>
@@ -295,13 +296,15 @@ function LatestWorkflowReport({ context, mode }: { context: AppContext; mode: "b
         <strong>{localizeReportTitle(detail.summary.title || detail.path, detail.summary.kind, context.t)}</strong>
         <span>{localizeReportKind(detail.summary.kind, context.t)} · {detail.summary.path}</span>
       </div>
-      <ReportReadableView
-        content={detail.content}
-        t={context.t}
-        onOpenPage={context.openWikiPage}
-        loadPage={(path) => getPage(context.vaultPath, path)}
-        inlinePagePreview
-      />
+      <Suspense fallback={<p className="panel-copy">{context.t("loading")}</p>}>
+        <ReportReadableView
+          content={detail.content}
+          t={context.t}
+          onOpenPage={context.openWikiPage}
+          loadPage={(path) => getPage(context.vaultPath, path)}
+          inlinePagePreview
+        />
+      </Suspense>
     </article>
   );
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { getProjectDoc } from "../api/client";
 import type { AppContext } from "../App";
-import { MarkdownPreview } from "../components/MarkdownPreview";
+import { AsyncMarkdownPreview } from "../components/AsyncMarkdownPreview";
 
 type Props = {
   context: AppContext;
@@ -88,14 +88,6 @@ export function DocsPage({ context }: Props) {
 
   return (
     <section className="view active">
-      <div className="page-intro">
-        <div>
-          <p className="eyebrow">{context.t("docsShelf")}</p>
-          <h2>{context.t("docsTitle")}</h2>
-          <p className="panel-copy">{context.t("docsSubtitle")}</p>
-        </div>
-      </div>
-
       <div className="docs-workspace">
         <aside className="panel docs-directory">
           <div className="panel-header compact">
@@ -131,7 +123,7 @@ export function DocsPage({ context }: Props) {
           {loading ? (
             <p className="panel-copy">{context.t("loading")}</p>
           ) : (
-            <MarkdownPreview content={content} currentDocPath={selectedPath} onOpenDocLink={setSelectedPath} />
+            <AsyncMarkdownPreview content={content} currentDocPath={selectedPath} onOpenDocLink={setSelectedPath} />
           )}
         </article>
       </div>

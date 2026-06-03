@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -7,10 +8,8 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from knoarbor.audit.token_ledger import read_token_analysis
 from knoarbor.core.markdown import compact_inline_text, extract_heading
-from knoarbor.core.schemas.wiki_lint import WikiScanRequest
-from knoarbor.pipelines.lint import WikiLintPipeline
-from knoarbor.retrieval import IndexRequest, MachineIndexProvider
 from knoarbor.services.ui_config import UiConfigService, summarize_default_config
 from knoarbor.services.ui_config_models import (
     UiConfigDiagnostics,
@@ -21,6 +20,7 @@ from knoarbor.services.ui_config_models import (
     UiConfigUpdateResponse,
 )
 from knoarbor.services.wiki_graph import WikiGraph, build_wiki_graph
+from knoarbor.storage.wiki_index import ensure_machine_index, machine_index_dir
 
 
 class UiStatusResponse(BaseModel):
@@ -99,19 +99,20 @@ def create_ui_router() -> APIRouter:
     @router.get("/ui/api/status", response_model=UiStatusResponse, tags=["ui"])
     async def read_ui_status(vault_path: str | None = Query(default=None)) -> UiStatusResponse:
         path = Path(vault_path or _summary_from_default_config().get("vault_path") or "./wiki").expanduser().resolve()
-        index_pages = MachineIndexProvider().collect(IndexRequest(vault_path=path))
+        index_pages = _read_machine_page_records(path)
         directories: dict[str, int] = {}
         for page in index_pages:
-            directories[page.directory] = directories.get(page.directory, 0) + 1
-        scan = WikiLintPipeline().scan(WikiScanRequest(obsidian_vault_path=str(path), max_chars_per_page=0))
+            directory = str(page.get("directory") or "unknown")
+            directories[directory] = directories.get(directory, 0) + 1
+        issue_counts = _latest_lint_issue_counts(path)
         return UiStatusResponse(
             vault_path=str(path),
             pages=len(index_pages),
             raw_sources=_count_raw_sources(path),
-            issues=len(scan.issues),
-            errors=int(scan.stats.get("error_count", 0)),
-            warnings=int(scan.stats.get("warning_count", 0)),
-            info=int(scan.stats.get("info_count", 0)),
+            issues=issue_counts["issues"],
+            errors=issue_counts["errors"],
+            warnings=issue_counts["warnings"],
+            info=issue_counts["info"],
             directories=directories,
         )
 
@@ -124,6 +125,10 @@ def create_ui_router() -> APIRouter:
     async def read_ui_reports(vault_path: str | None = Query(default=None)) -> UiReportsResponse:
         path = _resolve_vault_path(vault_path)
         return UiReportsResponse(vault_path=str(path), reports=_collect_reports(path))
+
+    @router.get("/ui/api/tokens", tags=["ui"])
+    async def read_ui_tokens(vault_path: str | None = Query(default=None), limit: int = Query(default=5000, ge=1, le=50000)) -> dict[str, object]:
+        return read_token_analysis(_resolve_vault_path(vault_path), limit=limit)
 
     @router.get("/ui/api/report", response_model=UiReportDetail, tags=["ui"])
     async def read_ui_report(path: str, vault_path: str | None = Query(default=None)) -> UiReportDetail:
@@ -185,6 +190,80 @@ def _count_raw_sources(vault_path: Path) -> int:
     if not raw_path.exists():
         return 0
     return sum(1 for path in raw_path.rglob("*") if path.is_file() and path.name != ".gitkeep")
+
+
+def _read_machine_page_records(vault_path: Path) -> list[dict[str, object]]:
+    if not vault_path.exists():
+        return []
+    ensure_machine_index(vault_path)
+    pages_path = machine_index_dir(vault_path) / "pages.json"
+    if not pages_path.exists():
+        return []
+    try:
+        payload = json.loads(pages_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return []
+    pages = payload.get("pages", [])
+    if not isinstance(pages, list):
+        return []
+    return [page for page in pages if isinstance(page, dict)]
+
+
+def _latest_lint_issue_counts(vault_path: Path) -> dict[str, int]:
+    latest = _latest_lint_report(vault_path)
+    if latest is None:
+        return {"issues": 0, "errors": 0, "warnings": 0, "info": 0}
+    try:
+        content = latest.read_text(encoding="utf-8")
+    except OSError:
+        return {"issues": 0, "errors": 0, "warnings": 0, "info": 0}
+
+    deterministic_section = _markdown_section(content, "Deterministic Issues")
+    section_errors = len(re.findall(r"^- \[error\]", deterministic_section, flags=re.MULTILINE))
+    section_warnings = len(re.findall(r"^- \[warning\]", deterministic_section, flags=re.MULTILINE))
+    section_info = len(re.findall(r"^- \[info\]", deterministic_section, flags=re.MULTILINE))
+    section_total = section_errors + section_warnings + section_info
+    if section_total:
+        return {"issues": section_total, "errors": section_errors, "warnings": section_warnings, "info": section_info}
+
+    issues = _report_int(content, "deterministic_issues")
+    if issues is None:
+        issues = _report_int(content, "issues") or 0
+    return {
+        "issues": issues,
+        "errors": _report_int(content, "errors") or 0,
+        "warnings": _report_int(content, "warnings") or 0,
+        "info": _report_int(content, "info") or 0,
+    }
+
+
+def _latest_lint_report(vault_path: Path) -> Path | None:
+    maintenance_path = vault_path / "maintenance"
+    if not maintenance_path.exists():
+        return None
+    candidates = list(maintenance_path.glob("lint_run_report_*.md")) + list(maintenance_path.glob("lint_report_*.md"))
+    if not candidates:
+        return None
+    return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
+def _report_int(content: str, key: str) -> int | None:
+    escaped = re.escape(key)
+    match = re.search(rf"^- {escaped}:\s*(\d+)\s*$", content, flags=re.MULTILINE)
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def _markdown_section(content: str, heading: str) -> str:
+    pattern = rf"^## {re.escape(heading)}\s*$"
+    match = re.search(pattern, content, flags=re.MULTILINE)
+    if not match:
+        return ""
+    start = match.end()
+    next_heading = re.search(r"^##\s+", content[start:], flags=re.MULTILINE)
+    end = start + next_heading.start() if next_heading else len(content)
+    return content[start:end]
 
 
 def _resolve_vault_path(vault_path: str | None) -> Path:

@@ -19,6 +19,7 @@ WikiOperationAction = Literal[
     "remove_adjacent_duplicate_headings",
     "add_missing_section",
     "update_source_field",
+    "redact_sensitive_text",
 ]
 
 

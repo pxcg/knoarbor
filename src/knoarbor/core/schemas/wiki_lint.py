@@ -27,6 +27,7 @@ class WikiLintRequest(BaseModel):
     write_report: bool = True
     report_path: str | None = None
     apply_safe_fixes: bool = False
+    safe_fix_ledger_path: str = "maintenance/lint_safe_fixes_ledger.jsonl"
     scope_pages: list[str] = Field(default_factory=list)
     include_related: bool = True
 
@@ -82,7 +83,9 @@ class LintRunRequest(BaseModel):
     max_candidates: int = Field(default=8, ge=1, le=30)
     max_chars_per_page: int = Field(default=2500, ge=0, le=30000)
     max_tokens: int | None = Field(default=None, ge=1)
-    auto_apply_reviewed_changes: bool = False
+    auto_apply_reviewed_changes: bool = True
+    auto_retry_deferred_actions: bool = True
+    max_deferred_retry_rounds: int = Field(default=1, ge=0, le=3)
 
 
 class LintRunResult(BaseModel):
@@ -96,6 +99,7 @@ class LintRunResult(BaseModel):
     maintenance_review: dict[str, Any] | None = None
     draft_batch: dict[str, Any] | None = None
     queued_actions: list[dict[str, Any]] = Field(default_factory=list)
+    deferred_retries: list[dict[str, Any]] = Field(default_factory=list)
     written_pages: list[str] = Field(default_factory=list)
     written_page_details: list[dict[str, Any]] = Field(default_factory=list)
     applied_operations: list[dict[str, Any]] = Field(default_factory=list)

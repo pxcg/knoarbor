@@ -15,6 +15,12 @@ class SourceRedactionResult(BaseModel):
     counts: dict[str, int] = Field(default_factory=dict)
 
 
+class TextRedactionResult(BaseModel):
+    text: str
+    enabled: bool = True
+    counts: dict[str, int] = Field(default_factory=dict)
+
+
 def redact_source_document(document: SourceDocument, config: PrivacyConfig) -> SourceRedactionResult:
     """Return a redacted copy for model input while leaving the raw source intact."""
 
@@ -52,6 +58,22 @@ def redact_display_text(text: str, config: PrivacyConfig) -> str:
     return _redact_text(text, config, counts)
 
 
+def redact_public_text(text: str, config: PrivacyConfig) -> TextRedactionResult:
+    """Redact wiki/report-facing text and return redaction counts."""
+
+    if not config.redaction_enabled:
+        return TextRedactionResult(text=text, enabled=False)
+    counts: dict[str, int] = {}
+    redacted = _redact_text(text, config, counts)
+    return TextRedactionResult(text=redacted, counts=counts)
+
+
+def detect_sensitive_text(text: str, config: PrivacyConfig) -> dict[str, int]:
+    """Return redaction counts without exposing the matched sensitive values."""
+
+    return redact_public_text(text, config).counts
+
+
 def _redact_value(value: Any, config: PrivacyConfig, counts: dict[str, int]) -> Any:
     if isinstance(value, str):
         return _redact_text(value, config, counts)
@@ -67,6 +89,16 @@ def _redact_text(text: str, config: PrivacyConfig, counts: dict[str, int]) -> st
         return text
 
     redacted = text
+    for term in config.custom_terms:
+        clean_term = term.strip()
+        if clean_term:
+            redacted = _sub_counted(
+                "custom_terms",
+                re.escape(clean_term),
+                "[REDACTED_CUSTOM]",
+                redacted,
+                counts,
+            )
     if config.redact_private_keys:
         redacted = _sub_counted(
             "private_keys",
@@ -79,11 +111,10 @@ def _redact_text(text: str, config: PrivacyConfig, counts: dict[str, int]) -> st
     if config.redact_api_keys:
         redacted = _sub_counted(
             "env_secrets",
-            r"\b([A-Z0-9_]*(?:API_KEY|ACCESS_KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)\s*=\s*([^\s\"'`]+)",
+            r"\b([A-Z][A-Z0-9_]*(?:API_KEY|ACCESS_KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)\s*=\s*(?!\[REDACTED_SECRET\](?:\s|$))([^\s\"'`]+)",
             lambda match: f"{match.group(1)}=[REDACTED_SECRET]",
             redacted,
             counts,
-            flags=re.IGNORECASE,
         )
         redacted = _sub_counted(
             "api_keys",
@@ -99,6 +130,14 @@ def _redact_text(text: str, config: PrivacyConfig, counts: dict[str, int]) -> st
             redacted,
             counts,
             flags=re.IGNORECASE,
+        )
+    if config.redact_platform_ids:
+        redacted = _sub_counted(
+            "platform_ids",
+            r"\bcli_[A-Za-z0-9]{12,}\b",
+            "[REDACTED_PLATFORM_ID]",
+            redacted,
+            counts,
         )
     if config.redact_emails:
         redacted = _sub_counted(
@@ -118,7 +157,7 @@ def _redact_text(text: str, config: PrivacyConfig, counts: dict[str, int]) -> st
         )
         redacted = _sub_counted(
             "phone_numbers",
-            r"(?<!\d)(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)\d{3}[-.\s]?\d{4}(?!\d)",
+            r"(?<!\d)(?:\+1[-.\s]?|\(\d{3}\)[-.\s]?|\d{3}[-.\s])\d{3}[-.\s]?\d{4}(?!\d)",
             "[REDACTED_PHONE]",
             redacted,
             counts,
@@ -126,14 +165,14 @@ def _redact_text(text: str, config: PrivacyConfig, counts: dict[str, int]) -> st
     if config.redact_local_paths:
         redacted = _sub_counted(
             "local_paths",
-            r"(?<!\w)/(?:Users|home)/[^/\s]+",
+            r"(?<!\w)/(?:Users|home)/(?!(?:\[REDACTED_USER\]|node)(?:/|\s|`|$))[^/\s`]+",
             lambda match: "/".join([match.group(0).split("/")[0], match.group(0).split("/")[1], "[REDACTED_USER]"]),
             redacted,
             counts,
         )
         redacted = _sub_counted(
             "local_paths",
-            r"\b([A-Za-z]:\\Users\\)[^\\\s]+",
+            r"\b([A-Za-z]:\\Users\\)(?!\[REDACTED_USER\](?:\\|\s|`|$))[^\\\s`]+",
             r"\1[REDACTED_USER]",
             redacted,
             counts,

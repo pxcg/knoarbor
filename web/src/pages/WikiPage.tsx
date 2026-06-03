@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { getPage, type PageDetail, type PageLink, type PageSummary } from "../api/client";
 import type { AppContext } from "../App";
+import { AsyncMarkdownPreview } from "../components/AsyncMarkdownPreview";
 import { DelayedTooltip } from "../components/DelayedTooltip";
-import { MarkdownPreview } from "../components/MarkdownPreview";
 
 type Props = {
   context: AppContext;
@@ -79,14 +79,6 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
 
   return (
     <section className="view active">
-      <div className="page-intro">
-        <div>
-          <p className="eyebrow">{context.t("wikiTitle")}</p>
-          <h2>{context.t("wikiTitle")}</h2>
-          <p className="panel-copy">{context.t("wikiSubtitle")}</p>
-        </div>
-      </div>
-
       <div className="wiki-workspace">
         <aside className="panel wiki-directory-panel">
           <div className="panel-header compact">
@@ -156,7 +148,7 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
               <PageMetadata detail={selectedDetail} t={context.t} />
               <LinkSection title={context.t("backlinks")} links={selectedDetail.backlinks} direction="backlinks" onOpen={context.openWikiPage} emptyText={context.t("none")} />
               <LinkSection title={context.t("outboundLinks")} links={selectedDetail.outbound_links} direction="outbound" onOpen={context.openWikiPage} emptyText={context.t("none")} />
-              <MarkdownPreview content={selectedDetail.content} className="wiki-markdown-preview" stripFrontmatter onOpenWikiPage={context.openWikiPage} />
+              <AsyncMarkdownPreview content={selectedDetail.content} className="wiki-markdown-preview" stripFrontmatter onOpenWikiPage={context.openWikiPage} />
             </>
           ) : (
             !loading && <p className="panel-copy">{context.t("wikiNoSelection")}</p>

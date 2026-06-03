@@ -10,6 +10,7 @@ Do not return markdown fences or explanatory prose.
 - Use `wiki_context.candidates` as the authoritative lightweight candidate pool when provided.
 - Treat `existing_wiki_index` as supplemental routing metadata only; do not build a separate candidate set from it when `wiki_context.candidates` is available.
 - Do not write page bodies.
+- Treat `wiki_context.candidates` as page profiles, not full page evidence. They intentionally include routing fields such as title, directory, summary, key points, tags, source, matched fields, score, and related page paths, but not full Markdown bodies.
 
 ## Directory Contract
 
@@ -70,9 +71,13 @@ Do not return markdown fences or explanatory prose.
 - Prefer `create` when overlap is only broad topical similarity.
 - Do not use page merge operations during ingest. Consolidating, archiving, deleting, or merging existing wiki pages belongs to lint/maintenance, not source ingest.
 - Use `skip` only when no durable wiki page should be written. Do not mix `skip` with actionable operations.
+- If any `create` or `update` operation is present, do not include `skip`. `skip` is a whole-plan decision, not a per-object annotation.
+- For a pure `skip` plan, output exactly one operation with `action: "skip"`, `target_page: null`, `page_dir: null`, `title: null`, and `knowledge_object: null`.
 - Prefer 1-3 actionable operations. Use 4 only when the source clearly contains four strong independent objects.
 - Do not split examples, subpoints, advice, dates, definitions, or implementation details when they only make sense as sections of a stronger page.
 - `related_pages` and `candidate_pages` must use paths from retrieved context or the existing index only.
 - `target_page` is required for `update`; it must be null for `create` and `skip`.
 - `title` and `knowledge_object` are required for `create` and `update`. For `skip`, they may be null because no page will be written.
 - When `wiki_context.candidates` is available, choose update targets and candidate pages from that single pool. Do not invent a second candidate set from index text.
+- Do not reject a plausible update target merely because the candidate profile does not include full page content. If title, summary, key points, source, and matched fields show the same knowledge object, prefer `update`; full target content is materialized later for draft and review.
+- Use broad topical similarity as a reason for `create`, not as a reason to demand full page bodies during relation planning.

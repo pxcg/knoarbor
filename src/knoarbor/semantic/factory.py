@@ -4,7 +4,7 @@ from knoarbor.core.config import KnoArborConfig
 from knoarbor.core.errors import UserInputError
 from knoarbor.semantic.ingest_workflow import IngestSemanticWorkflow
 from knoarbor.semantic.lint_workflow import LintSemanticWorkflow
-from knoarbor.semantic.llm import OpenAICompatibleChatClient
+from knoarbor.semantic.llm import ModelGateway
 from knoarbor.semantic.runner import SemanticRetryPolicy, SemanticRunner
 
 
@@ -16,7 +16,7 @@ def build_semantic_runner(config: KnoArborConfig, provider_name: str | None = No
     if provider_config is None:
         raise UserInputError(f"Unknown model provider: {selected_provider}")
     return SemanticRunner(
-        OpenAICompatibleChatClient.from_config(
+        ModelGateway.from_config(
             selected_provider,
             provider_config,
             timeout_seconds=config.models.request_timeout_seconds,

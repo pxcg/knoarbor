@@ -56,7 +56,7 @@ class ModelProviderConfig(BaseModel):
 
 class ModelRetryConfig(BaseModel):
     enabled: bool = True
-    max_attempts: int = Field(default=2, ge=1, le=5)
+    max_attempts: int = Field(default=3, ge=1, le=5)
     backoff_seconds: float = Field(default=2.0, ge=0, le=120)
     retry_on_invalid_output: bool = True
     retryable_error_codes: list[str] = Field(
@@ -178,9 +178,11 @@ class PrivacyConfig(BaseModel):
     redact_phone_numbers: bool = True
     redact_api_keys: bool = True
     redact_private_keys: bool = True
+    redact_platform_ids: bool = True
     redact_local_paths: bool = True
     redact_source_paths_in_pages: bool = True
     redact_private_ips: bool = False
+    custom_terms: list[str] = Field(default_factory=list)
 
 
 class KnoArborConfig(BaseModel):

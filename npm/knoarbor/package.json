@@ -1,0 +1,30 @@
+{
+  "name": "knoarbor",
+  "version": "0.1.0",
+  "description": "AI-native wiki engine for traceable knowledge networks.",
+  "license": "Apache-2.0",
+  "author": "KnoArbor contributors",
+  "homepage": "https://github.com/pxcg/knoarbor#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pxcg/knoarbor.git",
+    "directory": "npm/knoarbor"
+  },
+  "bugs": {
+    "url": "https://github.com/pxcg/knoarbor/issues"
+  },
+  "bin": {
+    "knoar": "bin/knoarbor.js",
+    "knoarbor": "bin/knoarbor.js"
+  },
+  "files": [
+    "bin",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -213,7 +213,7 @@ class RunMonitorTests(unittest.TestCase):
             manager = RunManager()
             first = manager.start_ingest_file(
                 request=IngestFileRunRequest(config_path=str(config), input_path=str(vault / "source.md"), write=False),
-                runner=lambda _request: {"stats": {"failed_count": 1}},
+                runner=lambda _request: {"stats": {"failed_count": 1, "recovery_candidate_count": 1}},
             )
             for _ in range(20):
                 first_record = manager.read(str(vault), first.run_id)
@@ -239,6 +239,31 @@ class RunMonitorTests(unittest.TestCase):
         self.assertEqual(second_record.status, "completed")
         self.assertEqual(recovered_inputs, [str(vault / "source.md")])
         self.assertEqual(second_record.metadata["recovery_of_run_id"], first.run_id)
+
+    def test_run_manager_rejects_recovery_without_retryable_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            config = vault / "config.yaml"
+            config.write_text(f"vault:\n  path: {vault}\n", encoding="utf-8")
+            manager = RunManager()
+            first = manager.start_ingest_file(
+                request=IngestFileRunRequest(config_path=str(config), input_path=str(vault / "source.md"), write=False),
+                runner=lambda _request: {"stats": {"failed_count": 1, "recovery_candidate_count": 0}},
+            )
+            for _ in range(20):
+                first_record = manager.read(str(vault), first.run_id)
+                if first_record.status == "partially_failed":
+                    break
+                time.sleep(0.05)
+
+            with self.assertRaisesRegex(ValueError, "Run cannot be recovered"):
+                manager.start_ingest_recovery(
+                    str(vault),
+                    first.run_id,
+                    IngestRecoveryRunRequest(write=True),
+                    ingest_runner=lambda _request: {"stats": {"failed_count": 0}},
+                    ingest_file_runner=lambda _request: {"stats": {"failed_count": 0}},
+                )
 
     def test_run_manager_serializes_runs_for_one_vault(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

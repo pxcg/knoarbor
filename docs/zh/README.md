@@ -12,7 +12,9 @@
 - [快速开始](QUICKSTART.md)：安装、配置、初始化知识库、启动服务和运行查询。
 - [配置说明](CONFIGURATION.md)：模型供应商、知识库目录、输入来源和运行限制。
 - [命令行](CLI.md)：知识编译、校验维护、查询和服务启动命令。
+- [接口说明](API.md)：本地 HTTP API 的用途和边界。
 - [API 兼容性](API_COMPATIBILITY.md)：稳定 endpoint、schema version 和废弃策略。
+- [路线图](ROADMAP.md)：从 1.0 公开版本到 2.0 长期兼容基线的发展路径。
 - [错误码](ERROR_CODES.md)：CLI/API 的稳定错误码和排查建议。
 - [故障排查](TROUBLESHOOTING.md)：配置、模型、UI、ingest 和运行时常见问题。
 - [核心概念](CONCEPTS.md)：raw source、source digest、wiki page、ingest、lint、query。
@@ -25,10 +27,12 @@
 
 ## 参考
 
-- [接口说明](API.md)：本地 HTTP API 的用途和边界。
 - [开发说明](DEVELOPMENT.md)：本地开发、测试、构建和发布流程。
+- [维护者指南](MAINTAINERS.md)：长期分支、架构、兜底、兼容性和发布治理。
 - [测试与质量门禁](TESTING.md)：单元测试、前端冒烟、发布检查和真实模型冒烟边界。
 - [发布前审查清单](RELEASE_CHECKLIST.md)：公开发布前的仓库、隐私、测试、文档、UI 和发布门禁。
+- [v1.0.0 发布说明](../releases/v1.0.0.md)：第一个公开本地优先版本说明。
+- [v0.9.0 发布说明](../releases/v0.9.0.md)：运行 endpoint、Skill 集成和可观测性版本说明。
 - [v0.8.0 发布说明](../releases/v0.8.0.md)：API 合约与 token 可观测性版本说明。
 - [v0.7.0 发布说明](../releases/v0.7.0.md)：UI 与知识库浏览版本说明。
 
@@ -43,7 +47,7 @@
 贡献者：
 
 ```text
-核心概念 -> 架构设计 -> 溯源设计 -> API 兼容性 -> 开发说明 -> 测试与质量门禁
+核心概念 -> 架构设计 -> 溯源设计 -> API 兼容性 -> 路线图 -> 开发说明 -> 维护者指南 -> 测试与质量门禁
 ```
 
 发布准备：

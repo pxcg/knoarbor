@@ -75,14 +75,6 @@ export function SourcesPage({ context }: Props) {
 
   return (
     <section className="view active">
-      <div className="page-intro">
-        <div>
-          <p className="eyebrow">{context.t("sourceLayer")}</p>
-          <h2>{context.t("sourceOverview")}</h2>
-          <p className="panel-copy">{context.t("sourceSubtitle")}</p>
-        </div>
-      </div>
-
       <div className="source-grid">
         {sourceCards.map((source) => {
           const diagnostic = connectorDiagnostics.get(source.id);

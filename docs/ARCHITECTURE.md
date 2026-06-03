@@ -38,7 +38,7 @@ leaking into each other.
 | Connector / Source | Converting Markdown, chats, documents, and future external systems into `SourceDocument`. | Wiki page planning or page lifecycle governance. |
 | Document Processing | Converting rich documents into Markdown before shared ingest. | Knowledge-object classification or wiki writes. |
 | Semantic | Narrow LLM contracts, prompts, schema validation, and semantic workflow steps. | Reading local files, writing pages, executing operations, or managing progress. |
-| Model Client | OpenAI-compatible provider calls, JSON mode, timeout, retry, and token metrics. | Ingest/lint/query decisions. |
+| Model Gateway | Stable model boundary, ProviderAdapter selection, OpenAI-compatible calls, JSON mode, endpoint checks, retry, and token metrics. | Ingest/lint/query decisions. |
 | Storage / Writer | Markdown rendering, patch application, index updates, checkpoints, and low-level vault file primitives. | Deciding whether a knowledge object should exist or how reports are summarized. |
 | Retrieval / Index | Page metadata, link graph, related expansion, query context packs, and future BM25/vector providers. | Mutating the wiki. |
 | Maintenance | Deterministic scans, semantic lint candidates, operation execution, and verification. | Raw source ingestion or audit artifact ownership. |
@@ -180,7 +180,7 @@ Responsibilities:
 - segmented sources are processed segment by segment, then aggregated at the source/window boundary before write, report, and checkpoint commit.
 - `IngestWritePolicy` enforces source/window-level write invariants before vault writes: one raw source may create at most one source digest in one ingest batch.
 - ingest writes disable broad lexical Related Pages scanning by default. They keep deterministic provenance links between the source digest and pages generated from the same source; weak topical links should be reviewed by lint or surfaced by query.
-- `ingest-file` is the single-file boundary: Markdown files enter the shared ingest path directly; non-Markdown files must pass through the configured MinerU-compatible preprocessor first, and missing preprocessors fail explicitly.
+- `ingest --input` is the single-file boundary: Markdown files enter the shared ingest path directly; non-Markdown files must pass through the configured MinerU-compatible preprocessor first, and missing preprocessors fail explicitly.
 
 Implementation boundary:
 
@@ -212,6 +212,11 @@ Responsibilities:
 - review necessity, correctness, completeness, risk, confidence, and executor fit;
 - execute only reviewed operations;
 - keep high-risk refresh, merge/split, conflict, and external-fact work as queued or report-only actions unless explicitly supported by a reviewed executor.
+- route reviewed decisions through explicit executor paths:
+  - `supported_by_wiki_operation` -> `WikiOperationPipeline` -> verification;
+  - `supported_by_draft_write` -> draft compilation -> `WikiWritePipeline` -> verification;
+  - `supported_by_report_only` -> deferred retry with enriched page context -> wiki operation or draft write when evidence becomes sufficient; otherwise it remains queued in the report;
+  - `supported_by_refresh_request` -> provenance refresh -> source digest creation or source/knowledge bidirectional link repair -> rescan.
 
 Implementation boundary:
 
@@ -219,6 +224,8 @@ Implementation boundary:
 - `lint_scanners` owns deterministic scan rules and issue generation.
 - `lint_candidates` owns scan-page previews and quality/freshness candidate scoring.
 - `wiki_lint` is the public orchestration facade for scan, candidate selection, safe fixes, and legacy lint reports.
+- `lint_execution` owns decision-to-executor routing and must not implement source parsing or page rendering directly.
+- `provenance_refresh` owns refresh-request execution. It only handles local raw sources that can be resolved inside the vault and repairs the raw source -> source digest -> generated page chain. Missing or ambiguous sources remain queued with warnings.
 
 User-facing modes:
 
@@ -261,7 +268,7 @@ KnoArbor remains a local-first wiki engine, but it still needs explicit runtime 
 - **Execution recovery**: recovery is represented as a new run derived from previous run metadata. Source/window checkpoints remain authoritative, so successful unchanged sources are skipped and failed or changed sources re-enter the normal ingest pipeline.
 - **Event model**: run events are progress facts such as `source_started`, `segment_finished`, `model_call_started`, `model_call_retrying`, and `pages_written`. The frozen catalog lives in `knoarbor.runtime.events`; new event names should be added there before pipelines emit them. UI/API consumers display these facts but must not derive new business decisions from events.
 - **Application cache**: no separate app cache layer is required for the first release. Page parse results, graph data, and query indexes are cacheable later; write checkpoints, lint decisions, ledgers, and reports are not replaceable by cache.
-- **Provider prompt cache**: prompt caching is owned by the model provider. Semantic contracts keep long, stable instructions and output schemas in the system message; dynamic source/wiki payloads are appended in the user message. The runner must not inject timestamps, run IDs, local paths, or other volatile data before the stable contract prompt. Provider cache telemetry such as cached prompt tokens or DeepSeek cache hit/miss tokens is collected when available.
+- **Provider prompt cache**: prompt caching is owned by the model provider. `SemanticRunner` builds every call as a `SemanticPromptPackage`: stable executor instructions plus stable contract text first, then the dynamic source/wiki payload last. The runner must not inject timestamps, run IDs, local paths, or other volatile data into the stable prefix. Provider cache telemetry such as cached prompt tokens or DeepSeek cache hit/miss tokens is collected when available, and prompt package size metrics are recorded for later cost analysis.
 - **Docker**: Docker is a deployment adapter, not a core architecture layer. It should package the Python Core, CLI/FastAPI entrypoints, static UI, and config templates after the local execution path is stable.
 
 ## Read API Boundaries

@@ -24,26 +24,11 @@ The public integration API is intentionally compact:
 
 Different workflow variants are selected by request fields such as `execution`, `kind`, `mode`, and `context_format`.
 
-## Removed Prototype Routes
+## Prototype Routes
 
-The following prototype routes are intentionally not part of the public API:
-
-- `POST /ingest/run`
-- `POST /ingest/document`
-- `POST /ingest/file`
-- `POST /runs/ingest`
-- `POST /runs/ingest-file`
-- `POST /runs/lint`
-- `POST /runs/query`
-- `GET /runs/active`
-- `POST /runs/{run_id}/rerun-failed`
-- `POST /lint/run`
-- `POST /query/search`
-- `POST /runs`
-- `GET /wiki/page`
-- `GET /wiki/backlinks`
-
-Use `POST /ingest`, `POST /lint`, or `POST /query` instead. Use `GET /runs*` only for monitoring.
+Early prototype routes have been removed before the public v1 API. New workflow
+variants should be represented as request fields on the compact public API
+surface, not as additional top-level paths.
 
 ## Change Rules
 

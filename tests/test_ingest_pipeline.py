@@ -306,7 +306,7 @@ class ScenarioSemanticWorkflow(FakeIngestSemanticWorkflow):
     def compile_drafts(self, knowledge_extract, wiki_relation_plan, **kwargs):
         self.last_candidate_page_context = kwargs.get("candidate_page_context")
         if self.action == "skip":
-            return WikiDraftBatch(drafts=[], batch_summary="No draft for skipped source.", warnings=["low_value_source:too_thin"])
+            raise AssertionError("skip relation plan should not compile drafts")
         patches = []
         if self.action == "update":
             patches = [
@@ -341,7 +341,7 @@ class ScenarioSemanticWorkflow(FakeIngestSemanticWorkflow):
     def review_drafts(self, knowledge_extract, wiki_relation_plan, wiki_draft_batch, **kwargs):
         self.last_review_draft_batch = wiki_draft_batch
         if self.action == "skip":
-            return IngestDraftReview(decisions=[], batch_decision="reject", summary="Skipped low value source.")
+            raise AssertionError("skip relation plan should not review drafts")
         return IngestDraftReview(
             decisions=[
                 IngestDraftReviewDecision(
@@ -1041,12 +1041,14 @@ class IngestPipelineTests(unittest.TestCase):
 
             result = IngestPipeline(ScenarioSemanticWorkflow(action="skip")).run(config, connector_names=["markdown"], write=True)  # type: ignore[arg-type]
             report = (vault / (result.report_path or "")).read_text(encoding="utf-8")
+            checkpoint_state = json.loads((vault / "maintenance" / "source_ingest_checkpoints.json").read_text(encoding="utf-8"))
 
         self.assertEqual(result.results[0].status, "skipped")
         self.assertEqual(result.stats["skipped_count"], 1)
         self.assertIn("too thin", result.results[0].semantic_skip_reason or "")
         self.assertEqual(result.results[0].generated_pages, [])
         self.assertIn("semantic_skip_reason:", report)
+        self.assertEqual(len(checkpoint_state["sources"]), 1)
 
     def test_claim_timeline_and_workflow_page_dirs_write_expected_types(self) -> None:
         for page_dir, page_type in [("claims", "claim"), ("timelines", "timeline"), ("workflows", "workflow")]:

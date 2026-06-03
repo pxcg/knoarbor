@@ -2,11 +2,58 @@
 
 All notable public changes to KnoArbor will be documented in this file.
 
-This project follows a simple release-note format while it is in alpha.
+This project follows a simple release-note format for public releases.
 
 ## Unreleased
 
 - No public changes yet.
+
+## 1.0.0 - 2026-06-03
+
+### Added
+
+- First public local-first release of KnoArbor.
+- Added the full ingest, lint, and query workflow set behind stable CLI commands and stable HTTP endpoints.
+- Added a bundled management console for source inspection, workflow runs, wiki browsing, graph viewing, reports, settings, and token analysis.
+- Added a Knowledge Base browser for reading generated wiki pages, metadata, backlinks, outbound links, and workflow-linked results.
+- Added runtime run monitoring with queue records, heartbeat events, cancellation, report links, and run history.
+- Added a generic host-AI skill package for querying the local KnoArbor service from external AI tools.
+- Added public API, CLI, configuration, troubleshooting, release, and bilingual README documentation.
+
+### Changed
+
+- Consolidated public workflow entrypoints around `knoar ingest`, `knoar lint`, `knoar query`, `/ingest`, `/lint`, and `/query`.
+- Reworked the console navigation and reporting experience so run outputs link back to written or maintained wiki pages.
+- Tightened the public API surface and removed prototype route assumptions from the release contract.
+- Updated release readiness checks to keep runtime vault data, local configuration, caches, and workflow exports out of the published repository.
+
+### Boundaries
+
+- KnoArbor remains local-first and single-user for this release.
+- KnoArbor does not bundle a chat answer generator, vector database, MinerU runtime, or model weights.
+- Secrets stay in `.env`; runtime wiki data stays in the ignored `wiki/` vault.
+
+## 0.9.0 - 2026-06-03
+
+### Added
+
+- Added runtime endpoint discovery through `.knoarbor/endpoint.json`, allowing local skills and tools to find the active service URL after `knoar serve` starts.
+- Added automatic port selection for `knoar serve` when the configured port is already occupied.
+- Added a more complete `knoarbor-local` skill package, including a reusable query helper, service check mode, examples, installation notes, security notes, and troubleshooting guidance.
+- Added token ledger support and a Token Analytics console page for inspecting semantic model cost across reports.
+- Added provenance refresh and recovery utilities used by maintenance workflows.
+
+### Changed
+
+- Improved the management console structure, run panels, report readability, Markdown preview behavior, settings layout, and localized labels.
+- Improved query skill defaults so host AI tools receive a balanced context pack by default while still allowing full-page retrieval when requested.
+- Improved semantic workflow reporting with clearer per-agent token metrics and cache-related fields.
+- Updated CLI and quickstart documentation to describe the actual management UI URL, `/ui` alias, automatic port switching, and runtime endpoint file.
+
+### Validation
+
+- `scripts/dev-check.sh` passes: frontend build, frontend dependency audit, frontend e2e smoke, Python lint, documentation link check, 323 Python tests, CLI diagnostics, and Python package build.
+- Live DeepSeek smoke was intentionally not run for this candidate because the model provider was unavailable during release preparation.
 
 ## 0.8.0 - 2026-06-01
 
@@ -22,12 +69,6 @@ This project follows a simple release-note format while it is in alpha.
 - Tightened wiki page APIs into `/wiki/pages`, `/wiki/pages/content`, and `/wiki/pages/links`.
 - Made run inspection APIs easier to call by allowing `/runs`, `/runs/{run_id}`, `/runs/{run_id}/events`, `/runs/{run_id}/stream`, and `/runs/{run_id}/cancel` to resolve the configured vault when `vault_path` is omitted.
 - Updated API documentation and UI clients to use the stable `vault_path` contract.
-
-### Validation
-
-- Passed `scripts/release-check.sh`: frontend build, npm audit, Playwright UI smoke, Ruff, documentation links, 284 Python tests, CLI diagnostics, package build, release readiness, and clean-clone smoke.
-- Passed `scripts/live-release-candidate-smoke.sh` with a real DeepSeek-compatible provider against a temporary vault: Markdown ingest, Codex ingest, lint, query, and wiki page inspection.
-- Verified semantic token reporting with a temporary-vault live ingest: 13 semantic calls, 49,479 total tokens, 13,696 cached prompt tokens, and 40.6% prompt cache rate.
 
 ## 0.7.0 - 2026-05-31
 

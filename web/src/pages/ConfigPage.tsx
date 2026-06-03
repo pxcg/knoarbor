@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { getConfigDiagnostics, getConfigForm, saveConfig, saveConfigForm, type ConfigForm } from "../api/client";
+import { getConfigDiagnostics, getConfigForm, getDoctor, saveConfig, saveConfigForm, type ConfigForm } from "../api/client";
 import type { AppContext } from "../App";
 import { ConfigDiagnosticsPanel } from "../components/config/ConfigDiagnosticsPanel";
 import {
@@ -19,7 +19,8 @@ type Props = {
 export function ConfigPage({ context }: Props) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<ConfigForm | null>(null);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<ConfigSectionId>("basic");
+  const [modelTestSummary, setModelTestSummary] = useState<string | null>(null);
 
   const formQuery = useQuery({
     queryKey: ["config-form", context.configPath],
@@ -84,16 +85,19 @@ export function ConfigPage({ context }: Props) {
 
   const saving = structuredSave.isPending || yamlSave.isPending;
 
+  const modelTest = useMutation({
+    mutationFn: () => getDoctor(context.configPath),
+    onSuccess: async (report) => {
+      await queryClient.invalidateQueries({ queryKey: ["config-diagnostics"] });
+      const summary = `${context.t("modelConnectivityTested")} ${context.t("status")}: ${context.t(`doctorStatus.${report.status}`)}`;
+      setModelTestSummary(summary);
+      context.setNotice({ message: summary, error: report.status === "error" });
+    },
+    onError: (error) => context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true }),
+  });
+
   return (
     <section className="view active">
-      <div className="page-intro">
-        <div>
-          <p className="eyebrow">{context.t("runtimeSetup")}</p>
-          <h2>{context.t("settingsTitle")}</h2>
-          <p className="panel-copy">{context.t("settingsSubtitle")}</p>
-        </div>
-      </div>
-
       <article className="panel">
         <div className="panel-header">
           <div>
@@ -117,46 +121,92 @@ export function ConfigPage({ context }: Props) {
           </div>
         </div>
 
-        {formQuery.isLoading && <div className="empty-state">{context.t("loading")}</div>}
+        {formQuery.isLoading && <SettingsLoadingState t={context.t} />}
 
         {form && (
-          <>
-            <ConfigBasicSection form={form} setForm={setForm} t={context.t} />
-            <ConfigInputsSection form={form} setForm={setForm} t={context.t} />
-            <ConfigPreprocessingSection form={form} setForm={setForm} t={context.t} />
-            <ConfigRuntimeSection form={form} setForm={setForm} t={context.t} />
-            <ConfigModelProvidersSection form={form} setForm={setForm} t={context.t} />
-            <div className="section-divider" id="settings-diagnostics">
-              <div>
-                <h2>{context.t("configurationStatus")}</h2>
-                <p className="panel-copy">{context.t("configurationStatusCopy")}</p>
-              </div>
-            </div>
-            <ConfigDiagnosticsPanel diagnostics={diagnosticsQuery.data} loading={diagnosticsQuery.isFetching} t={context.t} />
-          </>
-        )}
-      </article>
+          <div className="settings-workspace">
+            <SettingsDirectory activeSection={activeSection} setActiveSection={setActiveSection} t={context.t} />
 
-      <article className="panel" id="settings-advanced">
-        <div className="panel-header">
-          <div>
-            <h2>{context.t("advancedYaml")}</h2>
-            <p className="panel-copy">{context.t("advancedYamlCopy")}</p>
+            <div className="settings-section-panel" role="tabpanel">
+              <SettingsSectionIntro section={activeSection} t={context.t} />
+              {activeSection === "basic" && <ConfigBasicSection form={form} setForm={setForm} t={context.t} />}
+              {activeSection === "inputs" && <ConfigInputsSection form={form} setForm={setForm} t={context.t} />}
+              {activeSection === "preprocessing" && <ConfigPreprocessingSection form={form} setForm={setForm} t={context.t} />}
+              {activeSection === "runtime" && <ConfigRuntimeSection form={form} setForm={setForm} t={context.t} />}
+              {activeSection === "models" && (
+                <ConfigModelProvidersSection
+                  form={form}
+                  setForm={setForm}
+                  t={context.t}
+                  modelTestSummary={modelTestSummary}
+                  testingModels={modelTest.isPending}
+                  onTestModels={() => modelTest.mutate()}
+                />
+              )}
+              {activeSection === "diagnostics" && <ConfigDiagnosticsPanel diagnostics={diagnosticsQuery.data} loading={diagnosticsQuery.isFetching} t={context.t} />}
+              {activeSection === "advanced" && (
+                <div className="advanced-yaml-section" id="settings-advanced">
+                  <textarea className="config-editor" spellCheck={false} value={context.configContent} onChange={(event) => context.setConfigContent(event.target.value)} />
+                  <button className="button primary" onClick={() => yamlSave.mutate()} disabled={saving}>
+                    {saving ? context.t("running") : context.t("saveYaml")}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-          <button className="button secondary" onClick={() => setAdvancedOpen(!advancedOpen)}>
-            {advancedOpen ? context.t("hideYaml") : context.t("showYaml")}
-          </button>
-        </div>
-        {advancedOpen && (
-          <>
-            <textarea className="config-editor" spellCheck={false} value={context.configContent} onChange={(event) => context.setConfigContent(event.target.value)} />
-            <button className="button primary" onClick={() => yamlSave.mutate()} disabled={saving}>
-              {saving ? context.t("running") : context.t("saveYaml")}
-            </button>
-          </>
         )}
       </article>
     </section>
+  );
+}
+
+type ConfigSectionId = "basic" | "inputs" | "preprocessing" | "runtime" | "models" | "diagnostics" | "advanced";
+
+const CONFIG_SECTIONS: Array<{ id: ConfigSectionId; titleKey: string; copyKey: string }> = [
+  { id: "basic", titleKey: "settingsSectionBasic", copyKey: "settingsSectionBasicCopy" },
+  { id: "inputs", titleKey: "settingsSectionInputs", copyKey: "settingsSectionInputsCopy" },
+  { id: "preprocessing", titleKey: "settingsSectionPreprocessing", copyKey: "settingsSectionPreprocessingCopy" },
+  { id: "runtime", titleKey: "settingsSectionRuntime", copyKey: "settingsSectionRuntimeCopy" },
+  { id: "models", titleKey: "settingsSectionModels", copyKey: "settingsSectionModelsCopy" },
+  { id: "diagnostics", titleKey: "settingsSectionDiagnostics", copyKey: "settingsSectionDiagnosticsCopy" },
+  { id: "advanced", titleKey: "advancedYaml", copyKey: "advancedYamlCopy" },
+];
+
+const CONFIG_SECTION_GROUPS: Array<{ titleKey: string; items: ConfigSectionId[] }> = [
+  { titleKey: "settingsGroupKnowledgeBase", items: ["basic", "inputs", "preprocessing"] },
+  { titleKey: "settingsGroupRuntime", items: ["runtime", "models", "diagnostics"] },
+  { titleKey: "settingsGroupAdvanced", items: ["advanced"] },
+];
+
+function SettingsSectionIntro({ section, t }: { section: ConfigSectionId; t: (key: string) => string }) {
+  const item = CONFIG_SECTIONS.find((candidate) => candidate.id === section) || CONFIG_SECTIONS[0];
+  return (
+    <div className="settings-section-intro">
+      <div>
+        <p className="eyebrow">{t("settingsDetail")}</p>
+        <h2>{t(item.titleKey)}</h2>
+        <p className="panel-copy">{t(item.copyKey)}</p>
+      </div>
+    </div>
+  );
+}
+
+function SettingsLoadingState({ t }: { t: (key: string) => string }) {
+  return (
+    <div className="settings-workspace">
+      <SettingsDirectory activeSection="basic" setActiveSection={() => undefined} t={t} disabled />
+      <div className="settings-section-panel">
+        <div className="settings-section-intro">
+          <p className="eyebrow">{t("loading")}</p>
+          <h2>{t("settingsSectionBasic")}</h2>
+          <p className="panel-copy">{t("settingsSectionBasicCopy")}</p>
+        </div>
+        <div className="form-grid config-basic-grid">
+          <div className="skeleton-field" />
+          <div className="skeleton-field" />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -188,4 +238,48 @@ function normalizeConfigForm(form: ConfigForm): ConfigForm {
     mineru_end_page_id: form.mineru_end_page_id ?? 99999,
     mineru_extra_fields_json: form.mineru_extra_fields_json || "{}",
   };
+}
+
+function SettingsDirectory({
+  activeSection,
+  disabled = false,
+  setActiveSection,
+  t,
+}: {
+  activeSection: ConfigSectionId;
+  disabled?: boolean;
+  setActiveSection: (section: ConfigSectionId) => void;
+  t: (key: string) => string;
+}) {
+  return (
+    <aside className="settings-section-rail" role="tablist" aria-label={t("settingsSections")}>
+      <div className="panel-header compact">
+        <h2>{t("docsDirectory")}</h2>
+      </div>
+      {CONFIG_SECTION_GROUPS.map((group) => (
+        <section className="docs-group" key={group.titleKey}>
+          <h3>{t(group.titleKey)}</h3>
+          <div className="docs-link-list">
+            {group.items.map((sectionId) => {
+              const section = CONFIG_SECTIONS.find((item) => item.id === sectionId) || CONFIG_SECTIONS[0];
+              return (
+                <button
+                  className={`docs-link ${activeSection === section.id ? "active" : ""}`}
+                  disabled={disabled}
+                  key={section.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeSection === section.id}
+                  onClick={() => setActiveSection(section.id)}
+                >
+                  <strong>{t(section.titleKey)}</strong>
+                  <span>{t(section.copyKey)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+    </aside>
+  );
 }

@@ -9,7 +9,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-3776AB.svg" alt="Python 3.12+">
-  <img src="https://img.shields.io/badge/status-alpha-0f9f8f.svg" alt="Alpha status">
+  <img src="https://img.shields.io/badge/status-1.0%20public%20release-0f766e.svg" alt="1.0 public release status">
   <a href="docs/zh/QUICKSTART.md"><img src="https://img.shields.io/badge/docs-quickstart-111827.svg" alt="Quickstart"></a>
 </p>
 
@@ -144,7 +144,13 @@ DEEPSEEK_API_KEY=your-key
 set -a && source .env && set +a
 ```
 
-初始化 Wiki 知识库：
+也可以让 KnoArbor 在一次只读首跑引导中创建 `config.yaml` 并初始化知识库：
+
+```bash
+uv run knoar first-run --vault ./wiki
+```
+
+显式初始化 Wiki 知识库：
 
 ```bash
 uv run knoar init --vault ./wiki
@@ -227,8 +233,8 @@ uv run knoar ingest --connector openclaw --write
 处理单个文件：
 
 ```bash
-uv run knoar ingest-file --input /path/to/note.md --write
-uv run knoar ingest-file --input /path/to/paper.pdf --write
+uv run knoar ingest --input /path/to/note.md --write
+uv run knoar ingest --input /path/to/paper.pdf --write
 ```
 
 Markdown 文件会直接进入编译流程。PDF、DOCX、PPTX 等非 Markdown 文件需要配置 MinerU 兼容预处理器；如果没有配置或服务不可用，流程会明确失败并提示配置问题。KnoArbor 不重新分发 MinerU 或其模型权重。
@@ -238,19 +244,19 @@ Markdown 文件会直接进入编译流程。PDF、DOCX、PPTX 等非 Markdown �
 结构维护：
 
 ```bash
-uv run knoar lint-run --mode structural
+uv run knoar lint --mode structural
 ```
 
 质量审查：
 
 ```bash
-uv run knoar lint-run --mode quality
+uv run knoar lint --mode quality
 ```
 
 完整维护并应用通过评审的操作：
 
 ```bash
-uv run knoar lint-run --mode full --apply-reviewed
+uv run knoar lint --mode full --apply-reviewed
 ```
 
 ### 查询上下文
@@ -264,7 +270,7 @@ Query 只负责检索上下文和证据，最终回答由宿主 AI 生成。
 
 ## 当前状态
 
-KnoArbor 仍处于早期 alpha 阶段。核心流程已经可以在本地使用。v0.x 的公开工作流 API 会尽量保持路径和核心语义稳定，但响应结构在正式稳定版之前可能继续增加字段。
+KnoArbor 正在准备第一个公开 1.0 版本。核心本地流程、CLI、稳定 HTTP API、内置控制台和宿主 AI skill 模板，目标是作为单用户本地知识引擎一起使用。
 
 已经实现：
 
@@ -275,7 +281,7 @@ KnoArbor 仍处于早期 alpha 阶段。核心流程已经可以在本地使用�
 - 随 Python 包分发的本地 React 控制台。
 - 运行时 Wiki 初始化、机器索引、队列、文件锁、账本、报告和断点。
 
-当前 alpha 暂不包含：
+当前本地优先版本暂不包含：
 
 - 托管 SaaS 部署。
 - 内置向量数据库。
@@ -299,7 +305,7 @@ models:
       model: deepseek-v4-flash
 ```
 
-当前模型供应商使用 OpenAI 兼容 Chat Completions API。更多配置见 [配置说明](docs/zh/CONFIGURATION.md)。
+当前模型供应商通过 ModelGateway 使用 OpenAI 兼容 Chat Completions API。本地 Ollama 或 vLLM 端点可以不配置 `api_key_env`。更多配置见 [配置说明](docs/zh/CONFIGURATION.md)。
 
 ## 架构
 
@@ -345,6 +351,7 @@ src/knoarbor/
 - [备份与恢复](docs/zh/BACKUP_AND_RECOVERY.md)
 - [架构设计](docs/zh/ARCHITECTURE.md)
 - [溯源设计](docs/zh/PROVENANCE_DESIGN.md)
+- [路线图](docs/zh/ROADMAP.md)
 - [测试与质量门禁](docs/zh/TESTING.md)
 - [开发说明](docs/zh/DEVELOPMENT.md)
 - [贡献指南](CONTRIBUTING.md)

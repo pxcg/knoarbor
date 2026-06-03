@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from importlib.resources import files
 from pathlib import Path
 
 from knoarbor.core.schemas.maintenance import MaintenanceScope, MaintenanceScopeSource
@@ -19,6 +20,7 @@ from knoarbor.services.run_manager import RunManager
 from knoarbor.services.wiki_linter import WikiLinterService
 from knoarbor.pipelines.lint import WikiLintPipeline, normalize_lint_run_mode
 from knoarbor.runtime.run_monitor import list_runs, read_run, read_run_events, request_cancel
+from knoarbor.runtime.endpoint import find_available_port, write_runtime_endpoint
 from knoarbor.semantic import (
     IngestSemanticWorkflow,
     LintSemanticWorkflow,
@@ -35,6 +37,7 @@ from knoarbor.cli_utils import (
     print_run_metrics,
     read_json_object,
     resolve_config,
+    resolve_config_path,
     resolve_vault_path,
 )
 
@@ -50,24 +53,70 @@ def run_serve(args: argparse.Namespace) -> int:
 
     config = resolve_config(args)
     host = args.host or config.server.host
-    port = args.port or config.server.port
+    preferred_port = args.port or config.server.port
+    port, switched_port = find_available_port(host, preferred_port)
     display_host = "127.0.0.1" if host in {"0.0.0.0", "::"} else host
     base_url = f"http://{display_host}:{port}"
+    endpoint_path = write_runtime_endpoint(resolve_config_path(args), host=display_host, port=port, base_url=base_url)
+    if switched_port:
+        print(f"Configured port {preferred_port} is in use; using {port} instead.")
     print(f"KnoArbor UI: {base_url}")
     print(f"UI alias: {base_url}/ui")
     print(f"API docs: {base_url}/docs")
+    print(f"Runtime endpoint: {endpoint_path}")
     uvicorn.run(create_app(ApplicationServices()), host=host, port=port)
     return 0
 
 
+def run_first_run(args: argparse.Namespace) -> int:
+    config_path = resolve_bootstrap_config_path(args)
+    config_created = ensure_local_config(config_path, vault_path=args.vault)
+    config = resolve_config(args)
+    vault_path = Path(args.vault).expanduser().resolve() if args.vault else config.vault.path
+    init_result = init_wiki_vault(vault_path, force=False)
+    doctor_report = DoctorService().run(config_path=str(config_path))
+
+    payload = {
+        "config_path": str(config_path),
+        "config_created": config_created,
+        "vault": init_result.model_dump(),
+        "doctor": doctor_report.model_dump(),
+        "next_steps": [
+            "Set your model API key in .env if doctor reports models.api_key_env as error.",
+            "Put Markdown notes under the configured markdown roots, then run `uv run knoar ingest --connector markdown --write`.",
+            "Start the local console with `uv run knoar serve`.",
+        ],
+    }
+    if args.json:
+        print_json(payload)
+        return 0 if doctor_report.status != "error" else 1
+
+    print(f"config: {config_path} ({'created' if config_created else 'existing'})")
+    print(f"vault: {init_result.vault_path}")
+    print(f"created_paths: {len(init_result.created_paths)}")
+    print(f"existing_paths: {len(init_result.existing_paths)}")
+    print(f"doctor: {doctor_report.status}")
+    print(f"checks: {doctor_report.summary.get('ok', 0)} ok / {doctor_report.summary.get('warning', 0)} warning / {doctor_report.summary.get('error', 0)} error")
+    print("\nNext steps:")
+    for step in payload["next_steps"]:
+        print(f"- {step}")
+    return 0 if doctor_report.status != "error" else 1
+
+
 def run_init(args: argparse.Namespace) -> int:
+    config_path = resolve_bootstrap_config_path(args)
+    config_created = ensure_local_config(config_path, vault_path=args.vault)
     config = resolve_config(args)
     vault_path = Path(args.vault).expanduser().resolve() if args.vault else config.vault.path
     result = init_wiki_vault(vault_path, force=args.force)
     if args.json:
-        print_json(result.model_dump())
+        payload = result.model_dump()
+        payload["config_path"] = str(config_path)
+        payload["config_created"] = config_created
+        print_json(payload)
         return 0
 
+    print(f"config: {config_path} ({'created' if config_created else 'existing'})")
     print(f"vault: {result.vault_path}")
     print(f"created: {len(result.created_paths)}")
     print(f"existing: {len(result.existing_paths)}")
@@ -76,10 +125,51 @@ def run_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def ensure_local_config(config_path: Path, *, vault_path: str | None = None) -> bool:
+    """Create a local config from bundled defaults when first-run commands need one."""
+
+    if config_path.exists():
+        return False
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    data = _load_bundled_example_config()
+    if vault_path:
+        vault = dict(data.get("vault") or {})
+        vault["path"] = vault_path
+        data["vault"] = vault
+    _write_yaml_config(config_path, data)
+    return True
+
+
+def resolve_bootstrap_config_path(args: argparse.Namespace) -> Path:
+    if args.config:
+        return Path(args.config).expanduser().resolve()
+    return (Path.cwd() / "config.yaml").resolve()
+
+
+def _load_bundled_example_config() -> dict[str, object]:
+    import yaml  # type: ignore[import-untyped]
+
+    text = files("knoarbor").joinpath("config.example.yaml").read_text(encoding="utf-8")
+    loaded = yaml.safe_load(text) or {}
+    if not isinstance(loaded, dict):
+        raise ValueError("Bundled config.example.yaml root must be an object")
+    return loaded
+
+
+def _write_yaml_config(path: Path, data: dict[str, object]) -> None:
+    import yaml  # type: ignore[import-untyped]
+
+    path.write_text(
+        "# Local KnoArbor configuration. Secrets belong in .env, not in this file.\n"
+        + yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+
+
 def run_status(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
-    scan = WikiLintPipeline().scan(
+    scan = WikiLintPipeline(privacy_config=config.privacy).scan(
         WikiScanRequest(
             obsidian_vault_path=str(vault_path),
             max_chars_per_page=0,
@@ -169,35 +259,6 @@ def run_run_cancel(args: argparse.Namespace) -> int:
     return 0
 
 
-def run_run_rerun_failed(args: argparse.Namespace) -> int:
-    config = resolve_config(args)
-    vault_path = resolve_vault_path(args, config)
-    request = IngestRecoveryRunRequest(
-        config_path=args.config,
-        provider=args.provider,
-        max_tokens=args.max_tokens,
-        write=args.write,
-        write_report=args.write_report,
-        append_ledger=args.append_ledger,
-    )
-    started = RunManager().start_ingest_recovery(
-        str(vault_path),
-        args.run_id,
-        request,
-        IngestService().run,
-        IngestService().run_file,
-    )
-    stream = sys.stderr if args.json else sys.stdout
-    print(f"run_id: {started.run_id}", file=stream, flush=True)
-    if _should_follow(args):
-        exit_code = follow_run_events(vault_path, started.run_id, stream=stream)
-    else:
-        exit_code = 0
-    if args.json:
-        print_json(read_run(vault_path, started.run_id).model_dump())
-    return exit_code
-
-
 def run_query(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
@@ -262,7 +323,7 @@ def run_query_feedback(args: argparse.Namespace) -> int:
 def run_scan(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
-    response = WikiLintPipeline().scan(
+    response = WikiLintPipeline(privacy_config=config.privacy).scan(
         WikiScanRequest(
             obsidian_vault_path=str(vault_path),
             max_chars_per_page=args.max_chars_per_page,
@@ -283,7 +344,7 @@ def run_scan(args: argparse.Namespace) -> int:
 def run_lint(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
-    response = WikiLintPipeline().lint(
+    response = WikiLintPipeline(privacy_config=config.privacy).lint(
         WikiLintRequest(
             obsidian_vault_path=str(vault_path),
             write_report=args.write_report,
@@ -344,15 +405,7 @@ def run_lint_run(args: argparse.Namespace) -> int:
             print_json(read_run(vault_path, started.run_id).model_dump())
         return exit_code
 
-    try:
-        semantic = LintSemanticWorkflow(build_semantic_runner(args, config))
-    except ValueError:
-        if internal_mode != "semantic_structural":
-            raise
-        semantic = None
-    response = WikiLintPipeline(semantic).run_maintenance(
-        request
-    )
+    response = WikiLinterService().run_maintenance(request)
     if args.json:
         print_json(response.model_dump())
         return 0
@@ -450,6 +503,13 @@ def _as_list(value: object) -> list[object]:
 
 def run_ingest(args: argparse.Namespace) -> int:
     config = resolve_config(args)
+    if getattr(args, "recover_run_id", None):
+        return _run_ingest_recovery_from_args(args, config, args.recover_run_id)
+    if getattr(args, "source_document", None):
+        args.input = args.source_document
+        return run_ingest_document(args)
+    if getattr(args, "input", None):
+        return run_ingest_file(args)
     if _should_follow(args):
         request = IngestRunRequest(
             config_path=args.config,
@@ -498,6 +558,31 @@ def run_ingest(args: argparse.Namespace) -> int:
         for page in item.generated_pages:
             print(f"  - {page}")
     return 0
+
+
+def _run_ingest_recovery_from_args(args: argparse.Namespace, config, run_id: str) -> int:
+    vault_path = resolve_vault_path(args, config)
+    request = IngestRecoveryRunRequest(
+        config_path=args.config,
+        provider=args.provider,
+        max_tokens=args.max_tokens,
+        write=args.write,
+        write_report=args.write_report,
+        append_ledger=args.append_ledger,
+    )
+    started = RunManager().start_ingest_recovery(
+        str(vault_path),
+        run_id,
+        request,
+        IngestService().run,
+        IngestService().run_file,
+    )
+    stream = sys.stderr if args.json else sys.stdout
+    print(f"run_id: {started.run_id}", file=stream, flush=True)
+    exit_code = follow_run_events(vault_path, started.run_id, stream=stream) if _should_follow(args) else 0
+    if args.json:
+        print_json(read_run(vault_path, started.run_id).model_dump())
+    return exit_code
 
 
 def run_ingest_document(args: argparse.Namespace) -> int:
@@ -606,7 +691,7 @@ def build_ingest_pipeline(args: argparse.Namespace, config) -> IngestPipeline:
 def run_lint_plan(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
-    pipeline = WikiLintPipeline()
+    pipeline = WikiLintPipeline(privacy_config=config.privacy)
     semantic = LintSemanticWorkflow(build_semantic_runner(args, config))
 
     if args.mode == "structural":

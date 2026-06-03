@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import type { PageDetail } from "../../api/client";
-import { MarkdownPreview } from "../MarkdownPreview";
+import { AsyncMarkdownPreview } from "../AsyncMarkdownPreview";
 import { localizeReportLabel, localizeReportSection, localizeReportValue } from "../reportLabels";
 import {
   buildPageArtifacts,
@@ -191,7 +191,7 @@ function ReportInlinePreview({
       {loading && <p className="panel-copy">{t("loading")}</p>}
       {previewError && <p className="panel-copy warning">{previewError}</p>}
       {preview && (
-        <MarkdownPreview
+        <AsyncMarkdownPreview
           className="wiki-markdown-preview report-markdown-preview"
           content={preview.content}
           stripFrontmatter

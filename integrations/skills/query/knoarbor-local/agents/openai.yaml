@@ -1,0 +1,7 @@
+interface:
+  display_name: "KnoArbor Local"
+  short_description: "Query and operate a local AI wiki"
+  brand_color: "#2F6F5E"
+  default_prompt: "Use $knoarbor-local to query my local KnoArbor wiki and cite relevant page paths."
+policy:
+  allow_implicit_invocation: true

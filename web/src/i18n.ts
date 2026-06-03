@@ -1,1 +1,1 @@
-export { detectLanguage, navCopy, translate, viewTitles } from "./i18nData";
+export { detectLanguage, navCopy, translate, viewSubtitles, viewTitles } from "./i18nData";

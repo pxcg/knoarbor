@@ -186,6 +186,45 @@ class WikiOperationPipelineTests(unittest.TestCase):
 
             self.assertNotIn("['raw/notes", page.read_text(encoding="utf-8"))
 
+    def test_redact_sensitive_text_redacts_generated_page(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            (vault / "sources").mkdir()
+            page = vault / "sources" / "Agent.md"
+            page.write_text(
+                "---\ntype: source\nstatus: draft\nsource: raw/notes/agent.md\n---\n"
+                "# Agent\n\n## Summary\n\n"
+                "Key sk-abcdefghijklmnop1234567890, app cli_aa9f1cd454399bc8, path /Users/alice/private.\n\n"
+                "## Source\n\n- raw/notes/agent.md\n",
+                encoding="utf-8",
+            )
+
+            response = WikiOperationPipeline().apply(
+                WikiOperationApplyRequest(
+                    obsidian_vault_path=str(vault),
+                    operations=[
+                        WikiOperationInput(
+                            operation_id="op-redact",
+                            action="redact_sensitive_text",
+                            target_page="sources/Agent.md",
+                            reason="Remove sensitive generated-page content.",
+                            risk_level="safe",
+                            confidence=0.95,
+                            expected_effect="Sensitive values are replaced by redaction placeholders.",
+                        )
+                    ],
+                )
+            )
+
+            content = page.read_text(encoding="utf-8")
+
+        self.assertEqual(response.results[0].status, "applied")
+        self.assertIn("[REDACTED_API_KEY]", content)
+        self.assertIn("[REDACTED_PLATFORM_ID]", content)
+        self.assertIn("/Users/[REDACTED_USER]/private", content)
+        self.assertNotIn("sk-abcdefghijklmnop", content)
+        self.assertNotIn("cli_aa9f", content)
+
 
 if __name__ == "__main__":
     unittest.main()

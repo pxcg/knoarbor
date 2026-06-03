@@ -46,12 +46,15 @@ class SourceSegmentBatch(BaseModel):
 
     def summary(self) -> dict[str, object]:
         lengths = [len(segment.content) for segment in self.segments]
+        sibling_context_mode = "outline_only" if self.enabled else "none"
         return {
             "enabled": self.enabled,
             "mode": self.segmentation_mode,
+            "sibling_context_mode": sibling_context_mode,
             "segment_count": len(self.segments),
             "max_segment_chars": max(lengths) if lengths else 0,
             "total_segment_chars": sum(lengths),
+            "segment_titles": [segment.title for segment in self.segments],
             "warnings": list(self.warnings),
         }
 
@@ -65,6 +68,26 @@ class _Block:
     payload: dict[str, Any] | None = None
     sections: list[dict[str, Any]] | None = None
     warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class _SegmentOutline:
+    index: int
+    title: str
+    chars: int
+    from_index: int | None = None
+    to_index: int | None = None
+
+    def as_metadata(self) -> dict[str, object]:
+        return {
+            "index": self.index,
+            "title": self.title,
+            "chars": self.chars,
+            "source_range": {
+                "from_index": self.from_index,
+                "to_index": self.to_index,
+            },
+        }
 
 
 class SourceSegmenter:
@@ -84,12 +107,18 @@ class SourceSegmenter:
 
         if len(packed) > self.config.max_segments_per_source:
             warnings.append(
-                f"segment_count_exceeded:{len(packed)}>{self.config.max_segments_per_source}; trailing content was folded into the last segment"
+                f"segment_count_exceeded:{len(packed)}>{self.config.max_segments_per_source}; all segments were kept to preserve segment size bounds"
             )
-            packed = self._cap_segments(packed, self.config.max_segments_per_source)
 
+        outlines = _segment_outlines(packed)
         segments = [
-            self._segment_from_blocks(document, mode=mode, blocks=segment_blocks, index=index, total=len(packed))
+            self._segment_from_blocks(
+                document,
+                mode=mode,
+                blocks=segment_blocks,
+                index=index,
+                outlines=outlines,
+            )
             for index, segment_blocks in enumerate(packed)
         ]
         return SourceSegmentBatch(
@@ -124,6 +153,7 @@ class SourceSegmenter:
                         "segmentation": {
                             "enabled": False,
                             "mode": mode,
+                            "sibling_context_mode": "none",
                             "segment_index": 0,
                             "segment_count": 1,
                             "is_full_source": True,
@@ -233,17 +263,7 @@ class SourceSegmenter:
             return [block]
         warning = f"hard_split:{mode}:{block.title}"
         if block.payload is not None:
-            return [
-                _Block(
-                    title=block.title,
-                    text=block.text,
-                    from_index=block.from_index,
-                    to_index=block.to_index,
-                    payload=block.payload,
-                    sections=block.sections,
-                    warnings=(*block.warnings, f"oversized_turn_group:{block.title}"),
-                )
-            ]
+            return self._split_oversized_payload_block(block, warning=warning)
         parts = _hard_split_text(block.text, self.config.max_chars_per_segment)
         return [
             _Block(
@@ -257,6 +277,78 @@ class SourceSegmenter:
             )
             for index, part in enumerate(parts)
         ]
+
+    def _split_oversized_payload_block(self, block: _Block, *, warning: str) -> list[_Block]:
+        if block.payload is None:
+            return [block]
+        units_key, units = self._session_units(block.payload)
+        if not units_key or not units:
+            return [
+                _Block(
+                    title=block.title,
+                    text=block.text,
+                    from_index=block.from_index,
+                    to_index=block.to_index,
+                    payload=block.payload,
+                    sections=block.sections,
+                    warnings=(*block.warnings, warning),
+                )
+            ]
+
+        chunks: list[list[Any]] = []
+        current: list[Any] = []
+        current_len = 0
+        for unit in units:
+            unit_parts = self._split_oversized_unit(unit)
+            for part in unit_parts:
+                part_text = json.dumps([part], ensure_ascii=False, indent=2)
+                part_len = len(part_text)
+                if current and current_len + part_len > self.config.max_chars_per_segment:
+                    chunks.append(current)
+                    current = []
+                    current_len = 0
+                current.append(part)
+                current_len += part_len
+        if current:
+            chunks.append(current)
+
+        blocks: list[_Block] = []
+        for index, chunk in enumerate(chunks):
+            payload = {**block.payload, units_key: chunk}
+            text = json.dumps(chunk, ensure_ascii=False, indent=2)
+            blocks.append(
+                _Block(
+                    title=f"{block.title} part {index + 1}",
+                    text=text,
+                    from_index=block.from_index,
+                    to_index=block.to_index,
+                    payload=payload,
+                    sections=block.sections,
+                    warnings=(*block.warnings, warning, f"oversized_turn_group:{block.title}"),
+                )
+            )
+        return blocks
+
+    def _split_oversized_unit(self, unit: Any) -> list[Any]:
+        unit_text = json.dumps([unit], ensure_ascii=False, indent=2)
+        if len(unit_text) <= self.config.max_chars_per_segment or not isinstance(unit, dict):
+            return [unit]
+
+        content = unit.get("content")
+        if not isinstance(content, str) or len(content) <= self.config.max_chars_per_segment:
+            return [unit]
+
+        # Leave room for JSON structure and the continuation marker.
+        part_budget = max(1000, self.config.max_chars_per_segment - min(1200, self.config.max_chars_per_segment // 4))
+        parts = _hard_split_text(content, part_budget)
+        if len(parts) <= 1:
+            return [unit]
+        result: list[Any] = []
+        for index, part in enumerate(parts):
+            copied = dict(unit)
+            copied["content"] = f"[oversized message part {index + 1}/{len(parts)}]\n{part}"
+            result.append(copied)
+        return result
 
     def _pack_blocks(self, blocks: list[_Block]) -> tuple[list[list[_Block]], list[str]]:
         warnings: list[str] = []
@@ -281,16 +373,6 @@ class SourceSegmenter:
             segments.append(current)
         return segments, _dedupe(warnings)
 
-    def _cap_segments(self, segments: list[list[_Block]], limit: int) -> list[list[_Block]]:
-        if len(segments) <= limit:
-            return segments
-        kept = segments[: limit - 1]
-        tail: list[_Block] = []
-        for segment in segments[limit - 1 :]:
-            tail.extend(segment)
-        kept.append(tail)
-        return kept
-
     def _segment_from_blocks(
         self,
         document: SourceDocument,
@@ -298,32 +380,34 @@ class SourceSegmenter:
         mode: SegmentationMode,
         blocks: list[_Block],
         index: int,
-        total: int,
+        outlines: list[_SegmentOutline],
     ) -> SourceSegment:
         content = "\n\n".join(block.text for block in blocks).strip()
         title = _segment_title(blocks, index)
         from_values = [block.from_index for block in blocks if block.from_index is not None]
         to_values = [block.to_index for block in blocks if block.to_index is not None]
-        content_start = document.content.text.find(content)
-        if content_start >= 0:
-            context_before = document.content.text[max(0, content_start - self.config.overlap_chars) : content_start]
-            content_end = content_start + len(content)
-            context_after = document.content.text[content_end : content_end + self.config.overlap_chars]
-        else:
-            context_before = ""
-            context_after = ""
-        segment_document = self._segment_document(document, mode=mode, blocks=blocks, content=content, index=index, total=total, title=title)
+        source_range = SourceSegmentRange(
+            from_index=min(from_values) if from_values else document.checkpoint.from_index,
+            to_index=max(to_values) if to_values else document.checkpoint.to_index,
+        )
+        segment_document = self._segment_document(
+            document,
+            mode=mode,
+            blocks=blocks,
+            content=content,
+            index=index,
+            outlines=outlines,
+            title=title,
+            source_range=source_range,
+        )
         return SourceSegment(
             segment_id=f"{document.source_id}:segment:{index}",
             index=index,
             title=title,
             content=content,
-            source_range=SourceSegmentRange(
-                from_index=min(from_values) if from_values else document.checkpoint.from_index,
-                to_index=max(to_values) if to_values else document.checkpoint.to_index,
-            ),
-            context_before=context_before,
-            context_after=context_after,
+            source_range=source_range,
+            context_before="",
+            context_after="",
             is_full_source=False,
             document=segment_document,
             warnings=_dedupe([warning for block in blocks for warning in block.warnings]),
@@ -337,8 +421,9 @@ class SourceSegmenter:
         blocks: list[_Block],
         content: str,
         index: int,
-        total: int,
+        outlines: list[_SegmentOutline],
         title: str,
+        source_range: SourceSegmentRange,
     ) -> SourceDocument:
         payload = self._merged_payload(blocks)
         sections = [section for block in blocks for section in (block.sections or [])]
@@ -348,20 +433,25 @@ class SourceSegmenter:
             text = json.dumps(payload, ensure_ascii=False, indent=2)
             content_format = "json"
         source_id = document.source_id
+        previous_outline = outlines[index - 1] if index > 0 else None
+        next_outline = outlines[index + 1] if index + 1 < len(outlines) else None
         metadata = {
             **document.metadata,
             "segmentation": {
                 "enabled": True,
                 "mode": mode,
+                "sibling_context_mode": "outline_only",
                 "segment_id": f"{document.source_id}:segment:{index}",
                 "segment_index": index,
-                "segment_count": total,
+                "segment_count": len(outlines),
                 "segment_title": title,
+                "segment_titles": [outline.title for outline in outlines],
+                "segment_outline": [outline.as_metadata() for outline in outlines],
+                "previous_segment_title": previous_outline.title if previous_outline else None,
+                "next_segment_title": next_outline.title if next_outline else None,
+                "source_range": source_range.model_dump(),
                 "is_full_source": False,
-                "guidance": (
-                    "This is one segment of a larger source. Preserve stable page boundaries, avoid thin fragment pages, "
-                    "and do not create duplicate source digest pages for every segment."
-                ),
+                "guidance": "This is partial source evidence with sibling outline context only; do not infer unseen segment content.",
             },
         }
         return document.model_copy(
@@ -407,6 +497,24 @@ def _segment_title(blocks: list[_Block], index: int) -> str:
     if len(blocks) == 1:
         return blocks[0].title
     return f"{blocks[0].title} - {blocks[-1].title}"
+
+
+def _segment_outlines(packed_blocks: list[list[_Block]]) -> list[_SegmentOutline]:
+    outlines: list[_SegmentOutline] = []
+    for index, blocks in enumerate(packed_blocks):
+        from_values = [block.from_index for block in blocks if block.from_index is not None]
+        to_values = [block.to_index for block in blocks if block.to_index is not None]
+        content = "\n\n".join(block.text for block in blocks).strip()
+        outlines.append(
+            _SegmentOutline(
+                index=index,
+                title=_segment_title(blocks, index),
+                chars=len(content),
+                from_index=min(from_values) if from_values else None,
+                to_index=max(to_values) if to_values else None,
+            )
+        )
+    return outlines
 
 
 def _hard_split_text(text: str, max_chars: int) -> list[str]:

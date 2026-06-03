@@ -12,6 +12,7 @@ import {
   FolderOpen,
   GitFork,
   Hammer,
+  Gauge,
   type LucideIcon,
   Network,
   PanelTop,
@@ -30,6 +31,7 @@ export type IconName =
   | "query"
   | "graph"
   | "reports"
+  | "tokens"
   | "settings"
   | "docs"
   | "github"
@@ -50,6 +52,7 @@ const iconMap: Record<Exclude<IconName, "github">, LucideIcon> = {
   query: Search,
   graph: Network,
   reports: FileBarChart,
+  tokens: Gauge,
   settings: SlidersHorizontal,
   docs: BookOpen,
   markdown: FileText,

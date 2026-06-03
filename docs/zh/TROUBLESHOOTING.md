@@ -46,8 +46,9 @@ uv run knoar doctor
 修复：
 
 1. 确认 `config.yaml` 中的 `models.default_provider`。
-2. 确认该 provider 配置了 `api_key_env`。
+2. 如果使用托管供应商，确认该 provider 配置了 `api_key_env`。
 3. 确认运行 KnoArbor 的 shell 中已经导出对应环境变量。
+4. 如果使用 Ollama/vLLM 等本地或内网端点，将 `api_key_env` 设置为 `null`，并确认服务已启动。
 
 示例：
 
@@ -111,13 +112,13 @@ KA-DOC-001
 
 ```bash
 uv run knoar runs --vault wiki
-uv run knoar run-events <run_id> --vault wiki
+uv run knoar runs events <run_id> --vault wiki
 ```
 
 需要取消时：
 
 ```bash
-uv run knoar run-cancel <run_id> --vault wiki
+uv run knoar runs cancel <run_id> --vault wiki
 ```
 
 取消是协作式的。正在进行的模型调用可能会先完成，流程随后在下一个检查点停止。

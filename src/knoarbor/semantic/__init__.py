@@ -6,12 +6,22 @@ from knoarbor.semantic.llm import (
     ChatCompletionRequest,
     ChatCompletionResponse,
     ChatMessage,
+    ModelGateway,
     OpenAICompatibleChatClient,
+    ProviderAdapter,
+    ProviderHealthCheck,
 )
 from knoarbor.semantic.ingest_workflow import IngestSemanticWorkflow, IngestSemanticWorkflowResult
 from knoarbor.semantic.lint_workflow import LintSemanticWorkflow
 from knoarbor.semantic.factory import build_ingest_semantic_workflow, build_lint_semantic_workflow, build_semantic_runner
-from knoarbor.semantic.runner import SemanticRetryPolicy, SemanticRunResult, SemanticRunner, parse_contract_output
+from knoarbor.semantic.runner import (
+    SemanticPromptPackage,
+    SemanticRetryPolicy,
+    SemanticRunResult,
+    SemanticRunner,
+    build_semantic_prompt_package,
+    parse_contract_output,
+)
 from knoarbor.semantic.source_normalize import build_source_normalize_input
 
 __all__ = [
@@ -22,14 +32,19 @@ __all__ = [
     "IngestSemanticWorkflow",
     "IngestSemanticWorkflowResult",
     "LintSemanticWorkflow",
+    "ModelGateway",
     "OpenAICompatibleChatClient",
+    "ProviderAdapter",
+    "ProviderHealthCheck",
     "SemanticContract",
+    "SemanticPromptPackage",
     "SemanticRetryPolicy",
     "SemanticRunResult",
     "SemanticRunner",
     "build_ingest_semantic_workflow",
     "build_lint_semantic_workflow",
     "build_semantic_runner",
+    "build_semantic_prompt_package",
     "build_source_normalize_input",
     "load_prompt",
     "load_semantic_contract",

@@ -145,11 +145,11 @@ class LintStructuralFixtureWorkflow:
                 "schema_version": "maintenance_candidates.v1",
                 "candidates": [
                     {
-                        "candidate_id": "structural:concepts/Agent-Loop.md:broken_wikilink:0",
-                        "source": "structural",
+                        "candidate_id": "provenance:concepts/Agent-Loop.md:knowledge_missing_source_digest_link:0",
+                        "source": "provenance",
                         "target_page": "concepts/Agent-Loop.md",
-                        "issue_type": "broken_wikilink",
-                        "severity": "high",
+                        "issue_type": "knowledge_missing_source_digest_link",
+                        "severity": "medium",
                         "confidence": 0.95,
                         "risk_hint": "low",
                         "executor_hint": "deterministic_wiki_operation",
@@ -157,23 +157,21 @@ class LintStructuralFixtureWorkflow:
                             {
                                 "kind": "scan_issue",
                                 "ref": "concepts/Agent-Loop.md",
-                                "quote": "[[Missing Page]]",
+                                "quote": "Generated knowledge page does not link back to its matching source digest.",
                             }
                         ],
                         "recommended_action": {
-                            "action": "replace_wikilink",
+                            "action": "attach_source_digest",
                             "params": {
-                                "old_target": "Missing Page",
-                                "new_target": "entities/OpenClaw",
-                                "link_text": "OpenClaw",
+                                "related_pages": ["sources/Agent-Loop-Source.md"],
                             },
                         },
-                        "related_pages": ["entities/OpenClaw.md"],
-                        "expected_effect": "Replace broken link with the existing related implementation page.",
-                        "review_notes": "The replacement target exists in the fixture vault.",
+                        "related_pages": ["sources/Agent-Loop-Source.md"],
+                        "expected_effect": "Connect the concept page back to its source digest.",
+                        "review_notes": "The source digest exists in the fixture vault.",
                     }
                 ],
-                "summary": "Replace one broken wiki link.",
+                "summary": "Attach one missing source digest link.",
                 "warnings": [],
             }
         )
@@ -195,7 +193,7 @@ class LintStructuralFixtureWorkflow:
                         "executor_fit": "supported_by_wiki_operation",
                         "risk_level": "low",
                         "confidence": 0.95,
-                        "reason": "The broken link target is explicit and the replacement page exists.",
+                        "reason": "The source digest target is explicit and exists.",
                         "constraints": ["Do not create a new page."],
                         "required_followups": [],
                     }

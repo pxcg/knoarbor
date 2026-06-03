@@ -12,6 +12,7 @@ from knoarbor.connectors.base import ConnectorCapabilities, ConnectorHealth
 from knoarbor.connectors.registry import ConnectorRegistry
 from knoarbor.core.config import KnoArborConfig, default_config_path, prepare_config_data
 from knoarbor.core.errors import UserInputError
+from knoarbor.semantic.llm import is_local_or_private_model_endpoint
 from knoarbor.services.ui_config_models import (
     DEFAULT_CHAT_RAW_OUTPUT_DIR,
     DEFAULT_CHAT_SESSION_DIRS,
@@ -327,7 +328,8 @@ def config_diagnostics(config: KnoArborConfig) -> UiConfigDiagnostics:
         if not provider.model:
             missing.append("model")
         if not provider.api_key_env:
-            missing.append("api_key_env")
+            if not is_local_or_private_model_endpoint(provider.base_url):
+                missing.append("api_key_env")
         elif not provider.api_key():
             missing.append("api_key")
         ok = not missing
@@ -382,7 +384,7 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
             continue
         providers[name] = {
             "base_url": provider.base_url.strip(),
-            "api_key_env": provider.api_key_env.strip(),
+            "api_key_env": provider.api_key_env.strip() or None,
             "model": provider.model.strip(),
             "json_mode": provider.json_mode,
         }

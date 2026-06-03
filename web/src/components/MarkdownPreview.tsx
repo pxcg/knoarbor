@@ -1,7 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-type MarkdownPreviewProps = {
+export type MarkdownPreviewProps = {
   content: string;
   className?: string;
   stripFrontmatter?: boolean;

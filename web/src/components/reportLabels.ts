@@ -206,7 +206,7 @@ export function localizeReportValue(value: string, t: (key: string) => string): 
     none: "无",
     not_run: "未运行",
     null: "无",
-    partially_failed: "部分完成",
+    partially_failed: "部分失败",
     processed: "已处理",
     queued: "排队中",
     running: "运行中",

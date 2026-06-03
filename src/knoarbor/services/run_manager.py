@@ -10,6 +10,7 @@ from knoarbor.core.schemas.run_monitor import RunEventsResponse, RunListResponse
 from knoarbor.core.schemas.wiki_lint import LintRunRequest
 from knoarbor.core.schemas.wiki_query import WikiSearchRequest
 from knoarbor.runtime import LocalRunQueue, RunMonitor, configure_runtime_logging
+from knoarbor.runtime.recovery import assess_run_recovery, with_recovery_assessment
 from knoarbor.runtime.run_monitor import list_runs, read_run, read_run_events, request_cancel
 
 
@@ -47,6 +48,9 @@ class RunManager:
         previous = read_run(Path(vault_path), run_id)
         if previous.flow != "ingest":
             raise UserInputError(f"Only ingest runs can be recovered: {run_id}")
+        recovery = assess_run_recovery(previous)
+        if not recovery.available:
+            raise UserInputError(f"Run cannot be recovered: {recovery.reason}")
         metadata = dict(previous.metadata)
         config_path = request.config_path if request.config_path is not None else _metadata_str(metadata.get("config_path"))
         provider = request.provider if request.provider is not None else _metadata_str(metadata.get("provider"))
@@ -88,10 +92,11 @@ class RunManager:
         return self._start(Path(request.obsidian_vault_path).expanduser().resolve(), "query", request.model_dump(), lambda: runner(request))
 
     def list(self, vault_path: str, *, active_only: bool = False, limit: int = 50) -> RunListResponse:
-        return list_runs(Path(vault_path), active_only=active_only, limit=limit)
+        response = list_runs(Path(vault_path), active_only=active_only, limit=limit)
+        return RunListResponse(runs=[with_recovery_assessment(record) for record in response.runs])
 
     def read(self, vault_path: str, run_id: str) -> RunRecord:
-        return read_run(Path(vault_path), run_id)
+        return with_recovery_assessment(read_run(Path(vault_path), run_id))
 
     def events(self, vault_path: str, run_id: str, *, after: int = 0, limit: int = 200) -> RunEventsResponse:
         return RunEventsResponse(events=read_run_events(Path(vault_path), run_id, after=after, limit=limit))

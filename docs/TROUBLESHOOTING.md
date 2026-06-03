@@ -49,8 +49,9 @@ Symptoms:
 Fix:
 
 1. Confirm `models.default_provider` in `config.yaml`.
-2. Confirm the provider has `api_key_env`.
+2. For hosted providers, confirm the provider has `api_key_env`.
 3. Confirm that environment variable is exported in the shell running KnoArbor.
+4. For local or private endpoints such as Ollama/vLLM, set `api_key_env: null` and confirm the endpoint is running.
 
 Example:
 
@@ -116,13 +117,13 @@ Long semantic workflows may wait on model calls. Check the run monitor:
 
 ```bash
 uv run knoar runs --vault wiki
-uv run knoar run-events <run_id> --vault wiki
+uv run knoar runs events <run_id> --vault wiki
 ```
 
 If cancellation is needed:
 
 ```bash
-uv run knoar run-cancel <run_id> --vault wiki
+uv run knoar runs cancel <run_id> --vault wiki
 ```
 
 Cancellation is cooperative. An active model call may finish before the pipeline

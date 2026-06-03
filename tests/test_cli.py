@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import socket
 import sys
 import tempfile
 import unittest
 from argparse import _SubParsersAction
+from contextlib import contextmanager
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
@@ -13,6 +16,16 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.cli import build_parser, main
+
+
+@contextmanager
+def _chdir(path: Path):
+    previous = Path.cwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(previous)
 
 
 def _subcommand_names(parser) -> set[str]:
@@ -31,19 +44,14 @@ class CliTests(unittest.TestCase):
         expected_commands = {
             "contracts",
             "doctor",
+            "first-run",
             "ingest",
-            "ingest-document",
-            "ingest-file",
             "init",
             "lint",
             "lint-plan",
-            "lint-run",
             "query",
             "query-feedback",
-            "run-cancel",
             "run-contract",
-            "run-events",
-            "run-rerun-failed",
             "runs",
             "scan",
             "serve",
@@ -63,7 +71,7 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.code, 0)
         help_text = output.getvalue()
-        for command in ("ingest", "lint-run", "query", "runs", "serve"):
+        for command in ("ingest", "lint", "query", "runs", "serve"):
             self.assertIn(command, help_text)
 
     def test_cli_errors_include_code_and_hint(self) -> None:
@@ -214,6 +222,36 @@ class CliTests(unittest.TestCase):
         self.assertNotIn("sections", content)
         self.assertGreater(content["text_chars"], 0)
 
+    def test_init_creates_local_config_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "my-wiki"
+            output = io.StringIO()
+
+            with _chdir(root), redirect_stdout(output):
+                exit_code = main(["init", "--vault", str(vault)])
+
+            config = root / "config.yaml"
+            self.assertEqual(exit_code, 0)
+            self.assertTrue(config.exists())
+            self.assertTrue((vault / "SCHEMA.md").exists())
+            self.assertIn("config:", output.getvalue())
+            self.assertIn("created", output.getvalue())
+
+    def test_first_run_creates_config_vault_and_prints_next_steps(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "wiki"
+            output = io.StringIO()
+
+            with _chdir(root), redirect_stdout(output):
+                exit_code = main(["first-run", "--vault", str(vault)])
+
+            self.assertIn(exit_code, {0, 1})
+            self.assertTrue((root / "config.yaml").exists())
+            self.assertTrue((vault / "index.md").exists())
+            self.assertIn("Next steps:", output.getvalue())
+
     def test_contracts_command_prints_known_contracts(self) -> None:
         output = io.StringIO()
 
@@ -239,14 +277,45 @@ class CliTests(unittest.TestCase):
     def test_serve_command_prints_management_ui_url(self) -> None:
         output = io.StringIO()
 
-        with patch("uvicorn.run") as uvicorn_run, redirect_stdout(output):
-            exit_code = main(["serve", "--host", "0.0.0.0", "--port", "8010"])
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "wiki").mkdir()
+            config = root / "config.yaml"
+            config.write_text("vault:\n  path: ./wiki\n", encoding="utf-8")
+
+            with patch("uvicorn.run") as uvicorn_run, redirect_stdout(output):
+                exit_code = main(["--config", str(config), "serve", "--host", "0.0.0.0", "--port", "8010"])
 
         self.assertEqual(exit_code, 0)
         self.assertIn("KnoArbor UI: http://127.0.0.1:8010", output.getvalue())
         self.assertIn("UI alias: http://127.0.0.1:8010/ui", output.getvalue())
         self.assertIn("API docs: http://127.0.0.1:8010/docs", output.getvalue())
         uvicorn_run.assert_called_once()
+
+    def test_serve_command_switches_when_port_is_occupied(self) -> None:
+        output = io.StringIO()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "wiki").mkdir()
+            config = root / "config.yaml"
+            config.write_text("vault:\n  path: ./wiki\n", encoding="utf-8")
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.bind(("127.0.0.1", 0))
+                sock.listen(1)
+                occupied_port = sock.getsockname()[1]
+
+                with patch("uvicorn.run") as uvicorn_run, redirect_stdout(output):
+                    exit_code = main(["--config", str(config), "serve", "--host", "127.0.0.1", "--port", str(occupied_port)])
+
+            endpoint = json.loads((root / ".knoarbor" / "endpoint.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn(f"Configured port {occupied_port} is in use; using", output.getvalue())
+        self.assertNotEqual(endpoint["port"], occupied_port)
+        self.assertEqual(endpoint["base_url"], f"http://127.0.0.1:{endpoint['port']}")
+        uvicorn_run.assert_called_once()
+        self.assertEqual(uvicorn_run.call_args.kwargs["port"], endpoint["port"])
 
     def test_parser_exposes_local_semantic_workflow_commands(self) -> None:
         parser = build_parser()
@@ -257,9 +326,14 @@ class CliTests(unittest.TestCase):
         ingest_args = parser.parse_args(["ingest"])
         ingest_no_follow_args = parser.parse_args(["ingest", "--no-follow"])
         ingest_json_args = parser.parse_args(["ingest", "--json"])
-        ingest_document_args = parser.parse_args(["ingest-document", "--input", "source.json"])
-        ingest_file_args = parser.parse_args(["ingest-file", "--input", "paper.pdf"])
-        lint_run_args = parser.parse_args(["lint-run"])
+        ingest_input_args = parser.parse_args(["ingest", "--input", "paper.pdf"])
+        ingest_source_document_args = parser.parse_args(["ingest", "--source-document", "source.json"])
+        ingest_recovery_args = parser.parse_args(["ingest", "--recover-run-id", "run-1"])
+        runs_list_args = parser.parse_args(["runs", "list", "--active"])
+        run_events_args = parser.parse_args(["runs", "events", "run-1"])
+        run_events_late_vault_args = parser.parse_args(["runs", "events", "run-1", "--vault", "./wiki"])
+        run_cancel_args = parser.parse_args(["runs", "cancel", "run-1"])
+        lint_primary_args = parser.parse_args(["lint"])
         lint_args = parser.parse_args(["lint-plan"])
 
         self.assertEqual(init_args.command, "init")
@@ -269,20 +343,28 @@ class CliTests(unittest.TestCase):
         self.assertIsNone(ingest_args.follow)
         self.assertFalse(ingest_no_follow_args.follow)
         self.assertIsNone(ingest_json_args.follow)
-        self.assertEqual(ingest_document_args.command, "ingest-document")
-        self.assertEqual(ingest_file_args.command, "ingest-file")
-        self.assertIsNone(ingest_file_args.follow)
-        self.assertEqual(lint_run_args.command, "lint-run")
+        self.assertEqual(ingest_input_args.input, "paper.pdf")
+        self.assertEqual(ingest_source_document_args.source_document, "source.json")
+        self.assertEqual(ingest_recovery_args.recover_run_id, "run-1")
+        self.assertEqual(runs_list_args.runs_command, "list")
+        self.assertTrue(runs_list_args.active)
+        self.assertEqual(run_events_args.runs_command, "events")
+        self.assertEqual(run_events_args.run_id, "run-1")
+        self.assertEqual(run_events_late_vault_args.vault, "./wiki")
+        self.assertEqual(run_cancel_args.runs_command, "cancel")
+        self.assertEqual(run_cancel_args.run_id, "run-1")
+        self.assertEqual(lint_primary_args.command, "lint")
+        self.assertEqual(lint_primary_args.mode, "structural")
         self.assertEqual(lint_args.command, "lint-plan")
 
-    def test_lint_run_command_prints_unified_maintenance_summary(self) -> None:
+    def test_lint_command_prints_unified_maintenance_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             config = Path(tmp_dir) / "config.yaml"
             config.write_text(f"vault:\n  path: {tmp_dir}\n", encoding="utf-8")
             output = io.StringIO()
 
             with redirect_stdout(output):
-                exit_code = main(["--config", str(config), "lint-run", "--no-follow"])
+                exit_code = main(["--config", str(config), "lint", "--no-follow"])
 
         self.assertEqual(exit_code, 0)
         self.assertIn("mode: semantic_structural", output.getvalue())
@@ -295,7 +377,7 @@ class CliTests(unittest.TestCase):
             output = io.StringIO()
 
             with redirect_stdout(output):
-                exit_code = main(["--config", str(config), "lint-run", "--follow"])
+                exit_code = main(["--config", str(config), "lint", "--follow"])
 
         self.assertEqual(exit_code, 0)
         self.assertIn("status=completed", output.getvalue())

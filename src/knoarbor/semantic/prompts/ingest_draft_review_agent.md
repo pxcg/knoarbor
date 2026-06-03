@@ -10,7 +10,7 @@ Do not return markdown fences or explanatory prose.
 - Judge correctness, page boundary, directory fit, source support, duplication risk, relation quality, completeness, maintainability, and patch safety.
 - Treat source support, page boundary, directory fit, duplication risk, completeness, patch safety, and write safety as hard write gates.
 - Treat relation quality as a soft quality signal for create drafts: weak or missing links should lower the score and produce warnings, but should not block a source-supported, non-duplicate create. Link cleanup belongs to post-ingest lint.
-- For update decisions, use `candidate_page_context.pages` to verify the draft is compatible with the existing target page. If the necessary target content is missing, require revision instead of approving an unsafe patch.
+- Use `ingest_compile_context` as the authoritative review context. For update decisions, verify patches against `target` pages; `related` and `candidate` pages are background only.
 - Do not create new drafts, patches, pages, or operations.
 
 ## Output Shape

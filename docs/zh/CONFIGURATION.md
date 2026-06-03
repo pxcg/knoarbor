@@ -41,6 +41,7 @@ models:
 ```
 
 推荐默认只配置一个模型供应商。需要备用模型、本地模型或特殊端点时，再添加新的 provider。
+所有模型供应商都通过 `ModelGateway` 进入 OpenAI 兼容 Chat Completions 接口；不需要配置 provider `type`。托管供应商通常需要 `api_key_env`，本地或内网端点（如 Ollama、vLLM）可以设置为 `api_key_env: null`。
 Prompt caching 由模型供应商实现，不需要在 KnoArbor 中单独开启。KnoArbor 只保证语义契约 prompt 的稳定前缀，并在供应商返回缓存命中指标时写入运行指标和报告；未返回缓存字段的供应商会显示为未提供该遥测，而不是配置错误。
 
 ## 输入来源

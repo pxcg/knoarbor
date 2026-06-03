@@ -6,7 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from knoarbor.audit.reports import write_maintenance_report
+from knoarbor.core.config import PrivacyConfig
+from knoarbor.core.schemas.wiki_operation import WikiOperationInput
 from knoarbor.core.schemas.wiki_lint import WikiLintCandidatePage, WikiLintFix, WikiLintIssue, WikiScanPage
+from knoarbor.maintenance.wiki_operations import apply_wiki_operation
 from knoarbor.maintenance.lint_candidates import scan_page, score_lint_candidate
 from knoarbor.maintenance.lint_collection import collect_pages, filter_lint_scope
 from knoarbor.maintenance.lint_scanners import lint_collected_pages
@@ -17,9 +20,10 @@ def lint_vault(
     vault_path: Path,
     scope_pages: list[str] | None = None,
     include_related: bool = True,
+    privacy_config: PrivacyConfig | None = None,
 ) -> tuple[list[WikiLintIssue], dict[str, Any]]:
     pages = collect_pages(vault_path)
-    issues, stats = lint_collected_pages(vault_path, pages)
+    issues, stats = lint_collected_pages(vault_path, pages, privacy_config=privacy_config)
     _scoped_pages, scoped_issues, scoped_stats = filter_lint_scope(pages, issues, stats, scope_pages or [], include_related)
     return scoped_issues, scoped_stats
 
@@ -29,9 +33,10 @@ def scan_vault(
     max_chars_per_page: int,
     scope_pages: list[str] | None = None,
     include_related: bool = True,
+    privacy_config: PrivacyConfig | None = None,
 ) -> tuple[list[WikiScanPage], list[WikiLintIssue], dict[str, Any]]:
     pages = collect_pages(vault_path)
-    issues, stats = lint_collected_pages(vault_path, pages)
+    issues, stats = lint_collected_pages(vault_path, pages, privacy_config=privacy_config)
     pages, issues, stats = filter_lint_scope(pages, issues, stats, scope_pages or [], include_related)
     stats = {
         **stats,
@@ -45,8 +50,9 @@ def select_lint_candidates(
     mode: str,
     max_candidates: int,
     max_chars_per_page: int,
+    privacy_config: PrivacyConfig | None = None,
 ) -> tuple[list[WikiLintCandidatePage], dict[str, Any], list[str]]:
-    pages, issues, scan_stats = scan_vault(vault_path, max_chars_per_page)
+    pages, issues, scan_stats = scan_vault(vault_path, max_chars_per_page, privacy_config=privacy_config)
     issues_by_path: dict[str, list[WikiLintIssue]] = defaultdict(list)
     for issue in issues:
         issues_by_path[issue.path].append(issue)
@@ -80,7 +86,13 @@ def build_fix_plan(issues: list[WikiLintIssue]) -> list[WikiLintFix]:
     return fixes
 
 
-def apply_safe_fixes(vault_path: Path, issues: list[WikiLintIssue]) -> list[WikiLintFix]:
+def apply_safe_fixes(
+    vault_path: Path,
+    issues: list[WikiLintIssue],
+    *,
+    ledger_path: str = "maintenance/lint_safe_fixes_ledger.jsonl",
+    privacy_config: PrivacyConfig | None = None,
+) -> list[WikiLintFix]:
     fixes = build_fix_plan(issues)
     needs_index_rebuild = any(fix.action == "rebuild_index" and fix.mode == "safe_auto" for fix in fixes)
     applied: list[WikiLintFix] = []
@@ -93,6 +105,20 @@ def apply_safe_fixes(vault_path: Path, issues: list[WikiLintIssue]) -> list[Wiki
                 action="rebuild_index",
                 mode="auto_applied",
                 description="Rebuilt index.md from current schema directories.",
+            )
+        )
+    for index, issue in enumerate(issues):
+        operation = _safe_operation_for_issue(issue, index)
+        if operation is None:
+            continue
+        result = apply_wiki_operation(vault_path, operation, ledger_path, privacy_config=privacy_config)
+        applied.append(
+            WikiLintFix(
+                issue_code=issue.code,
+                path=result.output_page or issue.path,
+                action=result.action,
+                mode="auto_applied",
+                description=f"Applied safe deterministic wiki operation `{result.action}`.",
             )
         )
     return applied
@@ -232,12 +258,20 @@ def _fix_for_issue(issue: WikiLintIssue) -> WikiLintFix:
             mode="manual",
             description="Review source provenance and connect the source digest to generated knowledge pages.",
         )
+    if issue.code == "privacy_sensitive_content":
+        return WikiLintFix(
+            issue_code=issue.code,
+            path=issue.path,
+            action="redact_sensitive_text",
+            mode="safe_auto",
+            description="Redact configured secrets, local identities, and sensitive platform identifiers from the generated page.",
+        )
     if issue.code == "duplicate_related_target":
         return WikiLintFix(
             issue_code=issue.code,
             path=issue.path,
-            action="deduplicate_related_pages",
-            mode="manual",
+            action="deduplicate_section_items",
+            mode="safe_auto",
             description="Remove duplicate Related Pages items that resolve to the same wiki target.",
         )
     if issue.code == "duplicate_section_item":
@@ -245,7 +279,7 @@ def _fix_for_issue(issue: WikiLintIssue) -> WikiLintFix:
             issue_code=issue.code,
             path=issue.path,
             action="deduplicate_section_items",
-            mode="manual",
+            mode="safe_auto",
             description="Remove duplicate list items from the affected section.",
         )
     if issue.code == "adjacent_duplicate_heading":
@@ -253,7 +287,7 @@ def _fix_for_issue(issue: WikiLintIssue) -> WikiLintFix:
             issue_code=issue.code,
             path=issue.path,
             action="remove_adjacent_duplicate_headings",
-            mode="manual",
+            mode="safe_auto",
             description="Remove adjacent duplicate Markdown heading lines that have no content between them.",
         )
     if issue.code in {"claim_missing_evidence_section", "claim_missing_confidence", "claim_invalid_confidence"}:
@@ -286,6 +320,36 @@ def _fix_for_issue(issue: WikiLintIssue) -> WikiLintFix:
         action="manual_review",
         mode="manual",
         description="Review this lint issue manually.",
+    )
+
+
+def _safe_operation_for_issue(issue: WikiLintIssue, index: int) -> WikiOperationInput | None:
+    action: str | None = None
+    section: str | None = None
+    if issue.code == "adjacent_duplicate_heading":
+        action = "remove_adjacent_duplicate_headings"
+    elif issue.code == "duplicate_related_target":
+        action = "deduplicate_section_items"
+        section = "Related Pages"
+    elif issue.code == "duplicate_section_item":
+        action = "deduplicate_section_items"
+        raw_section = issue.details.get("section")
+        section = raw_section if isinstance(raw_section, str) and raw_section.strip() else None
+    elif issue.code == "privacy_sensitive_content":
+        action = "redact_sensitive_text"
+
+    if action is None:
+        return None
+
+    return WikiOperationInput(
+        operation_id=f"deterministic:{index}:{issue.code}:{issue.path}",
+        action=action,
+        target_page=issue.path,
+        reason=issue.message,
+        risk_level="safe",
+        confidence=1.0,
+        expected_effect="Apply a deterministic, idempotent maintenance fix without changing page intent.",
+        section=section,
     )
 
 

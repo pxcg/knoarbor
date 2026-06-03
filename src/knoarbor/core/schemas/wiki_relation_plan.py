@@ -25,7 +25,7 @@ class WikiCandidatePage(BaseModel):
 class WikiRelationOperation(BaseModel):
     action: WikiRelationAction
     target_page: str | None = None
-    page_dir: WikiPageDir
+    page_dir: WikiPageDir | None = None
     title: str | None = None
     knowledge_object: str | None = None
     related_pages: list[WikiRelatedPage] = Field(default_factory=list)
@@ -47,6 +47,8 @@ class WikiRelationOperation(BaseModel):
         if self.action in {"create", "skip"} and self.target_page:
             raise ValueError(f"{self.action} operation must not set target_page")
         if self.action in {"create", "update"}:
+            if not self.page_dir:
+                raise ValueError(f"{self.action} operation requires page_dir")
             if not self.title or not self.title.strip():
                 raise ValueError(f"{self.action} operation requires title")
             if not self.knowledge_object or not self.knowledge_object.strip():
@@ -64,8 +66,9 @@ class WikiRelationPlan(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_skip_is_exclusive(self) -> WikiRelationPlan:
-        actions = {operation.action for operation in self.operations}
-        if "skip" in actions and len(actions) > 1:
-            raise ValueError("skip cannot be mixed with actionable operations")
+    def canonicalize_skip_operations(self) -> WikiRelationPlan:
+        actionable = [operation for operation in self.operations if operation.action != "skip"]
+        if actionable and len(actionable) != len(self.operations):
+            self.operations = actionable
+            self.warnings.append("Dropped redundant skip operation because actionable page operations were present.")
         return self

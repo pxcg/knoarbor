@@ -47,6 +47,25 @@ class DraftCanonicalizerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "placeholder"):
             DraftCanonicalizer().canonicalize_draft(draft, source_file="raw/source/path", write_action="create")
 
+    def test_rejects_unclosed_fenced_code_block_in_patch(self) -> None:
+        draft = WikiDraftInput(
+            title="Deploy",
+            page_dir="workflows",
+            question="Rewrite workflow steps",
+            answer="Body",
+            summary="Summary",
+            patches=[
+                {
+                    "operation": "replace_section",
+                    "section": "Steps",
+                    "content": "1. Run:\n```bash\necho deploy",
+                }
+            ],
+        )
+
+        with self.assertRaisesRegex(ValueError, "unclosed fenced code block"):
+            DraftCanonicalizer().canonicalize_draft(draft, source_file=None, write_action="update")
+
     def test_canonicalizes_written_content(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)

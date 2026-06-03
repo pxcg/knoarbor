@@ -66,7 +66,7 @@ models:
       model: deepseek-v4-flash
 ```
 
-All providers currently use OpenAI-compatible Chat Completions APIs. You do not need to configure a provider `type`.
+All providers currently use OpenAI-compatible Chat Completions APIs through the `ModelGateway` boundary. You do not need to configure a provider `type`. Hosted providers usually need `api_key_env`; local or private endpoints such as Ollama and vLLM may set `api_key_env: null`.
 
 `default_max_tokens` and `request_timeout_seconds` are intentionally generous. Ingest and lint are wiki compilation tasks, not short chat replies; relation planning, page drafting, and maintenance review often need longer outputs and more time.
 
@@ -102,15 +102,19 @@ models:
       model: deepseek/deepseek-chat-v3.1
     ollama:
       base_url: http://localhost:11434/v1
-      api_key_env: OLLAMA_API_KEY
+      api_key_env:
       model: qwen2.5:14b
+    vllm:
+      base_url: http://localhost:8001/v1
+      api_key_env:
+      model: Qwen/Qwen3-32B-Instruct
 ```
 
 Temporary CLI override:
 
 ```bash
 uv run knoar ingest --provider openrouter --write
-uv run knoar lint-run --provider deepseek --mode quality
+uv run knoar lint --provider deepseek --mode quality
 ```
 
 ## Ingest Segmentation
@@ -312,7 +316,7 @@ assets. If you enable this adapter, install and run MinerU separately and review
 MinerU's own license and attribution requirements. KnoArbor only interoperates
 with a MinerU-compatible HTTP endpoint.
 
-For a single file path, `ingest-file` chooses the path automatically:
+For a single file path, `ingest --input` chooses the path automatically:
 
 - `.md` / `.markdown` files go directly to the Markdown ingest path;
 - non-Markdown files call the configured MinerU adapter first;

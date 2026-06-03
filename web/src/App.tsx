@@ -1,8 +1,16 @@
-import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 
 import {
   getConfig,
-  getDoctor,
   getPages,
   getGraph,
   getHealth,
@@ -22,19 +30,59 @@ import {
 } from "./api/client";
 import { AppShell } from "./components/AppShell";
 import { detectLanguage, translate } from "./i18n";
-import { ConfigPage } from "./pages/ConfigPage";
-import { DocsPage } from "./pages/DocsPage";
-import { GraphPage } from "./pages/GraphPage";
-import { IngestPage } from "./pages/IngestPage";
-import { LintPage } from "./pages/LintPage";
-import { OverviewPage } from "./pages/OverviewPage";
-import { QueryPage } from "./pages/QueryPage";
-import { ReportsPage } from "./pages/ReportsPage";
-import { RunsPage } from "./pages/RunsPage";
-import { SourcesPage } from "./pages/SourcesPage";
-import { WikiPage } from "./pages/WikiPage";
 import type { Language, ViewName } from "./types";
 import type { RunRecord } from "./types";
+
+const loadOverviewPage = () => import("./pages/OverviewPage").then((module) => ({ default: module.OverviewPage }));
+const loadRunsPage = () => import("./pages/RunsPage").then((module) => ({ default: module.RunsPage }));
+const loadSourcesPage = () => import("./pages/SourcesPage").then((module) => ({ default: module.SourcesPage }));
+const loadIngestPage = () => import("./pages/IngestPage").then((module) => ({ default: module.IngestPage }));
+const loadLintPage = () => import("./pages/LintPage").then((module) => ({ default: module.LintPage }));
+const loadQueryPage = () => import("./pages/QueryPage").then((module) => ({ default: module.QueryPage }));
+const loadWikiPage = () => import("./pages/WikiPage").then((module) => ({ default: module.WikiPage }));
+const loadGraphPage = () => import("./pages/GraphPage").then((module) => ({ default: module.GraphPage }));
+const loadReportsPage = () => import("./pages/ReportsPage").then((module) => ({ default: module.ReportsPage }));
+const loadTokensPage = () => import("./pages/TokensPage").then((module) => ({ default: module.TokensPage }));
+const loadConfigPage = () => import("./pages/ConfigPage").then((module) => ({ default: module.ConfigPage }));
+const loadDocsPage = () => import("./pages/DocsPage").then((module) => ({ default: module.DocsPage }));
+
+const routePreloaders = {
+  overview: loadOverviewPage,
+  runs: loadRunsPage,
+  sources: loadSourcesPage,
+  ingest: loadIngestPage,
+  lint: loadLintPage,
+  query: loadQueryPage,
+  wiki: loadWikiPage,
+  graph: loadGraphPage,
+  reports: loadReportsPage,
+  tokens: loadTokensPage,
+  settings: loadConfigPage,
+  docs: loadDocsPage,
+} satisfies Record<ViewName, () => Promise<unknown>>;
+
+const preloadedRoutes = new Set<ViewName>();
+
+function preloadRoute(view: ViewName) {
+  if (preloadedRoutes.has(view)) return;
+  preloadedRoutes.add(view);
+  void routePreloaders[view]().catch(() => {
+    preloadedRoutes.delete(view);
+  });
+}
+
+const OverviewPage = lazy(loadOverviewPage);
+const RunsPage = lazy(loadRunsPage);
+const SourcesPage = lazy(loadSourcesPage);
+const IngestPage = lazy(loadIngestPage);
+const LintPage = lazy(loadLintPage);
+const QueryPage = lazy(loadQueryPage);
+const WikiPage = lazy(loadWikiPage);
+const GraphPage = lazy(loadGraphPage);
+const ReportsPage = lazy(loadReportsPage);
+const TokensPage = lazy(loadTokensPage);
+const ConfigPage = lazy(loadConfigPage);
+const DocsPage = lazy(loadDocsPage);
 
 export type AppNotice = {
   message: string;
@@ -55,14 +103,18 @@ export function App() {
   const [doctorReport, setDoctorReport] = useState<DoctorReport | null>(null);
   const [status, setStatus] = useState<UiStatusResponse | null>(null);
   const [graph, setGraph] = useState<GraphResponse | null>(null);
+  const [graphLoadedFor, setGraphLoadedFor] = useState<string | null>(null);
   const [pages, setPages] = useState<PageSummary[]>([]);
+  const [pagesLoadedFor, setPagesLoadedFor] = useState<string | null>(null);
   const [reports, setReports] = useState<ReportSummary[]>([]);
   const [notice, setNotice] = useState<AppNotice | null>(null);
   const [queryResults, setQueryResults] = useState<QueryResult[]>([]);
   const [queryContextPack, setQueryContextPack] = useState("");
   const [queryTrend, setQueryTrend] = useState<QueryTrendResponse | null>(null);
+  const [queryTrendLoadedFor, setQueryTrendLoadedFor] = useState<string | null>(null);
   const [activeRuns, setActiveRuns] = useState<RunRecord[]>([]);
   const [recentRuns, setRecentRuns] = useState<RunRecord[]>([]);
+  const [recentRunsLoadedFor, setRecentRunsLoadedFor] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [focusedPageId, setFocusedPageId] = useState<string | null>(null);
   const [focusedWikiPath, setFocusedWikiPath] = useState<string | null>(null);
@@ -106,38 +158,73 @@ export function App() {
   }, []);
 
   const loadVaultState = useCallback(async (path: string) => {
-    const [statusResult, graphResult, pagesResult, reportsResult, activeRunsResult, recentRunsResult, queryTrendResult] = await Promise.allSettled([
+    setGraphLoadedFor(null);
+    setPagesLoadedFor(null);
+    setQueryTrendLoadedFor(null);
+    setRecentRunsLoadedFor(null);
+    setRecentRuns([]);
+    const [statusResult, reportsResult, activeRunsResult] = await Promise.allSettled([
       getStatus(path),
-      getGraph(path),
-      getPages(path),
       getReports(path),
       getActiveRuns(path),
-      getRuns(path, false),
-      getQueryTrends(path),
     ]);
     if (statusResult.status === "fulfilled") setStatus(statusResult.value);
-    if (graphResult.status === "fulfilled") setGraph(graphResult.value);
-    if (pagesResult.status === "fulfilled") setPages(pagesResult.value.pages || []);
     if (reportsResult.status === "fulfilled") setReports(reportsResult.value.reports || []);
     if (activeRunsResult.status === "fulfilled") setActiveRuns(activeRunsResult.value.runs || []);
-    if (recentRunsResult.status === "fulfilled") setRecentRuns(recentRunsResult.value.runs || []);
-    if (queryTrendResult.status === "fulfilled") setQueryTrend(queryTrendResult.value);
-    if (statusResult.status === "rejected" || graphResult.status === "rejected" || pagesResult.status === "rejected" || reportsResult.status === "rejected") {
+    if (statusResult.status === "rejected" || reportsResult.status === "rejected") {
       const reason =
         statusResult.status === "rejected"
           ? statusResult.reason
-          : graphResult.status === "rejected"
-            ? graphResult.reason
-            : pagesResult.status === "rejected"
-              ? pagesResult.reason
-              : reportsResult.status === "rejected"
-                ? reportsResult.reason
-                : t("vaultRefreshFailed");
+          : reportsResult.status === "rejected"
+            ? reportsResult.reason
+            : t("vaultRefreshFailed");
       setNotice({ message: reason instanceof Error ? reason.message : String(reason), error: true });
     }
   }, [t]);
 
+  const loadRecentRunsState = useCallback(async (path: string) => {
+    try {
+      const response = await getRuns(path, false, 12);
+      setRecentRuns(response.runs || []);
+      setRecentRunsLoadedFor(path);
+    } catch {
+      // Recent runs are secondary navigation data; active run polling should not fail because of them.
+    }
+  }, []);
+
+  const loadGraphState = useCallback(async (path: string) => {
+    try {
+      const response = await getGraph(path);
+      setGraph(response);
+      setGraphLoadedFor(path);
+    } catch (error) {
+      setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
+    }
+  }, []);
+
+  const loadPagesState = useCallback(async (path: string) => {
+    try {
+      const response = await getPages(path);
+      setPages(response.pages || []);
+      setPagesLoadedFor(path);
+    } catch (error) {
+      setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
+    }
+  }, []);
+
+  const loadQueryTrendState = useCallback(async (path: string) => {
+    try {
+      const response = await getQueryTrends(path);
+      setQueryTrend(response);
+      setQueryTrendLoadedFor(path);
+    } catch {
+      // Query trends are advisory; failing to read them should not block the page.
+    }
+  }, []);
+
   useEffect(() => {
+    const shouldPollRuns = activeView === "overview" || activeView === "runs" || activeView === "ingest" || activeView === "lint" || activeRuns.length > 0;
+    if (!shouldPollRuns) return undefined;
     const timer = window.setInterval(() => {
       void getActiveRuns(vaultPath)
         .then((response) => {
@@ -145,6 +232,7 @@ export function App() {
           setActiveRuns((currentRuns) => {
             if (currentRuns.length > 0 && nextRuns.length === 0) {
               void loadVaultState(vaultPath);
+              void loadRecentRunsState(vaultPath);
             }
             return nextRuns;
           });
@@ -152,7 +240,24 @@ export function App() {
         .catch(() => undefined);
     }, 2500);
     return () => window.clearInterval(timer);
-  }, [loadVaultState, vaultPath]);
+  }, [activeRuns.length, activeView, loadRecentRunsState, loadVaultState, vaultPath]);
+
+  useEffect(() => {
+    if (activeView === "graph" && graphLoadedFor !== vaultPath) void loadGraphState(vaultPath);
+    if (activeView === "wiki" && pagesLoadedFor !== vaultPath) void loadPagesState(vaultPath);
+    if (activeView === "query" && queryTrendLoadedFor !== vaultPath) void loadQueryTrendState(vaultPath);
+    if (activeView === "runs" && recentRunsLoadedFor !== vaultPath) void loadRecentRunsState(vaultPath);
+  }, [activeView, graphLoadedFor, loadGraphState, loadPagesState, loadQueryTrendState, loadRecentRunsState, pagesLoadedFor, queryTrendLoadedFor, recentRunsLoadedFor, vaultPath]);
+
+  useEffect(() => {
+    const preloadCommonRoutes = () => {
+      for (const view of ["runs", "sources", "ingest", "lint", "query", "settings"] satisfies ViewName[]) {
+        preloadRoute(view);
+      }
+    };
+    const timer = window.setTimeout(preloadCommonRoutes, 1200);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const refreshAll = useCallback(async () => {
     setNotice(null);
@@ -160,12 +265,7 @@ export function App() {
     try {
       const config = await loadConfig();
       const path = config.summary?.vault_path || "./wiki";
-      const [doctorResult] = await Promise.allSettled([getDoctor(config.config_path), loadVaultState(path)]);
-      if (doctorResult.status === "fulfilled") {
-        setDoctorReport(doctorResult.value);
-      } else {
-        setDoctorReport(null);
-      }
+      await loadVaultState(path);
       return true;
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
@@ -201,6 +301,14 @@ export function App() {
     setFocusedWikiPath(path);
     setActiveView("wiki");
   }, []);
+
+  const preloadView = useCallback((view: ViewName) => {
+    preloadRoute(view);
+    if (view === "graph" && graphLoadedFor !== vaultPath) void loadGraphState(vaultPath);
+    if (view === "wiki" && pagesLoadedFor !== vaultPath) void loadPagesState(vaultPath);
+    if (view === "query" && queryTrendLoadedFor !== vaultPath) void loadQueryTrendState(vaultPath);
+    if (view === "runs" && recentRunsLoadedFor !== vaultPath) void loadRecentRunsState(vaultPath);
+  }, [graphLoadedFor, loadGraphState, loadPagesState, loadQueryTrendState, loadRecentRunsState, pagesLoadedFor, queryTrendLoadedFor, recentRunsLoadedFor, vaultPath]);
 
   const context: AppContext = useMemo(
     () => ({
@@ -289,6 +397,7 @@ export function App() {
       sidebarCollapsed={sidebarCollapsed}
       t={t}
       onChangeView={setActiveView}
+      onPreloadView={preloadView}
       onRefresh={refreshManually}
       onSetLanguage={setLanguage}
       onToggleSidebar={toggleSidebar}
@@ -304,17 +413,20 @@ export function App() {
           </section>
         )}
 
-        {activeView === "overview" && <OverviewPage context={context} onNavigate={setActiveView} />}
-        {activeView === "runs" && <RunsPage context={context} />}
-        {activeView === "sources" && <SourcesPage context={context} />}
-        {activeView === "wiki" && <WikiPage context={context} focusedPagePath={focusedWikiPath} />}
-        {activeView === "ingest" && <IngestPage context={context} />}
-        {activeView === "lint" && <LintPage context={context} />}
-        {activeView === "query" && <QueryPage context={context} />}
-        {activeView === "graph" && <GraphPage graph={context.graph} context={context} />}
-        {activeView === "reports" && <ReportsPage context={context} focusedReportPath={focusedReportPath} />}
-        {activeView === "settings" && <ConfigPage context={context} />}
-        {activeView === "docs" && <DocsPage context={context} />}
+        <Suspense fallback={<section className="panel page-loading">{t("loading")}</section>}>
+          {activeView === "overview" && <OverviewPage context={context} onNavigate={setActiveView} />}
+          {activeView === "runs" && <RunsPage context={context} />}
+          {activeView === "sources" && <SourcesPage context={context} />}
+          {activeView === "wiki" && <WikiPage context={context} focusedPagePath={focusedWikiPath} />}
+          {activeView === "ingest" && <IngestPage context={context} />}
+          {activeView === "lint" && <LintPage context={context} />}
+          {activeView === "query" && <QueryPage context={context} />}
+          {activeView === "graph" && <GraphPage graph={context.graph} context={context} />}
+          {activeView === "reports" && <ReportsPage context={context} focusedReportPath={focusedReportPath} />}
+          {activeView === "tokens" && <TokensPage context={context} />}
+          {activeView === "settings" && <ConfigPage context={context} />}
+          {activeView === "docs" && <DocsPage context={context} />}
+        </Suspense>
     </AppShell>
   );
 }

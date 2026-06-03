@@ -14,9 +14,11 @@ from knoarbor.core.errors import ExternalServiceError
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 from knoarbor.semantic import (
     ChatCompletionRequest,
+    ModelGateway,
     OpenAICompatibleChatClient,
     SemanticRetryPolicy,
     SemanticRunner,
+    build_semantic_prompt_package,
     load_semantic_contract,
     parse_contract_output,
 )
@@ -194,8 +196,31 @@ class SemanticRunnerTests(unittest.TestCase):
         self.assertIsNotNone(client.last_request)
         assert client.last_request is not None
         self.assertEqual(client.last_request.messages[0].role, "system")
+        self.assertIn("semantic contract executor", client.last_request.messages[0].content)
+        self.assertIn("Contract instructions:", client.last_request.messages[1].content)
         self.assertIn("Stable contract execution preamble", client.last_request.messages[1].content)
         self.assertIn("source_document", client.last_request.messages[2].content)
+        self.assertGreater(result.metrics["prompt_stable_chars"], 0)
+        self.assertGreater(result.metrics["prompt_dynamic_chars"], 0)
+        self.assertEqual(result.metrics["prompt_stable_message_count"], 2)
+        self.assertEqual(result.metrics["prompt_dynamic_message_count"], 1)
+        self.assertEqual(result.metrics["payload_top_field"], "source_document")
+        self.assertGreater(result.metrics["payload_char_total"], 0)
+        self.assertIn("source_document", result.metrics["payload_char_breakdown"])
+
+    def test_semantic_prompt_package_keeps_payload_out_of_stable_prefix(self) -> None:
+        contract = load_semantic_contract("source_normalize")
+
+        first = build_semantic_prompt_package(contract, {"source_document": {"title": "First Payload"}})
+        second = build_semantic_prompt_package(contract, {"source_document": {"title": "Second Payload"}})
+
+        self.assertEqual(first.messages[0].content, second.messages[0].content)
+        self.assertEqual(first.messages[1].content, second.messages[1].content)
+        self.assertEqual(first.stable_chars, second.stable_chars)
+        self.assertNotEqual(first.messages[2].content, second.messages[2].content)
+        self.assertNotIn("First Payload", first.messages[0].content)
+        self.assertNotIn("First Payload", first.messages[1].content)
+        self.assertIn("First Payload", first.messages[2].content)
 
     def test_semantic_runner_retries_retryable_provider_failure(self) -> None:
         valid = """
@@ -313,19 +338,34 @@ class SemanticRunnerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             OpenAICompatibleChatClient.from_config("deepseek", ModelProviderConfig(model="deepseek-chat"))
 
-    def test_openai_compatible_client_uses_configured_timeout(self) -> None:
-        with patch.dict("os.environ", {"TEST_MODEL_KEY": "test-key"}):
-            client = OpenAICompatibleChatClient.from_config(
-                "deepseek",
-                ModelProviderConfig(
-                    base_url="https://api.example.test",
-                    api_key_env="TEST_MODEL_KEY",
-                    model="deepseek-chat",
-                ),
-                timeout_seconds=300,
-            )
+    def test_model_gateway_wraps_openai_compatible_adapter(self) -> None:
+        gateway = ModelGateway.from_config(
+            "local",
+            ModelProviderConfig(base_url="http://127.0.0.1:11434/v1", model="qwen"),
+            timeout_seconds=300,
+        )
 
-        self.assertEqual(client.timeout_seconds, 300)
+        self.assertEqual(gateway.provider, "local")
+        self.assertEqual(gateway.model, "qwen")
+        self.assertEqual(gateway.adapter.timeout_seconds, 300)
+
+    def test_openai_compatible_client_allows_local_no_auth(self) -> None:
+        client = OpenAICompatibleChatClient.from_config(
+            "local",
+            ModelProviderConfig(base_url="http://127.0.0.1:11434/v1", model="qwen"),
+        )
+
+        captured_auth: str | None = "unset"
+
+        def fake_urlopen(request, **_kwargs):
+            nonlocal captured_auth
+            captured_auth = request.get_header("Authorization")
+            return FakeHTTPResponse()
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            client.complete(ChatCompletionRequest(messages=[{"role": "user", "content": "hello"}]))
+
+        self.assertIsNone(captured_auth)
 
     def test_openai_compatible_client_requests_json_mode_by_default(self) -> None:
         client = OpenAICompatibleChatClient(
@@ -337,7 +377,7 @@ class SemanticRunnerTests(unittest.TestCase):
 
         captured_payload: dict[str, object] = {}
 
-        def fake_urlopen(request, timeout):
+        def fake_urlopen(request, **_kwargs):
             nonlocal captured_payload
             captured_payload = json.loads(request.data.decode("utf-8"))
             return FakeHTTPResponse()
@@ -357,7 +397,7 @@ class SemanticRunnerTests(unittest.TestCase):
 
         captured_payload: dict[str, object] = {}
 
-        def fake_urlopen(request, timeout):
+        def fake_urlopen(request, **_kwargs):
             nonlocal captured_payload
             captured_payload = json.loads(request.data.decode("utf-8"))
             return FakeHTTPResponse()

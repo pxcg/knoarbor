@@ -171,7 +171,7 @@ The docs should explain:
 - How to configure a model provider.
 - How ingest, lint, and query fit together.
 - What data is written locally.
-- Current alpha boundaries.
+- Current public release boundaries.
 
 ## 10. UI Review
 

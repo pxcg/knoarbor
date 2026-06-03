@@ -5,10 +5,12 @@ from typing import Any
 from pydantic import BaseModel
 
 from knoarbor.core.schemas.ingest_review import IngestDraftReview
+from knoarbor.core.schemas.ingest_compile_context import IngestCompileContext
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 from knoarbor.core.schemas.sources import SourceDocument
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
 from knoarbor.core.schemas.wiki_relation_plan import WikiRelationPlan
+from knoarbor.semantic.ingest_compile_context import build_ingest_compile_context
 from knoarbor.semantic.runner import SemanticRunner
 from knoarbor.semantic.source_normalize import build_source_normalize_input
 
@@ -95,6 +97,7 @@ class IngestSemanticWorkflow:
         wiki_relation_plan: WikiRelationPlan,
         *,
         candidate_page_context: dict[str, Any] | None = None,
+        ingest_compile_context: IngestCompileContext | dict[str, Any] | None = None,
         max_tokens: int | None = None,
     ) -> WikiDraftBatch:
         actionable_operations = [
@@ -102,17 +105,25 @@ class IngestSemanticWorkflow:
             for operation in wiki_relation_plan.operations
             if operation.action != "skip"
         ]
+        compile_context = _compile_context_payload(
+            knowledge_extract,
+            wiki_relation_plan,
+            candidate_page_context,
+            ingest_compile_context,
+        )
         result = self.runner.run(
             "wiki_draft_compile",
             {
                 "knowledge_extract": knowledge_extract.model_dump(),
                 "wiki_relation_plan": wiki_relation_plan.model_dump(),
                 "wiki_operations": actionable_operations,
+                "ingest_compile_context": compile_context,
                 "candidate_page_context": candidate_page_context or {},
             },
             max_tokens=max_tokens,
         )
-        return _expect_output(result.output, WikiDraftBatch)
+        draft_batch = _expect_output(result.output, WikiDraftBatch)
+        return _with_runtime_model_metadata(draft_batch, provider=result.provider, model=result.model)
 
     def review_drafts(
         self,
@@ -121,14 +132,22 @@ class IngestSemanticWorkflow:
         wiki_draft_batch: WikiDraftBatch,
         *,
         candidate_page_context: dict[str, Any] | None = None,
+        ingest_compile_context: IngestCompileContext | dict[str, Any] | None = None,
         max_tokens: int | None = None,
     ) -> IngestDraftReview:
+        compile_context = _compile_context_payload(
+            knowledge_extract,
+            wiki_relation_plan,
+            candidate_page_context,
+            ingest_compile_context,
+        )
         result = self.runner.run(
             "ingest_draft_review",
             {
                 "knowledge_extract": knowledge_extract.model_dump(),
                 "wiki_relation_plan": wiki_relation_plan.model_dump(),
                 "wiki_draft_batch": wiki_draft_batch.model_dump(),
+                "ingest_compile_context": compile_context,
                 "candidate_page_context": candidate_page_context or {},
             },
             max_tokens=max_tokens,
@@ -140,3 +159,28 @@ def _expect_output(value: BaseModel, expected_type: type[Any]) -> Any:
     if not isinstance(value, expected_type):
         raise TypeError(f"Expected {expected_type.__name__}, got {type(value).__name__}")
     return value
+
+
+def _with_runtime_model_metadata(batch: WikiDraftBatch, *, provider: str, model: str) -> WikiDraftBatch:
+    """Model identity is runtime metadata, not an LLM-authored page fact."""
+    for draft in batch.drafts:
+        draft.model_provider = provider
+        draft.model_name = model
+    return batch
+
+
+def _compile_context_payload(
+    knowledge_extract: KnowledgeExtract,
+    wiki_relation_plan: WikiRelationPlan,
+    candidate_page_context: dict[str, Any] | None,
+    ingest_compile_context: IngestCompileContext | dict[str, Any] | None,
+) -> dict[str, Any]:
+    if isinstance(ingest_compile_context, IngestCompileContext):
+        return ingest_compile_context.model_dump()
+    if isinstance(ingest_compile_context, dict) and ingest_compile_context:
+        return ingest_compile_context
+    return build_ingest_compile_context(
+        knowledge_extract,
+        wiki_relation_plan,
+        candidate_page_context,
+    ).model_dump()
