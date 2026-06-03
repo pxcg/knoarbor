@@ -565,6 +565,34 @@ h2 {
   color: var(--muted-strong);
 }
 
+.token-page {
+  gap: 16px;
+}
+
+.token-header {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.token-range-select {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.token-range-select span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.token-range-select select {
+  min-width: 160px;
+}
+
 .token-flow-panel {
   display: grid;
   gap: 14px;
@@ -619,6 +647,55 @@ h2 {
   padding: 0;
 }
 
+.token-diagnosis-list {
+  display: grid;
+  gap: 10px;
+}
+
+.token-diagnosis-item {
+  align-items: center;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+  padding: 10px 12px;
+}
+
+.token-diagnosis-item span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.token-diagnosis-item strong {
+  color: var(--text);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.token-diagnosis-item em {
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.token-detail-panel summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.token-detail-grid {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
 .hero-panel,
 .page-intro,
 .workspace-hero,
@@ -637,6 +714,26 @@ h2 {
 .workspace-hero {
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
+}
+
+@media (max-width: 860px) {
+  .token-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .token-range-select {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .token-range-select select {
+    width: 100%;
+  }
+
+  .token-diagnosis-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .overview-hero {

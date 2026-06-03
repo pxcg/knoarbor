@@ -9,8 +9,11 @@ type Props = {
   context: AppContext;
 };
 
+const LEDGER_LIMITS = [500, 1000, 5000, 10000];
+
 export function TokensPage({ context }: Props) {
   const [analysis, setAnalysis] = useState<TokenAnalysis | null>(null);
+  const [limit, setLimit] = useState(5000);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,7 +21,7 @@ export function TokensPage({ context }: Props) {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    getTokenAnalysis(context.vaultPath)
+    getTokenAnalysis(context.vaultPath, limit)
       .then((result) => {
         if (!cancelled) setAnalysis(result);
       })
@@ -31,9 +34,11 @@ export function TokensPage({ context }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [context.vaultPath]);
+  }, [context.vaultPath, limit]);
 
-  const flowAgentGroups = useMemo(() => buildFlowAgentGroups(analysis?.top_calls || []), [analysis]);
+  const flowAgentGroups = useMemo(() => buildFlowAgentGroups(analysis?.top_calls || [], analysis?.by_flow || []), [analysis]);
+  const expensiveRun = analysis?.recent_runs?.[0];
+  const topCall = analysis?.top_calls?.[0];
 
   if (loading && !analysis) {
     return <section className="panel"><p className="panel-copy">{context.t("loading")}</p></section>;
@@ -56,19 +61,29 @@ export function TokensPage({ context }: Props) {
 
   const totals = analysis.totals;
   return (
-    <div className="page-stack">
-      <section className="panel hero-panel compact-hero">
-        <div>
-          <h2>{context.t("tokensTitle")}</h2>
-          <p>{context.t("tokensSubtitle")}</p>
+    <div className="page-stack token-page">
+      <section className="panel token-header">
+        <div className="section-heading">
+          <h2>{context.t("tokenCostOverview")}</h2>
+          <p>{context.t("tokenCostOverviewCopy")}</p>
         </div>
+        <label className="token-range-select">
+          <span>{context.t("tokenAnalysisRange")}</span>
+          <select value={limit} onChange={(event) => setLimit(Number(event.target.value))}>
+            {LEDGER_LIMITS.map((value) => (
+              <option key={value} value={value}>
+                {context.t("tokenLatestRecords").replace("{count}", formatNumber(value))}
+              </option>
+            ))}
+          </select>
+        </label>
       </section>
 
       <section className="metric-grid">
         <MetricCard label={context.t("tokenMetricTotal")} value={formatNumber(totals.total_tokens)} hint={`${context.t("tokenMetricCalls")}: ${formatNumber(totals.call_count)}`} tone="blue" />
-        <MetricCard label={context.t("tokenMetricPrompt")} value={formatNumber(totals.prompt_tokens)} hint={`${context.t("tokenMetricCompletion")}: ${formatNumber(totals.completion_tokens)}`} tone="teal" />
-        <MetricCard label={context.t("tokenMetricCached")} value={formatNumber(totals.prompt_cached_tokens)} hint={`${context.t("tokenMetricCacheRate")}: ${formatPercent(totals.prompt_cache_rate)}`} tone="violet" />
-        <MetricCard label={context.t("tokensPerSecond")} value={formatNumber(totals.tokens_per_second)} hint={`${formatNumber(totals.elapsed_seconds)}s`} tone="amber" />
+        <MetricCard label={context.t("tokenMetricCacheRate")} value={formatPercent(totals.prompt_cache_rate)} hint={`${context.t("tokenMetricCached")}: ${formatNumber(totals.prompt_cached_tokens)}`} tone="violet" />
+        <MetricCard label={context.t("tokenLatestRun")} value={formatNumber(expensiveRun?.total_tokens)} hint={expensiveRun?.run_id || context.t("unknown")} tone="teal" />
+        <MetricCard label={context.t("tokenMostExpensiveCall")} value={formatNumber(topCall?.total_tokens)} hint={topCall ? `${agentLabel(topCall.agent, context.t)} · ${flowLabel(topCall.flow || "unknown", context.t)}` : context.t("unknown")} tone="amber" />
       </section>
 
       <section className="panel token-flow-panel">
@@ -82,11 +97,11 @@ export function TokensPage({ context }: Props) {
               <div className="token-flow-header">
                 <div>
                   <h3>{flowLabel(flow.name, context.t)}</h3>
-                  <p>{`${context.t("tokenMetricCalls")}: ${formatNumber(flow.total.call_count)} · ${context.t("tokenMetricTotal")}: ${formatNumber(flow.total.total_tokens)}`}</p>
+                  <p>{`${context.t("tokenMetricTotal")}: ${formatNumber(flow.total.total_tokens)} · ${context.t("tokenMetricCalls")}: ${formatNumber(flow.total.call_count)}`}</p>
                 </div>
                 <span className="token-cache-pill">{`${context.t("tokenMetricCacheRate")}: ${formatPercent(flow.total.prompt_cache_rate)}`}</span>
               </div>
-              <TokenTable context={context} rows={flow.agents} compact />
+              <TokenTable context={context} rows={flow.agents} nameFormatter={(value) => agentLabel(value, context.t)} compact />
             </article>
           ))}
           {!flowAgentGroups.length && <p className="panel-copy">{context.t("tokenNoData")}</p>}
@@ -94,36 +109,58 @@ export function TokensPage({ context }: Props) {
       </section>
 
       <section className="two-column-grid">
-        <PayloadFieldTable context={context} rows={analysis.by_payload_field || []} />
+        <article className="panel">
+          <div className="section-heading">
+            <h2>{context.t("tokenOptimizationDiagnosis")}</h2>
+            <p>{context.t("tokenOptimizationDiagnosisCopy")}</p>
+          </div>
+          <div className="token-diagnosis-list">
+            <DiagnosisItem label={context.t("tokenMostExpensiveSource")} value={analysis.by_source?.[0]?.name} metric={formatNumber(analysis.by_source?.[0]?.total_tokens)} />
+            <DiagnosisItem label={context.t("tokenMostExpensivePage")} value={analysis.by_page?.[0]?.name} metric={formatNumber(analysis.by_page?.[0]?.total_tokens)} />
+            <DiagnosisItem label={context.t("tokenLargestPayloadField")} value={analysis.by_payload_field?.[0]?.name} metric={formatNumber(analysis.by_payload_field?.[0]?.payload_chars)} />
+          </div>
+        </article>
         <article className="panel">
           <div className="section-heading">
             <h2>{context.t("tokenPayloadDiagnosis")}</h2>
             <p>{context.t("tokenPayloadDiagnosisCopy")}</p>
           </div>
-          <BarChart data={toPayloadBarData(analysis.by_payload_field || [])} limit={10} emptyText={context.t("tokenNoData")} />
+          <BarChart data={toPayloadBarData(analysis.by_payload_field || [])} limit={8} emptyText={context.t("tokenNoData")} />
         </article>
       </section>
 
-      <section className="panel">
-        <div className="section-heading">
-          <h2>{context.t("tokenRecentRuns")}</h2>
+      <details className="panel token-detail-panel">
+        <summary>{context.t("tokenAdvancedDetails")}</summary>
+        <div className="token-detail-grid">
+          <PayloadFieldTable context={context} rows={analysis.by_payload_field || []} />
+          <TokenTable context={context} title={context.t("tokenRecentRuns")} rows={analysis.recent_runs} compact />
+          <article className="panel">
+            <div className="section-heading">
+              <h2>{context.t("tokenTopCalls")}</h2>
+            </div>
+            <TopCallsTable context={context} rows={analysis.top_calls} />
+          </article>
         </div>
-        <TokenTable context={context} rows={analysis.recent_runs} compact />
-      </section>
-
-      <section className="panel">
-        <div className="section-heading">
-          <h2>{context.t("tokenTopCalls")}</h2>
-        </div>
-        <TopCallsTable context={context} rows={analysis.top_calls} />
-      </section>
+      </details>
     </div>
   );
 }
 
 type TokenMetricRow = Partial<TokenMetricGroup> & { run_id?: string };
 
-function TokenTable({ context, title, rows, compact = false }: { context: AppContext; title?: string; rows: TokenMetricRow[]; compact?: boolean }) {
+function TokenTable({
+  context,
+  title,
+  rows,
+  compact = false,
+  nameFormatter,
+}: {
+  context: AppContext;
+  title?: string;
+  rows: TokenMetricRow[];
+  compact?: boolean;
+  nameFormatter?: (value: string) => string;
+}) {
   return (
     <article className="panel">
       {title && (
@@ -144,16 +181,19 @@ function TokenTable({ context, title, rows, compact = false }: { context: AppCon
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={String(row.name || row.run_id)}>
-                <td title={String(row.name || row.run_id)}>{String(row.name || row.run_id)}</td>
-                <td>{formatNumber(row.call_count)}</td>
-                <td>{formatNumber(row.total_tokens)}</td>
-                {!compact && <td>{formatNumber(row.prompt_tokens)}</td>}
-                {!compact && <td>{formatNumber(row.completion_tokens)}</td>}
-                <td>{formatPercent(row.prompt_cache_rate)}</td>
-              </tr>
-            ))}
+            {rows.map((row) => {
+              const name = String(row.name || row.run_id || "unknown");
+              return (
+                <tr key={name}>
+                  <td title={name}>{nameFormatter ? nameFormatter(name) : name}</td>
+                  <td>{formatNumber(row.call_count)}</td>
+                  <td>{formatNumber(row.total_tokens)}</td>
+                  {!compact && <td>{formatNumber(row.prompt_tokens)}</td>}
+                  {!compact && <td>{formatNumber(row.completion_tokens)}</td>}
+                  <td>{formatPercent(row.prompt_cache_rate)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -178,9 +218,9 @@ function TopCallsTable({ context, rows }: { context: AppContext; rows: TokenCall
         <tbody>
           {rows.map((row, index) => (
             <tr key={`${row.run_id}-${row.agent}-${index}`}>
-              <td>{row.flow || "unknown"}</td>
-              <td>{row.agent || "unknown"}</td>
-              <td title={row.source_file || ""}>{row.source_file || row.page_paths?.[0] || "unknown"}</td>
+              <td>{flowLabel(row.flow || "unknown", context.t)}</td>
+              <td>{agentLabel(row.agent, context.t)}</td>
+              <td title={row.source_file || ""}>{shortPath(row.source_file || row.page_paths?.[0] || "unknown")}</td>
               <td>{row.payload_top_field || "n/a"}</td>
               <td>{formatNumber(row.total_tokens)}</td>
               <td>{formatPercent(row.prompt_cache_rate)}</td>
@@ -212,7 +252,7 @@ function PayloadFieldTable({ context, rows }: { context: AppContext; rows: Token
           <tbody>
             {rows.map((row) => (
               <tr key={row.name}>
-                <td>{row.name}</td>
+                <td title={row.name}>{row.name}</td>
                 <td>{formatNumber(row.call_count)}</td>
                 <td>{formatNumber(row.payload_chars)}</td>
                 <td>{formatNumber(row.top_call_count)}</td>
@@ -230,13 +270,23 @@ function PayloadFieldTable({ context, rows }: { context: AppContext; rows: Token
   );
 }
 
+function DiagnosisItem({ label, value, metric }: { label: string; value?: string; metric: string }) {
+  return (
+    <div className="token-diagnosis-item">
+      <span>{label}</span>
+      <strong title={value || "n/a"}>{value ? shortPath(value) : "n/a"}</strong>
+      <em>{metric}</em>
+    </div>
+  );
+}
+
 type FlowAgentGroup = {
   name: string;
   total: TokenMetricGroup;
   agents: TokenMetricGroup[];
 };
 
-function buildFlowAgentGroups(calls: TokenCallRecord[]): FlowAgentGroup[] {
+function buildFlowAgentGroups(calls: TokenCallRecord[], byFlow: TokenMetricGroup[]): FlowAgentGroup[] {
   const flows = new Map<string, Map<string, TokenMetricGroup>>();
   for (const call of calls) {
     const flow = call.flow || "unknown";
@@ -246,16 +296,16 @@ function buildFlowAgentGroups(calls: TokenCallRecord[]): FlowAgentGroup[] {
     const existing = agents.get(agent) || emptyMetric(agent);
     agents.set(agent, mergeMetric(existing, call));
   }
+  for (const flow of byFlow) {
+    if (!flows.has(flow.name)) flows.set(flow.name, new Map());
+  }
   const preferredOrder = ["ingest", "lint", "query", "unknown"];
   return [...flows.entries()]
     .sort(([left], [right]) => preferredOrderIndex(left, preferredOrder) - preferredOrderIndex(right, preferredOrder))
     .map(([name, agents]) => {
       const rows = [...agents.values()].sort((left, right) => (right.total_tokens || 0) - (left.total_tokens || 0));
-      return {
-        name,
-        agents: rows,
-        total: rows.reduce((acc, row) => mergeMetric(acc, row), emptyMetric(name)),
-      };
+      const total = byFlow.find((item) => item.name === name) || rows.reduce((acc, row) => mergeMetric(acc, row), emptyMetric(name));
+      return { name, agents: rows, total };
     });
 }
 
@@ -301,8 +351,22 @@ function flowLabel(flow: string, t: (key: string) => string): string {
   return translated === key ? flow : translated;
 }
 
+function agentLabel(agent: string | undefined, t: (key: string) => string): string {
+  const value = agent || "unknown";
+  const key = `agent.${value}`;
+  const translated = t(key);
+  return translated === key ? value : translated;
+}
+
 function toPayloadBarData(rows: TokenPayloadFieldGroup[]): Record<string, number> {
-  return Object.fromEntries(rows.slice(0, 10).map((row) => [row.name, row.payload_chars]));
+  return Object.fromEntries(rows.slice(0, 8).map((row) => [row.name, row.payload_chars]));
+}
+
+function shortPath(value: string): string {
+  const normalized = value.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length <= 2) return normalized;
+  return `${parts[parts.length - 2]}/${parts[parts.length - 1]}`;
 }
 
 function formatNumber(value: unknown): string {
