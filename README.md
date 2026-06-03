@@ -9,7 +9,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-3776AB.svg" alt="Python 3.12+">
-  <img src="https://img.shields.io/badge/status-alpha-0f9f8f.svg" alt="Alpha status">
+  <img src="https://img.shields.io/badge/status-1.0%20public%20release-0f766e.svg" alt="1.0 public release status">
   <a href="docs/QUICKSTART.md"><img src="https://img.shields.io/badge/docs-quickstart-111827.svg" alt="Quickstart"></a>
 </p>
 
@@ -226,8 +226,7 @@ Run all enabled connectors from `config.yaml`:
 uv run knoar ingest --write
 ```
 
-Long-running CLI workflows are progress-first by default. `ingest`,
-`ingest-file`, and `lint-run` follow the local run queue and print event /
+Long-running CLI workflows are progress-first by default. `ingest` and `lint` follow the local run queue and print event /
 heartbeat lines for human-readable output. Use `--json` for pure structured
 output or `--no-follow` for synchronous summary output.
 
@@ -242,14 +241,14 @@ uv run knoar ingest --connector openclaw --write
 Run a single prepared `source_document.v1`:
 
 ```bash
-uv run knoar ingest-document --input /path/to/source_document.json --write
+uv run knoar ingest --source-document /path/to/source_document.json --write
 ```
 
 Run one file path:
 
 ```bash
-uv run knoar ingest-file --input /path/to/note.md --write
-uv run knoar ingest-file --input /path/to/paper.pdf --write
+uv run knoar ingest --input /path/to/note.md --write
+uv run knoar ingest --input /path/to/paper.pdf --write
 ```
 
 Markdown files enter ingest directly. Non-Markdown files require a configured
@@ -263,19 +262,19 @@ and follow MinerU's license and attribution requirements.
 Structural repair:
 
 ```bash
-uv run knoar lint-run --mode structural
+uv run knoar lint --mode structural
 ```
 
 Quality review:
 
 ```bash
-uv run knoar lint-run --mode quality
+uv run knoar lint --mode quality
 ```
 
 Full maintenance with approved writes:
 
 ```bash
-uv run knoar lint-run --mode full --apply-reviewed
+uv run knoar lint --mode full --apply-reviewed
 ```
 
 ### Query context
@@ -289,7 +288,7 @@ Query is retrieval-only. KnoArbor returns context and evidence; the host AI is r
 
 ## Current Status
 
-KnoArbor is in early alpha. The core pipeline is usable locally. The v0.x public workflow APIs are intended to keep their paths and core semantics stable, while schemas may still receive additive fields before a later stable release.
+KnoArbor is preparing its first public 1.0 release. The core local workflows, CLI, stable HTTP API, bundled console, and host-AI skill template are intended to be usable as a single-user local knowledge engine.
 
 Implemented today:
 
@@ -300,7 +299,7 @@ Implemented today:
 - Local React console bundled with the Python package.
 - Runtime wiki initialization, machine index, queue, locks, ledgers, reports, and checkpoints.
 
-Not included in the current alpha:
+Not included in the current local-first release:
 
 - Hosted SaaS deployment.
 - Built-in vector database.

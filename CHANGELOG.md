@@ -2,11 +2,36 @@
 
 All notable public changes to KnoArbor will be documented in this file.
 
-This project follows a simple release-note format while it is in alpha.
+This project follows a simple release-note format for public releases.
 
 ## Unreleased
 
 - No public changes yet.
+
+## 1.0.0 - 2026-06-03
+
+### Added
+
+- First public local-first release of KnoArbor.
+- Added the full ingest, lint, and query workflow set behind stable CLI commands and stable HTTP endpoints.
+- Added a bundled management console for source inspection, workflow runs, wiki browsing, graph viewing, reports, settings, and token analysis.
+- Added a Knowledge Base browser for reading generated wiki pages, metadata, backlinks, outbound links, and workflow-linked results.
+- Added runtime run monitoring with queue records, heartbeat events, cancellation, report links, and run history.
+- Added a generic host-AI skill package for querying the local KnoArbor service from external AI tools.
+- Added public API, CLI, configuration, troubleshooting, release, and bilingual README documentation.
+
+### Changed
+
+- Consolidated public workflow entrypoints around `knoar ingest`, `knoar lint`, `knoar query`, `/ingest`, `/lint`, and `/query`.
+- Reworked the console navigation and reporting experience so run outputs link back to written or maintained wiki pages.
+- Tightened the public API surface and removed prototype route assumptions from the release contract.
+- Updated release readiness checks to keep runtime vault data, local configuration, caches, and workflow exports out of the published repository.
+
+### Boundaries
+
+- KnoArbor remains local-first and single-user for this release.
+- KnoArbor does not bundle a chat answer generator, vector database, MinerU runtime, or model weights.
+- Secrets stay in `.env`; runtime wiki data stays in the ignored `wiki/` vault.
 
 ## 0.9.0 - 2026-06-03
 
