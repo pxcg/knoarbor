@@ -34,11 +34,19 @@ read-only diagnostics.
 ```bash
 uv run knoar first-run
 uv run knoar first-run --vault ./wiki
+uv run knoar first-run --no-example
 uv run knoar first-run --json
 ```
 
 This command does not call the model and does not write wiki pages. It prepares
-the local runtime and prints the next recommended commands.
+the local runtime and prints the next recommended commands. By default it copies
+a small bundled Markdown example to `raw/notes/agent-loop.md`, so a new user can
+test the first page flow with:
+
+```bash
+uv run knoar ingest --connector markdown --write
+uv run knoar query "Agent Loop 是什么？"
+```
 
 ### `init`
 

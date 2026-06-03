@@ -74,18 +74,16 @@ def run_first_run(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = Path(args.vault).expanduser().resolve() if args.vault else config.vault.path
     init_result = init_wiki_vault(vault_path, force=False)
+    example_path = install_first_run_example(vault_path) if args.with_example else None
     doctor_report = DoctorService().run(config_path=str(config_path))
 
     payload = {
         "config_path": str(config_path),
         "config_created": config_created,
         "vault": init_result.model_dump(),
+        "example_path": str(example_path) if example_path else None,
         "doctor": doctor_report.model_dump(),
-        "next_steps": [
-            "Set your model API key in .env if doctor reports models.api_key_env as error.",
-            "Put Markdown notes under the configured markdown roots, then run `uv run knoar ingest --connector markdown --write`.",
-            "Start the local console with `uv run knoar serve`.",
-        ],
+        "next_steps": _first_run_next_steps(example_installed=example_path is not None),
     }
     if args.json:
         print_json(payload)
@@ -95,6 +93,8 @@ def run_first_run(args: argparse.Namespace) -> int:
     print(f"vault: {init_result.vault_path}")
     print(f"created_paths: {len(init_result.created_paths)}")
     print(f"existing_paths: {len(init_result.existing_paths)}")
+    if example_path:
+        print(f"example: {example_path}")
     print(f"doctor: {doctor_report.status}")
     print(f"checks: {doctor_report.summary.get('ok', 0)} ok / {doctor_report.summary.get('warning', 0)} warning / {doctor_report.summary.get('error', 0)} error")
     print("\nNext steps:")
@@ -144,6 +144,32 @@ def resolve_bootstrap_config_path(args: argparse.Namespace) -> Path:
     if args.config:
         return Path(args.config).expanduser().resolve()
     return (Path.cwd() / "config.yaml").resolve()
+
+
+def install_first_run_example(vault_path: Path) -> Path:
+    target = vault_path / "raw" / "notes" / "agent-loop.md"
+    if target.exists():
+        return target
+    target.parent.mkdir(parents=True, exist_ok=True)
+    text = files("knoarbor.examples").joinpath("agent-loop.md").read_text(encoding="utf-8")
+    target.write_text(text, encoding="utf-8")
+    return target
+
+
+def _first_run_next_steps(*, example_installed: bool) -> list[str]:
+    source_step = (
+        "Run `uv run knoar ingest --connector markdown --write` to compile the bundled example or your Markdown notes."
+        if example_installed
+        else "Put Markdown notes under a configured markdown root, then run `uv run knoar ingest --connector markdown --write`."
+    )
+    steps = [
+        "Set your model API key in .env if doctor reports models.api_key_env as error.",
+        source_step,
+    ]
+    if example_installed:
+        steps.append("Run `uv run knoar query \"Agent Loop 是什么？\"` after ingest completes.")
+    steps.append("Start the local console with `uv run knoar serve`.")
+    return steps
 
 
 def _load_bundled_example_config() -> dict[str, object]:

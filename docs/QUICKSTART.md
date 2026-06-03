@@ -16,18 +16,22 @@ Install dependencies:
 uv sync
 ```
 
-## 2. Configure
+## 2. First Run
 
-Create local config files:
+Create local configuration, initialize the vault, and install the bundled
+example source:
 
 ```bash
-cp config.example.yaml config.yaml
-cp .env.example .env
+uv run knoar first-run --vault ./wiki
 ```
 
-Edit `.env` and set at least one model key:
+This creates `config.yaml`, initializes `./wiki`, and copies
+`agent-loop.md` into `wiki/raw/notes/`.
+
+Create `.env` and set at least one model key:
 
 ```bash
+cp .env.example .env
 DEEPSEEK_API_KEY=your-key
 ```
 
@@ -47,14 +51,6 @@ models:
   default_provider: deepseek
 ```
 
-## 3. Initialize A Vault
-
-```bash
-uv run knoar init --vault ./wiki
-```
-
-This creates the runtime wiki structure. The `wiki/` directory is intentionally ignored by git.
-
 Run the read-only readiness check:
 
 ```bash
@@ -65,7 +61,7 @@ uv run knoar doctor
 enabled connectors, optional document preprocessing, and recent run state
 without calling the model or writing wiki pages.
 
-## 4. Run The API
+## 3. Run The API
 
 ```bash
 uv run knoar serve
@@ -86,14 +82,7 @@ Open the local management console:
 http://127.0.0.1:8000
 ```
 
-## 5. Run The Built-In Example
-
-Copy the example Markdown note into the default raw notes directory:
-
-```bash
-mkdir -p wiki/raw/notes
-cp examples/agent-loop.md wiki/raw/notes/agent-loop.md
-```
+## 4. Run The Built-In Example
 
 Compile it into wiki pages:
 
@@ -113,7 +102,7 @@ Query the generated wiki:
 uv run knoar query "Agent Loop 是什么？"
 ```
 
-## 6. Ingest Your Own Sources
+## 5. Ingest Your Own Sources
 
 For connector-based ingest:
 
