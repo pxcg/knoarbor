@@ -66,8 +66,8 @@ Do not return markdown fences or explanatory prose.
 
 - Use `knowledge_extract.compile_context.primary_content` and `content_units` as the main source.
 - If source metadata indicates a segmented long source, write only what is supported by the current segment, avoid duplicate source digests across sibling segments, and prefer update patches when the segment extends an object already represented in retrieved context.
-- Use supporting evidence and candidate page context only when relevant.
-- For update operations, use `candidate_page_context.pages` as the only materialized existing-page content. Do not assume every lightweight relation candidate has full content.
+- Use `ingest_compile_context` as the authoritative compile context. `target` pages carry existing body content; `related` and `candidate` pages are background only.
+- Use supporting evidence and legacy candidate page context only when it adds relevant provenance.
 - If `page_dir` is `sources`, write a source digest: provenance, source focus, compact summary, extracted facts/objects, evidence notes, and limitations.
 - If `page_dir` is `timelines`, make chronology the organizing structure.
 - If `page_dir` is `workflows`, make the procedure actionable and ordered.

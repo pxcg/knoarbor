@@ -29,6 +29,7 @@
 - [开发说明](DEVELOPMENT.md)：本地开发、测试、构建和发布流程。
 - [测试与质量门禁](TESTING.md)：单元测试、前端冒烟、发布检查和真实模型冒烟边界。
 - [发布前审查清单](RELEASE_CHECKLIST.md)：公开发布前的仓库、隐私、测试、文档、UI 和发布门禁。
+- [v0.9.0 发布说明](../releases/v0.9.0.md)：运行 endpoint、Skill 集成和可观测性版本说明。
 - [v0.8.0 发布说明](../releases/v0.8.0.md)：API 合约与 token 可观测性版本说明。
 - [v0.7.0 发布说明](../releases/v0.7.0.md)：UI 与知识库浏览版本说明。
 

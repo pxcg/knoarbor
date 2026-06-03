@@ -46,17 +46,37 @@ const PROVIDER_PRESETS: ConfigFormProvider[] = [
 ];
 
 export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
+  function createNewVaultDraft() {
+    const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    setForm({
+      ...form,
+      project_name: `${t("newVaultDefaultName")} ${stamp}`,
+      vault_path: `./wiki-${stamp}`,
+    });
+  }
+
   return (
-    <div className="form-grid config-basic-grid" id="settings-basic">
-      <label className="field">
-        <span>{t("projectName")}</span>
-        <input value={form.project_name} onChange={(event) => setForm({ ...form, project_name: event.target.value })} placeholder={t("projectNamePlaceholder")} />
-      </label>
-      <label className="field">
-        <span>{t("vaultPath")}</span>
-        <input value={form.vault_path} onChange={(event) => setForm({ ...form, vault_path: event.target.value })} placeholder="./wiki" />
-      </label>
-    </div>
+    <>
+      <div className="settings-inline-action">
+        <div>
+          <h3>{t("knowledgeBaseProfile")}</h3>
+          <p className="panel-copy">{t("knowledgeBaseProfileCopy")}</p>
+        </div>
+        <button className="button secondary" type="button" onClick={createNewVaultDraft}>
+          {t("newVault")}
+        </button>
+      </div>
+      <div className="form-grid config-basic-grid" id="settings-basic">
+        <label className="field">
+          <span>{t("projectName")}</span>
+          <input value={form.project_name} onChange={(event) => setForm({ ...form, project_name: event.target.value })} placeholder={t("projectNamePlaceholder")} />
+        </label>
+        <label className="field">
+          <span>{t("vaultPath")}</span>
+          <input value={form.vault_path} onChange={(event) => setForm({ ...form, vault_path: event.target.value })} placeholder="./wiki" />
+        </label>
+      </div>
+    </>
   );
 }
 
@@ -333,7 +353,18 @@ export function ConfigPreprocessingSection({ form, setForm, t }: SectionProps) {
   );
 }
 
-export function ConfigModelProvidersSection({ form, setForm, t }: SectionProps) {
+export function ConfigModelProvidersSection({
+  form,
+  setForm,
+  t,
+  modelTestSummary,
+  testingModels,
+  onTestModels,
+}: SectionProps & {
+  modelTestSummary: string | null;
+  testingModels: boolean;
+  onTestModels: () => void;
+}) {
   const [activeProvider, setActiveProvider] = useState(0);
   const [providerPreset, setProviderPreset] = useState(PROVIDER_PRESETS[0].name);
 
@@ -397,8 +428,12 @@ export function ConfigModelProvidersSection({ form, setForm, t }: SectionProps) 
           <button className="button secondary" onClick={addProvider}>
             {t("addProvider")}
           </button>
+          <button className="button secondary" onClick={onTestModels} disabled={testingModels}>
+            {testingModels ? t("testingModels") : t("testModelConnectivity")}
+          </button>
         </div>
       </div>
+      {modelTestSummary && <p className="settings-action-note">{modelTestSummary}</p>}
       <div className="provider-workspace">
         <div className="provider-list">
           {form.providers.map((provider, index) => (

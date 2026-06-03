@@ -103,6 +103,7 @@ class DraftCanonicalizer:
                 if normalized_content != content:
                     changes.append("normalized_patch_headings")
                 content = normalized_content
+                validate_body_markdown(content, f"{patch.section} patch")
             if heading:
                 heading = normalize_page_title(heading)
             canonical.append(patch.model_copy(update={"content": content, "heading": heading}))

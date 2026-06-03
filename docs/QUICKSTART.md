@@ -71,6 +71,9 @@ without calling the model or writing wiki pages.
 uv run knoar serve
 ```
 
+If port `8000` is already in use, the server will choose the next available
+local port and print the actual URL.
+
 Health check:
 
 ```bash

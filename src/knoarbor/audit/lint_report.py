@@ -7,6 +7,7 @@ from typing import Any
 from knoarbor.core.schemas.wiki_lint import LintRunResult
 from knoarbor.audit.reports import write_maintenance_report
 from knoarbor.audit.report_formatting import as_dict, as_list, cache_metric_lines, fmt_number, format_list, semantic_token_report_lines
+from knoarbor.audit.token_ledger import append_lint_token_records
 from knoarbor.storage.ledger import append_jsonl_ledger, read_jsonl_ledger
 from knoarbor.storage.wiki_index import relative_wiki_path
 
@@ -27,6 +28,8 @@ def write_lint_run_artifacts(
     previous_records = read_jsonl_ledger(vault_path, ledger_path, limit=20) if append_ledger or write_report else []
     record = build_lint_run_record(result, run_id=run_id, previous_records=previous_records)
     written_ledger = append_jsonl_ledger(vault_path, ledger_path, record) if append_ledger else None
+    if append_ledger:
+        append_lint_token_records(vault_path, record)
     effective_report_path = report_path or f"maintenance/lint_run_report_{run_id}.md"
     written_report = (
         write_maintenance_report(vault_path, "lint_run", render_lint_run_report(record), effective_report_path)
@@ -65,6 +68,7 @@ def build_lint_run_record(result: LintRunResult, *, run_id: str, previous_record
         "quality_review_summary": _quality_review_summary(semantic_candidates),
         "maintenance_review": _review_record(review),
         "queued_actions": result.queued_actions,
+        "deferred_retries": result.deferred_retries,
         "refresh_queue": _queue_by_type(result.queued_actions, "refresh_request"),
         "governance_queue": _governance_queue(result.queued_actions),
         "applied_operations": result.applied_operations,
@@ -116,6 +120,7 @@ def render_lint_run_report(record: dict[str, object]) -> str:
         f"- semantic_candidates: {semantic.get('candidate_count', 0)}",
         f"- review_decisions: {review.get('decision_count', 0)}",
         f"- queued_actions: {len(as_list(record.get('queued_actions')))}",
+        f"- deferred_retries: {len(as_list(record.get('deferred_retries')))}",
         f"- applied_operations: {len(as_list(record.get('applied_operations')))}",
         f"- written_pages: {len(as_list(record.get('written_pages')))}",
         f"- operation_success_rate: {fmt_number(operation_summary.get('success_rate'))}",
@@ -221,6 +226,17 @@ def render_lint_run_report(record: dict[str, object]) -> str:
             lines.append("- high_impact_queue:")
             for item in governance_queue:
                 lines.append(f"  - `{item.get('target_page')}` {item.get('action')}: {item.get('expected_effect')}")
+
+    deferred_retries = as_list(record.get("deferred_retries"))
+    if deferred_retries:
+        lines.extend(["", "## Deferred Retries", ""])
+        for item in deferred_retries:
+            lines.append(
+                f"- round {item.get('round')}: pages={format_list(as_list(item.get('retry_pages')))} "
+                f"candidates={item.get('candidate_count', 0)} decisions={item.get('review_decisions', 0)} "
+                f"applied={item.get('applied_operations', 0)} written={item.get('written_pages', 0)} "
+                f"queued={item.get('queued_actions', 0)}"
+            )
 
     lines.extend(["", "## Execution", ""])
     applied = as_list(record.get("applied_operations"))

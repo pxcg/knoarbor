@@ -1,23 +1,26 @@
 {
-  "report": "# Lint Run Report\n\n- run_id: golden-lint-run\n- created_at: <created_at>\n- mode: semantic_structural\n- profile: standard\n- scope_id: golden:lint\n- deterministic_issues: 4\n- deterministic_fixes: 5\n- recommended_mode: semantic_structural\n- policy_triggered: True\n- semantic_candidates: 1\n- review_decisions: 1\n- queued_actions: 0\n- applied_operations: 1\n- written_pages: 0\n- operation_success_rate: 1.00\n- verifications: 1 verified / 0 failed / 0 skipped\n- follow_up_required: False\n- rescan_issues: 3\n- issue_delta: -1\n- trend_issue_delta_from_previous: None\n- graph_components: 1 / largest 1\n- quality_reviews: 0 pages / avg score n/a\n- elapsed_seconds: <elapsed>\n- semantic_calls: 0\n- total_tokens: 0\n- tokens_per_second: <tokens_per_second>\n\n## Semantic Token Usage\n\n- semantic_calls: 0\n- prompt_tokens: 0\n- prompt_cached_tokens: 0\n- prompt_cache_rate: n/a\n- completion_tokens: 0\n- total_tokens: 0\n- semantic_elapsed_seconds: 0.00\n- tokens_per_second: <tokens_per_second>\n\n## Issue Summary\n\n- before_rescan: 4\n- after_rescan: 3\n- issue_delta: -1\n- repeated_issue_codes: broken_wikilink=1, knowledge_missing_source_digest_link=1, orphan_page=1, weak_link_graph=1\n\n## Trend Summary\n\n- previous_runs_considered: 0\n- previous_issue_count: None\n- current_issue_count: 4\n- issue_delta_from_previous: None\n- persistent_issue_codes: none\n\n## Graph Health\n\n- node_count: 1\n- component_count: 1\n- largest_component_size: 1\n- isolated_page_count: 1\n- small_component_count: 0\n- hub_pages: none\n\n## Deterministic Issues\n\n- [error] `broken_wikilink` in `concepts/Agent-Loop.md`: Wiki link target does not exist.\n- [info] `orphan_page` in `concepts/Agent-Loop.md`: No other wiki page links to this page.\n- [info] `weak_link_graph` in `concepts/Agent-Loop.md`: Generated knowledge page has no resolved incoming or outgoing wiki links.\n- [info] `knowledge_missing_source_digest_link` in `concepts/Agent-Loop.md`: Generated knowledge page does not link back to its matching source digest.\n\n## Semantic Candidates\n\n- `structural:concepts/Agent-Loop.md:broken_wikilink:0` deterministic_wiki_operation replace_wikilink -> concepts/Agent-Loop.md\n\n## Quality Reviews\n\n- reviewed_pages: 0\n- average_overall_score: n/a\n\n## Review Decisions\n\n- [approve] operation 0 supported_by_wiki_operation risk=low: The broken link target is explicit and the replacement page exists.\n\n## Queued Actions\n\n- No queued report-only or refresh-request actions.\n\n## Execution\n\n- success_rate: 1.00\n- failed_verifications: 0\n- operation `replace_wikilink` on `concepts/Agent-Loop.md`: applied\n\n## Page Changes\n\n- `concepts/Agent-Loop.md` action=replace_wikilink sections=none\n\n```diff\n--- concepts/Agent-Loop.md\n+++ concepts/Agent-Loop.md\n@@ -22,7 +22,7 @@\n \n ## Related Pages\n \n-- [[Missing Page]]\n+- [[entities/OpenClaw|OpenClaw]]\n \n ## Tags\n \n```\n\n\n## Post-fix Verification\n\n- [verified] `replace_wikilink` on `concepts/Agent-Loop.md`: Old wikilink target is absent and new target is present.\n\n## Rescan\n\n- [info] `orphan_page` in `concepts/Agent-Loop.md`: No other wiki page links to this page.\n- [info] `knowledge_without_source_digest` in `entities/OpenClaw.md`: Generated knowledge page points to a raw source without a matching source digest page.\n- [info] `knowledge_missing_source_digest_link` in `concepts/Agent-Loop.md`: Generated knowledge page does not link back to its matching source digest.\n",
+  "report": "# Lint Run Report\n\n- run_id: golden-lint-run\n- created_at: <created_at>\n- mode: semantic_structural\n- profile: standard\n- scope_id: golden:lint\n- deterministic_issues: 4\n- deterministic_fixes: 5\n- recommended_mode: semantic_structural\n- policy_triggered: True\n- semantic_candidates: 1\n- review_decisions: 1\n- queued_actions: 0\n- deferred_retries: 0\n- applied_operations: 1\n- written_pages: 0\n- operation_success_rate: 1.00\n- verifications: 1 verified / 0 failed / 0 skipped\n- follow_up_required: False\n- rescan_issues: 4\n- issue_delta: 0\n- trend_issue_delta_from_previous: None\n- graph_components: 1 / largest 1\n- quality_reviews: 0 pages / avg score n/a\n- elapsed_seconds: <elapsed>\n- semantic_calls: 0\n- total_tokens: 0\n- tokens_per_second: <tokens_per_second>\n\n## Semantic Token Usage\n\n- semantic_calls: 0\n- prompt_tokens: 0\n- prompt_cached_tokens: 0\n- prompt_cache_rate: n/a\n- prompt_stable_chars: 0\n- prompt_dynamic_chars: 0\n- dynamic_to_stable_ratio: n/a\n- completion_tokens: 0\n- total_tokens: 0\n- semantic_elapsed_seconds: 0.00\n- tokens_per_second: <tokens_per_second>\n\n## Issue Summary\n\n- before_rescan: 4\n- after_rescan: 4\n- issue_delta: 0\n- repeated_issue_codes: broken_wikilink=1, knowledge_missing_source_digest_link=1, orphan_page=1, weak_link_graph=1\n\n## Trend Summary\n\n- previous_runs_considered: 0\n- previous_issue_count: None\n- current_issue_count: 4\n- issue_delta_from_previous: None\n- persistent_issue_codes: none\n\n## Graph Health\n\n- node_count: 1\n- component_count: 1\n- largest_component_size: 1\n- isolated_page_count: 1\n- small_component_count: 0\n- hub_pages: none\n\n## Deterministic Issues\n\n- [error] `broken_wikilink` in `concepts/Agent-Loop.md`: Wiki link target does not exist.\n- [info] `orphan_page` in `concepts/Agent-Loop.md`: No other wiki page links to this page.\n- [info] `weak_link_graph` in `concepts/Agent-Loop.md`: Generated knowledge page has no resolved incoming or outgoing wiki links.\n- [info] `knowledge_missing_source_digest_link` in `concepts/Agent-Loop.md`: Generated knowledge page does not link back to its matching source digest.\n\n## Semantic Candidates\n\n- `provenance:concepts/Agent-Loop.md:knowledge_missing_source_digest_link:0` deterministic_wiki_operation attach_source_digest -> concepts/Agent-Loop.md\n\n## Quality Reviews\n\n- reviewed_pages: 0\n- average_overall_score: n/a\n\n## Review Decisions\n\n- [approve] operation 0 supported_by_wiki_operation risk=low: The source digest target is explicit and exists.\n\n## Queued Actions\n\n- No queued report-only or refresh-request actions.\n\n## Execution\n\n- success_rate: 1.00\n- failed_verifications: 0\n- operation `attach_source_digest` on `concepts/Agent-Loop.md`: applied\n\n## Page Changes\n\n- `concepts/Agent-Loop.md` action=attach_source_digest sections=none\n\n```diff\n--- concepts/Agent-Loop.md\n+++ concepts/Agent-Loop.md\n@@ -23,7 +23,7 @@\n ## Related Pages\n \n - [[Missing Page]]\n-\n+- [[sources/Agent-Loop-Source|Agent Loop Source]]\n ## Tags\n \n - agent\n```\n\n\n## Post-fix Verification\n\n- [verified] `attach_source_digest` on `concepts/Agent-Loop.md`: Expected related pages are present and canonical list items are unique.\n\n## Rescan\n\n- [info] `missing_required_section` in `sources/Agent-Loop-Source.md`: Page is missing required sources section: Source Focus.\n- [error] `broken_wikilink` in `concepts/Agent-Loop.md`: Wiki link target does not exist.\n- [info] `orphan_page` in `concepts/Agent-Loop.md`: No other wiki page links to this page.\n- [info] `source_digest_missing_related_pages` in `sources/Agent-Loop-Source.md`: Source digest does not list all generated knowledge pages for the same raw source in Related Pages.\n",
   "result": {
     "applied_operations": [
       {
-        "action": "replace_wikilink",
+        "action": "attach_source_digest",
         "details": {
-          "diff": "--- concepts/Agent-Loop.md\n+++ concepts/Agent-Loop.md\n@@ -22,7 +22,7 @@\n \n ## Related Pages\n \n-- [[Missing Page]]\n+- [[entities/OpenClaw|OpenClaw]]\n \n ## Tags\n ",
+          "added_links": [
+            "[[sources/Agent-Loop-Source|Agent Loop Source]]"
+          ],
+          "diff": "--- concepts/Agent-Loop.md\n+++ concepts/Agent-Loop.md\n@@ -23,7 +23,7 @@\n ## Related Pages\n \n - [[Missing Page]]\n-\n+- [[sources/Agent-Loop-Source|Agent Loop Source]]\n ## Tags\n \n - agent",
           "diff_truncated": false,
-          "link_text": "OpenClaw",
-          "new_target": "entities/OpenClaw",
-          "old_target": "Missing Page",
-          "replacements": 1
+          "related_pages": [
+            "sources/Agent-Loop-Source.md"
+          ]
         },
-        "operation_id": "structural:concepts/Agent-Loop.md:broken_wikilink:0",
+        "operation_id": "provenance:concepts/Agent-Loop.md:knowledge_missing_source_digest_link:0",
         "output_page": "concepts/Agent-Loop.md",
         "status": "applied",
         "target_page": "concepts/Agent-Loop.md"
       }
     ],
+    "deferred_retries": [],
     "deterministic_issues": [
       {
         "code": "broken_wikilink",
@@ -69,7 +72,7 @@
           "executor_fit": "supported_by_wiki_operation",
           "necessity": "necessary",
           "operation_index": 0,
-          "reason": "The broken link target is explicit and the replacement page exists.",
+          "reason": "The source digest target is explicit and exists.",
           "required_followups": [],
           "risk_level": "low"
         }
@@ -84,7 +87,6 @@
       "mode": "semantic_structural",
       "recommended_mode": "semantic_structural",
       "trigger_reasons": [
-        "broken_wikilink in concepts/Agent-Loop.md",
         "weak_link_graph in concepts/Agent-Loop.md",
         "knowledge_missing_source_digest_link in concepts/Agent-Loop.md"
       ],
@@ -94,6 +96,26 @@
     "queued_actions": [],
     "rescan_issues": [
       {
+        "code": "missing_required_section",
+        "details": {
+          "directory": "sources",
+          "page_type": "source",
+          "section": "Source Focus"
+        },
+        "message": "Page is missing required sources section: Source Focus.",
+        "path": "sources/Agent-Loop-Source.md",
+        "severity": "info"
+      },
+      {
+        "code": "broken_wikilink",
+        "details": {
+          "target": "Missing Page"
+        },
+        "message": "Wiki link target does not exist.",
+        "path": "concepts/Agent-Loop.md",
+        "severity": "error"
+      },
+      {
         "code": "orphan_page",
         "details": {},
         "message": "No other wiki page links to this page.",
@@ -101,72 +123,68 @@
         "severity": "info"
       },
       {
-        "code": "knowledge_without_source_digest",
+        "code": "source_digest_missing_related_pages",
         "details": {
-          "source": "raw/notes/openclaw.md"
+          "related_pages": [
+            "concepts/Agent-Loop.md"
+          ],
+          "sources": [
+            "raw/notes/agent.md"
+          ]
         },
-        "message": "Generated knowledge page points to a raw source without a matching source digest page.",
-        "path": "entities/OpenClaw.md",
-        "severity": "info"
-      },
-      {
-        "code": "knowledge_missing_source_digest_link",
-        "details": {
-          "source": "raw/notes/agent.md",
-          "source_digest": "sources/Agent-Loop-Source.md"
-        },
-        "message": "Generated knowledge page does not link back to its matching source digest.",
-        "path": "concepts/Agent-Loop.md",
+        "message": "Source digest does not list all generated knowledge pages for the same raw source in Related Pages.",
+        "path": "sources/Agent-Loop-Source.md",
         "severity": "info"
       }
     ],
     "semantic_candidates": {
       "candidates": [
         {
-          "candidate_id": "structural:concepts/Agent-Loop.md:broken_wikilink:0",
+          "candidate_id": "provenance:concepts/Agent-Loop.md:knowledge_missing_source_digest_link:0",
           "confidence": 0.95,
           "evidence": [
             {
               "kind": "scan_issue",
-              "quote": "[[Missing Page]]",
+              "quote": "Generated knowledge page does not link back to its matching source digest.",
               "ref": "concepts/Agent-Loop.md"
             }
           ],
           "executor_hint": "deterministic_wiki_operation",
-          "expected_effect": "Replace broken link with the existing related implementation page.",
-          "issue_type": "broken_wikilink",
+          "expected_effect": "Connect the concept page back to its source digest.",
+          "issue_type": "knowledge_missing_source_digest_link",
           "recommended_action": {
-            "action": "replace_wikilink",
+            "action": "attach_source_digest",
             "params": {
-              "link_text": "OpenClaw",
-              "new_target": "entities/OpenClaw",
-              "old_target": "Missing Page"
+              "related_pages": [
+                "sources/Agent-Loop-Source.md"
+              ]
             }
           },
           "related_pages": [
-            "entities/OpenClaw.md"
+            "sources/Agent-Loop-Source.md"
           ],
-          "review_notes": "The replacement target exists in the fixture vault.",
+          "review_notes": "The source digest exists in the fixture vault.",
           "risk_hint": "low",
-          "severity": "high",
-          "source": "structural",
+          "severity": "medium",
+          "source": "provenance",
           "target_page": "concepts/Agent-Loop.md"
         }
       ],
       "page_reviews": [],
       "schema_version": "maintenance_candidates.v1",
-      "summary": "Replace one broken wiki link.",
+      "summary": "Attach one missing source digest link.",
       "warnings": []
     },
     "verifications": [
       {
-        "action": "replace_wikilink",
+        "action": "attach_source_digest",
         "evidence": {
-          "new_target": "entities/OpenClaw",
-          "old_target": "Missing Page"
+          "expected_pages": [
+            "sources/Agent-Loop-Source.md"
+          ]
         },
-        "operation_id": "structural:concepts/Agent-Loop.md:broken_wikilink:0",
-        "reason": "Old wikilink target is absent and new target is present.",
+        "operation_id": "provenance:concepts/Agent-Loop.md:knowledge_missing_source_digest_link:0",
+        "reason": "Expected related pages are present and canonical list items are unique.",
         "status": "verified",
         "target_page": "concepts/Agent-Loop.md"
       }

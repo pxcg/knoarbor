@@ -9,15 +9,8 @@ type Props = {
 export function RunsPage({ context }: Props) {
   return (
     <section className="view active">
-      <div className="page-intro">
-        <div>
-          <p className="eyebrow">{context.t("runMonitor")}</p>
-          <h2>{context.t("runsTitle")}</h2>
-          <p className="panel-copy">{context.t("runsSubtitle")}</p>
-        </div>
-      </div>
-      <RunPreflight context={context} />
       <ActiveRunsPanel context={context} includeRecoverable />
+      <RunPreflight context={context} />
       <article className="panel">
         <div className="panel-header">
           <div>

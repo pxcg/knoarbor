@@ -248,6 +248,71 @@ export type ReportDetail = {
   summary: ReportSummary;
 };
 
+export type TokenMetricGroup = {
+  name: string;
+  call_count: number;
+  prompt_tokens: number;
+  prompt_cached_tokens: number;
+  prompt_cache_rate?: number | null;
+  prompt_stable_chars?: number;
+  prompt_dynamic_chars?: number;
+  dynamic_to_stable_ratio?: number | null;
+  payload_char_total?: number;
+  completion_tokens: number;
+  total_tokens: number;
+  elapsed_seconds: number;
+  tokens_per_second?: number | null;
+};
+
+export type TokenPayloadFieldGroup = {
+  name: string;
+  call_count: number;
+  payload_chars: number;
+  top_call_count: number;
+};
+
+export type TokenCallRecord = {
+  flow?: string;
+  run_id?: string;
+  agent?: string;
+  provider?: string;
+  model?: string;
+  connector?: string;
+  source_file?: string;
+  segment_index?: number | null;
+  segment_title?: string | null;
+  segment_chars?: number | null;
+  page_paths?: string[];
+  prompt_tokens: number;
+  prompt_cached_tokens: number;
+  prompt_cache_rate?: number | null;
+  prompt_stable_chars?: number;
+  prompt_dynamic_chars?: number;
+  dynamic_to_stable_ratio?: number | null;
+  payload_char_total?: number;
+  payload_top_field?: string | null;
+  payload_char_breakdown?: Record<string, number>;
+  completion_tokens: number;
+  total_tokens: number;
+  elapsed_seconds: number;
+  tokens_per_second?: number | null;
+};
+
+export type TokenAnalysis = {
+  schema_version: string;
+  record_count: number;
+  totals: TokenMetricGroup;
+  by_flow: TokenMetricGroup[];
+  by_agent: TokenMetricGroup[];
+  by_source: TokenMetricGroup[];
+  by_connector: TokenMetricGroup[];
+  by_model: TokenMetricGroup[];
+  by_page: TokenMetricGroup[];
+  by_payload_field: TokenPayloadFieldGroup[];
+  top_calls: TokenCallRecord[];
+  recent_runs: Array<TokenMetricGroup & { run_id: string; flow?: string; created_at?: string | null; finished_at?: string | null }>;
+};
+
 export type ProjectDoc = {
   path: string;
   content: string;
@@ -319,6 +384,10 @@ export async function getReport(vaultPath: string, path: string): Promise<Report
   return requestJson(`/ui/api/report?vault_path=${encodeURIComponent(vaultPath)}&path=${encodeURIComponent(path)}`);
 }
 
+export async function getTokenAnalysis(vaultPath: string, limit = 5000): Promise<TokenAnalysis> {
+  return requestJson(`/ui/api/tokens?vault_path=${encodeURIComponent(vaultPath)}&limit=${limit}`);
+}
+
 export async function getProjectDoc(path: string): Promise<ProjectDoc> {
   const safePath = path.split("/").map(encodeURIComponent).join("/");
   return requestJson(`/ui/api/docs/${safePath}`);
@@ -336,8 +405,8 @@ export async function runLint(body: Record<string, unknown>): Promise<unknown> {
   return requestJson("/lint", { method: "POST", body: { execution: "queued", ...body } });
 }
 
-export async function getRuns(vaultPath: string, activeOnly = false): Promise<{ runs: import("../types").RunRecord[] }> {
-  return requestJson(`/runs?vault_path=${encodeURIComponent(vaultPath)}&active_only=${activeOnly ? "true" : "false"}`);
+export async function getRuns(vaultPath: string, activeOnly = false, limit = 50): Promise<{ runs: import("../types").RunRecord[] }> {
+  return requestJson(`/runs?vault_path=${encodeURIComponent(vaultPath)}&active_only=${activeOnly ? "true" : "false"}&limit=${limit}`);
 }
 
 export async function getActiveRuns(vaultPath: string): Promise<{ runs: import("../types").RunRecord[] }> {

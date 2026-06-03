@@ -6,6 +6,7 @@ from typing import Any
 
 from knoarbor.audit.reports import write_maintenance_report
 from knoarbor.audit.report_formatting import as_dict, as_list, cache_metric_lines, fmt_number, format_list, semantic_token_report_lines
+from knoarbor.audit.token_ledger import append_ingest_token_records
 from knoarbor.storage.ledger import append_jsonl_ledger, read_jsonl_ledger
 from knoarbor.storage.wiki_index import relative_wiki_path
 
@@ -29,6 +30,8 @@ def write_ingest_run_artifacts(
     record = build_ingest_run_record(result, run_id=run_id, started_at=started_at, finished_at=finished_at)
     record["quality_trend"] = build_source_quality_trend(record, read_jsonl_ledger(vault_path, INGEST_LEDGER_PATH, limit=100))
     ledger_path = append_jsonl_ledger(vault_path, INGEST_LEDGER_PATH, record) if append_ledger else None
+    if append_ledger:
+        append_ingest_token_records(vault_path, record)
     report_path = (
         write_maintenance_report(vault_path, "ingest", render_ingest_report(record), f"maintenance/ingest_report_{run_id}.md")
         if write_report
@@ -132,6 +135,7 @@ def render_ingest_report(record: dict[str, object]) -> str:
         scoped_lint_stats = as_dict(deterministic_lint.get("stats"))
         policy_decision = as_dict(scoped_lint_result.get("policy_decision"))
         retrieval = as_dict(context.get("retrieval"))
+        context_strategy_lines = _context_strategy_lines(context)
         touched_pages = as_list(source.get("touched_pages"))
         lines.extend(
             [
@@ -161,6 +165,7 @@ def render_ingest_report(record: dict[str, object]) -> str:
                 f"- approved_operations: {source.get('approved_operation_indexes', [])}",
                 f"- segmentation: {segmentation.get('mode', 'none')} / {segmentation.get('segment_count', 0)} segment(s)",
                 f"- segment_status: {_status_summary(segments, 'status') if segments else 'n/a'}",
+                *context_strategy_lines,
                 "",
                 "Relation operations:",
             ]
@@ -434,6 +439,26 @@ def _source_record(source_result: Any) -> dict[str, object]:
         "semantic_stage_warnings": _semantic_stage_warnings(semantic_result),
         "warnings": _final_warnings(source_result, semantic_result),
     }
+
+
+def _context_strategy_lines(context: dict[str, Any]) -> list[str]:
+    retrieval = as_dict(context.get("retrieval"))
+    retrieval_stats = as_dict(retrieval.get("stats"))
+    materialized = as_dict(context.get("materialized_pages"))
+    compile_context = as_dict(context.get("compile_context"))
+    lines: list[str] = []
+    if retrieval_stats or materialized or compile_context:
+        lines.append(f"- relation_context_policy: {retrieval_stats.get('relation_context_policy', 'n/a')}")
+        lines.append(f"- relation_profile_chars: {retrieval_stats.get('relation_profile_chars', 'n/a')}")
+        lines.append(f"- materialized_context_policy: {materialized.get('context_policy', 'n/a')}")
+        lines.append(f"- materialized_context_chars: {materialized.get('materialized_context_chars', 'n/a')}")
+        lines.append(
+            "- compile_context_pages: "
+            f"targets={compile_context.get('target_pages', 'n/a')}, "
+            f"related={compile_context.get('related_pages', 'n/a')}, "
+            f"candidates={compile_context.get('candidate_pages', 'n/a')}"
+        )
+    return lines
 
 
 def _relation_operations(semantic_result: Any | None) -> list[dict[str, object]]:

@@ -18,7 +18,7 @@ You receive:
 - `source_hint`: deterministic source metadata derived from the connector.
 
 The source may represent a Hermes chat, Codex chat, Markdown note, parsed document, web capture, text note, or manual source.
-For long sources, `source_document.metadata.segmentation` may indicate that this is one segment of a larger source. Preserve segment metadata, but do not overfit extraction to the segment boundary.
+For segmented sources, use `source_document.metadata.segmentation` as outline context only: preserve segment metadata, do not infer unseen sibling content, and do not overfit extraction to the segment boundary.
 
 ## Output Shape
 

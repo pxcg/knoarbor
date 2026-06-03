@@ -16,17 +16,18 @@ echo "workdir: $TMP_DIR"
 
 git clone --quiet "$SOURCE" "$TMP_DIR/knoarbor"
 cd "$TMP_DIR/knoarbor"
+UV=(env -u VIRTUAL_ENV uv)
 
 # Safe: all writes below happen inside this temporary clone, never in the
 # maintainer's working tree or real runtime vault.
-uv sync --extra dev
+"${UV[@]}" sync --extra dev
 (cd web && npm install && npm run build)
-uv run python -m unittest discover -s tests
-uv run knoar --help >/dev/null
-uv run knoar init --vault wiki >/dev/null
-DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY:-knoarbor-release-smoke-key}" uv run knoar --config config.example.yaml doctor >/dev/null
-uv run knoar status --vault wiki >/dev/null
-uv build >/dev/null
+"${UV[@]}" run python -m unittest discover -s tests
+"${UV[@]}" run knoar --help >/dev/null
+"${UV[@]}" run knoar init --vault wiki >/dev/null
+DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY:-knoarbor-release-smoke-key}" "${UV[@]}" run knoar --config config.example.yaml doctor >/dev/null
+"${UV[@]}" run knoar status --vault wiki >/dev/null
+"${UV[@]}" build >/dev/null
 
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "Clean clone smoke test left tracked changes:" >&2

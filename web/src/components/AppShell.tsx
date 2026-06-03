@@ -1,6 +1,6 @@
 import { LineIcon } from "./LineIcon";
 import { Sidebar } from "./Sidebar";
-import { viewTitles } from "../i18n";
+import { viewSubtitles, viewTitles } from "../i18n";
 import type { Language, ViewName } from "../types";
 import type { ReactNode } from "react";
 
@@ -13,6 +13,7 @@ type AppShellProps = {
   sidebarCollapsed: boolean;
   t: (key: string) => string;
   onChangeView: (view: ViewName) => void;
+  onPreloadView?: (view: ViewName) => void;
   onRefresh: () => void;
   onSetLanguage: (language: Language) => void;
   onToggleSidebar: () => void;
@@ -27,6 +28,7 @@ export function AppShell({
   sidebarCollapsed,
   t,
   onChangeView,
+  onPreloadView,
   onRefresh,
   onSetLanguage,
   onToggleSidebar,
@@ -40,13 +42,14 @@ export function AppShell({
         language={language}
         t={t}
         onChangeView={onChangeView}
+        onPreloadView={onPreloadView}
         onToggleCollapsed={onToggleSidebar}
       />
       <main className="main">
         <header className="topbar">
           <div className="topbar-heading">
-            <p className="topbar-kicker">KnoArbor / {viewTitles[language][activeView]}</p>
-            <h1>{viewTitles[language][activeView]}</h1>
+            <p className="topbar-kicker">{viewTitles[language][activeView]}</p>
+            <p className="topbar-subtitle">{viewSubtitles[language][activeView]}</p>
           </div>
           <div className="topbar-actions">
             <div className="language-switch" aria-label={t("language")}>

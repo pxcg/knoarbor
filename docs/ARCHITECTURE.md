@@ -212,6 +212,11 @@ Responsibilities:
 - review necessity, correctness, completeness, risk, confidence, and executor fit;
 - execute only reviewed operations;
 - keep high-risk refresh, merge/split, conflict, and external-fact work as queued or report-only actions unless explicitly supported by a reviewed executor.
+- route reviewed decisions through explicit executor paths:
+  - `supported_by_wiki_operation` -> `WikiOperationPipeline` -> verification;
+  - `supported_by_draft_write` -> draft compilation -> `WikiWritePipeline` -> verification;
+  - `supported_by_report_only` -> deferred retry with enriched page context -> wiki operation or draft write when evidence becomes sufficient; otherwise it remains queued in the report;
+  - `supported_by_refresh_request` -> provenance refresh -> source digest creation or source/knowledge bidirectional link repair -> rescan.
 
 Implementation boundary:
 
@@ -219,6 +224,8 @@ Implementation boundary:
 - `lint_scanners` owns deterministic scan rules and issue generation.
 - `lint_candidates` owns scan-page previews and quality/freshness candidate scoring.
 - `wiki_lint` is the public orchestration facade for scan, candidate selection, safe fixes, and legacy lint reports.
+- `lint_execution` owns decision-to-executor routing and must not implement source parsing or page rendering directly.
+- `provenance_refresh` owns refresh-request execution. It only handles local raw sources that can be resolved inside the vault and repairs the raw source -> source digest -> generated page chain. Missing or ambiguous sources remain queued with warnings.
 
 User-facing modes:
 
@@ -261,7 +268,7 @@ KnoArbor remains a local-first wiki engine, but it still needs explicit runtime 
 - **Execution recovery**: recovery is represented as a new run derived from previous run metadata. Source/window checkpoints remain authoritative, so successful unchanged sources are skipped and failed or changed sources re-enter the normal ingest pipeline.
 - **Event model**: run events are progress facts such as `source_started`, `segment_finished`, `model_call_started`, `model_call_retrying`, and `pages_written`. The frozen catalog lives in `knoarbor.runtime.events`; new event names should be added there before pipelines emit them. UI/API consumers display these facts but must not derive new business decisions from events.
 - **Application cache**: no separate app cache layer is required for the first release. Page parse results, graph data, and query indexes are cacheable later; write checkpoints, lint decisions, ledgers, and reports are not replaceable by cache.
-- **Provider prompt cache**: prompt caching is owned by the model provider. Semantic contracts keep long, stable instructions and output schemas in the system message; dynamic source/wiki payloads are appended in the user message. The runner must not inject timestamps, run IDs, local paths, or other volatile data before the stable contract prompt. Provider cache telemetry such as cached prompt tokens or DeepSeek cache hit/miss tokens is collected when available.
+- **Provider prompt cache**: prompt caching is owned by the model provider. `SemanticRunner` builds every call as a `SemanticPromptPackage`: stable executor instructions plus stable contract text first, then the dynamic source/wiki payload last. The runner must not inject timestamps, run IDs, local paths, or other volatile data into the stable prefix. Provider cache telemetry such as cached prompt tokens or DeepSeek cache hit/miss tokens is collected when available, and prompt package size metrics are recorded for later cost analysis.
 - **Docker**: Docker is a deployment adapter, not a core architecture layer. It should package the Python Core, CLI/FastAPI entrypoints, static UI, and config templates after the local execution path is stable.
 
 ## Read API Boundaries

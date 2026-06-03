@@ -57,6 +57,8 @@ uv run knoar doctor
 uv run knoar serve
 ```
 
+如果 `8000` 已被占用，服务会自动选择下一个可用本地端口，并打印实际地址。
+
 打开：
 
 ```text

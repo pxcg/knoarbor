@@ -1,15 +1,22 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
+from threading import RLock
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from knoarbor.core.markdown import compact_inline_text
+from knoarbor.core.markdown import compact_inline_text, extract_heading, extract_list_items, extract_section, extract_tags, parse_frontmatter
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 from knoarbor.core.schemas.wiki_relation_plan import WikiRelationPlan
 from knoarbor.pipelines.query import QueryPipeline, QueryPipelineRequest
-from knoarbor.retrieval.markdown import ScoredPage, query_terms
+from knoarbor.retrieval.markdown import ScoredPage, extract_headings, query_terms, strip_frontmatter
 from knoarbor.storage.vault import VaultStore
+
+
+MaterializedContextRole = Literal["target", "related", "candidate"]
+MaterializedContentKind = Literal["full", "excerpt", "profile", "missing"]
 
 
 class IngestCandidatePage(BaseModel):
@@ -39,6 +46,14 @@ class IngestWikiContext(BaseModel):
 class IngestCandidatePageContent(BaseModel):
     path: str
     exists: bool
+    context_role: MaterializedContextRole = "candidate"
+    content_kind: MaterializedContentKind = "missing"
+    title: str = ""
+    summary: str = ""
+    key_points: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    headings: list[str] = Field(default_factory=list)
+    source: str | None = None
     content: str = ""
     truncated: bool = False
     original_content_length: int = 0
@@ -65,6 +80,14 @@ class IngestContextProvider:
         self.candidate_limit = candidate_limit
         self.materialized_page_limit = materialized_page_limit
         self.max_chars_per_page = max_chars_per_page
+        self._lock = RLock()
+        self._query_cache: dict[tuple[object, ...], object] = {}
+        self._materialize_cache: dict[tuple[object, ...], IngestCandidatePageContext] = {}
+
+    def clear_cache(self) -> None:
+        with self._lock:
+            self._query_cache.clear()
+            self._materialize_cache.clear()
 
     def build(self, vault_path: Path, extract: KnowledgeExtract) -> IngestWikiContext:
         query = build_ingest_query(extract)
@@ -76,16 +99,15 @@ class IngestContextProvider:
                 stats={"candidate_count": 0},
             )
 
-        result = self.query_pipeline.run(
-            QueryPipelineRequest(
-                vault_path=vault_path,
-                query=query,
-                mode="balanced",
-                limit=max(self.candidate_limit * 2, self.candidate_limit),
-                include_related=True,
-            )
+        query_request = QueryPipelineRequest(
+            vault_path=vault_path,
+            query=query,
+            mode="balanced",
+            limit=self.candidate_limit,
+            include_related=True,
         )
-        matches = rerank_ingest_candidates(extract, result.matches)[: self.candidate_limit]
+        result = self._cached_query(query_request)
+        matches = rerank_ingest_candidates(extract, result.matches)
         candidates = [
             IngestCandidatePage(
                 path=item.page.relative_path,
@@ -97,13 +119,14 @@ class IngestContextProvider:
                 score=round(item.score, 3),
                 relevance=_relevance_label(item.score),
                 matched_fields=sorted(item.matched_fields),
-                summary=compact_inline_text(item.page.summary, 500),
-                key_points=[compact_inline_text(point, 240) for point in item.page.key_points[:6]],
-                tags=item.page.tags[:12],
-                related_pages=item.page.related_pages[:10],
+                summary=_inline_text(item.page.summary),
+                key_points=[_inline_text(point) for point in item.page.key_points],
+                tags=item.page.tags,
+                related_pages=item.page.related_pages,
             )
             for item in matches
         ]
+        profile_chars = _candidate_profile_chars(candidates)
         return IngestWikiContext(
             retrieval_mode=result.retrieval_mode,
             query=query,
@@ -113,21 +136,37 @@ class IngestContextProvider:
                 **result.stats,
                 "pre_rerank_candidate_count": len(result.matches),
                 "candidate_count": len(candidates),
+                "relation_profile_chars": profile_chars,
+                "relation_candidate_body_included": False,
+                "relation_context_policy": "lightweight_page_profiles_without_page_body",
             },
         )
 
     def materialize(self, vault_path: Path, relation_plan: WikiRelationPlan) -> IngestCandidatePageContext:
-        paths = selected_relation_paths(relation_plan)
+        path_roles = selected_relation_path_roles(relation_plan)
+        paths = [item[0] for item in path_roles]
+        cache_key = _materialize_cache_key(
+            vault_path,
+            path_roles,
+            self.materialized_page_limit,
+            self.max_chars_per_page,
+        )
+        with self._lock:
+            cached = self._materialize_cache.get(cache_key)
+            if cached is not None:
+                return cached.model_copy(deep=True)
         pages = VaultStore(vault_path).read_pages(paths, self.materialized_page_limit, self.max_chars_per_page)
-        return IngestCandidatePageContext(
+        role_by_path = {path: role for path, role in path_roles}
+        context = IngestCandidatePageContext(
             pages=[
-                IngestCandidatePageContent(
-                    path=page.path,
+                _materialized_page_content(
+                    page.path,
                     exists=page.exists,
                     content=page.content,
-                    truncated=page.truncated,
                     original_content_length=page.original_content_length,
+                    truncated=page.truncated,
                     error=page.error,
+                    role=role_by_path.get(page.path, "candidate"),
                 )
                 for page in pages
             ],
@@ -136,8 +175,27 @@ class IngestContextProvider:
                 "returned_count": len(pages),
                 "existing_count": sum(1 for page in pages if page.exists),
                 "max_chars_per_page": self.max_chars_per_page,
+                "context_policy": "target_full_related_excerpt_candidate_profile",
+                "full_body_pages": sum(1 for page in pages if page.exists and role_by_path.get(page.path) == "target"),
+                "excerpt_pages": sum(1 for page in pages if page.exists and role_by_path.get(page.path) == "related"),
+                "profile_only_pages": sum(1 for page in pages if page.exists and role_by_path.get(page.path) == "candidate"),
             },
         )
+        context.stats["materialized_context_chars"] = sum(len(page.content) for page in context.pages)
+        with self._lock:
+            self._materialize_cache[cache_key] = context.model_copy(deep=True)
+        return context
+
+    def _cached_query(self, request: QueryPipelineRequest):
+        cache_key = _query_cache_key(request, self.query_pipeline.index_provider.name)
+        with self._lock:
+            cached = self._query_cache.get(cache_key)
+            if cached is not None:
+                return deepcopy(cached)
+        result = self.query_pipeline.run(request)
+        with self._lock:
+            self._query_cache[cache_key] = deepcopy(result)
+        return result
 
 
 def build_ingest_query(extract: KnowledgeExtract) -> str:
@@ -150,6 +208,14 @@ def build_ingest_query(extract: KnowledgeExtract) -> str:
     if extract.compile_context.primary_content:
         parts.append(extract.compile_context.primary_content)
     return compact_inline_text("\n".join(part for part in parts if part), 1200)
+
+
+def _inline_text(value: str) -> str:
+    return " ".join(value.split())
+
+
+def _candidate_profile_chars(candidates: list[IngestCandidatePage]) -> int:
+    return sum(len(candidate.model_dump_json(exclude_none=True)) for candidate in candidates)
 
 
 def rerank_ingest_candidates(extract: KnowledgeExtract, matches: list[ScoredPage]) -> list[ScoredPage]:
@@ -210,30 +276,172 @@ def _same_source(page_source: str, extract_source_path: str) -> bool:
 
 
 def selected_relation_paths(relation_plan: WikiRelationPlan) -> list[str]:
+    return [path for path, _role in selected_relation_path_roles(relation_plan)]
+
+
+def selected_relation_path_roles(relation_plan: WikiRelationPlan) -> list[tuple[str, MaterializedContextRole]]:
     paths: list[str] = []
     seen: set[str] = set()
     for operation in relation_plan.operations:
-        for path in _operation_paths(operation):
-            if path not in seen:
-                seen.add(path)
-                paths.append(path)
-    return paths
+        for raw_path, role in _operation_path_roles(operation):
+            path = VaultStore.normalize_page_path(raw_path)
+            if not path:
+                continue
+            if path in seen:
+                continue
+            seen.add(path)
+            paths.append(path)
+    return [(path, _highest_relation_role(path, relation_plan)) for path in paths]
+
+
+def _query_cache_key(request: QueryPipelineRequest, index_provider_name: str) -> tuple[object, ...]:
+    return (
+        "query",
+        request.vault_path.expanduser().resolve().as_posix(),
+        index_provider_name,
+        request.query,
+        request.mode,
+        request.limit,
+        tuple(request.page_dirs),
+        request.include_related,
+    )
+
+
+def _materialize_cache_key(
+    vault_path: Path,
+    path_roles: list[tuple[str, MaterializedContextRole]],
+    materialized_page_limit: int,
+    max_chars_per_page: int,
+) -> tuple[object, ...]:
+    return (
+        "materialize",
+        vault_path.expanduser().resolve().as_posix(),
+        tuple(path_roles),
+        materialized_page_limit,
+        max_chars_per_page,
+    )
 
 
 def _operation_paths(operation: object) -> list[str]:
-    paths: list[str] = []
+    return [path for path, _role in _operation_path_roles(operation)]
+
+
+def _operation_path_roles(operation: object) -> list[tuple[str, MaterializedContextRole]]:
+    paths: list[tuple[str, MaterializedContextRole]] = []
     target_page = getattr(operation, "target_page", None)
     if target_page:
-        paths.append(target_page)
+        paths.append((target_page, "target"))
     for related in getattr(operation, "related_pages", []):
         path = getattr(related, "path", "")
         if path:
-            paths.append(path)
+            paths.append((path, "related"))
     for candidate in getattr(operation, "candidate_pages", []):
         path = getattr(candidate, "path", "")
         if path:
-            paths.append(path)
+            paths.append((path, "candidate"))
     return paths
+
+
+def _highest_relation_role(path: str, relation_plan: WikiRelationPlan) -> MaterializedContextRole:
+    rank: dict[MaterializedContextRole, int] = {"candidate": 0, "related": 1, "target": 2}
+    selected: MaterializedContextRole = "candidate"
+    for operation in relation_plan.operations:
+        for raw_path, role in _operation_path_roles(operation):
+            current_path = VaultStore.normalize_page_path(raw_path)
+            if current_path == path and rank[role] > rank[selected]:
+                selected = role
+    return selected
+
+
+def _materialized_page_content(
+    path: str,
+    *,
+    exists: bool,
+    content: str,
+    original_content_length: int,
+    truncated: bool,
+    error: str | None,
+    role: MaterializedContextRole,
+) -> IngestCandidatePageContent:
+    if not exists:
+        return IngestCandidatePageContent(
+            path=path,
+            exists=False,
+            context_role=role,
+            content_kind="missing",
+            original_content_length=original_content_length,
+            error=error,
+        )
+
+    metadata = parse_frontmatter(content)
+    title = extract_heading(content, Path(path).stem)
+    summary = _inline_text(extract_section(content, "Summary"))
+    key_points = [_inline_text(item) for item in extract_list_items(extract_section(content, "Key Points"))]
+    tags = extract_tags(content, metadata)
+    headings = extract_headings(content)
+    source = metadata.get("source")
+    if role == "target":
+        return IngestCandidatePageContent(
+            path=path,
+            exists=True,
+            context_role="target",
+            content_kind="full",
+            title=title,
+            summary=summary,
+            key_points=key_points,
+            tags=tags,
+            headings=headings,
+            source=source,
+            content=content,
+            truncated=truncated,
+            original_content_length=original_content_length,
+        )
+    if role == "related":
+        excerpt = _related_page_excerpt(content, summary=summary, key_points=key_points, headings=headings)
+        return IngestCandidatePageContent(
+            path=path,
+            exists=True,
+            context_role="related",
+            content_kind="excerpt",
+            title=title,
+            summary=summary,
+            key_points=key_points,
+            tags=tags,
+            headings=headings,
+            source=source,
+            content=excerpt,
+            truncated=truncated,
+            original_content_length=original_content_length,
+        )
+    return IngestCandidatePageContent(
+        path=path,
+        exists=True,
+        context_role="candidate",
+        content_kind="profile",
+        title=title,
+        summary=summary,
+        key_points=key_points,
+        tags=tags,
+        headings=headings,
+        source=source,
+        content="",
+        truncated=truncated,
+        original_content_length=original_content_length,
+    )
+
+
+def _related_page_excerpt(content: str, *, summary: str, key_points: list[str], headings: list[str]) -> str:
+    parts: list[str] = []
+    if summary:
+        parts.append("Summary:\n" + summary)
+    if key_points:
+        parts.append("Key Points:\n" + "\n".join(f"- {point}" for point in key_points))
+    if headings:
+        parts.append("Headings:\n" + "\n".join(f"- {heading}" for heading in headings))
+    body = strip_frontmatter(content)
+    if body and not parts:
+        parts.append(compact_inline_text(body, 1200))
+    return "\n\n".join(parts)
 
 
 def _relevance_label(score: float) -> str:

@@ -15,6 +15,13 @@ from knoarbor.semantic.llm import ChatClient, ChatCompletionRequest, ChatMessage
 from knoarbor.runtime import RunReporter
 
 
+SEMANTIC_EXECUTOR_SYSTEM_PROMPT = (
+    "You are KnoArbor's semantic contract executor. "
+    "Follow the stable contract instructions in the next message exactly, "
+    "then apply them to the dynamic payload. Return only the required JSON."
+)
+
+
 @dataclass(frozen=True)
 class SemanticRetryPolicy:
     enabled: bool = True
@@ -48,6 +55,17 @@ class SemanticRunFailure:
     metrics: dict[str, object]
 
 
+@dataclass(frozen=True)
+class SemanticPromptPackage:
+    """Prompt package with a stable cacheable prefix and dynamic payload tail."""
+
+    messages: list[ChatMessage]
+    stable_chars: int
+    dynamic_chars: int
+    stable_message_count: int
+    dynamic_message_count: int
+
+
 class SemanticRunner:
     def __init__(self, client: ChatClient, retry_policy: SemanticRetryPolicy | None = None) -> None:
         self.client = client
@@ -64,12 +82,10 @@ class SemanticRunner:
         max_tokens: int | None = None,
     ) -> SemanticRunResult:
         contract = load_semantic_contract(contract_name)
+        prompt_package = build_semantic_prompt_package(contract, payload, user_instruction=user_instruction)
+        payload_char_breakdown = semantic_payload_char_breakdown(payload)
         request = ChatCompletionRequest(
-            messages=[
-                ChatMessage(role="system", content=contract.prompt_text),
-                ChatMessage(role="user", content=_cacheable_contract_preamble(contract)),
-                ChatMessage(role="user", content=_build_user_content(payload, user_instruction)),
-            ],
+            messages=prompt_package.messages,
             temperature=temperature,
             max_tokens=max_tokens,
         )
@@ -77,7 +93,14 @@ class SemanticRunner:
         attempts = self.retry_policy.attempts
         for attempt in range(1, attempts + 1):
             try:
-                return self._run_once(contract, request, attempt=attempt, max_attempts=attempts)
+                return self._run_once(
+                    contract,
+                    request,
+                    prompt_package,
+                    payload_char_breakdown=payload_char_breakdown,
+                    attempt=attempt,
+                    max_attempts=attempts,
+                )
             except Exception as exc:
                 last_error = exc
                 if attempt >= attempts or not self._should_retry(exc):
@@ -91,7 +114,9 @@ class SemanticRunner:
         self,
         contract: SemanticContract,
         request: ChatCompletionRequest,
+        prompt_package: SemanticPromptPackage,
         *,
+        payload_char_breakdown: dict[str, int],
         attempt: int,
         max_attempts: int,
     ) -> SemanticRunResult:
@@ -137,6 +162,13 @@ class SemanticRunner:
         metrics = {
             "provider": response.provider,
             "model": response.model,
+            "prompt_stable_chars": prompt_package.stable_chars,
+            "prompt_dynamic_chars": prompt_package.dynamic_chars,
+            "prompt_stable_message_count": prompt_package.stable_message_count,
+            "prompt_dynamic_message_count": prompt_package.dynamic_message_count,
+            "payload_char_breakdown": payload_char_breakdown,
+            "payload_char_total": sum(payload_char_breakdown.values()),
+            "payload_top_field": _payload_top_field(payload_char_breakdown),
             "prompt_tokens": response.usage.get("prompt_tokens", 0),
             "prompt_cached_tokens": response.usage.get("prompt_cached_tokens", 0),
             "prompt_cache_hit_tokens": response.usage.get("prompt_cache_hit_tokens", 0),
@@ -217,6 +249,13 @@ class SemanticRunner:
         return {
             "provider": getattr(self.client, "provider", self.client.__class__.__name__),
             "model": getattr(self.client, "model", ""),
+            "prompt_stable_chars": 0,
+            "prompt_dynamic_chars": 0,
+            "prompt_stable_message_count": 0,
+            "prompt_dynamic_message_count": 0,
+            "payload_char_breakdown": {},
+            "payload_char_total": 0,
+            "payload_top_field": None,
             "prompt_tokens": 0,
             "prompt_cached_tokens": 0,
             "prompt_cache_hit_tokens": 0,
@@ -232,6 +271,25 @@ class SemanticRunner:
             "error_type": type(exc).__name__,
             "error_message": str(exc),
         }
+
+
+def semantic_payload_char_breakdown(payload: dict[str, Any]) -> dict[str, int]:
+    """Return top-level dynamic payload sizes using the same JSON encoding as prompts."""
+
+    breakdown: dict[str, int] = {}
+    for key, value in payload.items():
+        try:
+            rendered = json.dumps(value, ensure_ascii=False, sort_keys=True)
+        except TypeError:
+            rendered = str(value)
+        breakdown[str(key)] = len(rendered)
+    return breakdown
+
+
+def _payload_top_field(breakdown: dict[str, int]) -> str | None:
+    if not breakdown:
+        return None
+    return max(breakdown.items(), key=lambda item: item[1])[0]
 
 
 def parse_contract_output(contract: SemanticContract, text: str) -> BaseModel:
@@ -264,12 +322,37 @@ def _build_user_content(payload: dict[str, Any], user_instruction: str | None) -
     return "\n".join(lines)
 
 
+def build_semantic_prompt_package(
+    contract: SemanticContract,
+    payload: dict[str, Any],
+    *,
+    user_instruction: str | None = None,
+) -> SemanticPromptPackage:
+    stable_messages = [
+        ChatMessage(role="system", content=SEMANTIC_EXECUTOR_SYSTEM_PROMPT),
+        ChatMessage(role="user", content=_cacheable_contract_preamble(contract)),
+    ]
+    dynamic_messages = [
+        ChatMessage(role="user", content=_build_user_content(payload, user_instruction)),
+    ]
+    return SemanticPromptPackage(
+        messages=[*stable_messages, *dynamic_messages],
+        stable_chars=sum(len(message.content) for message in stable_messages),
+        dynamic_chars=sum(len(message.content) for message in dynamic_messages),
+        stable_message_count=len(stable_messages),
+        dynamic_message_count=len(dynamic_messages),
+    )
+
+
 def _cacheable_contract_preamble(contract: SemanticContract) -> str:
     return (
+        "Stable semantic contract package.\n\n"
+        "Contract instructions:\n"
+        f"{contract.prompt_text.strip()}\n\n"
         "Stable contract execution preamble.\n"
         f"- contract_name: {contract.name}\n"
         f"- schema_version: {contract.schema_version}\n"
         "- Return only valid JSON for the declared contract.\n"
         "- The dynamic source payload appears in the next message.\n"
-        "- Treat this preamble and the system contract as stable instructions."
+        "- Treat this message as stable cacheable contract text."
     )

@@ -19,6 +19,8 @@ from knoarbor.core.markdown import (
     update_heading,
     wiki_target_key,
 )
+from knoarbor.core.config import PrivacyConfig
+from knoarbor.core.redaction import redact_public_text
 from knoarbor.core.schemas.wiki_operation import WikiOperationApplyResult, WikiOperationInput
 from knoarbor.core.hashing import file_content_hash
 from knoarbor.storage import append_operation_ledger, append_operation_log, relative_wiki_path, resolve_wiki_page, update_index, wiki_link_for_path
@@ -416,6 +418,29 @@ def apply_update_source_field(vault_path: Path, operation: WikiOperationInput) -
     }
 
 
+def apply_redact_sensitive_text(
+    vault_path: Path,
+    operation: WikiOperationInput,
+    privacy_config: PrivacyConfig,
+) -> tuple[Path, list[Path], str, str, dict[str, object]]:
+    target_path = resolve_wiki_page(vault_path, operation.target_page)
+    if not target_path.exists():
+        raise PolicyRejection(f"Target page does not exist: {operation.target_page}")
+    content, before_hash = ensure_expected_hash(target_path, operation.before_hash)
+    result = redact_public_text(content, privacy_config)
+    if not result.counts:
+        return target_path, [], before_hash, before_hash, {"redaction_counts": {}, "already_redacted": True}
+    updated = result.text
+    after_hash = file_content_hash(updated)
+    if after_hash != before_hash:
+        target_path.write_text(updated, encoding="utf-8")
+    return target_path, [], before_hash, after_hash, {
+        "redaction_counts": result.counts,
+        "already_redacted": False,
+        **operation_diff(content, updated, operation.target_page),
+    }
+
+
 def validated_source_file(value: str | None, action: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise PolicyRejection(f"{action} requires source_file")
@@ -425,7 +450,14 @@ def validated_source_file(value: str | None, action: str) -> str:
     return source_file
 
 
-def apply_wiki_operation(vault_path: Path, operation: WikiOperationInput, ledger_path: str) -> WikiOperationApplyResult:
+def apply_wiki_operation(
+    vault_path: Path,
+    operation: WikiOperationInput,
+    ledger_path: str,
+    *,
+    privacy_config: PrivacyConfig | None = None,
+) -> WikiOperationApplyResult:
+    privacy_config = privacy_config or PrivacyConfig()
     if operation.action == "rename_page":
         output_path, archived, before_hash, after_hash, details = apply_rename_page(vault_path, operation)
     elif operation.action == "update_frontmatter":
@@ -448,6 +480,8 @@ def apply_wiki_operation(vault_path: Path, operation: WikiOperationInput, ledger
         output_path, archived, before_hash, after_hash, details = apply_add_missing_section(vault_path, operation)
     elif operation.action == "update_source_field":
         output_path, archived, before_hash, after_hash, details = apply_update_source_field(vault_path, operation)
+    elif operation.action == "redact_sensitive_text":
+        output_path, archived, before_hash, after_hash, details = apply_redact_sensitive_text(vault_path, operation, privacy_config)
     else:
         raise PolicyRejection(f"Unsupported wiki operation action: {operation.action}")
 

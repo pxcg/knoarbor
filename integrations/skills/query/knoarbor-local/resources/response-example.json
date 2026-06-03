@@ -1,0 +1,42 @@
+{
+  "schema_version": "wiki_query.v1",
+  "query": "agent loop control patterns",
+  "retrieval_mode": "machine_hybrid_balanced",
+  "results": [
+    {
+      "path": "concepts/Agent-Loop-and-Control-Patterns.md",
+      "title": "Agent Loop and Control Patterns",
+      "type": "concept",
+      "relevance": "high",
+      "match_kind": "direct",
+      "summary": "The agent loop iterates between model reasoning and tool execution.",
+      "key_points": [
+        "The loop alternates reasoning, action, observation, and termination checks.",
+        "Production systems add persistence, memory compression, and safety limits."
+      ],
+      "excerpts": [
+        {
+          "path": "concepts/Agent-Loop-and-Control-Patterns.md",
+          "heading": "Summary",
+          "content": "The agent loop iterates between LLM reasoning and tool execution."
+        }
+      ],
+      "source": "raw/chats/session_example.json",
+      "related_pages": [
+        "sources/Agent-Loop-Source.md"
+      ]
+    }
+  ],
+  "context_pack": "Compact evidence bundle for the host AI.",
+  "answer_guidance": [
+    "Use returned wiki pages as local evidence.",
+    "Cite page paths when local wiki content materially shapes the answer."
+  ],
+  "gap_suggestions": [],
+  "gaps": [],
+  "warnings": [],
+  "stats": {
+    "returned_count": 1,
+    "context_format": "compact"
+  }
+}

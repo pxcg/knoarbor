@@ -165,37 +165,40 @@ class SemanticContractTests(unittest.TestCase):
         self.assertEqual(len(plan.operations), 2)
         self.assertEqual(plan.operations[1].target_page, "entities/OpenClaw.md")
 
-    def test_wiki_relation_plan_rejects_mixed_skip(self) -> None:
-        with self.assertRaises(ValueError):
-            WikiRelationPlan.model_validate(
-                {
-                    "operations": [
-                        {
-                            "action": "skip",
-                            "target_page": None,
-                            "page_dir": "queries",
-                            "title": "Skip",
-                            "knowledge_object": "low value source",
-                            "related_pages": [],
-                            "candidate_pages": [],
-                            "decision_reason": "No durable knowledge.",
-                        },
-                        {
-                            "action": "create",
-                            "target_page": None,
-                            "page_dir": "concepts",
-                            "title": "Agent Loop",
-                            "knowledge_object": "Agent Loop",
-                            "related_pages": [],
-                            "candidate_pages": [],
-                            "decision_reason": "Durable knowledge.",
-                        },
-                    ],
-                    "overall_summary": "Invalid mixed plan.",
-                    "confidence": 0.5,
-                    "warnings": [],
-                }
-            )
+    def test_wiki_relation_plan_drops_redundant_mixed_skip(self) -> None:
+        plan = WikiRelationPlan.model_validate(
+            {
+                "operations": [
+                    {
+                        "action": "skip",
+                        "target_page": None,
+                        "page_dir": None,
+                        "title": "Skip",
+                        "knowledge_object": "low value source",
+                        "related_pages": [],
+                        "candidate_pages": [],
+                        "decision_reason": "No durable knowledge.",
+                    },
+                    {
+                        "action": "create",
+                        "target_page": None,
+                        "page_dir": "concepts",
+                        "title": "Agent Loop",
+                        "knowledge_object": "Agent Loop",
+                        "related_pages": [],
+                        "candidate_pages": [],
+                        "decision_reason": "Durable knowledge.",
+                    },
+                ],
+                "overall_summary": "Mixed plan with redundant skip.",
+                "confidence": 0.5,
+                "warnings": [],
+            }
+        )
+
+        self.assertEqual(len(plan.operations), 1)
+        self.assertEqual(plan.operations[0].action, "create")
+        self.assertIn("Dropped redundant skip operation", plan.warnings[0])
 
     def test_wiki_relation_plan_accepts_skip_without_title(self) -> None:
         plan = WikiRelationPlan.model_validate(
@@ -204,7 +207,7 @@ class SemanticContractTests(unittest.TestCase):
                     {
                         "action": "skip",
                         "target_page": None,
-                        "page_dir": "queries",
+                        "page_dir": None,
                         "title": None,
                         "knowledge_object": None,
                         "related_pages": [],

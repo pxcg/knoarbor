@@ -16,23 +16,28 @@ DEFAULT_BASE_URL = "http://127.0.0.1:8000"
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Query a local KnoArbor service.")
-    parser.add_argument("query", help="Search query to send to KnoArbor.")
+    parser.add_argument("query", nargs="?", help="Search query to send to KnoArbor.")
     parser.add_argument("--base-url", default=os.environ.get("KNOARBOR_BASE_URL"))
     parser.add_argument("--vault", default=os.environ.get("KNOARBOR_VAULT_PATH"))
     parser.add_argument("--config", default=os.environ.get("KNOARBOR_CONFIG_PATH"))
     parser.add_argument("--mode", choices=["quick", "balanced", "deep"], default="balanced")
+    parser.add_argument("--context-format", choices=["compact", "full"], default="compact")
     parser.add_argument("--max-results", type=int, default=6)
     parser.add_argument("--page-dir", action="append", dest="page_dirs", default=[])
     parser.add_argument("--include-related", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--include-content", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--auto", action=argparse.BooleanOptionalAction, default=True, help="Adjust query settings from the request text.")
     parser.add_argument("--timeout", type=float, default=30)
     parser.add_argument("--raw", action="store_true", help="Print raw JSON response.")
+    parser.add_argument("--check", action="store_true", help="Check service connectivity and resolved configuration, then exit.")
     args = parser.parse_args()
 
     config_path = _resolve_config_path(args.config)
     config = _load_yaml(config_path) if config_path else {}
-    base_url = (args.base_url or _base_url_from_config(config) or DEFAULT_BASE_URL).rstrip("/")
+    base_url = (args.base_url or _base_url_from_runtime_endpoint(config_path) or _base_url_from_config(config) or DEFAULT_BASE_URL).rstrip("/")
     vault_path = args.vault or _vault_path_from_config(config, config_path)
+    if args.check:
+        return _run_check(base_url, vault_path, config_path, timeout=args.timeout, raw=args.raw)
     if not vault_path:
         print(
             "KnoArbor vault path is required. Set KNOARBOR_VAULT_PATH, pass --vault, "
@@ -40,19 +45,24 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
+    if not args.query:
+        print("Query text is required unless --check is used.", file=sys.stderr)
+        return 2
 
+    settings = _query_settings(args)
     payload = {
         "query": args.query,
-        "obsidian_vault_path": str(Path(vault_path).expanduser()),
-        "mode": args.mode,
-        "max_results": args.max_results,
+        "vault_path": str(Path(vault_path).expanduser()),
+        "mode": settings["mode"],
+        "context_format": settings["context_format"],
+        "max_results": settings["max_results"],
         "page_dirs": args.page_dirs,
         "include_related": args.include_related,
-        "include_content": args.include_content,
+        "include_content": settings["include_content"],
         "caller": "generic-skill",
     }
     try:
-        response = _post_json(f"{base_url}/query/search", payload, timeout=args.timeout)
+        response = _post_json(f"{base_url}/query", payload, timeout=args.timeout)
     except urllib.error.URLError as exc:
         print(f"KnoArbor query failed: {exc}", file=sys.stderr)
         print(f"Check whether the service is running at {base_url}/health.", file=sys.stderr)
@@ -124,6 +134,22 @@ def _base_url_from_config(config: dict[str, Any]) -> str | None:
     return f"http://{host}:{port}"
 
 
+def _base_url_from_runtime_endpoint(config_path: Path | None) -> str | None:
+    if config_path is None:
+        return None
+    endpoint_path = config_path.parent / ".knoarbor" / "endpoint.json"
+    if not endpoint_path.exists():
+        return None
+    try:
+        data = json.loads(endpoint_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    base_url = data.get("base_url")
+    return str(base_url).strip() if base_url else None
+
+
 def _vault_path_from_config(config: dict[str, Any], config_path: Path | None) -> str | None:
     vault = config.get("vault")
     if not isinstance(vault, dict) or not vault.get("path"):
@@ -132,6 +158,93 @@ def _vault_path_from_config(config: dict[str, Any], config_path: Path | None) ->
     if not path.is_absolute() and config_path:
         path = config_path.parent / path
     return str(path.resolve())
+
+
+def _query_settings(args: argparse.Namespace) -> dict[str, Any]:
+    settings = {
+        "mode": args.mode,
+        "context_format": args.context_format,
+        "max_results": args.max_results,
+        "include_content": args.include_content,
+    }
+    if not args.auto:
+        return settings
+
+    query = args.query.lower()
+    explicit_full = _contains_any(
+        query,
+        [
+            "全文",
+            "完整内容",
+            "完整页面",
+            "完整正文",
+            "逐段",
+            "原文",
+            "详细页面",
+            "full content",
+            "full page",
+            "entire page",
+            "full text",
+            "verbatim",
+            "line by line",
+            "section by section",
+        ],
+    )
+    broad_recall = _contains_any(
+        query,
+        [
+            "尽量完整",
+            "全部相关",
+            "所有相关",
+            "全面召回",
+            "完整召回",
+            "as much as possible",
+            "all relevant",
+            "comprehensive",
+            "exhaustive",
+        ],
+    )
+    detailed = _contains_any(
+        query,
+        [
+            "详细",
+            "深入",
+            "展开",
+            "分析",
+            "对比",
+            "方案",
+            "架构",
+            "为什么",
+            "如何",
+            "detail",
+            "deep dive",
+            "analyze",
+            "compare",
+            "architecture",
+            "why",
+            "how",
+        ],
+    )
+    short_lookup = len(query.strip()) <= 32 and not detailed and not broad_recall and not explicit_full
+
+    if explicit_full:
+        settings["mode"] = "deep"
+        settings["context_format"] = "full"
+        settings["include_content"] = True
+    elif detailed:
+        settings["mode"] = "deep"
+
+    if broad_recall:
+        settings["mode"] = "deep"
+        settings["max_results"] = max(settings["max_results"], 10)
+    elif short_lookup:
+        settings["max_results"] = min(settings["max_results"], 4)
+
+    return settings
+
+
+def _contains_any(text: str, needles: list[str]) -> bool:
+    return any(needle in text for needle in needles)
 
 
 def _post_json(url: str, payload: dict[str, Any], *, timeout: float) -> dict[str, Any]:
@@ -144,6 +257,42 @@ def _post_json(url: str, payload: dict[str, Any], *, timeout: float) -> dict[str
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def _get_json(url: str, *, timeout: float) -> dict[str, Any]:
+    request = urllib.request.Request(url, headers={"Accept": "application/json"}, method="GET")
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _run_check(base_url: str, vault_path: str | None, config_path: Path | None, *, timeout: float, raw: bool) -> int:
+    result: dict[str, Any] = {
+        "schema_version": "knoarbor_skill_check.v1",
+        "base_url": base_url,
+        "config_path": str(config_path) if config_path else None,
+        "vault_path": str(Path(vault_path).expanduser()) if vault_path else None,
+        "service_online": False,
+        "health": None,
+        "errors": [],
+    }
+    try:
+        result["health"] = _get_json(f"{base_url}/health", timeout=timeout)
+        result["service_online"] = True
+    except urllib.error.URLError as exc:
+        result["errors"].append(f"KnoArbor service unavailable: {exc}")
+    if not vault_path:
+        result["errors"].append("Vault path is not configured.")
+
+    if raw:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        print(f"KnoArbor base URL: {base_url}")
+        print(f"Config path: {result['config_path'] or 'not found'}")
+        print(f"Vault path: {result['vault_path'] or 'not configured'}")
+        print(f"Service online: {'yes' if result['service_online'] else 'no'}")
+        for error in result["errors"]:
+            print(f"Error: {error}", file=sys.stderr)
+    return 0 if result["service_online"] and vault_path else 1
 
 
 def _format_response(response: dict[str, Any]) -> str:

@@ -19,6 +19,7 @@ from knoarbor.services.run_manager import RunManager
 from knoarbor.services.wiki_linter import WikiLinterService
 from knoarbor.pipelines.lint import WikiLintPipeline, normalize_lint_run_mode
 from knoarbor.runtime.run_monitor import list_runs, read_run, read_run_events, request_cancel
+from knoarbor.runtime.endpoint import find_available_port, write_runtime_endpoint
 from knoarbor.semantic import (
     IngestSemanticWorkflow,
     LintSemanticWorkflow,
@@ -35,6 +36,7 @@ from knoarbor.cli_utils import (
     print_run_metrics,
     read_json_object,
     resolve_config,
+    resolve_config_path,
     resolve_vault_path,
 )
 
@@ -50,12 +52,17 @@ def run_serve(args: argparse.Namespace) -> int:
 
     config = resolve_config(args)
     host = args.host or config.server.host
-    port = args.port or config.server.port
+    preferred_port = args.port or config.server.port
+    port, switched_port = find_available_port(host, preferred_port)
     display_host = "127.0.0.1" if host in {"0.0.0.0", "::"} else host
     base_url = f"http://{display_host}:{port}"
+    endpoint_path = write_runtime_endpoint(resolve_config_path(args), host=display_host, port=port, base_url=base_url)
+    if switched_port:
+        print(f"Configured port {preferred_port} is in use; using {port} instead.")
     print(f"KnoArbor UI: {base_url}")
     print(f"UI alias: {base_url}/ui")
     print(f"API docs: {base_url}/docs")
+    print(f"Runtime endpoint: {endpoint_path}")
     uvicorn.run(create_app(ApplicationServices()), host=host, port=port)
     return 0
 
@@ -79,7 +86,7 @@ def run_init(args: argparse.Namespace) -> int:
 def run_status(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
-    scan = WikiLintPipeline().scan(
+    scan = WikiLintPipeline(privacy_config=config.privacy).scan(
         WikiScanRequest(
             obsidian_vault_path=str(vault_path),
             max_chars_per_page=0,
@@ -262,7 +269,7 @@ def run_query_feedback(args: argparse.Namespace) -> int:
 def run_scan(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
-    response = WikiLintPipeline().scan(
+    response = WikiLintPipeline(privacy_config=config.privacy).scan(
         WikiScanRequest(
             obsidian_vault_path=str(vault_path),
             max_chars_per_page=args.max_chars_per_page,
@@ -283,7 +290,7 @@ def run_scan(args: argparse.Namespace) -> int:
 def run_lint(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
-    response = WikiLintPipeline().lint(
+    response = WikiLintPipeline(privacy_config=config.privacy).lint(
         WikiLintRequest(
             obsidian_vault_path=str(vault_path),
             write_report=args.write_report,
@@ -350,7 +357,7 @@ def run_lint_run(args: argparse.Namespace) -> int:
         if internal_mode != "semantic_structural":
             raise
         semantic = None
-    response = WikiLintPipeline(semantic).run_maintenance(
+    response = WikiLintPipeline(semantic, privacy_config=config.privacy).run_maintenance(
         request
     )
     if args.json:
@@ -606,7 +613,7 @@ def build_ingest_pipeline(args: argparse.Namespace, config) -> IngestPipeline:
 def run_lint_plan(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
-    pipeline = WikiLintPipeline()
+    pipeline = WikiLintPipeline(privacy_config=config.privacy)
     semantic = LintSemanticWorkflow(build_semantic_runner(args, config))
 
     if args.mode == "structural":

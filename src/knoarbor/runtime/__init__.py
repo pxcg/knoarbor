@@ -4,6 +4,7 @@ from knoarbor.runtime.locks import FileLock, vault_write_lock
 from knoarbor.runtime.logging import configure_runtime_logging, runtime_logger
 from knoarbor.runtime.queue import LocalRunQueue
 from knoarbor.runtime.reporter import RunReporter
+from knoarbor.runtime.endpoint import find_available_port, write_runtime_endpoint
 
 __all__ = [
     "FileLock",
@@ -13,7 +14,9 @@ __all__ = [
     "RunMonitor",
     "configure_runtime_logging",
     "current_run_monitor",
+    "find_available_port",
     "run_monitor_context",
     "runtime_logger",
     "vault_write_lock",
+    "write_runtime_endpoint",
 ]

@@ -53,8 +53,10 @@ Use the same `wiki_draft_batch.v1` output shape as ingest draft compilation:
 
 ## Draft Rules
 
-- `create_source_digest` creates a `sources` page only when source_file and related pages are explicit.
+- Do not compile `create_source_digest` in lint. Source digest creation belongs to ingest/source lifecycle because it needs full raw source context.
 - `rewrite_section`, `improve_summary`, `remove_chatty_content`, `add_contextual_links`, and `strengthen_provenance` must use local patches for existing pages.
+- `rewrite_section` for `workflow_missing_steps` must produce one `replace_section` patch with `section = "Steps"` and meaningful ordered or checklist steps inferred from the existing page content.
+- Never compile workflow steps as an empty section, `暂无内容`, or generic placeholders. If the approved operation lacks enough evidence, omit the draft and add a warning.
 - Do not compile deterministic `add_missing_section` candidates. Schema-required section scaffolding belongs to deterministic wiki operations.
 - `update` and `merge` must include at least one patch.
 - Patch objects must use KnoArbor's section patch schema exactly:

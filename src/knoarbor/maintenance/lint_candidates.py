@@ -15,6 +15,7 @@ from knoarbor.core.schemas.wiki_lint import (
 )
 from knoarbor.maintenance.lint_collection import extract_headings
 from knoarbor.maintenance.lint_models import LintPage
+from knoarbor.maintenance.lint_rules import is_deterministic_only_issue
 
 
 def scan_page(page: LintPage, max_chars_per_page: int) -> WikiScanPage:
@@ -46,7 +47,7 @@ def score_lint_candidate(page: WikiScanPage, issues: list[WikiLintIssue], mode: 
     if mode in {"freshness", "full"}:
         reasons.extend(_freshness_candidate_reasons(page))
 
-    score = round(sum(reason.score for reason in reasons), 3)
+    score = _candidate_score(reasons, mode)
     return WikiLintCandidatePage(
         path=page.path,
         directory=page.directory,
@@ -138,16 +139,26 @@ def _quality_candidate_reasons(page: WikiScanPage, issues: list[WikiLintIssue]) 
         reasons.append(_candidate_reason("graph", "weak_graph_integration", "low", "Generated knowledge page has no outgoing wiki links.", 0.55))
 
     for issue in issues:
-        if issue.code in {"broken_wikilink", "frontmatter_type_mismatch", "missing_frontmatter"}:
-            reasons.append(_reason_from_issue(issue, "structural", "high", 2.5))
-        elif issue.code in {"knowledge_without_source_digest", "knowledge_missing_source_digest_link", "source_digest_missing_related_pages"}:
+        if is_deterministic_only_issue(issue.code):
+            continue
+        if issue.code in {"knowledge_without_source_digest", "knowledge_missing_source_digest_link", "source_digest_missing_related_pages"}:
             reasons.append(_reason_from_issue(issue, "provenance", "medium", 1.6))
         elif issue.code in {"orphan_page", "duplicate_title", "duplicate_related_target", "duplicate_section_item", "path_alias_conflict", "weak_link_graph", "overdense_link_graph"}:
             reasons.append(_reason_from_issue(issue, "graph", "low", 0.9))
-        elif issue.code in {"missing_required_section", "claim_missing_evidence_section", "claim_missing_confidence", "claim_invalid_confidence", "timeline_missing_chronology", "workflow_missing_steps"}:
+        elif issue.code == "workflow_missing_steps":
+            reasons.append(_reason_from_issue(issue, "quality", "medium", 2.0))
+        elif issue.code in {"missing_required_section", "claim_missing_evidence_section", "claim_missing_confidence", "claim_invalid_confidence", "timeline_missing_chronology"}:
             reasons.append(_reason_from_issue(issue, "quality", "medium", 1.2))
 
     return reasons
+
+
+def _candidate_score(reasons: list[WikiLintCandidateReason], mode: str) -> float:
+    if mode == "quality":
+        quality_score = sum(reason.score for reason in reasons if reason.source == "quality")
+        support_score = sum(reason.score for reason in reasons if reason.source in {"freshness", "graph"}) * 0.25
+        return round(quality_score + support_score, 3)
+    return round(sum(reason.score for reason in reasons), 3)
 
 
 def _freshness_candidate_reasons(page: WikiScanPage) -> list[WikiLintCandidateReason]:

@@ -46,7 +46,7 @@ models:
     #   json_mode: true
   retry:
     enabled: true
-    max_attempts: 2
+    max_attempts: 3
     backoff_seconds: 2
     retry_on_invalid_output: true
     retryable_error_codes:
@@ -189,6 +189,10 @@ privacy:
   redact_phone_numbers: true
   redact_api_keys: true
   redact_private_keys: true
+  redact_platform_ids: true
   redact_local_paths: true
   redact_source_paths_in_pages: true
   redact_private_ips: false
+  # Optional exact-match terms for names, hostnames, internal project aliases,
+  # or organization-specific identifiers that generic regex rules cannot infer.
+  custom_terms: []

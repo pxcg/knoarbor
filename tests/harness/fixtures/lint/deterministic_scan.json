@@ -153,7 +153,9 @@
         "related_pages": [
           "concepts/Agent-Loop.md"
         ],
-        "source": "raw/notes/agent.md"
+        "sources": [
+          "raw/notes/agent.md"
+        ]
       },
       "message": "Source digest does not list all generated knowledge pages for the same raw source in Related Pages.",
       "path": "sources/Agent-Loop-Source.md",

@@ -83,13 +83,6 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
 
   return (
     <section className="view active">
-      <div className="page-intro">
-        <div>
-          <p className="eyebrow">{context.t("runtimeEvidence")}</p>
-          <h2>{context.t("reportsTitle")}</h2>
-          <p className="panel-copy">{context.t("reportsSubtitle")}</p>
-        </div>
-      </div>
       <div className="panel-grid pages-workspace">
         <article className="panel">
           <div className="panel-header">

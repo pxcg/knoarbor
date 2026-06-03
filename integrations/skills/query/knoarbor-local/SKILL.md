@@ -1,130 +1,149 @@
 ---
 name: knoarbor-local
-description: Use when a user question may benefit from a local KnoArbor vault. Query the local /query/search endpoint for bounded wiki context, then let the host AI produce the final answer.
+description: Use when a user question may benefit from a local KnoArbor vault. Query the local /query endpoint for bounded wiki context, then let the host AI produce the final answer.
 version: 1.0.0
 author: KnoArbor contributors
 license: Apache-2.0
 metadata:
-  tags: [knoarbor, wiki, knowledge-base, local-search, obsidian]
+  tags: [knoarbor, wiki, knowledge-base, local-search, retrieval]
   category: query
 ---
 
 # KnoArbor Local Query Skill
 
-This skill connects a host AI assistant to a local KnoArbor service as a retrieval-only knowledge source.
-
-KnoArbor returns context, evidence, page paths, retrieval trace, and gap signals. The host AI remains responsible for final answers, synthesis, tool coordination, and user-facing judgment.
+This skill connects a host AI assistant to a local KnoArbor service as a
+retrieval-only knowledge source. KnoArbor returns page paths, summaries,
+excerpts, context packs, retrieval trace, and gap signals. The host AI remains
+responsible for final answers, synthesis, and user-facing judgment.
 
 ## When to Use
 
 Use this skill when the user asks about:
 
-- Personal notes, previous AI conversations, or knowledge already ingested into KnoArbor.
-- Local wiki pages, page relationships, source digests, concepts, entities, comparisons, workflows, or retained queries.
+- Personal notes, previous AI conversations, project notes, or knowledge already
+  ingested into KnoArbor.
+- Local wiki pages, source digests, concepts, entities, comparisons, workflows,
+  retained queries, or page relationships.
 - Questions where local knowledge should be checked before web search.
-- Requests that mention KnoArbor, Obsidian vault, local wiki, `wiki/`, or project notes.
+- Requests that mention KnoArbor, a local vault, local wiki, `wiki/`, or local
+  project memory.
 
-Do not use this as the only source when the user asks for current facts, news, prices, schedules, laws, or other information likely to have changed recently. In those cases, use KnoArbor as memory/context and combine it with current tools.
+Do not use KnoArbor as the only source for current facts, news, prices,
+schedules, laws, or other information likely to have changed recently. Use it as
+local memory/context and combine it with current tools.
 
-## Configuration
+## Bundled Files
 
-Set these values according to the user's local deployment:
+- `scripts/query.py`: standalone thin client for the local `/query` endpoint.
+- `resources/example.env`: optional environment variable example.
+- `resources/example-request.json`: stable `/query` request example.
+- `resources/response-example.json`: compact response shape example.
+- `resources/install.md`: installation and smoke-test notes.
+- `resources/troubleshooting.md`: service, vault, and result troubleshooting.
+- `resources/security.md`: retrieval-only safety boundary.
 
-```text
-KNOARBOR_BASE_URL=http://127.0.0.1:8000
-KNOARBOR_VAULT_PATH=/absolute/path/to/wiki
-```
-
-The query endpoint is `${KNOARBOR_BASE_URL}/query/search`.
-
-If the service is unavailable, tell the user that local wiki retrieval is currently unavailable and continue with other available tools.
+Load resource files only when the user asks for setup, troubleshooting, security,
+or integration details.
 
 ## Query Workflow
 
 1. Rewrite the user request into a short standalone search query.
-2. Prefer the bundled helper script `scripts/query.py` when available. It resolves local config and calls `/query/search`.
-3. If the helper is not available, call `/query/search` directly with `mode: "balanced"` unless the user needs a quick lookup or deep evidence.
-4. Read `results`, `context_pack`, `answer_guidance`, `gap_suggestions`, and `gaps`.
-5. Use the returned wiki context as local evidence, not as the final answer.
+2. Prefer `scripts/query.py`; it resolves local config and calls `/query`.
+3. Keep helper default `--auto` behavior unless the user asks for exact query
+   settings.
+4. Read `results`, `context_pack`, `answer_guidance`, `gap_suggestions`, and
+   `gaps`.
+5. Use returned wiki context as local evidence, not as the final answer.
 6. Cite relevant page paths when local wiki content materially shapes the answer.
-7. If results are weak, say the local wiki has weak or no matching context and use another tool or ask a clarifying question.
+7. If results are weak, say the local wiki has weak or no matching context and
+   use another source or ask a clarifying question.
 
-Do not call `/health` before every query. Use `/health` only when `/query/search` fails or times out.
+Do not call `/health` before every query. Use `scripts/query.py --check` or
+`/health` only when setup is being tested or `/query` fails.
 
-## Request Shape
+## Helper Commands
 
-Use a JSON body like:
+From this skill directory:
 
-```json
-{
-  "query": "agent loop control patterns",
-  "obsidian_vault_path": "/absolute/path/to/wiki",
-  "max_results": 6,
-  "mode": "balanced",
-  "include_related": true
-}
+```bash
+python3 scripts/query.py --check
+python3 scripts/query.py "agent loop control patterns"
+python3 scripts/query.py "逐段分析 Agent Loop 页面全文" --context-format full --include-content
 ```
+
+The helper resolves the service and vault in this order:
+
+1. CLI args: `--base-url`, `--vault`, `--config`.
+2. Environment: `KNOARBOR_BASE_URL`, `KNOARBOR_VAULT_PATH`,
+   `KNOARBOR_CONFIG_PATH`.
+3. Runtime endpoint: `.knoarbor/endpoint.json` next to `config.yaml`.
+4. `config.yaml` in the current working directory.
+5. `~/Projects/KnoArbor/config.yaml`.
+
+When KnoArbor starts with `knoar serve`, it writes the active endpoint to
+`.knoarbor/endpoint.json`, so the helper can follow automatic port changes.
+
+## Query Settings
 
 Recommended modes:
 
-- `quick`: title, tags, summary, and key points only.
-- `balanced`: default; includes bounded excerpts and 1-hop related page expansion.
-- `deep`: use only when the user needs detailed local evidence. Prefer `deep` before reading wiki files directly.
+- `quick`: title, tags, summary, and key points.
+- `balanced`: default; bounded excerpts and 1-hop related expansion.
+- `deep`: detailed local evidence. Prefer this before reading wiki files
+  directly.
 
-## Example Command
+Recommended context formats:
 
-Use the helper script from this skill directory:
+- `compact`: default; bounded summaries, key points, excerpts, and context pack.
+- `full`: full page bodies for matched pages. Use only when the user explicitly
+  needs detailed page content.
 
-```bash
-python3 scripts/query.py "agent loop control patterns" --mode balanced --max-results 6
-```
+The helper's default `--auto` behavior:
 
-The helper reads configuration in this order:
+- ordinary explanation questions use `balanced + compact`;
+- short lookup questions reduce result count;
+- detailed analysis questions use `deep + compact`;
+- explicit full-content requests use `deep + full`;
+- broad recall requests may increase `max_results`.
 
-1. `--base-url`, `--vault`, and `--config` arguments.
-2. `KNOARBOR_BASE_URL`, `KNOARBOR_VAULT_PATH`, and `KNOARBOR_CONFIG_PATH`.
-3. `config.yaml` in the current working directory.
-4. `~/Projects/KnoArbor/config.yaml`.
-
-For Chinese questions, keep the original Chinese query unless an English technical term is clearly better.
+Use `--no-auto` when exact manually supplied settings are required.
 
 ## Response Fields
 
 Important fields:
 
 - `results[].path`: wiki page path, suitable for citation.
-- `results[].title`: page title.
-- `results[].type`: page type.
-- `results[].match_kind`: retrieval origin only. `direct` matched the query in the initial search scope; `related` was reached through wiki links from a direct match. This is not a citation permission flag.
-- `results[].summary`: compact page summary.
-- `results[].key_points`: reusable page points.
-- `results[].excerpts`: bounded matching snippets.
-- `results[].related_pages`: linked pages returned for context.
-- `results[].source`: raw source or source digest pointer.
-- `answer_guidance`: instructions for using retrieved evidence safely.
-- `gap_suggestions`: report-only signals for no-result or low-confidence retrieval.
-- `context_pack`: compact evidence bundle for host AI synthesis.
-- `retrieval_mode`: local retrieval strategy used by the service.
-- `gaps`: retrieval limitations or missing context.
+- `results[].title`, `type`, `summary`, `key_points`, `excerpts`, `source`.
+- `results[].match_kind`: retrieval origin only, not a citation permission flag.
+- `context_pack`: evidence bundle for host AI synthesis.
+- `answer_guidance`: safe-use guidance for retrieved evidence.
+- `gap_suggestions` and `gaps`: missing or weak context signals.
+- `retrieval_mode`, `stats`, `trace`: diagnostics for debugging.
 
-If the request uses `page_dirs`, treat it as the initial direct search scope. Related expansion may still return pages from other directories when those pages are connected through the wiki graph.
+If `page_dirs` is used, treat it as the initial direct search scope. Related
+expansion may still return connected pages from other directories.
 
 ## Answer Rules
 
 - Do not paste raw JSON to the user unless asked.
 - Do not present weak matches as authoritative.
-- Do not assume `direct` pages are always more cite-worthy than `related` pages. Judge every returned page by relevance, excerpts, source, and the user's question.
+- Judge `direct` and `related` pages by relevance, excerpts, source, and the
+  user's question.
 - Do not write or modify wiki pages during query.
-- Do not read full wiki files unless the user asks for detailed page inspection or `/query/search` returns insufficient context after a `deep` query.
-- Prefer concise references such as `本地 wiki: concepts/Agent-Loop-and-Control-Patterns.md`.
-- If local context conflicts with current external evidence, explain the conflict and prefer the source appropriate to the user's task.
+- Do not read full wiki files unless the user asks for detailed page inspection
+  or `/query` returns insufficient context after a `deep` query.
+- Prefer concise references such as `本地 wiki:
+  concepts/Agent-Loop-and-Control-Patterns.md`.
+- If local context conflicts with current external evidence, explain the conflict
+  and prefer the source appropriate to the user's task.
 
 ## Failure Handling
 
-If `/query/search` fails:
+If `/query` fails:
 
-1. Check whether FastAPI is running at `http://127.0.0.1:8000/health`.
-2. If it is not running, state that local wiki search is unavailable.
-3. Continue with the host AI's memory, project files, web search, or other available tools as appropriate.
+1. Run `python3 scripts/query.py --check`.
+2. If the service is unavailable, say local wiki retrieval is unavailable.
+3. Continue with the host AI's memory, project files, web search, or other tools
+   as appropriate.
 
 Do not fabricate wiki results.

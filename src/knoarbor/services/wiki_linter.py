@@ -30,30 +30,30 @@ class WikiLinterService:
         self.pipeline = pipeline or WikiLintPipeline()
 
     def scan(self, request: WikiScanRequest) -> WikiScanResponse:
-        return self.pipeline.scan(request)
+        return self._pipeline_for_request(None).scan(request)
 
     def select_candidates(self, request: WikiLintCandidateSelectRequest) -> WikiLintCandidateSelectResponse:
-        return self.pipeline.select_candidates(request)
+        return self._pipeline_for_request(None).select_candidates(request)
 
     def lint(self, request: WikiLintRequest) -> WikiLintResponse:
-        return self.pipeline.lint(request)
+        return self._pipeline_for_request(None).lint(request)
 
     def run_maintenance(self, request: LintRunRequest) -> LintRunResult:
         mode = normalize_lint_run_mode(request.mode)
         request = request.model_copy(update={"mode": mode})
         configure_runtime_logging(Path(request.obsidian_vault_path))
         try:
-            if mode == "deterministic":
-                return self.pipeline.run_maintenance(request)
             config = load_config(request.config_path or default_config_path())
             configure_runtime_logging(config.vault.path)
+            if mode == "deterministic":
+                return WikiLintPipeline(privacy_config=config.privacy).run_maintenance(request)
             try:
                 semantic = build_lint_semantic_workflow(config, request.provider)
             except UserInputError:
                 if mode != "semantic_structural":
                     raise
                 semantic = None
-            semantic_pipeline = WikiLintPipeline(semantic)
+            semantic_pipeline = WikiLintPipeline(semantic, privacy_config=config.privacy)
             request_with_defaults = request.model_copy(
                 update={"max_tokens": request.max_tokens or config.models.default_max_tokens}
             )
@@ -61,6 +61,13 @@ class WikiLinterService:
         except Exception as exc:
             self._write_failure_artifacts(request, exc)
             raise
+
+    def _pipeline_for_request(self, config_path: str | None) -> WikiLintPipeline:
+        try:
+            config = load_config(config_path or default_config_path())
+        except Exception:
+            return self.pipeline
+        return WikiLintPipeline(privacy_config=config.privacy)
 
     def _write_failure_artifacts(self, request: LintRunRequest, exc: BaseException) -> None:
         if not request.write_report and not request.append_ledger:

@@ -210,6 +210,11 @@ scan
 - 审核必要性、正确性、完整性、风险、置信度和执行器适配性。
 - 只执行已审核 operation。
 - 高风险 refresh、merge/split、conflict 和外部事实工作保持 queue/report-only，除非已有明确审核执行器支持。
+- 将已审核决策路由到明确执行链路：
+  - `supported_by_wiki_operation` -> `WikiOperationPipeline` -> 验证。
+  - `supported_by_draft_write` -> 草稿编译 -> `WikiWritePipeline` -> 验证。
+  - `supported_by_report_only` -> 携带更完整页面上下文的 deferred retry -> 证据充分后转为 wiki operation 或 draft write；仍不足则保留在报告队列。
+  - `supported_by_refresh_request` -> provenance refresh -> 创建 source digest 或修复 source/knowledge 双向链接 -> 复扫。
 
 实现边界：
 
@@ -217,6 +222,8 @@ scan
 - `lint_scanners` 负责确定性扫描规则和 issue 生成。
 - `lint_candidates` 负责 scan page 预览、质量候选和 freshness 候选评分。
 - `wiki_lint` 是公开编排门面，只保留 scan、candidate selection、safe fixes 和旧版 lint report 入口。
+- `lint_execution` 负责把审核决策路由到具体执行器，不直接实现 source 解析或页面渲染。
+- `provenance_refresh` 负责执行 refresh-request。它只处理 vault 内可解析的本地 raw source，并修复 raw source -> source digest -> generated page 链路。缺失或有歧义的来源继续保留在队列并写入 warning。
 
 用户可见模式：
 
@@ -256,7 +263,7 @@ KnoArbor 是本地优先的 Wiki 引擎，但仍需要明确运行时基础设�
 - **受控并发**：dry-run/preflight ingest 可以有界并发处理 source；写入型 ingest 在同一个 vault 内保持串行，确保页面写入和 checkpoint 一致。
 - **事件模型**：run events 是进度事实，冻结事件目录位于 `knoarbor.runtime.events`。
 - **应用缓存**：第一版不需要独立应用缓存层；后续页面解析、图谱和 query index 可以缓存，但 checkpoint、lint decision、ledger 和 report 不能被缓存替代。
-- **供应商 prompt cache**：prompt caching 由模型供应商负责。语义契约把长且稳定的指令和输出 schema 放在 system message，动态 source/wiki payload 放在后续 user message。runner 不应在稳定契约 prompt 前注入时间戳、run id、本地路径等易变内容。供应商返回 cached prompt tokens 或 DeepSeek cache hit/miss tokens 时，KnoArbor 会记录到运行指标中。
+- **供应商 prompt cache**：prompt caching 由模型供应商负责。`SemanticRunner` 会把每次调用构造成 `SemanticPromptPackage`：稳定执行器指令和稳定契约文本放在前缀，动态 source/wiki payload 放在最后。runner 不应把时间戳、run id、本地路径等易变内容注入稳定前缀。供应商返回 cached prompt tokens 或 DeepSeek cache hit/miss tokens 时，KnoArbor 会记录到运行指标中，并记录 prompt package 的稳定/动态规模用于后续成本分析。
 - **Docker**：Docker 是部署适配层，不是核心架构层。
 
 ## 读取 API 边界

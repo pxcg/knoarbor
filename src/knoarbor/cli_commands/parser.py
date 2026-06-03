@@ -150,7 +150,7 @@ def build_parser() -> argparse.ArgumentParser:
     lint_run_parser.add_argument("--max-tokens", type=int, default=None)
     lint_run_parser.add_argument("--include-related", action=argparse.BooleanOptionalAction, default=True)
     lint_run_parser.add_argument("--apply-safe-fixes", action=argparse.BooleanOptionalAction, default=True)
-    lint_run_parser.add_argument("--apply-reviewed", action="store_true", help="Apply approved semantic maintenance operations and rescan.")
+    lint_run_parser.add_argument("--apply-reviewed", action=argparse.BooleanOptionalAction, default=True, help="Apply approved semantic maintenance operations and rescan.")
     lint_run_parser.add_argument("--write-report", action=argparse.BooleanOptionalAction, default=True)
     lint_run_parser.add_argument("--append-ledger", action=argparse.BooleanOptionalAction, default=True)
     lint_run_parser.add_argument(

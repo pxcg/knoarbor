@@ -97,10 +97,14 @@ def follow_run_events(
 
 
 def resolve_config(args: argparse.Namespace):
-    config = load_config(args.config or default_config_path())
+    config = load_config(resolve_config_path(args))
     log_path = configure_runtime_logging(config.vault.path)
     logger.info("cli_config_loaded command=%s vault=%s log=%s", getattr(args, "command", None), config.vault.path, log_path)
     return config
+
+
+def resolve_config_path(args: argparse.Namespace) -> Path:
+    return Path(args.config).expanduser().resolve() if args.config else default_config_path()
 
 
 def resolve_vault_path(args: argparse.Namespace, config) -> Path:

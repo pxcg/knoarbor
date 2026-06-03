@@ -8,6 +8,10 @@ def summarize_semantic_runs(runs: list[Any]) -> dict[str, object]:
     prompt_cached_tokens = 0
     prompt_cache_hit_tokens = 0
     prompt_cache_miss_tokens = 0
+    prompt_stable_chars = 0
+    prompt_dynamic_chars = 0
+    payload_char_total = 0
+    payload_char_breakdown: dict[str, int] = {}
     completion_tokens = 0
     total_tokens = 0
     elapsed_seconds = 0.0
@@ -18,6 +22,11 @@ def summarize_semantic_runs(runs: list[Any]) -> dict[str, object]:
         prompt_cached_tokens += _int(metrics.get("prompt_cached_tokens"))
         prompt_cache_hit_tokens += _int(metrics.get("prompt_cache_hit_tokens"))
         prompt_cache_miss_tokens += _int(metrics.get("prompt_cache_miss_tokens"))
+        prompt_stable_chars += _int(metrics.get("prompt_stable_chars"))
+        prompt_dynamic_chars += _int(metrics.get("prompt_dynamic_chars"))
+        payload_char_total += _int(metrics.get("payload_char_total"))
+        for key, value in _dict(metrics.get("payload_char_breakdown")).items():
+            payload_char_breakdown[key] = payload_char_breakdown.get(key, 0) + _int(value)
         completion_tokens += _int(metrics.get("completion_tokens"))
         total_tokens += _int(metrics.get("total_tokens"))
         elapsed_seconds += _float(metrics.get("elapsed_seconds"))
@@ -31,6 +40,12 @@ def summarize_semantic_runs(runs: list[Any]) -> dict[str, object]:
                 "prompt_cached_tokens": _int(metrics.get("prompt_cached_tokens")),
                 "prompt_cache_hit_tokens": _int(metrics.get("prompt_cache_hit_tokens")),
                 "prompt_cache_miss_tokens": _int(metrics.get("prompt_cache_miss_tokens")),
+                "prompt_stable_chars": _int(metrics.get("prompt_stable_chars")),
+                "prompt_dynamic_chars": _int(metrics.get("prompt_dynamic_chars")),
+                "dynamic_to_stable_ratio": _ratio(_int(metrics.get("prompt_dynamic_chars")), _int(metrics.get("prompt_stable_chars"))),
+                "payload_char_total": _int(metrics.get("payload_char_total")),
+                "payload_top_field": metrics.get("payload_top_field"),
+                "payload_char_breakdown": _dict(metrics.get("payload_char_breakdown")),
                 "completion_tokens": _int(metrics.get("completion_tokens")),
                 "total_tokens": _int(metrics.get("total_tokens")),
                 "elapsed_seconds": _float(metrics.get("elapsed_seconds")),
@@ -44,6 +59,11 @@ def summarize_semantic_runs(runs: list[Any]) -> dict[str, object]:
         "prompt_cached_tokens": prompt_cached_tokens,
         "prompt_cache_hit_tokens": prompt_cache_hit_tokens,
         "prompt_cache_miss_tokens": prompt_cache_miss_tokens,
+        "prompt_stable_chars": prompt_stable_chars,
+        "prompt_dynamic_chars": prompt_dynamic_chars,
+        "dynamic_to_stable_ratio": _ratio(prompt_dynamic_chars, prompt_stable_chars),
+        "payload_char_total": payload_char_total,
+        "payload_char_breakdown": payload_char_breakdown,
         "completion_tokens": completion_tokens,
         "total_tokens": total_tokens,
         "elapsed_seconds": elapsed_seconds,
@@ -81,6 +101,11 @@ def _summarize_by_contract(calls: list[dict[str, object]]) -> list[dict[str, obj
                 "prompt_cached_tokens": 0,
                 "prompt_cache_hit_tokens": 0,
                 "prompt_cache_miss_tokens": 0,
+                "prompt_stable_chars": 0,
+                "prompt_dynamic_chars": 0,
+                "payload_char_total": 0,
+                "payload_char_breakdown": {},
+                "dynamic_to_stable_ratio": None,
                 "completion_tokens": 0,
                 "total_tokens": 0,
                 "elapsed_seconds": 0.0,
@@ -94,14 +119,22 @@ def _summarize_by_contract(calls: list[dict[str, object]]) -> list[dict[str, obj
             "prompt_cached_tokens",
             "prompt_cache_hit_tokens",
             "prompt_cache_miss_tokens",
+            "prompt_stable_chars",
+            "prompt_dynamic_chars",
             "completion_tokens",
             "total_tokens",
+            "payload_char_total",
         ):
             item[key] = _int(item.get(key)) + _int(call.get(key))
+        for field, value in _dict(call.get("payload_char_breakdown")).items():
+            breakdown = _dict(item.get("payload_char_breakdown"))
+            breakdown[field] = _int(breakdown.get(field)) + _int(value)
+            item["payload_char_breakdown"] = breakdown
         item["elapsed_seconds"] = _float(item.get("elapsed_seconds")) + _float(call.get("elapsed_seconds"))
     for item in grouped.values():
         item["tokens_per_second"] = _tokens_per_second(_int(item.get("completion_tokens")), _float(item.get("elapsed_seconds")))
         item["prompt_cache_rate"] = _ratio(_int(item.get("prompt_cached_tokens")), _int(item.get("prompt_tokens")))
+        item["dynamic_to_stable_ratio"] = _ratio(_int(item.get("prompt_dynamic_chars")), _int(item.get("prompt_stable_chars")))
     return [grouped[name] for name in order]
 
 
@@ -117,3 +150,9 @@ def _int(value: object) -> int:
 
 def _float(value: object) -> float:
     return float(value) if isinstance(value, (int, float)) else 0.0
+
+
+def _dict(value: object) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): _int(item) for key, item in value.items()}

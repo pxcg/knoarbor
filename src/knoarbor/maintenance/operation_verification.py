@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from knoarbor.core.config import PrivacyConfig
 from knoarbor.core.schemas.lint_candidates import MaintenanceCandidates
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
 from knoarbor.core.schemas.wiki_write import WikiDraftBatchWriteResponse
@@ -17,6 +18,7 @@ def verify_lint_post_fixes(
     draft_batch: WikiDraftBatch | None = None,
     draft_write_response: WikiDraftBatchWriteResponse | None = None,
     candidates: MaintenanceCandidates | None = None,
+    privacy_config: PrivacyConfig | None = None,
 ) -> list[LintPostFixVerification]:
     """Verify effects that cannot be fully proven by a generic rescan.
 
@@ -27,7 +29,7 @@ def verify_lint_post_fixes(
 
     verifications: list[LintPostFixVerification] = []
     for operation in applied_operations:
-        verifications.append(verify_wiki_operation(vault_path, operation))
+        verifications.append(verify_wiki_operation(vault_path, operation, privacy_config=privacy_config))
 
     if draft_batch and draft_write_response:
         candidate_by_index = {
@@ -60,4 +62,3 @@ def _optional_int(value: object) -> int | None:
         return int(value) if value is not None else None
     except (TypeError, ValueError):
         return None
-

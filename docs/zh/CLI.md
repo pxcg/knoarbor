@@ -14,6 +14,10 @@ uv run knoar init --vault ./wiki
 uv run knoar serve
 ```
 
+如果配置端口已被占用，KnoArbor 会自动切换到下一个可用本地端口，并在终端
+打印实际 UI/API 地址。当前运行端点也会写入 `config.yaml` 同级的
+`.knoarbor/endpoint.json`，供本地 skill 或其他集成工具自动发现。
+
 启动后访问：
 
 ```text

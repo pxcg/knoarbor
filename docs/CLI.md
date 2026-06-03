@@ -38,6 +38,11 @@ Start the local FastAPI service.
 uv run knoar serve
 ```
 
+If the configured port is already in use, KnoArbor automatically switches to the
+next available local port and prints the actual UI/API address. The runtime
+endpoint is also written to `.knoarbor/endpoint.json` next to `config.yaml` so
+local integrations can discover the active service.
+
 Override host and port:
 
 ```bash

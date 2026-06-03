@@ -89,6 +89,7 @@ def _stable_lint_run_result(response: Any) -> dict[str, object]:
         "semantic_candidates": response.semantic_candidates,
         "maintenance_review": response.maintenance_review,
         "queued_actions": response.queued_actions,
+        "deferred_retries": response.deferred_retries,
         "applied_operations": [
             {
                 "operation_id": item.get("operation_id"),

@@ -38,7 +38,7 @@ def extract_heading(content: str, fallback: str) -> str:
 def update_heading(content: str, title: str) -> str:
     replacement = f"# {title.strip()}"
     if re.search(r"^#\s+.+$", content, flags=re.MULTILINE):
-        return re.sub(r"^#\s+.+$", replacement, content, count=1, flags=re.MULTILINE)
+        return re.sub(r"^#\s+.+$", lambda _match: replacement, content, count=1, flags=re.MULTILINE)
     return replacement + "\n\n" + content.lstrip()
 
 
@@ -52,7 +52,7 @@ def replace_section(content: str, heading: str, body: str) -> str:
     section = f"## {heading}\n\n{body.strip()}\n"
     pattern = rf"^##\s+{re.escape(heading)}\s*$\n.*?(?=^##\s+|\Z)"
     if re.search(pattern, content, flags=re.MULTILINE | re.DOTALL):
-        return re.sub(pattern, section, content, count=1, flags=re.MULTILINE | re.DOTALL)
+        return re.sub(pattern, lambda _match: section, content, count=1, flags=re.MULTILINE | re.DOTALL)
     return content.rstrip() + "\n\n" + section
 
 
@@ -61,10 +61,9 @@ def update_frontmatter_value(content: str, key: str, value: str) -> str:
     if not frontmatter_match:
         return content
     pattern = rf"^({re.escape(key)}:\s*).*$"
-    replacement = rf"\g<1>{value}"
     body = frontmatter_match.group("body")
     if re.search(pattern, body, flags=re.MULTILINE):
-        updated_body = re.sub(pattern, replacement, body, count=1, flags=re.MULTILINE)
+        updated_body = re.sub(pattern, lambda match: f"{match.group(1)}{value}", body, count=1, flags=re.MULTILINE)
     else:
         updated_body = body.rstrip() + f"\n{key}: {value}\n"
     return content[: frontmatter_match.start("body")] + updated_body + content[frontmatter_match.start("closing") :]
@@ -137,18 +136,31 @@ def append_to_section(content: str, heading: str, body: str, subsection_heading:
 
 def validate_body_markdown(markdown: str, field_name: str) -> str:
     body = markdown.strip()
-    if re.search(r"^---\s*$", body, flags=re.MULTILINE):
-        raise PolicyRejection(f"{field_name} must not contain YAML frontmatter delimiters")
     if re.search(r"^#{1,2}\s+\S+", body, flags=re.MULTILINE):
         raise PolicyRejection(f"{field_name} must not contain H1/H2 headings")
+    if has_unclosed_fenced_code_blocks(body):
+        raise PolicyRejection(f"{field_name} contains an unclosed fenced code block")
     return body
 
 
 def normalize_embedded_body_markdown(markdown: str, field_name: str) -> str:
     body = markdown.strip()
-    if re.search(r"^---\s*$", body, flags=re.MULTILINE):
-        raise PolicyRejection(f"{field_name} must not contain YAML frontmatter delimiters")
     return re.sub(r"^#{1,2}(\s+\S+)", r"###\1", body, flags=re.MULTILINE)
+
+
+def has_unclosed_fenced_code_blocks(markdown: str) -> bool:
+    fence_stack: list[str] = []
+    for line in markdown.splitlines():
+        match = re.match(r"^\s*(```+|~~~+)", line)
+        if not match:
+            continue
+        fence = match.group(1)
+        marker = fence[0]
+        if fence_stack and fence_stack[-1][0] == marker and len(fence) >= len(fence_stack[-1]):
+            fence_stack.pop()
+        else:
+            fence_stack.append(fence)
+    return bool(fence_stack)
 
 
 def adjacent_duplicate_headings(content: str) -> list[dict[str, Any]]:

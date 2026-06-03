@@ -4,6 +4,7 @@ import json
 import http.client
 import ipaddress
 import socket
+import ssl
 import time
 import urllib.error
 import urllib.parse
@@ -11,6 +12,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Protocol
 
+import certifi
 from pydantic import BaseModel, Field
 
 from knoarbor.core.config import ModelProviderConfig
@@ -151,7 +153,7 @@ class OpenAICompatibleChatClient:
         )
         started = time.perf_counter()
         try:
-            with urllib.request.urlopen(http_request, timeout=self.timeout_seconds) as response:  # noqa: S310
+            with urllib.request.urlopen(http_request, timeout=self.timeout_seconds, context=_ssl_context()) as response:  # noqa: S310
                 raw_text = response.read().decode("utf-8")
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
@@ -186,7 +188,7 @@ class OpenAICompatibleChatClient:
             method="GET",
         )
         try:
-            with urllib.request.urlopen(request, timeout=min(self.timeout_seconds, 5.0)) as response:  # noqa: S310
+            with urllib.request.urlopen(request, timeout=min(self.timeout_seconds, 5.0), context=_ssl_context()) as response:  # noqa: S310
                 body = response.read().decode("utf-8", errors="replace")
                 status_code = getattr(response, "status", 200)
         except urllib.error.HTTPError as exc:
@@ -226,6 +228,10 @@ class OpenAICompatibleChatClient:
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         return headers
+
+
+def _ssl_context() -> ssl.SSLContext:
+    return ssl.create_default_context(cafile=certifi.where())
 
 
 def is_local_or_private_model_endpoint(base_url: str | None) -> bool:

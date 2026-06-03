@@ -199,6 +199,21 @@ Short version:
 - Do not add fallback behavior unless it has been reviewed as a long-term reliability mechanism.
 - Do not commit runtime wiki data, private raw sources, or model credentials.
 
+## Frontend Design Baseline
+
+KnoArbor's console should feel like a mature knowledge workbench, not a decorative landing page or a raw admin console.
+
+UI contributions should follow these rules:
+
+- Keep the interface quiet, dense enough for repeated work, and visually stable during long-running workflows.
+- Prefer white surfaces, restrained green accents, thin borders, and compact type over large marketing-style panels.
+- Use cards for discrete repeated objects, reports, run records, source records, and page previews. Avoid nested decorative cards.
+- Keep page headers compact. Primary workflow content should appear above diagnostics and history where possible.
+- Avoid radial glow backgrounds, decorative orbs, one-color gradient themes, and oversized hero typography.
+- Use real screenshots or Playwright smoke checks after layout changes. Check at least overview, runs, sources, wiki, reports, and settings when touching global CSS.
+- Do not expose internal status codes as primary UI text. Map them to user-facing labels and keep raw values in details or reports.
+- Keep icons functional and consistent. Icons should support scanning; they should not replace essential labels unless the sidebar is collapsed.
+
 ## Release Notes
 
 Internal modification notes live outside the tracked source tree in `.local-dev/`. Public release notes should be curated separately before publishing a release.

@@ -8,6 +8,28 @@ This project follows a simple release-note format while it is in alpha.
 
 - No public changes yet.
 
+## 0.9.0 - 2026-06-03
+
+### Added
+
+- Added runtime endpoint discovery through `.knoarbor/endpoint.json`, allowing local skills and tools to find the active service URL after `knoar serve` starts.
+- Added automatic port selection for `knoar serve` when the configured port is already occupied.
+- Added a more complete `knoarbor-local` skill package, including a reusable query helper, service check mode, examples, installation notes, security notes, and troubleshooting guidance.
+- Added token ledger support and a Token Analytics console page for inspecting semantic model cost across reports.
+- Added provenance refresh and recovery utilities used by maintenance workflows.
+
+### Changed
+
+- Improved the management console structure, run panels, report readability, Markdown preview behavior, settings layout, and localized labels.
+- Improved query skill defaults so host AI tools receive a balanced context pack by default while still allowing full-page retrieval when requested.
+- Improved semantic workflow reporting with clearer per-agent token metrics and cache-related fields.
+- Updated CLI and quickstart documentation to describe the actual management UI URL, `/ui` alias, automatic port switching, and runtime endpoint file.
+
+### Validation
+
+- `scripts/dev-check.sh` passes: frontend build, frontend dependency audit, frontend e2e smoke, Python lint, documentation link check, 323 Python tests, CLI diagnostics, and Python package build.
+- Live DeepSeek smoke was intentionally not run for this candidate because the model provider was unavailable during release preparation.
+
 ## 0.8.0 - 2026-06-01
 
 ### Added

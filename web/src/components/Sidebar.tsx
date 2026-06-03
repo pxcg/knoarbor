@@ -12,8 +12,17 @@ const navItems: ViewName[] = [
   "wiki",
   "graph",
   "reports",
+  "tokens",
   "settings",
   "docs",
+];
+
+const navGroups: Array<{ labelKey: string; items: ViewName[] }> = [
+  { labelKey: "navGroupWorkspace", items: ["overview", "runs"] },
+  { labelKey: "navGroupKnowledge", items: ["sources", "wiki", "graph"] },
+  { labelKey: "navGroupPipelines", items: ["ingest", "lint", "query"] },
+  { labelKey: "navGroupInsights", items: ["reports", "tokens"] },
+  { labelKey: "navGroupSystem", items: ["settings", "docs"] },
 ];
 
 type SidebarProps = {
@@ -23,10 +32,11 @@ type SidebarProps = {
   language: Language;
   t: (key: string) => string;
   onChangeView: (view: ViewName) => void;
+  onPreloadView?: (view: ViewName) => void;
   onToggleCollapsed: () => void;
 };
 
-export function Sidebar({ activeView, collapsed, serviceOnline, language, t, onChangeView, onToggleCollapsed }: SidebarProps) {
+export function Sidebar({ activeView, collapsed, serviceOnline, language, t, onChangeView, onPreloadView, onToggleCollapsed }: SidebarProps) {
   const logoUrl = `${import.meta.env.BASE_URL}knoarbor-logo.svg`;
 
   return (
@@ -44,21 +54,28 @@ export function Sidebar({ activeView, collapsed, serviceOnline, language, t, onC
         <span aria-hidden="true">{collapsed ? "›" : "‹"}</span>
       </button>
       <nav className="nav" aria-label="Main navigation">
-        {navItems.map((item) => (
-          <button
-            key={item}
-            className={`nav-item ${activeView === item ? "active" : ""}`}
-            onClick={() => onChangeView(item)}
-            title={collapsed ? viewTitles[language][item] : undefined}
-          >
-            <span className="nav-icon" aria-hidden="true">
-              <LineIcon name={item} />
-            </span>
-            <span className="nav-text">
-              <strong>{viewTitles[language][item]}</strong>
-              <span>{navCopy[language][item]}</span>
-            </span>
-          </button>
+        {(collapsed ? [{ labelKey: "navGroupCollapsed", items: navItems }] : navGroups).map((group) => (
+          <div className="nav-group" key={group.labelKey}>
+            {!collapsed && <div className="nav-group-label">{t(group.labelKey)}</div>}
+            {group.items.map((item) => (
+              <button
+                key={item}
+                className={`nav-item ${activeView === item ? "active" : ""}`}
+                onClick={() => onChangeView(item)}
+                onFocus={() => onPreloadView?.(item)}
+                onMouseEnter={() => onPreloadView?.(item)}
+                title={collapsed ? viewTitles[language][item] : undefined}
+              >
+                <span className="nav-icon" aria-hidden="true">
+                  <LineIcon name={item} />
+                </span>
+                <span className="nav-text">
+                  <strong>{viewTitles[language][item]}</strong>
+                  <span>{navCopy[language][item]}</span>
+                </span>
+              </button>
+            ))}
+          </div>
         ))}
       </nav>
       <div className="sidebar-footer">

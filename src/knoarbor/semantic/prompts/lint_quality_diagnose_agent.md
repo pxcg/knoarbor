@@ -43,7 +43,7 @@ For each dimension review:
         "candidate_id": "quality:concepts/example.md:unclear_structure:0",
         "source": "quality | freshness | graph",
         "target_page": "concepts/example.md",
-        "issue_type": "weak_source | shallow_page | contradiction | unclear_structure | stale_claim | poor_summary | missing_links | duplicate_topic",
+        "issue_type": "weak_source | shallow_page | contradiction | unclear_structure | workflow_missing_steps | stale_claim | poor_summary | missing_links | duplicate_topic",
         "severity": "high | medium | low",
         "confidence": 0.8,
         "risk_hint": "safe | low | medium | high",
@@ -90,8 +90,14 @@ For each dimension review:
 ## Candidate Rules
 
 - Use the narrowest action that solves the quality issue.
+- Selected candidate `reasons[]` are routing evidence. For each selected page with a medium/high quality reason, either emit a candidate that addresses that reason or explain in `warnings` why no executable action is appropriate.
+- Do not mark a page as fully good when a selected medium/high quality reason remains unaddressed.
 - A weak summary should use `improve_summary`, not `rewrite_section`.
-- Missing but clearly needed structure should use `add_missing_section` with `params.section`.
+- Missing but clearly needed structure should usually use `rewrite_section` when useful content must be generated. Use `add_missing_section` only for metadata/list scaffolding where a safe placeholder is sufficient.
+- If a selected candidate reason is `workflow_missing_steps`, emit `recommended_action.action = "rewrite_section"`, `executor_hint = "draft_write"`, and `params.section = "Steps"` when the page content contains enough evidence to write actionable steps.
+- `workflow_missing_steps` means the canonical `Steps` section is missing or not actionable. If steps appear elsewhere in `Answer` or subsections, still emit `rewrite_section` so the draft compiler can normalize them into `Steps`.
+- For `workflow_missing_steps`, the rewritten `Steps` section must contain meaningful ordered steps or checklist items. Never output an empty section, `暂无内容`, or a placeholder-only section.
+- If `workflow_missing_steps` lacks enough evidence to infer steps from the page itself, emit `refresh_request` or `report_only`; do not use `add_missing_section`.
 - Local section quality issues should use `rewrite_section` with `params.section`; do not rewrite a whole page unless the whole page is the target section.
 - Purely conversational wording should use `remove_chatty_content`; only remove greetings, follow-up invitations, personal chat phrasing, and non-knowledge filler. Do not remove examples, caveats, limitations, source context, or operational steps.
 - Link graph issues should use `add_contextual_links`; only recommend links that are supported by the page topic and provided related context. Do not use it for source provenance.
@@ -108,6 +114,7 @@ For each dimension review:
 ## Action Parameter Rules
 
 - `rewrite_section` and `add_missing_section` must include `params.section`.
+- `rewrite_section` for workflow steps must use `params.section = "Steps"`.
 - `add_contextual_links` must include `params.related_pages` when the exact related pages are known.
 - `strengthen_provenance` must include `params.source_file`, `params.source_digest`, or a concrete provenance target when known.
 - `mark_stale` and `refresh_request` should include the stale claim or section in params when available.

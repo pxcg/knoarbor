@@ -38,7 +38,7 @@ The following prototype routes are intentionally not part of the public API:
 - `GET /runs/active`
 - `POST /runs/{run_id}/rerun-failed`
 - `POST /lint/run`
-- `POST /query/search`
+- `POST /query`
 - `POST /runs`
 - `GET /wiki/page`
 - `GET /wiki/backlinks`

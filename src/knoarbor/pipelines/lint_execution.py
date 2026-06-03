@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from knoarbor.core.config import PrivacyConfig
 from knoarbor.core.schemas.lint_candidates import MaintenanceCandidate, MaintenanceCandidates
 from knoarbor.core.schemas.lint_review import LintMaintenanceReview, LintMaintenanceReviewDecision
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
 from knoarbor.core.schemas.wiki_lint import LintRunRequest
 from knoarbor.core.schemas.wiki_operation import WikiOperationApplyRequest, WikiOperationInput
 from knoarbor.core.schemas.wiki_write import WikiDraftBatchWriteItem, WikiDraftBatchWriteRequest, WikiDraftBatchWriteResponse, WikiDraftInput
+from knoarbor.maintenance.provenance_refresh import ProvenanceRefreshExecutor, ProvenanceRefreshResult
 from knoarbor.pipelines.operation import WikiOperationPipeline
 from knoarbor.pipelines.write import WikiWritePipeline
 from knoarbor.storage.wiki_index import relative_wiki_path
@@ -21,9 +23,13 @@ class LintExecutionRouter:
         *,
         operation_pipeline: WikiOperationPipeline | None = None,
         write_pipeline: WikiWritePipeline | None = None,
+        provenance_refresh: ProvenanceRefreshExecutor | None = None,
+        privacy_config: PrivacyConfig | None = None,
     ) -> None:
-        self.operation_pipeline = operation_pipeline or WikiOperationPipeline()
+        self.privacy_config = privacy_config or PrivacyConfig()
+        self.operation_pipeline = operation_pipeline or WikiOperationPipeline(privacy_config=self.privacy_config)
         self.write_pipeline = write_pipeline or WikiWritePipeline()
+        self.provenance_refresh = provenance_refresh or ProvenanceRefreshExecutor(self.write_pipeline)
 
     def apply_wiki_operations(
         self,
@@ -53,7 +59,7 @@ class LintExecutionRouter:
         candidates: MaintenanceCandidates,
         review: LintMaintenanceReview,
     ) -> WikiDraftBatch | None:
-        approved = _approved_decisions(review, "supported_by_draft_write")
+        approved = _supported_draft_write_decisions(candidates, review)
         if not approved:
             return None
         payload = {
@@ -122,20 +128,43 @@ class LintExecutionRouter:
             )
         return queued
 
+    def apply_refresh_requests(
+        self,
+        request: LintRunRequest,
+        queued_actions: list[dict[str, object]],
+    ) -> ProvenanceRefreshResult:
+        return self.provenance_refresh.apply(
+            vault_path=Path(request.obsidian_vault_path).expanduser().resolve(),
+            queued_actions=queued_actions,
+        )
+
     @staticmethod
     def written_page_paths(request: LintRunRequest, response: WikiDraftBatchWriteResponse) -> list[str]:
         vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
-        return [relative_wiki_path(vault_path, Path(result.wiki_file_path)) for result in response.results]
+        paths: list[str] = []
+        seen: set[str] = set()
+        for result in response.results:
+            path = relative_wiki_path(vault_path, Path(result.wiki_file_path))
+            if path in seen:
+                continue
+            seen.add(path)
+            paths.append(path)
+        return paths
 
     @staticmethod
     def written_page_details(request: LintRunRequest, response: WikiDraftBatchWriteResponse) -> list[dict[str, object]]:
         vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
         details: list[dict[str, object]] = []
+        seen: set[str] = set()
         for result in response.results:
             stats = dict(result.stats)
+            path = relative_wiki_path(vault_path, Path(result.wiki_file_path))
+            if path in seen:
+                continue
+            seen.add(path)
             details.append(
                 {
-                    "path": relative_wiki_path(vault_path, Path(result.wiki_file_path)),
+                    "path": path,
                     "created": bool(stats.get("created")),
                     "write_action": stats.get("write_action"),
                     "target_page": stats.get("target_page"),
@@ -160,6 +189,7 @@ _WIKI_OPERATION_ACTIONS = {
     "remove_adjacent_duplicate_headings",
     "add_missing_section",
     "update_source_field",
+    "redact_sensitive_text",
 }
 
 def _approved_decisions(review: LintMaintenanceReview, executor_fit: str) -> list[LintMaintenanceReviewDecision]:
@@ -168,6 +198,24 @@ def _approved_decisions(review: LintMaintenanceReview, executor_fit: str) -> lis
         for decision in review.decisions
         if decision.decision == "approve" and decision.executor_fit == executor_fit
     ]
+
+
+def _supported_draft_write_decisions(candidates: MaintenanceCandidates, review: LintMaintenanceReview) -> list[LintMaintenanceReviewDecision]:
+    supported_actions = {
+        "rewrite_section",
+        "improve_summary",
+        "remove_chatty_content",
+        "add_contextual_links",
+        "strengthen_provenance",
+    }
+    decisions: list[LintMaintenanceReviewDecision] = []
+    for decision in _approved_decisions(review, "supported_by_draft_write"):
+        if decision.operation_index >= len(candidates.candidates):
+            continue
+        action = candidates.candidates[decision.operation_index].recommended_action.action
+        if action in supported_actions:
+            decisions.append(decision)
+    return decisions
 
 
 def _candidate_to_wiki_operation(

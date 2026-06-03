@@ -38,7 +38,7 @@ KnoArbor 尚未发布稳定 v1 API，因此预发布阶段优先保持公开接�
 - `GET /runs/active`
 - `POST /runs/{run_id}/rerun-failed`
 - `POST /lint/run`
-- `POST /query/search`
+- `POST /query`
 - `POST /runs`
 - `GET /wiki/page`
 - `GET /wiki/backlinks`

@@ -4,7 +4,9 @@ import re
 from pathlib import Path
 from typing import Any
 
-from knoarbor.core.markdown import adjacent_duplicate_headings, extract_list_items, extract_section, parse_frontmatter, wiki_target_key
+from knoarbor.core.config import PrivacyConfig
+from knoarbor.core.markdown import adjacent_duplicate_headings, extract_list_items, extract_section, has_unclosed_fenced_code_blocks, parse_frontmatter, wiki_target_key
+from knoarbor.core.redaction import detect_sensitive_text
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatchItem
 from knoarbor.core.schemas.wiki_write import WikiDraftWriteResponse
 from knoarbor.maintenance.operation_verification_models import LintPostFixVerification
@@ -23,7 +25,13 @@ CHATTY_SUMMARY_PATTERN = re.compile(
 )
 
 
-def verify_wiki_operation(vault_path: Path, operation: dict[str, Any]) -> LintPostFixVerification:
+def verify_wiki_operation(
+    vault_path: Path,
+    operation: dict[str, Any],
+    *,
+    privacy_config: PrivacyConfig | None = None,
+) -> LintPostFixVerification:
+    privacy_config = privacy_config or PrivacyConfig()
     action = str(operation.get("action") or "")
     target_page = _optional_str(operation.get("output_page")) or _optional_str(operation.get("target_page"))
     details = _as_dict(operation.get("details"))
@@ -66,6 +74,9 @@ def verify_wiki_operation(vault_path: Path, operation: dict[str, Any]) -> LintPo
     if action == "update_source_field":
         source_file = _optional_str(details.get("source_file"))
         return _verify_source_field(content, source_file, action, target_page, operation_id)
+
+    if action == "redact_sensitive_text":
+        return _verify_sensitive_text_redacted(content, action, target_page, operation_id, privacy_config)
 
     if action == "rename_page":
         return _verify_renamed_page(vault_path, operation, action, target_page, operation_id)
@@ -549,6 +560,31 @@ def _verify_source_field(
     )
 
 
+def _verify_sensitive_text_redacted(
+    content: str,
+    action: str,
+    target_page: str,
+    operation_id: str | None,
+    privacy_config: PrivacyConfig,
+) -> LintPostFixVerification:
+    remaining = detect_sensitive_text(content, privacy_config)
+    if remaining:
+        return _failed(
+            action,
+            target_page,
+            operation_id,
+            "Sensitive text still matches configured redaction patterns after operation.",
+            {"remaining_counts": remaining},
+        )
+    return LintPostFixVerification(
+        action=action,
+        status="verified",
+        target_page=target_page,
+        operation_id=operation_id,
+        reason="Generated page no longer matches configured sensitive text patterns.",
+    )
+
+
 def _verify_source_digest_page(
     content: str,
     source_file: str | None,
@@ -581,6 +617,8 @@ def _markdown_pollution(content: str) -> list[str]:
         pollution.append("multiple_h1_headings")
     if len(re.findall(r"^##\s+Source\s*$", content, flags=re.MULTILINE)) > 1:
         pollution.append("multiple_source_sections")
+    if has_unclosed_fenced_code_blocks(content):
+        pollution.append("unclosed_fenced_code_block")
     return pollution
 
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import socket
 import sys
 import tempfile
 import unittest
@@ -239,14 +240,45 @@ class CliTests(unittest.TestCase):
     def test_serve_command_prints_management_ui_url(self) -> None:
         output = io.StringIO()
 
-        with patch("uvicorn.run") as uvicorn_run, redirect_stdout(output):
-            exit_code = main(["serve", "--host", "0.0.0.0", "--port", "8010"])
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "wiki").mkdir()
+            config = root / "config.yaml"
+            config.write_text("vault:\n  path: ./wiki\n", encoding="utf-8")
+
+            with patch("uvicorn.run") as uvicorn_run, redirect_stdout(output):
+                exit_code = main(["--config", str(config), "serve", "--host", "0.0.0.0", "--port", "8010"])
 
         self.assertEqual(exit_code, 0)
         self.assertIn("KnoArbor UI: http://127.0.0.1:8010", output.getvalue())
         self.assertIn("UI alias: http://127.0.0.1:8010/ui", output.getvalue())
         self.assertIn("API docs: http://127.0.0.1:8010/docs", output.getvalue())
         uvicorn_run.assert_called_once()
+
+    def test_serve_command_switches_when_port_is_occupied(self) -> None:
+        output = io.StringIO()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "wiki").mkdir()
+            config = root / "config.yaml"
+            config.write_text("vault:\n  path: ./wiki\n", encoding="utf-8")
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.bind(("127.0.0.1", 0))
+                sock.listen(1)
+                occupied_port = sock.getsockname()[1]
+
+                with patch("uvicorn.run") as uvicorn_run, redirect_stdout(output):
+                    exit_code = main(["--config", str(config), "serve", "--host", "127.0.0.1", "--port", str(occupied_port)])
+
+            endpoint = json.loads((root / ".knoarbor" / "endpoint.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn(f"Configured port {occupied_port} is in use; using", output.getvalue())
+        self.assertNotEqual(endpoint["port"], occupied_port)
+        self.assertEqual(endpoint["base_url"], f"http://127.0.0.1:{endpoint['port']}")
+        uvicorn_run.assert_called_once()
+        self.assertEqual(uvicorn_run.call_args.kwargs["port"], endpoint["port"])
 
     def test_parser_exposes_local_semantic_workflow_commands(self) -> None:
         parser = build_parser()
