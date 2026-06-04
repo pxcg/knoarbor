@@ -1,7 +1,7 @@
 # KnoArbor Skill Operations
 
-Use `scripts/knoarbor.py` from the skill directory. Global options come before
-the command:
+Use `scripts/knoarbor.py` from the skill directory. Do not rely on the
+KnoArbor repository path. Global options come before the command:
 
 ```bash
 python3 scripts/knoarbor.py --base-url http://127.0.0.1:8000 --vault /path/to/wiki query "agent loop"

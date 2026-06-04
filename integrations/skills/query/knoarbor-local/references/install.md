@@ -30,7 +30,8 @@ Restart the host AI tool after installation so it reloads `SKILL.md`.
 
 The bundled helper uses only the Python standard library and expects `python3`
 to be available. It does not require the KnoArbor Python package to be installed
-inside the host AI tool.
+inside the host AI tool. Run helper commands from the skill directory, not from
+the KnoArbor project directory.
 
 If the host environment cannot run Python, use `references/http-api.md` to call
 the local HTTP API directly with `curl` or the host tool's HTTP client.

@@ -1,8 +1,8 @@
-# Direct HTTP Usage Without Python
+# Direct HTTP API Usage
 
-Use this reference when the host AI environment cannot run `python3`. The
-Python helper is preferred because it formats output and discovers config, but
-all operations ultimately call the local KnoArbor HTTP API.
+Use this reference when the host AI environment cannot run `python3`, or when
+the host tool has a native HTTP client. Direct HTTP calls do not perform helper
+formatting or automatic config discovery.
 
 Set these values first:
 
@@ -15,6 +15,12 @@ export KNOARBOR_VAULT_PATH="/absolute/path/to/wiki"
 
 ```bash
 curl -sS "$KNOARBOR_BASE_URL/health"
+```
+
+## Diagnostics
+
+```bash
+curl -sS --get "$KNOARBOR_BASE_URL/doctor"
 ```
 
 ## Query Wiki Context
@@ -40,12 +46,44 @@ curl -sS --get "$KNOARBOR_BASE_URL/wiki/pages/content" \
   --data-urlencode "path=concepts/Agent-Loop-and-Control-Patterns.md"
 ```
 
+## Page Links
+
+```bash
+curl -sS --get "$KNOARBOR_BASE_URL/wiki/pages/links" \
+  --data-urlencode "vault_path=$KNOARBOR_VAULT_PATH" \
+  --data-urlencode "path=concepts/Agent-Loop-and-Control-Patterns.md"
+```
+
+## Start Connector Ingest
+
+```bash
+curl -sS -X POST "$KNOARBOR_BASE_URL/ingest" \
+  -H 'Content-Type: application/json' \
+  -d '{"execution":"queued","kind":"connectors","connector_names":["codex"],"write":true,"write_report":true,"append_ledger":true}'
+```
+
+## Start File Ingest
+
+```bash
+curl -sS -X POST "$KNOARBOR_BASE_URL/ingest" \
+  -H 'Content-Type: application/json' \
+  -d '{"execution":"queued","kind":"file","input_path":"/absolute/path/to/file.md","write":true,"write_report":true,"append_ledger":true}'
+```
+
 ## Start Folder Ingest
 
 ```bash
 curl -sS -X POST "$KNOARBOR_BASE_URL/ingest" \
   -H 'Content-Type: application/json' \
   -d "{\"execution\":\"queued\",\"kind\":\"folder\",\"input_path\":\"/absolute/path/to/folder\",\"recursive\":true,\"write\":true,\"write_report\":true,\"append_ledger\":true}"
+```
+
+## Retry Failed Ingest
+
+```bash
+curl -sS -X POST "$KNOARBOR_BASE_URL/ingest" \
+  -H 'Content-Type: application/json' \
+  -d "{\"execution\":\"queued\",\"kind\":\"recovery\",\"recovery_vault_path\":\"$KNOARBOR_VAULT_PATH\",\"recovery_of_run_id\":\"RUN_ID\",\"write\":true,\"write_report\":true,\"append_ledger\":true}"
 ```
 
 ## Run Lint Maintenance
@@ -63,6 +101,35 @@ curl -sS --get "$KNOARBOR_BASE_URL/reports" \
   --data-urlencode "vault_path=$KNOARBOR_VAULT_PATH"
 ```
 
-Prefer the Python helper when available; it avoids shell quoting mistakes,
-formats text for the host AI, and discovers the active port from
-`.knoarbor/endpoint.json`.
+## Read One Report
+
+```bash
+curl -sS --get "$KNOARBOR_BASE_URL/reports/content" \
+  --data-urlencode "vault_path=$KNOARBOR_VAULT_PATH" \
+  --data-urlencode "path=maintenance/ingest_report_YYYYMMDD_HHMMSS.md"
+```
+
+## Runs
+
+```bash
+curl -sS --get "$KNOARBOR_BASE_URL/runs" \
+  --data-urlencode "vault_path=$KNOARBOR_VAULT_PATH" \
+  --data-urlencode "active_only=false" \
+  --data-urlencode "limit=10"
+
+curl -sS --get "$KNOARBOR_BASE_URL/runs/RUN_ID" \
+  --data-urlencode "vault_path=$KNOARBOR_VAULT_PATH"
+
+curl -sS --get "$KNOARBOR_BASE_URL/runs/RUN_ID/events" \
+  --data-urlencode "vault_path=$KNOARBOR_VAULT_PATH" \
+  --data-urlencode "after=0" \
+  --data-urlencode "limit=50"
+
+curl -sS -X POST "$KNOARBOR_BASE_URL/runs/RUN_ID/cancel?vault_path=$KNOARBOR_VAULT_PATH"
+```
+
+For host AI use, summarize returned JSON instead of pasting it verbatim unless
+the user asks for raw structured output.
+
+When a value contains spaces or shell-sensitive characters, prefer the host
+tool's HTTP client with structured query parameters.

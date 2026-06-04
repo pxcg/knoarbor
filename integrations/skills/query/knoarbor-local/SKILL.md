@@ -55,9 +55,9 @@ Map natural user requests to operations before choosing a command:
 - "Is KnoArbor ready?", "why can't the skill connect?", "check my setup" ->
   `doctor` or `check`.
 
-## Main Helper
+## Execution Contract
 
-Prefer the bundled deterministic helper:
+Use the bundled helper first:
 
 ```bash
 python3 scripts/knoarbor.py query "agent loop control patterns"
@@ -72,9 +72,23 @@ python3 scripts/knoarbor.py report list
 python3 scripts/knoarbor.py doctor
 ```
 
-Run these commands from the skill directory, or invoke them with a path relative
-to the skill directory. The helper loads sibling scripts through `__file__`, so
-it does not require the KnoArbor repository path to be hard-coded.
+Path rules:
+
+- Run commands from this skill directory, or call `scripts/knoarbor.py` through
+  a path relative to this skill directory.
+- Do not assume the current working directory is the KnoArbor repository.
+- Do not hard-code the user's local KnoArbor project path.
+- The helper uses only the Python standard library and loads sibling files
+  through `__file__`.
+
+Fallback rules:
+
+- If `python3` is unavailable, use `references/http-api.md` with `curl` or the
+  host tool's HTTP client.
+- If the helper cannot discover the service, run `python3 scripts/knoarbor.py
+  check`, then use explicit `--base-url`, `--vault`, or `--config` if needed.
+- If the local service is unavailable, report that KnoArbor is unavailable and
+  continue with other available context. Do not fabricate wiki results.
 
 ## Output Formats
 
@@ -161,7 +175,7 @@ Load only what is needed:
 - `references/troubleshooting.md`: service, vault, and query failures.
 - `references/install.md`: install and smoke-test notes.
 - `references/http-api.md`: direct `curl` examples for environments without
-  Python.
+  Python or when the host tool uses an HTTP client instead of shell commands.
 
 ## Answer Rules
 
