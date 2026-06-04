@@ -2,9 +2,29 @@
 
 Use this reference when the host AI environment cannot run `python3`, or when
 the host tool has a native HTTP client. Direct HTTP calls do not perform helper
-formatting or automatic config discovery.
+formatting.
 
-Set these values first:
+## Discover Runtime Context
+
+If the service URL is already known, read the runtime context first:
+
+```bash
+export KNOARBOR_BASE_URL="http://127.0.0.1:8000"
+
+curl -sS "$KNOARBOR_BASE_URL/runtime"
+```
+
+The response includes `base_url`, `config_path`, `vault_path`, and
+`endpoint_path`. Use `vault_path` as `KNOARBOR_VAULT_PATH` for later calls.
+
+If the service auto-selected a different port and the host can read local files,
+read `.knoarbor/endpoint.json` next to `config.yaml`; it contains the active
+`base_url` and `vault_path`.
+
+If neither the service URL nor the endpoint file is available to the host, ask
+the user for the KnoArbor base URL once.
+
+Set these values after discovery:
 
 ```bash
 export KNOARBOR_BASE_URL="http://127.0.0.1:8000"

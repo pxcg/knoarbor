@@ -31,14 +31,18 @@ The helper resolves the service URL in this order:
 5. `http://127.0.0.1:8000`
 
 If `8000` is occupied, `knoar serve` may choose another port and write it to
-`.knoarbor/endpoint.json`.
+`.knoarbor/endpoint.json`. That file includes the active `base_url` and
+`vault_path`.
 
 ## Python is unavailable
 
 The helper needs `python3`, but KnoArbor itself is still accessible through HTTP.
-Use `references/http-api.md` for direct `curl` examples. In this mode you must
-provide `KNOARBOR_BASE_URL` and `KNOARBOR_VAULT_PATH` yourself because automatic
-config discovery is handled by the Python helper.
+Use `references/http-api.md` for direct `curl` examples. In this mode:
+
+1. If a base URL is known, call `GET /runtime` to discover `vault_path`.
+2. If the port is unknown and local files are readable, read
+   `.knoarbor/endpoint.json` next to `config.yaml`.
+3. If neither is available, ask the user for the KnoArbor base URL once.
 
 ## Vault path is missing
 

@@ -331,6 +331,8 @@ class CliTests(unittest.TestCase):
         self.assertIn(f"Configured port {occupied_port} is in use; using", output.getvalue())
         self.assertNotEqual(endpoint["port"], occupied_port)
         self.assertEqual(endpoint["base_url"], f"http://127.0.0.1:{endpoint['port']}")
+        self.assertEqual(endpoint["config_path"], str(config.resolve()))
+        self.assertEqual(endpoint["vault_path"], str((root / "wiki").resolve()))
         uvicorn_run.assert_called_once()
         self.assertEqual(uvicorn_run.call_args.kwargs["port"], endpoint["port"])
 

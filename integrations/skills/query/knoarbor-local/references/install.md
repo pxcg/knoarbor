@@ -46,6 +46,11 @@ export KNOARBOR_BASE_URL=http://127.0.0.1:8000
 export KNOARBOR_VAULT_PATH=/absolute/path/to/wiki
 ```
 
+For HTTP-only hosts, call `GET /runtime` after the base URL is known. The
+response provides the active vault path. If the service selected a different
+port and local files are readable, inspect `.knoarbor/endpoint.json` next to
+`config.yaml`.
+
 See `example.env`.
 
 ## 4. Test the skill

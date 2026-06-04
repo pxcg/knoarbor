@@ -87,6 +87,9 @@ Fallback rules:
   host tool's HTTP client.
 - If the helper cannot discover the service, run `python3 scripts/knoarbor.py
   check`, then use explicit `--base-url`, `--vault`, or `--config` if needed.
+- HTTP-only callers should use `GET /runtime` after the base URL is known. If
+  the base URL is unknown and local files are readable, use
+  `.knoarbor/endpoint.json` next to `config.yaml`.
 - If the local service is unavailable, report that KnoArbor is unavailable and
   continue with other available context. Do not fabricate wiki results.
 

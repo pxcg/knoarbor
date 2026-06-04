@@ -32,14 +32,24 @@ def is_port_available(host: str, port: int) -> bool:
     return True
 
 
-def write_runtime_endpoint(config_path: str | Path, *, host: str, port: int, base_url: str) -> Path:
+def write_runtime_endpoint(
+    config_path: str | Path,
+    *,
+    host: str,
+    port: int,
+    base_url: str,
+    vault_path: str | Path | None = None,
+) -> Path:
     endpoint_path = runtime_endpoint_path(config_path)
     endpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    resolved_config_path = Path(config_path).expanduser().resolve()
     payload: dict[str, Any] = {
         "schema_version": "knoarbor_runtime_endpoint.v1",
         "base_url": base_url,
         "host": host,
         "port": port,
+        "config_path": str(resolved_config_path),
+        "vault_path": str(Path(vault_path).expanduser().resolve()) if vault_path is not None else None,
         "pid": os.getpid(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }

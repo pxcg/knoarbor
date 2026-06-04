@@ -59,9 +59,14 @@ class SkillQueryHelperTests(unittest.TestCase):
             )
             endpoint_dir = root / ".knoarbor"
             endpoint_dir.mkdir()
-            (endpoint_dir / "endpoint.json").write_text('{"base_url": "http://127.0.0.1:8124"}', encoding="utf-8")
+            (endpoint_dir / "endpoint.json").write_text(
+                '{"base_url": "http://127.0.0.1:8124", "vault_path": "/tmp/endpoint-wiki"}',
+                encoding="utf-8",
+            )
 
-            self.assertEqual(helper._base_url_from_runtime_endpoint(config_path), "http://127.0.0.1:8124")
+            endpoint = helper._runtime_endpoint_data(config_path)
+            self.assertEqual(helper._base_url_from_runtime_endpoint(endpoint), "http://127.0.0.1:8124")
+            self.assertEqual(helper._vault_path_from_runtime_endpoint(endpoint), "/tmp/endpoint-wiki")
 
     def test_config_lookup_does_not_fall_back_to_legacy_project_name(self) -> None:
         helper = load_query_helper()

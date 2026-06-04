@@ -27,6 +27,7 @@ Public endpoints are organized by product capability, not by internal workflow s
 | Area | Endpoint | Purpose |
 | --- | --- | --- |
 | Service status | `GET /health` | Lightweight service heartbeat |
+| Runtime context | `GET /runtime` | Discover the active local API URL, config path, vault path, and endpoint file |
 | Diagnostics | `GET /doctor` | Read-only setup checks |
 | Ingest | `POST /ingest` | Compile configured sources, one normalized document, one file or folder, or recover a failed ingest |
 | Lint | `POST /lint` | Run deterministic, structural, quality, or full maintenance |
@@ -86,6 +87,32 @@ GET /health
 ```
 
 Returns service availability. Use this before triggering long-running jobs.
+
+## Runtime Context
+
+```http
+GET /runtime
+```
+
+Returns the active local runtime context for host AI tools, shell scripts, and
+HTTP-only integrations:
+
+```json
+{
+  "schema_version": "runtime_context.v1",
+  "service_online": true,
+  "base_url": "http://127.0.0.1:8000",
+  "config_path": "/path/to/config.yaml",
+  "vault_path": "/path/to/wiki",
+  "endpoint_path": "/path/to/.knoarbor/endpoint.json",
+  "errors": []
+}
+```
+
+Use this instead of `/ui/api/*` when an integration needs to discover the
+current vault path. If the service auto-selects a different port, `knoar serve`
+also writes the same runtime address to `.knoarbor/endpoint.json` next to
+`config.yaml`.
 
 ## Reports
 

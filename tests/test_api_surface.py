@@ -72,6 +72,21 @@ class ApiSurfaceTests(unittest.TestCase):
         self.assertTrue(ui_route_set().issubset(paths))
         self.assertFalse(REMOVED_PROTOTYPE_ROUTES & paths)
 
+    def test_runtime_endpoint_returns_integration_context(self) -> None:
+        client = TestClient(create_app())
+
+        response = client.get("/runtime")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["schema_version"], "runtime_context.v1")
+        self.assertTrue(payload["service_online"])
+        self.assertTrue(payload["base_url"].startswith("http://testserver"))
+        self.assertIn("config_path", payload)
+        self.assertIn("vault_path", payload)
+        self.assertIn("endpoint_path", payload)
+        self.assertIn("errors", payload)
+
     def test_api_docs_cover_stable_public_routes(self) -> None:
         docs = (Path(__file__).resolve().parents[1] / "docs" / "API.md").read_text(encoding="utf-8")
 

@@ -7,6 +7,7 @@ KnoArbor 尚未发布稳定 v1 API，因此预发布阶段优先保持公开接�
 公开集成 API 保持精简：
 
 - `GET /health`
+- `GET /runtime`
 - `GET /doctor`
 - `POST /ingest`
 - `POST /lint`

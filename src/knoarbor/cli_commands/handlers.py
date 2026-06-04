@@ -57,7 +57,13 @@ def run_serve(args: argparse.Namespace) -> int:
     port, switched_port = find_available_port(host, preferred_port)
     display_host = "127.0.0.1" if host in {"0.0.0.0", "::"} else host
     base_url = f"http://{display_host}:{port}"
-    endpoint_path = write_runtime_endpoint(resolve_config_path(args), host=display_host, port=port, base_url=base_url)
+    endpoint_path = write_runtime_endpoint(
+        resolve_config_path(args),
+        host=display_host,
+        port=port,
+        base_url=base_url,
+        vault_path=config.vault.path,
+    )
     if switched_port:
         print(f"Configured port {preferred_port} is in use; using {port} instead.")
     print(f"KnoArbor UI: {base_url}")

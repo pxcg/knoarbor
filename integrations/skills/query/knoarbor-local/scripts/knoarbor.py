@@ -73,8 +73,9 @@ class Runtime:
 def _runtime(args: argparse.Namespace) -> Runtime:
     config_path = _resolve_config_path(args.config)
     config = _load_yaml(config_path) if config_path else {}
-    base_url = args.base_url or _base_url_from_runtime_endpoint(config_path) or _base_url_from_config(config) or DEFAULT_BASE_URL
-    vault_path = args.vault or _vault_path_from_config(config, config_path)
+    endpoint = _runtime_endpoint_data(config_path)
+    base_url = args.base_url or _base_url_from_runtime_endpoint(endpoint) or _base_url_from_config(config) or DEFAULT_BASE_URL
+    vault_path = args.vault or _vault_path_from_runtime_endpoint(endpoint) or _vault_path_from_config(config, config_path)
     return Runtime(base_url=base_url, vault_path=vault_path, config_path=config_path, timeout=args.timeout, output_format=args.format)
 
 
@@ -390,20 +391,29 @@ def _base_url_from_config(config: dict[str, Any]) -> str | None:
     return f"http://{host}:{port}"
 
 
-def _base_url_from_runtime_endpoint(config_path: Path | None) -> str | None:
+def _runtime_endpoint_data(config_path: Path | None) -> dict[str, Any]:
     if config_path is None:
-        return None
+        return {}
     endpoint_path = config_path.parent / ".knoarbor" / "endpoint.json"
     if not endpoint_path.exists():
-        return None
+        return {}
     try:
         data = json.loads(endpoint_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(data, dict):
-        return None
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _base_url_from_runtime_endpoint(data: dict[str, Any]) -> str | None:
     base_url = data.get("base_url")
     return str(base_url).strip() if base_url else None
+
+
+def _vault_path_from_runtime_endpoint(data: dict[str, Any]) -> str | None:
+    vault_path = data.get("vault_path")
+    if not vault_path:
+        return None
+    return str(Path(str(vault_path)).expanduser())
 
 
 def _vault_path_from_config(config: dict[str, Any], config_path: Path | None) -> str | None:

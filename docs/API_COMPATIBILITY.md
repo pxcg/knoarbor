@@ -7,6 +7,7 @@ KnoArbor has not published a stable v1 API yet, so the pre-release line favors a
 The public integration API is intentionally compact:
 
 - `GET /health`
+- `GET /runtime`
 - `GET /doctor`
 - `POST /ingest`
 - `POST /lint`

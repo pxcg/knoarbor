@@ -27,6 +27,7 @@ http://127.0.0.1:8000
 | 范围 | 端点 | 用途 |
 | --- | --- | --- |
 | 服务状态 | `GET /health` | 轻量服务心跳 |
+| 运行上下文 | `GET /runtime` | 发现当前本地 API 地址、配置路径、知识库路径和 endpoint 文件 |
 | 诊断 | `GET /doctor` | 只读运行前检查 |
 | 知识编译 | `POST /ingest` | 编译配置来源、标准文档、单个文件或文件夹，或恢复失败编译 |
 | 校验维护 | `POST /lint` | 执行确定性、结构、质量或完整维护 |
@@ -86,6 +87,30 @@ GET /health
 ```
 
 返回服务是否可用。触发长任务前可先调用该接口。
+
+## 运行上下文
+
+```http
+GET /runtime
+```
+
+返回宿主 AI、脚本和 HTTP-only 集成需要的当前本地运行上下文：
+
+```json
+{
+  "schema_version": "runtime_context.v1",
+  "service_online": true,
+  "base_url": "http://127.0.0.1:8000",
+  "config_path": "/path/to/config.yaml",
+  "vault_path": "/path/to/wiki",
+  "endpoint_path": "/path/to/.knoarbor/endpoint.json",
+  "errors": []
+}
+```
+
+集成工具需要发现当前知识库路径时，应使用该接口，而不是调用
+`/ui/api/*`。如果服务启动时自动切换端口，`knoar serve` 也会把实际
+运行地址写入 `config.yaml` 同级的 `.knoarbor/endpoint.json`。
 
 ## 运行报告
 
