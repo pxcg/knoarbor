@@ -4,7 +4,14 @@ from pathlib import Path
 
 from knoarbor.connectors.base import ConnectorConfig
 from knoarbor.core.config import KnoArborConfig, default_config_path, load_config
-from knoarbor.core.schemas.ingest_run import IngestDocumentRunRequest, IngestFileRunRequest, IngestRunRequest, UnifiedIngestRequest
+from knoarbor.core.errors import UserInputError
+from knoarbor.core.schemas.ingest_run import (
+    IngestDocumentRunRequest,
+    IngestFileRunRequest,
+    IngestFolderRunRequest,
+    IngestRunRequest,
+    UnifiedIngestRequest,
+)
 from knoarbor.audit.run_failure import write_run_failure_artifacts
 from knoarbor.document_processing import DocumentProcessingPipeline
 from knoarbor.pipelines import IngestContextProvider, IngestPipeline, IngestPipelineResult, IngestSourceResult
@@ -22,6 +29,8 @@ class IngestService:
             return self.run_document(request.to_document_request())
         if request.kind == "file":
             return self.run_file(request.to_file_request())
+        if request.kind == "folder":
+            return self.run_folder(request.to_folder_request())
         return self.run(request.to_connectors_request())
 
     def run(self, request: IngestRunRequest) -> IngestPipelineResult:
@@ -78,10 +87,34 @@ class IngestService:
         try:
             config = _load_runtime_config(request.config_path)
             markdown_path, processing_result = DocumentProcessingPipeline().prepare_input_file(config, Path(request.input_path))
-            file_config = _single_markdown_file_config(config, markdown_path)
+            file_config = _markdown_files_config(config, [markdown_path])
             pipeline = _build_ingest_pipeline(file_config, request.provider)
             return pipeline.run(
                 file_config,
+                connector_names=["markdown"],
+                write=request.write,
+                max_tokens=request.max_tokens or config.models.default_max_tokens,
+                write_report=request.write_report,
+                append_ledger=request.append_ledger,
+                document_processing_result=processing_result,
+            )
+        except Exception as exc:
+            _write_failure_artifacts(request, exc, config=config)
+            raise
+
+    def run_folder(self, request: IngestFolderRunRequest) -> IngestPipelineResult:
+        config: KnoArborConfig | None = None
+        try:
+            config = _load_runtime_config(request.config_path)
+            markdown_paths, processing_result = DocumentProcessingPipeline().prepare_input_folder(
+                config,
+                Path(request.input_path),
+                recursive=request.recursive,
+            )
+            folder_config = _markdown_files_config(config, markdown_paths)
+            pipeline = _build_ingest_pipeline(folder_config, request.provider)
+            return pipeline.run(
+                folder_config,
                 connector_names=["markdown"],
                 write=request.write,
                 max_tokens=request.max_tokens or config.models.default_max_tokens,
@@ -113,7 +146,7 @@ def _build_ingest_pipeline(config: KnoArborConfig, provider_name: str | None) ->
 
 
 def _write_failure_artifacts(
-    request: IngestRunRequest | IngestDocumentRunRequest | IngestFileRunRequest,
+    request: IngestRunRequest | IngestDocumentRunRequest | IngestFileRunRequest | IngestFolderRunRequest,
     exc: BaseException,
     *,
     config: KnoArborConfig | None = None,
@@ -141,16 +174,19 @@ def _write_failure_artifacts(
         logger.exception("ingest_failure_report_write_failed error=%s original_error=%s", report_exc, exc)
 
 
-def _single_markdown_file_config(config: KnoArborConfig, markdown_path: Path) -> KnoArborConfig:
+def _markdown_files_config(config: KnoArborConfig, markdown_paths: list[Path]) -> KnoArborConfig:
+    if not markdown_paths:
+        raise UserInputError("No Markdown files were found or produced for this ingest input.")
     document_processing = config.document_processing.model_copy(
         update={"mineru": config.document_processing.mineru.model_copy(update={"enabled": False})}
     )
+    resolved_paths = [str(path.expanduser().resolve()) for path in markdown_paths]
     connectors = {
         "markdown": ConnectorConfig(
             enabled=True,
             settings={
-                "roots": [str(markdown_path.expanduser().resolve())],
-                "pattern": markdown_path.name,
+                "roots": resolved_paths,
+                "pattern": "*",
                 "recursive": False,
             },
         )

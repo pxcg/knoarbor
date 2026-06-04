@@ -28,10 +28,11 @@ Public endpoints are organized by product capability, not by internal workflow s
 | --- | --- | --- |
 | Service status | `GET /health` | Lightweight service heartbeat |
 | Diagnostics | `GET /doctor` | Read-only setup checks |
-| Ingest | `POST /ingest` | Compile configured sources, one normalized document, one file, or recover a failed ingest |
+| Ingest | `POST /ingest` | Compile configured sources, one normalized document, one file or folder, or recover a failed ingest |
 | Lint | `POST /lint` | Run deterministic, structural, quality, or full maintenance |
 | Query | `POST /query` | Retrieve wiki context for a host AI |
 | Query telemetry | `POST /query/feedback`, `GET /query/trends` | Record and inspect query usefulness signals |
+| Reports | `GET /reports`, `GET /reports/content` | List and read workflow reports |
 | Run monitor | `GET /runs`, `GET /runs/{run_id}` | Inspect queued/running/completed workflows |
 | Run events | `GET /runs/{run_id}/events`, `GET /runs/{run_id}/stream`, `POST /runs/{run_id}/cancel` | Observe or cancel a run |
 | Wiki pages | `GET /wiki/pages`, `GET /wiki/pages/content`, `GET /wiki/pages/links` | Read generated wiki pages |
@@ -86,6 +87,17 @@ GET /health
 
 Returns service availability. Use this before triggering long-running jobs.
 
+## Reports
+
+```http
+GET /reports?vault_path=/path/to/wiki
+GET /reports/content?vault_path=/path/to/wiki&path=maintenance/ingest_report_YYYYMMDD_HHMMSS.md
+```
+
+Lists or reads Markdown workflow reports from the vault `maintenance/` folder.
+Reports are public integration APIs because host AI tools often need to explain
+what changed, what failed, or which pages were written after a run.
+
 ## Diagnostics
 
 ```http
@@ -111,6 +123,7 @@ Use `kind` to select the input shape:
 
 - `connectors`: run configured source connectors.
 - `file`: ingest one local input file.
+- `folder`: ingest one local folder as a one-off input without changing persistent configuration.
 - `document`: ingest one already normalized `source_document`.
 - `recovery`: retry failed items from a previous ingest run.
 
@@ -137,6 +150,23 @@ One local file:
   "write": true
 }
 ```
+
+One local folder:
+
+```json
+{
+  "execution": "queued",
+  "kind": "folder",
+  "config_path": "./config.yaml",
+  "input_path": "/path/to/folder",
+  "recursive": true,
+  "write": true
+}
+```
+
+Folder ingest discovers Markdown files directly. Non-Markdown files in the folder
+require the configured MinerU-compatible preprocessor. If preprocessing is not
+enabled or fails, the run fails explicitly instead of silently skipping files.
 
 One normalized source document:
 

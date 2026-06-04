@@ -9,7 +9,6 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from knoarbor.audit.token_ledger import read_token_analysis
-from knoarbor.core.markdown import compact_inline_text, extract_heading
 from knoarbor.services.ui_config import UiConfigService, summarize_default_config
 from knoarbor.services.ui_config_models import (
     UiConfigDiagnostics,
@@ -20,6 +19,7 @@ from knoarbor.services.ui_config_models import (
     UiConfigUpdateResponse,
 )
 from knoarbor.services.wiki_graph import WikiGraph, build_wiki_graph
+from knoarbor.services.wiki_reports import WikiReportDetail, WikiReportSummary, WikiReportsResponse, WikiReportService
 from knoarbor.storage.wiki_index import ensure_machine_index, machine_index_dir
 
 
@@ -34,26 +34,6 @@ class UiStatusResponse(BaseModel):
     directories: dict[str, int] = Field(default_factory=dict)
 
 
-class UiReportSummary(BaseModel):
-    path: str
-    title: str
-    kind: str
-    updated: str | None = None
-    size: int
-    preview: str = ""
-
-
-class UiReportsResponse(BaseModel):
-    vault_path: str
-    reports: list[UiReportSummary]
-
-
-class UiReportDetail(BaseModel):
-    path: str
-    content: str
-    summary: UiReportSummary
-
-
 class UiProjectDoc(BaseModel):
     path: str
     content: str
@@ -62,19 +42,20 @@ class UiProjectDoc(BaseModel):
 def create_ui_router() -> APIRouter:
     router = APIRouter()
     config_service = UiConfigService()
+    report_service = WikiReportService()
 
     @router.get("/", include_in_schema=False)
     async def root_index() -> FileResponse:
-        return FileResponse(_resolve_ui_asset("index.html"), media_type="text/html; charset=utf-8")
+        return _ui_index_response()
 
     @router.get("/ui", tags=["ui"])
     async def ui_index() -> FileResponse:
-        return FileResponse(_resolve_ui_asset("index.html"), media_type="text/html; charset=utf-8")
+        return _ui_index_response()
 
     @router.get("/ui/assets/{asset_path:path}", tags=["ui"])
     async def ui_asset(asset_path: str) -> FileResponse:
         asset = _resolve_ui_asset(f"assets/{asset_path}")
-        return FileResponse(asset)
+        return _ui_asset_response(asset)
 
     @router.get("/ui/api/config", response_model=UiConfigResponse, tags=["ui"])
     async def read_ui_config(config_path: str | None = Query(default=None)) -> UiConfigResponse:
@@ -126,8 +107,7 @@ def create_ui_router() -> APIRouter:
 
     @router.get("/ui/api/reports", response_model=UiReportsResponse, tags=["ui"])
     async def read_ui_reports(vault_path: str | None = Query(default=None)) -> UiReportsResponse:
-        path = _resolve_vault_path(vault_path)
-        return UiReportsResponse(vault_path=str(path), reports=_collect_reports(path))
+        return report_service.list_reports(_resolve_vault_path(vault_path))
 
     @router.get("/ui/api/tokens", tags=["ui"])
     async def read_ui_tokens(vault_path: str | None = Query(default=None), limit: int = Query(default=5000, ge=1, le=50000)) -> dict[str, object]:
@@ -135,13 +115,7 @@ def create_ui_router() -> APIRouter:
 
     @router.get("/ui/api/report", response_model=UiReportDetail, tags=["ui"])
     async def read_ui_report(path: str, vault_path: str | None = Query(default=None)) -> UiReportDetail:
-        vault = _resolve_vault_path(vault_path)
-        report_path = _resolve_vault_file(vault, path)
-        if not report_path.suffix.lower() == ".md":
-            raise HTTPException(status_code=400, detail="Only Markdown reports can be previewed")
-        content = report_path.read_text(encoding="utf-8")
-        summary = _report_summary(vault, report_path, content)
-        return UiReportDetail(path=summary.path, content=content, summary=summary)
+        return report_service.read_report(_resolve_vault_path(vault_path), path)
 
     @router.get("/ui/api/docs/{doc_path:path}", response_model=UiProjectDoc, tags=["ui"])
     async def read_ui_doc(doc_path: str) -> UiProjectDoc:
@@ -151,9 +125,29 @@ def create_ui_router() -> APIRouter:
     @router.get("/ui/{asset_path:path}", tags=["ui"])
     async def ui_root_asset(asset_path: str) -> FileResponse:
         asset = _resolve_ui_asset(asset_path)
-        return FileResponse(asset)
+        return _ui_asset_response(asset)
 
     return router
+
+
+def _ui_index_response() -> FileResponse:
+    response = FileResponse(_resolve_ui_asset("index.html"), media_type="text/html; charset=utf-8")
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
+
+
+def _ui_asset_response(asset: Path) -> FileResponse:
+    if asset.suffix.lower() == ".html":
+        response = FileResponse(asset, media_type="text/html; charset=utf-8")
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        return response
+    if "/assets/" in asset.as_posix():
+        response = FileResponse(asset)
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+    response = FileResponse(asset)
+    response.headers["Cache-Control"] = "public, max-age=3600"
+    return response
 
 
 def _resolve_ui_asset(name: str) -> Path:
@@ -284,39 +278,6 @@ def _resolve_vault_file(vault_path: Path, relative_path: str) -> Path:
     return page_path
 
 
-def _collect_reports(vault_path: Path) -> list[UiReportSummary]:
-    maintenance_path = vault_path / "maintenance"
-    if not maintenance_path.exists():
-        return []
-    reports: list[UiReportSummary] = []
-    for path in sorted(maintenance_path.glob("*report*.md"), key=lambda item: item.stat().st_mtime, reverse=True):
-        content = path.read_text(encoding="utf-8")
-        reports.append(_report_summary(vault_path, path, content))
-    return reports
-
-
-def _report_summary(vault_path: Path, path: Path, content: str) -> UiReportSummary:
-    relative = path.relative_to(vault_path).as_posix()
-    name = path.name.lower()
-    if "lint" in name:
-        kind = "lint"
-    elif "quality" in name:
-        kind = "quality"
-    elif "ingest" in name:
-        kind = "ingest"
-    else:
-        kind = "maintenance"
-    return UiReportSummary(
-        path=relative,
-        title=extract_heading(content, path.stem),
-        kind=kind,
-        updated=_mtime_iso(path),
-        size=path.stat().st_size,
-        preview=compact_inline_text(re.sub(r"\s+", " ", content), 280),
-    )
-
-
-def _mtime_iso(path: Path) -> str:
-    from datetime import datetime
-
-    return datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds")
+UiReportSummary = WikiReportSummary
+UiReportsResponse = WikiReportsResponse
+UiReportDetail = WikiReportDetail

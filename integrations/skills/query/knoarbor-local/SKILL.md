@@ -22,6 +22,7 @@ Use the smallest operation that satisfies the user request:
 - Expand/read a known result page -> `page read` with the returned page path.
 - Inspect page relationships -> `page links`.
 - Compile a specific file -> `ingest file`.
+- Compile a one-off folder -> `ingest folder`.
 - Compile configured sources -> `ingest connector`.
 - Check or maintain the wiki -> `lint`.
 - Explain progress, failures, or outputs -> `runs ...` and `report ...`.
@@ -30,6 +31,29 @@ Use the smallest operation that satisfies the user request:
 Write operations (`ingest`, `lint`, `runs cancel`) require an explicit user
 request to compile, maintain, retry, or cancel. Query and page reads are safe
 read-only defaults.
+
+## Intent Map
+
+Map natural user requests to operations before choosing a command:
+
+- "What is X?", "explain X from my wiki", "do I have notes about X" -> `query`.
+- "Show the full page", "continue from this result", "open this wiki page" ->
+  `page read`.
+- "What links to this?", "why is this page connected?", "show relationships" ->
+  `page links`.
+- "What pages do I have about X?", "list concept pages", "find pages named X" ->
+  `page list`.
+- "Compile this file/folder", "add this note/PDF/folder to my wiki", "ingest
+  these materials" -> `ingest file` or `ingest folder`.
+- "Update from Codex/Hermes/Claude/OpenClaw history", "sync my configured
+  sources" -> `ingest connector`.
+- "What happened in the last run?", "which pages were written?", "why did it
+  fail?", "show the report" -> `runs ...` and `report ...`.
+- "Retry failed ingest", "rerun failed items" -> `ingest recovery`.
+- "Check/fix/maintain the wiki", "repair broken links", "run governance" ->
+  `lint`.
+- "Is KnoArbor ready?", "why can't the skill connect?", "check my setup" ->
+  `doctor` or `check`.
 
 ## Main Helper
 
@@ -40,6 +64,7 @@ python3 scripts/knoarbor.py query "agent loop control patterns"
 python3 scripts/knoarbor.py page read concepts/Agent-Loop-and-Control-Patterns.md
 python3 scripts/knoarbor.py page links concepts/Agent-Loop-and-Control-Patterns.md
 python3 scripts/knoarbor.py ingest file /absolute/path/to/file.md
+python3 scripts/knoarbor.py ingest folder /absolute/path/to/folder
 python3 scripts/knoarbor.py ingest connector codex
 python3 scripts/knoarbor.py lint --mode semantic_structural
 python3 scripts/knoarbor.py runs list
@@ -49,17 +74,44 @@ python3 scripts/knoarbor.py doctor
 
 `scripts/query.py` remains as a compatibility wrapper for old query-only calls.
 
-## Query Workflow
+## Progressive Retrieval Policy
+
+Use query as candidate discovery, not as the final answer shape. Prefer this
+flow:
 
 1. Rewrite the user request into a short standalone search query.
-2. Run `scripts/knoarbor.py query ...` with default `--auto` unless exact
-   settings are requested.
-3. Read `results`, `context_pack`, `answer_guidance`, `gap_suggestions`, and
-   `gaps`.
-4. Use returned wiki context as local evidence, not as the final answer.
-5. Cite concise page paths when local wiki evidence materially shapes the answer.
-6. If matches are weak, say so and use another source or ask a clarifying
-   question.
+2. Start with `scripts/knoarbor.py query ...` using default `--auto` unless the
+   user requested exact settings.
+3. Inspect `results`, `excerpts`, `context_pack`, `answer_guidance`,
+   `gap_suggestions`, and `gaps`.
+4. If one or a few results clearly answer the question, answer from summaries,
+   key points, and excerpts. Cite concise page paths.
+5. If evidence is relevant but thin, run a deeper compact query or read only the
+   1-2 strongest pages with `page read`.
+6. If several candidates are plausible and the user's intent is ambiguous, list
+   2-5 candidates with title, path, and reason, then ask the user to choose.
+7. If matches are weak, try a shorter or alternate query once. If still weak,
+   say the local wiki does not contain enough evidence and ask a clarifying
+   question or use another source.
+
+Do not treat compact context as a user-facing answer by itself. Compact context
+is the default evidence layer for the host AI to judge relevance. Full page
+content is a drilldown step.
+
+### When To Read Full Pages
+
+Use `page read` when:
+
+- the user gives a page path or selects a previous result;
+- the user asks for a full page, original text, detailed page analysis, or
+  section-by-section review;
+- query returns a clear direct match, but excerpts are not enough for the
+  requested depth;
+- the task needs page structure, exact wording, frontmatter, tables, or long
+  lists.
+
+Do not automatically read many pages in full. When more than 2-3 pages may be
+needed, list candidates first and let the user pick a scope.
 
 Do not call `/health` before every query. Use `scripts/knoarbor.py check` only
 when setup is being tested or a request fails.
@@ -76,6 +128,11 @@ Important query fields:
 
 If `page_dirs` is used, it limits only the first search scope; related expansion
 may still return connected pages from other directories.
+
+For broad design, review, or comparison tasks, use `deep + compact` before
+reading full pages. For explicit full-content requests, prefer `page read` when
+the target page path is known; otherwise query first, then read the selected
+page.
 
 ## References
 

@@ -30,6 +30,7 @@ def create_ingest_router(services: ApplicationServices) -> APIRouter:
                 ),
                 services.ingest.run,
                 services.ingest.run_file,
+                services.ingest.run_folder,
             )
             return WorkflowResponse(flow="ingest", execution="queued", status=started.status, run_id=started.run_id, run=started.run)
         if request.execution == "direct":
@@ -45,6 +46,9 @@ def create_ingest_router(services: ApplicationServices) -> APIRouter:
             return WorkflowResponse(flow="ingest", execution="queued", status=started.status, run_id=started.run_id, run=started.run)
         if request.kind == "file":
             started = services.runs.start_ingest_file(request.to_file_request(), services.ingest.run_file)
+            return WorkflowResponse(flow="ingest", execution="queued", status=started.status, run_id=started.run_id, run=started.run)
+        if request.kind == "folder":
+            started = services.runs.start_ingest_folder(request.to_folder_request(), services.ingest.run_folder)
             return WorkflowResponse(flow="ingest", execution="queued", status=started.status, run_id=started.run_id, run=started.run)
         started = services.runs.start_ingest(request.to_connectors_request(), services.ingest.run)
         return WorkflowResponse(flow="ingest", execution="queued", status=started.status, run_id=started.run_id, run=started.run)

@@ -127,14 +127,19 @@ uv run knoar ingest --write
 uv run knoar ingest --connector markdown --write
 ```
 
-Single file ingest. Markdown files run directly; non-Markdown files require the
-configured MinerU-compatible preprocessor:
+One-off file or folder ingest. Markdown files run directly; non-Markdown files
+require the configured MinerU-compatible preprocessor:
 
 ```bash
 uv run knoar ingest --input /path/to/note.md --write
 uv run knoar ingest --input /path/to/paper.pdf --write
+uv run knoar ingest --input /path/to/folder --write
 uv run knoar ingest --input /path/to/paper.pdf --write --no-follow
 ```
+
+When `--input` is a folder, KnoArbor discovers Markdown files recursively by
+default. Rich files in that folder are first converted through the configured
+MinerU-compatible preprocessor.
 
 Prepared source document ingest:
 

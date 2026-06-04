@@ -5,7 +5,13 @@ from typing import Any, Callable
 
 from knoarbor.core.config import default_config_path, load_config
 from knoarbor.core.errors import UserInputError
-from knoarbor.core.schemas.ingest_run import IngestDocumentRunRequest, IngestFileRunRequest, IngestRecoveryRunRequest, IngestRunRequest
+from knoarbor.core.schemas.ingest_run import (
+    IngestDocumentRunRequest,
+    IngestFileRunRequest,
+    IngestFolderRunRequest,
+    IngestRecoveryRunRequest,
+    IngestRunRequest,
+)
 from knoarbor.core.schemas.run_monitor import RunEventsResponse, RunListResponse, RunRecord, RunStartResponse
 from knoarbor.core.schemas.wiki_lint import LintRunRequest
 from knoarbor.core.schemas.wiki_query import WikiSearchRequest
@@ -28,6 +34,10 @@ class RunManager:
         config = load_config(request.config_path or default_config_path())
         return self._start(config.vault.path, "ingest", request.model_dump(), lambda: runner(request))
 
+    def start_ingest_folder(self, request: IngestFolderRunRequest, runner: Callable[[IngestFolderRunRequest], Any]) -> RunStartResponse:
+        config = load_config(request.config_path or default_config_path())
+        return self._start(config.vault.path, "ingest", request.model_dump(), lambda: runner(request))
+
     def start_ingest_document(
         self,
         request: IngestDocumentRunRequest,
@@ -44,6 +54,7 @@ class RunManager:
         request: IngestRecoveryRunRequest,
         ingest_runner: Callable[[IngestRunRequest], Any],
         ingest_file_runner: Callable[[IngestFileRunRequest], Any],
+        ingest_folder_runner: Callable[[IngestFolderRunRequest], Any] | None = None,
     ) -> RunStartResponse:
         previous = read_run(Path(vault_path), run_id)
         if previous.flow != "ingest":
@@ -58,6 +69,22 @@ class RunManager:
         write = request.write if request.write is not None else bool(metadata.get("write", False))
         write_report = request.write_report if request.write_report is not None else bool(metadata.get("write_report", True))
         append_ledger = request.append_ledger if request.append_ledger is not None else bool(metadata.get("append_ledger", True))
+        if metadata.get("input_kind") == "folder":
+            if ingest_folder_runner is None:
+                raise UserInputError(f"Folder ingest recovery is not available for run: {run_id}")
+            recovery_request = IngestFolderRunRequest(
+                input_path=str(metadata["input_path"]),
+                recursive=bool(metadata.get("recursive", True)),
+                config_path=config_path,
+                provider=provider,
+                max_tokens=max_tokens,
+                write=write,
+                write_report=write_report,
+                append_ledger=append_ledger,
+                recovery_of_run_id=run_id,
+            )
+            config = load_config(recovery_request.config_path or default_config_path())
+            return self._start(config.vault.path, "ingest", recovery_request.model_dump(), lambda: ingest_folder_runner(recovery_request))
         if isinstance(metadata.get("input_path"), str):
             recovery_request = IngestFileRunRequest(
                 input_path=str(metadata["input_path"]),

@@ -28,10 +28,11 @@ http://127.0.0.1:8000
 | --- | --- | --- |
 | 服务状态 | `GET /health` | 轻量服务心跳 |
 | 诊断 | `GET /doctor` | 只读运行前检查 |
-| 知识编译 | `POST /ingest` | 编译配置来源、标准文档、单个文件或恢复失败编译 |
+| 知识编译 | `POST /ingest` | 编译配置来源、标准文档、单个文件或文件夹，或恢复失败编译 |
 | 校验维护 | `POST /lint` | 执行确定性、结构、质量或完整维护 |
 | 知识查询 | `POST /query` | 为宿主 AI 检索 Wiki 上下文 |
 | 查询反馈 | `POST /query/feedback`, `GET /query/trends` | 记录和查看查询反馈 |
+| 运行报告 | `GET /reports`, `GET /reports/content` | 列出和读取流程报告 |
 | 运行监控 | `GET /runs`, `GET /runs/{run_id}` | 查看队列、运行中和已完成任务 |
 | 运行事件 | `GET /runs/{run_id}/events`, `GET /runs/{run_id}/stream`, `POST /runs/{run_id}/cancel` | 观察或取消运行 |
 | Wiki 页面 | `GET /wiki/pages`, `GET /wiki/pages/content`, `GET /wiki/pages/links` | 读取生成后的 Wiki 页面 |
@@ -86,6 +87,16 @@ GET /health
 
 返回服务是否可用。触发长任务前可先调用该接口。
 
+## 运行报告
+
+```http
+GET /reports?vault_path=/path/to/wiki
+GET /reports/content?vault_path=/path/to/wiki&path=maintenance/ingest_report_YYYYMMDD_HHMMSS.md
+```
+
+列出或读取知识库 `maintenance/` 目录下的 Markdown 流程报告。报告属于公开集成 API，
+因为宿主 AI 经常需要解释一次运行写入了哪些页面、为什么失败、修改了什么。
+
 ## 运行诊断
 
 ```http
@@ -111,6 +122,7 @@ POST /ingest
 
 - `connectors`：运行已配置的资料来源连接器。
 - `file`：编译一个本地输入文件。
+- `folder`：一次性编译一个本地文件夹，不修改持久配置。
 - `document`：编译一个已经标准化的 `source_document`。
 - `recovery`：重试上一次知识编译中失败的项目。
 
@@ -137,6 +149,22 @@ POST /ingest
   "write": true
 }
 ```
+
+本地文件夹：
+
+```json
+{
+  "execution": "queued",
+  "kind": "folder",
+  "config_path": "./config.yaml",
+  "input_path": "/path/to/folder",
+  "recursive": true,
+  "write": true
+}
+```
+
+文件夹编译会直接发现 Markdown 文件。文件夹中的非 Markdown 文件需要已配置的 MinerU-compatible
+预处理器；如果未启用预处理或处理失败，流程会明确失败，而不会静默跳过。
 
 标准化资料对象：
 

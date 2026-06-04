@@ -19,6 +19,10 @@ class FakeIngestService:
     def run_unified(self, request):
         if request.kind == "document":
             return self.run_document(request.to_document_request())
+        if request.kind == "folder":
+            return self.run_folder(request.to_folder_request())
+        if request.kind == "file":
+            return self.run_file(request.to_file_request())
         return self.run(request.to_connectors_request())
 
     def run(self, request) -> IngestPipelineResult:
@@ -44,6 +48,24 @@ class FakeIngestService:
             should_process=True,
             mode="new",
             reason="Test document ingest.",
+        )
+
+    def run_file(self, request) -> IngestPipelineResult:
+        return self.run(request)
+
+    def run_folder(self, request) -> IngestPipelineResult:
+        return IngestPipelineResult(
+            results=[
+                IngestSourceResult(
+                    connector="markdown",
+                    source_id="folder:1",
+                    source_file=request.input_path,
+                    should_process=True,
+                    mode="folder",
+                    reason="Test folder ingest.",
+                )
+            ],
+            stats={"source_count": 1, "processed_count": 1, "skipped_count": 0, "written_count": 0, "failed_count": 0},
         )
 
 
@@ -137,6 +159,38 @@ class IngestApiTests(unittest.TestCase):
                         "fingerprint": {"content_hash": "abc123", "connector_version": "test"},
                         "checkpoint": {"mode": "full"},
                     },
+                },
+            )
+            self.assertEqual(response.status_code, 200)
+            response_payload = response.json()
+            self.assertEqual(response_payload["flow"], "ingest")
+            self.assertEqual(response_payload["execution"], "queued")
+            run_id = response_payload["run_id"]
+            payload = _wait_for_run(client, str(vault), run_id)
+
+        self.assertEqual(payload["status"], "completed")
+
+    def test_run_ingest_folder_accepts_queued_folder_input(self) -> None:
+        services = ApplicationServices()
+        services.ingest = FakeIngestService()
+        client = TestClient(create_app(services))
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "wiki"
+            folder = root / "notes"
+            vault.mkdir()
+            folder.mkdir()
+            config = root / "config.yaml"
+            config.write_text(f"vault:\n  path: {vault}\n", encoding="utf-8")
+            response = client.post(
+                "/ingest",
+                json={
+                    "execution": "queued",
+                    "kind": "folder",
+                    "config_path": str(config),
+                    "input_path": str(folder),
+                    "write": False,
                 },
             )
             self.assertEqual(response.status_code, 200)

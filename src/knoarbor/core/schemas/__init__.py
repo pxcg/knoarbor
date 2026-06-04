@@ -24,7 +24,13 @@ from knoarbor.core.schemas.ingest_review import (
     IngestReviewChecks,
     IngestReviewDimensionScores,
 )
-from knoarbor.core.schemas.ingest_run import IngestDocumentRunRequest, IngestFileRunRequest, IngestRunRequest, UnifiedIngestRequest
+from knoarbor.core.schemas.ingest_run import (
+    IngestDocumentRunRequest,
+    IngestFileRunRequest,
+    IngestFolderRunRequest,
+    IngestRunRequest,
+    UnifiedIngestRequest,
+)
 from knoarbor.core.schemas.maintenance import MaintenanceScope, MaintenanceScopeSource
 from knoarbor.core.schemas.sources import RawSource, SourceDocument, SourceRef
 from knoarbor.core.schemas.wiki_lint import (
@@ -110,6 +116,7 @@ __all__ = [
     "IngestReviewDimensionScores",
     "IngestDocumentRunRequest",
     "IngestFileRunRequest",
+    "IngestFolderRunRequest",
     "IngestRunRequest",
     "UnifiedIngestRequest",
     "MaintenanceScope",

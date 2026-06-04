@@ -316,9 +316,10 @@ assets. If you enable this adapter, install and run MinerU separately and review
 MinerU's own license and attribution requirements. KnoArbor only interoperates
 with a MinerU-compatible HTTP endpoint.
 
-For a single file path, `ingest --input` chooses the path automatically:
+For one-off file or folder input, `ingest --input` chooses the path automatically:
 
 - `.md` / `.markdown` files go directly to the Markdown ingest path;
+- folders discover Markdown files recursively by default;
 - non-Markdown files call the configured MinerU adapter first;
 - if MinerU is disabled, missing, or unreachable, the run stops with an explicit
   configuration error instead of silently skipping or falling back.

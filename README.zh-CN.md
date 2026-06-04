@@ -227,14 +227,15 @@ uv run knoar ingest --connector hermes --write
 uv run knoar ingest --connector openclaw --write
 ```
 
-处理单个文件：
+处理单个文件或文件夹：
 
 ```bash
 uv run knoar ingest --input /path/to/note.md --write
 uv run knoar ingest --input /path/to/paper.pdf --write
+uv run knoar ingest --input /path/to/folder --write
 ```
 
-Markdown 文件会直接进入编译流程。PDF、DOCX、PPTX 等非 Markdown 文件需要配置 MinerU 兼容预处理器；如果没有配置或服务不可用，流程会明确失败并提示配置问题。KnoArbor 不重新分发 MinerU 或其模型权重。
+Markdown 文件会直接进入编译流程。文件夹输入默认递归发现 Markdown 文件。PDF、DOCX、PPTX 等非 Markdown 文件需要配置 MinerU 兼容预处理器；如果没有配置或服务不可用，流程会明确失败并提示配置问题。KnoArbor 不重新分发 MinerU 或其模型权重。
 
 ### 维护 Wiki
 

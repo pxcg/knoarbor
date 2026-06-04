@@ -17,13 +17,35 @@ python3 scripts/knoarbor.py query "Agent Loop 控制模式" --mode deep --max-re
 python3 scripts/knoarbor.py query "Agent Loop 页面全文" --context-format full --include-content
 ```
 
-Recommended behavior:
+Progressive retrieval behavior:
 
-- Ordinary explanation: `balanced + compact`.
-- Short lookup: keep result count small.
-- Detailed analysis: `deep + compact`.
+- Ordinary explanation: start with `balanced + compact`; answer from summaries,
+  key points, and excerpts if the evidence is sufficient.
+- Short lookup: keep result count small, usually 3-4.
+- Detailed analysis, design review, or comparison: use `deep + compact` before
+  reading full pages.
+- Multiple plausible candidates: list 2-5 candidate pages with title, path, and
+  reason, then ask the user which one to expand.
 - Explicit full-content request: prefer `page read` if a page path is known;
-  otherwise use `deep + full`.
+  otherwise query first, then read the selected page.
+- Weak or missing local context: try one shorter or alternate query; if still
+  weak, say that the local wiki lacks enough evidence.
+
+Examples:
+
+```bash
+# Ordinary question: discover candidates and answer from compact evidence.
+python3 scripts/knoarbor.py query "Agent Loop 是什么"
+
+# Broad analysis: increase recall without loading full pages.
+python3 scripts/knoarbor.py query "Agent Loop 和控制模式的设计取舍" --mode deep --max-results 8
+
+# User asks which pages exist.
+python3 scripts/knoarbor.py page list --contains "Agent Loop"
+
+# User selects a page or asks for the full page.
+python3 scripts/knoarbor.py page read concepts/Agent-Loop-and-Control-Patterns.md
+```
 
 ## Page Reading
 
@@ -42,6 +64,8 @@ not rerun query just to read a known page path.
 
 ```bash
 python3 scripts/knoarbor.py ingest file /absolute/path/to/file.md
+python3 scripts/knoarbor.py ingest folder /absolute/path/to/folder
+python3 scripts/knoarbor.py ingest folder /absolute/path/to/folder --no-recursive
 python3 scripts/knoarbor.py ingest connector codex
 python3 scripts/knoarbor.py ingest connector codex claude_code
 python3 scripts/knoarbor.py ingest connector --all
@@ -50,6 +74,10 @@ python3 scripts/knoarbor.py ingest recovery RUN_ID
 
 Defaults are queued and write-enabled. Use only when the user explicitly asks to
 compile, ingest, retry, or update the wiki.
+
+`ingest folder` is for one-off folder paths. It does not edit persistent
+configuration. Markdown files are ingested directly; non-Markdown files require
+the user's configured document preprocessor.
 
 ## Lint
 

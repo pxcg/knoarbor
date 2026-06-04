@@ -178,7 +178,7 @@ connector discovery
 - 分段来源按 segment 处理，再在 source/window 边界聚合写入、报告和提交 checkpoint。
 - `IngestWritePolicy` 在写入前执行 source/window 级不变量：同一 raw source 在同一批 ingest 中最多创建一个 source digest。
 - ingest 默认不做宽泛词面 Related Pages 扫描，只保留 source digest 与同源生成页面之间的确定性 provenance 链接。
-- `ingest --input` 是单文件边界：Markdown 直接进入共享 ingest；非 Markdown 必须先经过已配置的 MinerU-compatible 预处理器，缺少预处理器时显式失败。
+- `ingest --input` 是一次性本地输入边界：Markdown 文件和文件夹直接进入共享 ingest；非 Markdown 必须先经过已配置的 MinerU-compatible 预处理器，缺少预处理器时显式失败。
 
 实现边界：
 

@@ -247,18 +247,20 @@ Run a single prepared `source_document.v1`:
 uv run knoar ingest --source-document /path/to/source_document.json --write
 ```
 
-Run one file path:
+Run one file or folder path:
 
 ```bash
 uv run knoar ingest --input /path/to/note.md --write
 uv run knoar ingest --input /path/to/paper.pdf --write
+uv run knoar ingest --input /path/to/folder --write
 ```
 
-Markdown files enter ingest directly. Non-Markdown files require a configured
-MinerU-compatible preprocessor; if it is missing or unreachable, the run fails
-with an explicit configuration error. KnoArbor does not redistribute MinerU or
-its model weights; users who enable the adapter should install MinerU separately
-and follow MinerU's license and attribution requirements.
+Markdown files enter ingest directly. Folder input discovers Markdown files
+recursively by default. Non-Markdown files require a configured MinerU-compatible
+preprocessor; if it is missing or unreachable, the run fails with an explicit
+configuration error. KnoArbor does not redistribute MinerU or its model weights;
+users who enable the adapter should install MinerU separately and follow MinerU's
+license and attribution requirements.
 
 ### Maintain the wiki
 

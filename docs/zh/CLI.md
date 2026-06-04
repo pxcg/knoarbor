@@ -88,13 +88,17 @@ uv run knoar ingest --write
 uv run knoar ingest --connector markdown --write
 ```
 
-处理单个文件。Markdown 直接进入知识编译；PDF、DOCX、PPTX 等富文档需要先在配置中启用 MinerU-compatible 预处理器：
+一次性处理文件或文件夹。Markdown 直接进入知识编译；PDF、DOCX、PPTX 等富文档需要先在配置中启用 MinerU-compatible 预处理器：
 
 ```bash
 uv run knoar ingest --input /path/to/note.md --write
 uv run knoar ingest --input /path/to/paper.pdf --write
+uv run knoar ingest --input /path/to/folder --write
 uv run knoar ingest --input /path/to/paper.pdf --write --no-follow
 ```
+
+当 `--input` 是文件夹时，KnoArbor 默认递归发现 Markdown 文件。文件夹中的富文档会先通过已配置的
+MinerU-compatible 预处理器转换为 Markdown。
 
 处理一个标准化 source document：
 

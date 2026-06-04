@@ -4,10 +4,12 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type Dispatch,
   type SetStateAction,
 } from "react";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   getConfig,
@@ -32,6 +34,7 @@ import {
 import { AppShell } from "./components/AppShell";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
 import { detectLanguage, translate } from "./i18n";
+import { queryKeys } from "./queryKeys";
 import type { Language, ViewName } from "./types";
 import type { RunRecord } from "./types";
 
@@ -102,29 +105,114 @@ export function App() {
   const [configContent, setConfigContent] = useState("");
   const [configExists, setConfigExists] = useState(false);
   const [summary, setSummary] = useState<ConfigSummary>({});
-  const [doctorReport, setDoctorReport] = useState<DoctorReport | null>(null);
-  const [status, setStatus] = useState<UiStatusResponse | null>(null);
-  const [graph, setGraph] = useState<GraphResponse | null>(null);
-  const [graphLoadedFor, setGraphLoadedFor] = useState<string | null>(null);
-  const [pages, setPages] = useState<PageSummary[]>([]);
-  const [pagesLoadedFor, setPagesLoadedFor] = useState<string | null>(null);
-  const [reports, setReports] = useState<ReportSummary[]>([]);
   const [notice, setNotice] = useState<AppNotice | null>(null);
   const [queryResults, setQueryResults] = useState<QueryResult[]>([]);
   const [queryContextPack, setQueryContextPack] = useState("");
-  const [queryTrend, setQueryTrend] = useState<QueryTrendResponse | null>(null);
-  const [queryTrendLoadedFor, setQueryTrendLoadedFor] = useState<string | null>(null);
-  const [activeRuns, setActiveRuns] = useState<RunRecord[]>([]);
-  const [recentRuns, setRecentRuns] = useState<RunRecord[]>([]);
-  const [recentRunsLoadedFor, setRecentRunsLoadedFor] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [focusedPageId, setFocusedPageId] = useState<string | null>(null);
   const [focusedWikiPath, setFocusedWikiPath] = useState<string | null>(null);
   const [focusedReportPath, setFocusedReportPath] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("knoarbor.sidebarCollapsed") === "true");
+  const previousActiveRunCountRef = useRef(0);
+  const queryClient = useQueryClient();
 
-  const vaultPath = summary.vault_path || "./wiki";
   const t = useCallback((key: string) => translate(language, key), [language]);
+  const shouldPollRuns = activeView === "overview" || activeView === "runs" || activeView === "ingest" || activeView === "lint";
+
+  const healthQuery = useQuery({
+    queryKey: queryKeys.health,
+    queryFn: getHealth,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const configQuery = useQuery({
+    queryKey: queryKeys.config,
+    queryFn: getConfig,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const effectiveConfigPath = configQuery.data?.config_path ?? configPath;
+  const effectiveSummary = configQuery.data?.summary || summary;
+  const vaultPath = effectiveSummary.vault_path || "./wiki";
+
+  const doctorQuery = useQuery({
+    queryKey: queryKeys.doctor(effectiveConfigPath),
+    queryFn: () => getDoctor(effectiveConfigPath, { checkModelRuntime: false, checkConnectorRuntime: false }),
+    enabled: configQuery.isSuccess,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const statusQuery = useQuery({
+    queryKey: queryKeys.status(vaultPath),
+    queryFn: () => getStatus(vaultPath),
+    enabled: configQuery.isSuccess && Boolean(vaultPath),
+    staleTime: 20_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const reportsQuery = useQuery({
+    queryKey: queryKeys.reports(vaultPath),
+    queryFn: () => getReports(vaultPath),
+    enabled: configQuery.isSuccess && Boolean(vaultPath),
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const activeRunsQuery = useQuery({
+    queryKey: queryKeys.activeRuns(vaultPath),
+    queryFn: () => getActiveRuns(vaultPath),
+    enabled: configQuery.isSuccess && Boolean(vaultPath),
+    refetchInterval: (query) => {
+      const runs = query.state.data?.runs || [];
+      return shouldPollRuns || runs.length > 0 ? 2500 : false;
+    },
+    staleTime: 1500,
+    placeholderData: keepPreviousData,
+  });
+
+  const recentRunsQuery = useQuery({
+    queryKey: queryKeys.recentRuns(vaultPath),
+    queryFn: () => getRuns(vaultPath, false, 12),
+    enabled: configQuery.isSuccess && (activeView === "runs" || activeView === "overview"),
+    staleTime: 20_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const graphQuery = useQuery({
+    queryKey: queryKeys.graph(vaultPath),
+    queryFn: () => getGraph(vaultPath),
+    enabled: configQuery.isSuccess && activeView === "graph",
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const pagesQuery = useQuery({
+    queryKey: queryKeys.pages(vaultPath),
+    queryFn: () => getPages(vaultPath),
+    enabled: configQuery.isSuccess && activeView === "wiki",
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const queryTrendQuery = useQuery({
+    queryKey: queryKeys.queryTrends(vaultPath),
+    queryFn: () => getQueryTrends(vaultPath),
+    enabled: configQuery.isSuccess && activeView === "query",
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const doctorReport = doctorQuery.data || null;
+  const status = statusQuery.data || null;
+  const graph = graphQuery.data || null;
+  const pages = pagesQuery.data?.pages || [];
+  const reports = reportsQuery.data?.reports || [];
+  const queryTrend = queryTrendQuery.data || null;
+  const activeRuns = activeRunsQuery.data?.runs || [];
+  const recentRuns = recentRunsQuery.data?.runs || [];
 
   const setLanguage = useCallback((next: Language) => {
     localStorage.setItem("knoarbor.language", next);
@@ -139,127 +227,27 @@ export function App() {
     });
   }, []);
 
-  const loadHealth = useCallback(async () => {
-    try {
-      const health = await getHealth();
-      setServiceOnline(true);
-      setHealthHint(health.status ? t("healthReachable") : t("healthResponded"));
-    } catch (error) {
-      setServiceOnline(false);
-      setHealthHint(error instanceof Error ? error.message : t("healthFailed"));
-    }
-  }, [t]);
-
-  const loadConfig = useCallback(async () => {
-    const config = await getConfig();
-    setConfigPath(config.config_path);
-    setConfigContent(config.content);
-    setConfigExists(config.exists);
-    setSummary(config.summary || {});
-    return config;
-  }, []);
-
-  const loadDoctor = useCallback(async (path: string | null) => {
-    try {
-      const report = await getDoctor(path, { checkModelRuntime: false, checkConnectorRuntime: false });
-      setDoctorReport(report);
-    } catch {
-      // Doctor is advisory for onboarding and preflight; config/status loading remains authoritative.
-      setDoctorReport(null);
-    }
-  }, []);
-
   const loadVaultState = useCallback(async (path: string) => {
-    setGraphLoadedFor(null);
-    setPagesLoadedFor(null);
-    setQueryTrendLoadedFor(null);
-    setRecentRunsLoadedFor(null);
-    setRecentRuns([]);
-    const [statusResult, reportsResult, activeRunsResult] = await Promise.allSettled([
-      getStatus(path),
-      getReports(path),
-      getActiveRuns(path),
+    const [statusResult, reportsResult, activeRunsResult, recentRunsResult] = await Promise.allSettled([
+      queryClient.refetchQueries({ queryKey: queryKeys.status(path) }),
+      queryClient.refetchQueries({ queryKey: queryKeys.reports(path) }),
+      queryClient.refetchQueries({ queryKey: queryKeys.activeRuns(path) }),
+      queryClient.refetchQueries({ queryKey: queryKeys.recentRuns(path) }),
     ]);
-    if (statusResult.status === "fulfilled") setStatus(statusResult.value);
-    if (reportsResult.status === "fulfilled") setReports(reportsResult.value.reports || []);
-    if (activeRunsResult.status === "fulfilled") setActiveRuns(activeRunsResult.value.runs || []);
-    if (statusResult.status === "rejected" || reportsResult.status === "rejected") {
+    if (statusResult.status === "rejected" || reportsResult.status === "rejected" || activeRunsResult.status === "rejected" || recentRunsResult.status === "rejected") {
       const reason =
         statusResult.status === "rejected"
           ? statusResult.reason
           : reportsResult.status === "rejected"
             ? reportsResult.reason
-            : t("vaultRefreshFailed");
+            : activeRunsResult.status === "rejected"
+              ? activeRunsResult.reason
+              : recentRunsResult.status === "rejected"
+                ? recentRunsResult.reason
+                : t("vaultRefreshFailed");
       setNotice({ message: reason instanceof Error ? reason.message : String(reason), error: true });
     }
-  }, [t]);
-
-  const loadRecentRunsState = useCallback(async (path: string) => {
-    try {
-      const response = await getRuns(path, false, 12);
-      setRecentRuns(response.runs || []);
-      setRecentRunsLoadedFor(path);
-    } catch {
-      // Recent runs are secondary navigation data; active run polling should not fail because of them.
-    }
-  }, []);
-
-  const loadGraphState = useCallback(async (path: string) => {
-    try {
-      const response = await getGraph(path);
-      setGraph(response);
-      setGraphLoadedFor(path);
-    } catch (error) {
-      setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
-    }
-  }, []);
-
-  const loadPagesState = useCallback(async (path: string) => {
-    try {
-      const response = await getPages(path);
-      setPages(response.pages || []);
-      setPagesLoadedFor(path);
-    } catch (error) {
-      setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
-    }
-  }, []);
-
-  const loadQueryTrendState = useCallback(async (path: string) => {
-    try {
-      const response = await getQueryTrends(path);
-      setQueryTrend(response);
-      setQueryTrendLoadedFor(path);
-    } catch {
-      // Query trends are advisory; failing to read them should not block the page.
-    }
-  }, []);
-
-  useEffect(() => {
-    const shouldPollRuns = activeView === "overview" || activeView === "runs" || activeView === "ingest" || activeView === "lint" || activeRuns.length > 0;
-    if (!shouldPollRuns) return undefined;
-    const timer = window.setInterval(() => {
-      void getActiveRuns(vaultPath)
-        .then((response) => {
-          const nextRuns = response.runs || [];
-          setActiveRuns((currentRuns) => {
-            if (currentRuns.length > 0 && nextRuns.length === 0) {
-              void loadVaultState(vaultPath);
-              void loadRecentRunsState(vaultPath);
-            }
-            return nextRuns;
-          });
-        })
-        .catch(() => undefined);
-    }, 2500);
-    return () => window.clearInterval(timer);
-  }, [activeRuns.length, activeView, loadRecentRunsState, loadVaultState, vaultPath]);
-
-  useEffect(() => {
-    if (activeView === "graph" && graphLoadedFor !== vaultPath) void loadGraphState(vaultPath);
-    if (activeView === "wiki" && pagesLoadedFor !== vaultPath) void loadPagesState(vaultPath);
-    if (activeView === "query" && queryTrendLoadedFor !== vaultPath) void loadQueryTrendState(vaultPath);
-    if (activeView === "runs" && recentRunsLoadedFor !== vaultPath) void loadRecentRunsState(vaultPath);
-  }, [activeView, graphLoadedFor, loadGraphState, loadPagesState, loadQueryTrendState, loadRecentRunsState, pagesLoadedFor, queryTrendLoadedFor, recentRunsLoadedFor, vaultPath]);
+  }, [queryClient, t]);
 
   useEffect(() => {
     const preloadCommonRoutes = () => {
@@ -271,23 +259,46 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    if (healthQuery.isSuccess) {
+      setServiceOnline(true);
+      setHealthHint(healthQuery.data.status ? t("healthReachable") : t("healthResponded"));
+    } else if (healthQuery.isError) {
+      setServiceOnline(false);
+      setHealthHint(healthQuery.error instanceof Error ? healthQuery.error.message : t("healthFailed"));
+    }
+  }, [healthQuery.data, healthQuery.error, healthQuery.isError, healthQuery.isSuccess, t]);
+
+  useEffect(() => {
+    if (!configQuery.data) return;
+    setConfigPath(configQuery.data.config_path);
+    setConfigContent(configQuery.data.content);
+    setConfigExists(configQuery.data.exists);
+    setSummary(configQuery.data.summary || {});
+  }, [configQuery.data]);
+
+  useEffect(() => {
+    const previousRuns = previousActiveRunCountRef.current;
+    previousActiveRunCountRef.current = activeRuns.length;
+    if (previousRuns > 0 && activeRuns.length === 0) void loadVaultState(vaultPath);
+  }, [activeRuns.length, loadVaultState, vaultPath]);
+
   const refreshAll = useCallback(async () => {
     setNotice(null);
-    await loadHealth();
     try {
-      const config = await loadConfig();
-      const path = config.summary?.vault_path || "./wiki";
-      await Promise.all([loadVaultState(path), loadDoctor(config.config_path)]);
+      const configResult = await queryClient.fetchQuery({ queryKey: queryKeys.config, queryFn: getConfig });
+      const path = configResult.summary?.vault_path || "./wiki";
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: queryKeys.health }),
+        queryClient.refetchQueries({ queryKey: queryKeys.doctor(configResult.config_path) }),
+        loadVaultState(path),
+      ]);
       return true;
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
       return false;
     }
-  }, [loadConfig, loadDoctor, loadHealth, loadVaultState]);
-
-  useEffect(() => {
-    void refreshAll();
-  }, [refreshAll]);
+  }, [loadVaultState, queryClient]);
 
   const refreshManually = useCallback(async () => {
     setIsRefreshing(true);
@@ -314,13 +325,65 @@ export function App() {
     setActiveView("wiki");
   }, []);
 
+  const setDoctorReportCached: Dispatch<SetStateAction<DoctorReport | null>> = useCallback((value) => {
+    queryClient.setQueryData(queryKeys.doctor(configPath), (current: DoctorReport | null | undefined) =>
+      typeof value === "function" ? value(current || null) : value,
+    );
+  }, [configPath, queryClient]);
+
+  const setStatusCached: Dispatch<SetStateAction<UiStatusResponse | null>> = useCallback((value) => {
+    queryClient.setQueryData(queryKeys.status(vaultPath), (current: UiStatusResponse | null | undefined) =>
+      typeof value === "function" ? value(current || null) : value,
+    );
+  }, [queryClient, vaultPath]);
+
+  const setGraphCached: Dispatch<SetStateAction<GraphResponse | null>> = useCallback((value) => {
+    queryClient.setQueryData(queryKeys.graph(vaultPath), (current: GraphResponse | null | undefined) =>
+      typeof value === "function" ? value(current || null) : value,
+    );
+  }, [queryClient, vaultPath]);
+
+  const setPagesCached: Dispatch<SetStateAction<PageSummary[]>> = useCallback((value) => {
+    queryClient.setQueryData(queryKeys.pages(vaultPath), (current: { vault_path: string; pages: PageSummary[] } | undefined) => {
+      const pagesValue = typeof value === "function" ? value(current?.pages || []) : value;
+      return { vault_path: vaultPath, pages: pagesValue };
+    });
+  }, [queryClient, vaultPath]);
+
+  const setReportsCached: Dispatch<SetStateAction<ReportSummary[]>> = useCallback((value) => {
+    queryClient.setQueryData(queryKeys.reports(vaultPath), (current: { vault_path: string; reports: ReportSummary[] } | undefined) => {
+      const reportsValue = typeof value === "function" ? value(current?.reports || []) : value;
+      return { vault_path: vaultPath, reports: reportsValue };
+    });
+  }, [queryClient, vaultPath]);
+
+  const setQueryTrendCached: Dispatch<SetStateAction<QueryTrendResponse | null>> = useCallback((value) => {
+    queryClient.setQueryData(queryKeys.queryTrends(vaultPath), (current: QueryTrendResponse | null | undefined) =>
+      typeof value === "function" ? value(current || null) : value,
+    );
+  }, [queryClient, vaultPath]);
+
+  const setActiveRunsCached: Dispatch<SetStateAction<RunRecord[]>> = useCallback((value) => {
+    queryClient.setQueryData(queryKeys.activeRuns(vaultPath), (current: { runs: RunRecord[] } | undefined) => {
+      const runsValue = typeof value === "function" ? value(current?.runs || []) : value;
+      return { runs: runsValue };
+    });
+  }, [queryClient, vaultPath]);
+
+  const setRecentRunsCached: Dispatch<SetStateAction<RunRecord[]>> = useCallback((value) => {
+    queryClient.setQueryData(queryKeys.recentRuns(vaultPath), (current: { runs: RunRecord[] } | undefined) => {
+      const runsValue = typeof value === "function" ? value(current?.runs || []) : value;
+      return { runs: runsValue };
+    });
+  }, [queryClient, vaultPath]);
+
   const preloadView = useCallback((view: ViewName) => {
     preloadRoute(view);
-    if (view === "graph" && graphLoadedFor !== vaultPath) void loadGraphState(vaultPath);
-    if (view === "wiki" && pagesLoadedFor !== vaultPath) void loadPagesState(vaultPath);
-    if (view === "query" && queryTrendLoadedFor !== vaultPath) void loadQueryTrendState(vaultPath);
-    if (view === "runs" && recentRunsLoadedFor !== vaultPath) void loadRecentRunsState(vaultPath);
-  }, [graphLoadedFor, loadGraphState, loadPagesState, loadQueryTrendState, loadRecentRunsState, pagesLoadedFor, queryTrendLoadedFor, recentRunsLoadedFor, vaultPath]);
+    if (view === "graph") void queryClient.prefetchQuery({ queryKey: queryKeys.graph(vaultPath), queryFn: () => getGraph(vaultPath), staleTime: 60_000 });
+    if (view === "wiki") void queryClient.prefetchQuery({ queryKey: queryKeys.pages(vaultPath), queryFn: () => getPages(vaultPath), staleTime: 60_000 });
+    if (view === "query") void queryClient.prefetchQuery({ queryKey: queryKeys.queryTrends(vaultPath), queryFn: () => getQueryTrends(vaultPath), staleTime: 60_000 });
+    if (view === "runs") void queryClient.prefetchQuery({ queryKey: queryKeys.recentRuns(vaultPath), queryFn: () => getRuns(vaultPath, false, 12), staleTime: 20_000 });
+  }, [queryClient, vaultPath]);
 
   const context: AppContext = useMemo(
     () => ({
@@ -343,24 +406,24 @@ export function App() {
       setConfigContent,
       setConfigPath,
       setConfigExists,
-      setDoctorReport,
+      setDoctorReport: setDoctorReportCached,
       setNotice,
       setQueryResults,
       setQueryContextPack,
-      setQueryTrend,
-      setActiveRuns,
-      setRecentRuns,
+      setQueryTrend: setQueryTrendCached,
+      setActiveRuns: setActiveRunsCached,
+      setRecentRuns: setRecentRunsCached,
       setSummary,
-      setStatus,
-      setGraph,
-      setPages,
-      setReports,
+      setStatus: setStatusCached,
+      setGraph: setGraphCached,
+      setPages: setPagesCached,
+      setReports: setReportsCached,
       navigate: setActiveView,
       openPageInGraph,
       openWikiPage,
       openReport,
       status,
-      summary,
+      summary: effectiveSummary,
       vaultPath,
       refreshAll,
       loadVaultState,
@@ -386,8 +449,9 @@ export function App() {
       recentRuns,
       reports,
       serviceOnline,
+      setActiveRunsCached,
       status,
-      summary,
+      effectiveSummary,
       vaultPath,
       refreshAll,
       loadVaultState,
@@ -396,6 +460,14 @@ export function App() {
       openPageInGraph,
       openWikiPage,
       openReport,
+      setDoctorReportCached,
+      setStatusCached,
+      setGraphCached,
+      setPagesCached,
+      setReportsCached,
+      setQueryTrendCached,
+      setActiveRunsCached,
+      setRecentRunsCached,
       t,
     ],
   );

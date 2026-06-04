@@ -121,6 +121,10 @@ def _add_ingest(subparsers: argparse._SubParsersAction[argparse.ArgumentParser])
     file_parser = ingest_sub.add_parser("file", help="Ingest one local file path.")
     file_parser.add_argument("path")
     _add_workflow_flags(file_parser)
+    folder_parser = ingest_sub.add_parser("folder", help="Ingest one local folder path without changing persistent configuration.")
+    folder_parser.add_argument("path")
+    folder_parser.add_argument("--recursive", action=argparse.BooleanOptionalAction, default=True)
+    _add_workflow_flags(folder_parser)
     recovery = ingest_sub.add_parser("recovery", help="Retry failed ingest items from a prior run.")
     recovery.add_argument("run_id")
     _add_workflow_flags(recovery)
@@ -248,6 +252,10 @@ def _cmd_ingest(args: argparse.Namespace, runtime: Runtime) -> int:
     elif args.ingest_command == "file":
         payload["kind"] = "file"
         payload["input_path"] = args.path
+    elif args.ingest_command == "folder":
+        payload["kind"] = "folder"
+        payload["input_path"] = args.path
+        payload["recursive"] = args.recursive
     elif args.ingest_command == "recovery":
         payload["kind"] = "recovery"
         payload["recovery_of_run_id"] = args.run_id
@@ -307,10 +315,10 @@ def _cmd_runs(args: argparse.Namespace, runtime: Runtime) -> int:
 def _cmd_report(args: argparse.Namespace, runtime: Runtime) -> int:
     vault_path = _require_vault(runtime)
     if args.report_command == "list":
-        response = _get_json(_url(runtime.base_url, "/ui/api/reports", {"vault_path": vault_path}), timeout=runtime.timeout)
+        response = _get_json(_url(runtime.base_url, "/reports", {"vault_path": vault_path}), timeout=runtime.timeout)
         return _print_or_format(response, runtime, formatter=_format_reports)
     if args.report_command == "read":
-        response = _get_json(_url(runtime.base_url, "/ui/api/report", {"vault_path": vault_path, "path": args.path}), timeout=runtime.timeout)
+        response = _get_json(_url(runtime.base_url, "/reports/content", {"vault_path": vault_path, "path": args.path}), timeout=runtime.timeout)
         return _print_or_format(response, runtime, formatter=_format_report)
     return 2
 

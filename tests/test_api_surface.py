@@ -192,6 +192,32 @@ class ApiSurfaceTests(unittest.TestCase):
             self.assertTrue(payload["recorded"])
             self.assertTrue((vault / "maintenance" / "query_feedback_ledger.jsonl").exists())
 
+    def test_reports_endpoints_list_and_read_markdown_reports(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            maintenance = vault / "maintenance"
+            maintenance.mkdir()
+            report = maintenance / "ingest_report_20260604_120000.md"
+            report.write_text("# Ingest Report\n\n- written_pages: 2\n", encoding="utf-8")
+            client = TestClient(create_app())
+
+            list_response = client.get("/reports", params={"vault_path": str(vault)})
+            self.assertEqual(list_response.status_code, 200)
+            list_payload = list_response.json()
+            self.assertEqual(list_payload["reports"][0]["path"], "maintenance/ingest_report_20260604_120000.md")
+            self.assertEqual(list_payload["reports"][0]["kind"], "ingest")
+
+            read_response = client.get(
+                "/reports/content",
+                params={"vault_path": str(vault), "path": "maintenance/ingest_report_20260604_120000.md"},
+            )
+            self.assertEqual(read_response.status_code, 200)
+            read_payload = read_response.json()
+            self.assertEqual(read_payload["path"], "maintenance/ingest_report_20260604_120000.md")
+            self.assertIn("written_pages", read_payload["content"])
+
     def test_query_endpoint_returns_context_pack(self) -> None:
         import tempfile
 

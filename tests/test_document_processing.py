@@ -8,6 +8,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.core.config import KnoArborConfig, MinerUDocumentProcessingConfig
+from knoarbor.core.errors import DocumentPreprocessorUnavailable
 from knoarbor.document_processing.mineru import MinerUDocumentProcessor, MinerUResponse
 from knoarbor.document_processing.pipeline import DocumentProcessingPipeline
 
@@ -145,6 +146,63 @@ class DocumentProcessingTests(unittest.TestCase):
             self.assertEqual(result.stats["processed_count"], 1)
             self.assertEqual(prepared, (output_dir / "paper.md").resolve())
             self.assertIn("# Parsed", prepared.read_text(encoding="utf-8"))
+
+    def test_prepare_input_folder_passes_markdown_files_through(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            folder = root / "notes"
+            nested = folder / "nested"
+            nested.mkdir(parents=True)
+            note = folder / "a.md"
+            nested_note = nested / "b.markdown"
+            hidden_note = folder / ".hidden.md"
+            note.write_text("# A\n", encoding="utf-8")
+            nested_note.write_text("# B\n", encoding="utf-8")
+            hidden_note.write_text("# Hidden\n", encoding="utf-8")
+            config = KnoArborConfig.model_validate({"vault": {"path": str(root / "wiki")}})
+
+            prepared, result = DocumentProcessingPipeline().prepare_input_folder(config, folder)
+
+        self.assertEqual(prepared, sorted([note.resolve(), nested_note.resolve()]))
+        self.assertEqual(result.stats["item_count"], 0)
+
+    def test_prepare_input_folder_requires_mineru_for_non_markdown_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            folder = root / "docs"
+            folder.mkdir()
+            (folder / "paper.pdf").write_bytes(b"%PDF")
+            config = KnoArborConfig.model_validate({"vault": {"path": str(root / "wiki")}})
+
+            with self.assertRaises(DocumentPreprocessorUnavailable):
+                DocumentProcessingPipeline().prepare_input_folder(config, folder)
+
+    def test_prepare_input_folder_processes_rich_files_with_mineru(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            folder = root / "docs"
+            output_dir = root / "markdown"
+            folder.mkdir()
+            markdown = folder / "note.md"
+            markdown.write_text("# Note\n", encoding="utf-8")
+            (folder / "paper.pdf").write_bytes(b"%PDF")
+            config = KnoArborConfig.model_validate(
+                {
+                    "vault": {"path": str(root / "wiki")},
+                    "document_processing": {
+                        "mineru": {
+                            "enabled": True,
+                            "endpoint": "http://localhost:9999/parse",
+                            "output_dir": str(output_dir),
+                        }
+                    },
+                }
+            )
+
+            prepared, result = DocumentProcessingPipeline(mineru=FakeMinerUProcessor()).prepare_input_folder(config, folder)
+
+            self.assertEqual(result.stats["processed_count"], 1)
+            self.assertEqual(prepared, sorted([markdown.resolve(), (output_dir / "paper.md").resolve()]))
 
     def test_enabled_mineru_requires_endpoint(self) -> None:
         config = KnoArborConfig.model_validate(

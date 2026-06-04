@@ -167,7 +167,7 @@ def build_parser() -> argparse.ArgumentParser:
     ingest_parser.add_argument(
         "--input",
         default=None,
-        help="Optional single file path. Markdown runs directly; non-Markdown requires configured preprocessing.",
+        help="Optional file or folder path. Markdown runs directly; non-Markdown requires configured preprocessing.",
     )
     ingest_parser.add_argument(
         "--source-document",

@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from knoarbor.core.schemas.execution import WorkflowExecutionMode
 from knoarbor.core.schemas.sources import SourceDocument
 
-IngestRequestKind = Literal["connectors", "document", "file", "recovery"]
+IngestRequestKind = Literal["connectors", "document", "file", "folder", "recovery"]
 
 
 class IngestRunRequest(BaseModel):
@@ -36,7 +36,21 @@ class IngestDocumentRunRequest(BaseModel):
 
 
 class IngestFileRunRequest(BaseModel):
+    input_kind: Literal["file"] = "file"
     input_path: str
+    config_path: str | None = None
+    provider: str | None = None
+    max_tokens: int | None = Field(default=None, ge=1)
+    write: bool = False
+    write_report: bool = True
+    append_ledger: bool = True
+    recovery_of_run_id: str | None = None
+
+
+class IngestFolderRunRequest(BaseModel):
+    input_kind: Literal["folder"] = "folder"
+    input_path: str
+    recursive: bool = True
     config_path: str | None = None
     provider: str | None = None
     max_tokens: int | None = Field(default=None, ge=1)
@@ -70,6 +84,7 @@ class UnifiedIngestRequest(BaseModel):
     connector_names: list[str] | None = Field(default=None, min_length=1)
     source_document: SourceDocument | None = None
     input_path: str | None = None
+    recursive: bool = True
     obsidian_vault_path: str | None = Field(default=None, alias="vault_path")
     provider: str | None = None
     max_tokens: int | None = Field(default=None, ge=1)
@@ -98,10 +113,10 @@ class UnifiedIngestRequest(BaseModel):
             raise ValueError("source_document is required when kind='document'.")
         if self.kind != "document" and self.source_document is not None:
             raise ValueError("source_document is only valid when kind='document'.")
-        if self.kind == "file" and not self.input_path:
-            raise ValueError("input_path is required when kind='file'.")
-        if self.kind != "file" and self.input_path:
-            raise ValueError("input_path is only valid when kind='file'.")
+        if self.kind in {"file", "folder"} and not self.input_path:
+            raise ValueError("input_path is required when kind='file' or kind='folder'.")
+        if self.kind not in {"file", "folder"} and self.input_path:
+            raise ValueError("input_path is only valid when kind='file' or kind='folder'.")
         if self.recovery_of_run_id:
             raise ValueError("recovery_of_run_id is only valid when kind='recovery'.")
         return self
@@ -140,6 +155,21 @@ class UnifiedIngestRequest(BaseModel):
             raise ValueError("input_path is required when kind='file'.")
         return IngestFileRunRequest(
             input_path=self.input_path,
+            config_path=self.config_path,
+            provider=self.provider,
+            max_tokens=self.max_tokens,
+            write=self.write,
+            write_report=self.write_report,
+            append_ledger=self.append_ledger,
+            recovery_of_run_id=self.recovery_of_run_id,
+        )
+
+    def to_folder_request(self) -> IngestFolderRunRequest:
+        if not self.input_path:
+            raise ValueError("input_path is required when kind='folder'.")
+        return IngestFolderRunRequest(
+            input_path=self.input_path,
+            recursive=self.recursive,
             config_path=self.config_path,
             provider=self.provider,
             max_tokens=self.max_tokens,

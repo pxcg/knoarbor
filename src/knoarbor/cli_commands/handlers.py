@@ -8,7 +8,7 @@ from pathlib import Path
 from knoarbor.core.schemas.maintenance import MaintenanceScope, MaintenanceScopeSource
 from knoarbor.core.schemas.wiki_lint import LintRunRequest, WikiLintCandidateSelectRequest, WikiLintRequest, WikiScanRequest
 from knoarbor.core.schemas.wiki_query import WikiQueryFeedbackRequest, WikiSearchRequest
-from knoarbor.core.schemas.ingest_run import IngestFileRunRequest, IngestRecoveryRunRequest, IngestRunRequest
+from knoarbor.core.schemas.ingest_run import IngestFileRunRequest, IngestFolderRunRequest, IngestRecoveryRunRequest, IngestRunRequest
 from knoarbor.core.schemas.sources import SourceDocument
 from knoarbor.pipelines.source import SourcePipeline
 from knoarbor.pipelines.ingest import IngestPipeline
@@ -539,7 +539,7 @@ def run_ingest(args: argparse.Namespace) -> int:
         args.input = args.source_document
         return run_ingest_document(args)
     if getattr(args, "input", None):
-        return run_ingest_file(args)
+        return run_ingest_path(args)
     if _should_follow(args):
         request = IngestRunRequest(
             config_path=args.config,
@@ -606,6 +606,7 @@ def _run_ingest_recovery_from_args(args: argparse.Namespace, config, run_id: str
         request,
         IngestService().run,
         IngestService().run_file,
+        IngestService().run_folder,
     )
     stream = sys.stderr if args.json else sys.stdout
     print(f"run_id: {started.run_id}", file=stream, flush=True)
@@ -652,6 +653,13 @@ def run_ingest_document(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_ingest_path(args: argparse.Namespace) -> int:
+    input_path = Path(args.input).expanduser()
+    if input_path.is_dir():
+        return run_ingest_folder(args)
+    return run_ingest_file(args)
+
+
 def run_ingest_file(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     request = IngestFileRunRequest(
@@ -688,6 +696,51 @@ def run_ingest_file(args: argparse.Namespace) -> int:
     if result.document_processing.items:
         item = result.document_processing.items[0]
         print(f"preprocessed: {item.input_path} -> {item.output_path}")
+    print_run_metrics(result.metrics)
+    if result.report_path:
+        print(f"report: {result.report_path}")
+    if result.ledger_path:
+        print(f"ledger: {result.ledger_path}")
+    for item in result.results[:10]:
+        print(f"- [{item.status}] {item.connector}: {item.source_file} ({item.mode})")
+        for page in item.generated_pages:
+            print(f"  - {page}")
+    return 0
+
+
+def run_ingest_folder(args: argparse.Namespace) -> int:
+    config = resolve_config(args)
+    request = IngestFolderRunRequest(
+        input_path=args.input,
+        config_path=args.config,
+        provider=args.provider,
+        max_tokens=args.max_tokens or config.models.default_max_tokens,
+        write=args.write,
+        write_report=args.write_report,
+        append_ledger=args.append_ledger,
+    )
+    if _should_follow(args):
+        started = RunManager().start_ingest_folder(request, IngestService().run_folder)
+        stream = sys.stderr if args.json else sys.stdout
+        print(f"run_id: {started.run_id}", file=stream, flush=True)
+        exit_code = follow_run_events(config.vault.path, started.run_id, stream=stream)
+        if args.json:
+            print_json(read_run(config.vault.path, started.run_id).model_dump())
+        return exit_code
+
+    result = IngestService().run_folder(request)
+
+    if args.json:
+        print_json(result.model_dump())
+        return 0
+
+    print(f"sources: {result.stats['source_count']}")
+    print(f"processed: {result.stats['processed_count']}")
+    print(f"skipped: {result.stats['skipped_count']}")
+    print(f"failed: {result.stats.get('failed_count', 0)}")
+    print(f"written: {result.stats['written_count']}")
+    if result.document_processing.items:
+        print(f"preprocessed: {result.document_processing.stats.get('processed_count', 0)}")
     print_run_metrics(result.metrics)
     if result.report_path:
         print(f"report: {result.report_path}")
