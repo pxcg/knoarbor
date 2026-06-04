@@ -6,13 +6,14 @@ the command:
 ```bash
 python3 scripts/knoarbor.py --base-url http://127.0.0.1:8000 --vault /path/to/wiki query "agent loop"
 python3 scripts/knoarbor.py --config /path/to/config.yaml doctor
-python3 scripts/knoarbor.py --raw query "agent loop"
+python3 scripts/knoarbor.py --format json query "agent loop"
+python3 scripts/knoarbor.py --format text query "agent loop"
 ```
 
-Default output is concise plain text for host-AI tool use. Add `--raw` before
-the command to return the underlying JSON response. The skill does not write
-SQLite, CSV, or other derived files; durable reports and indexes are managed by
-the KnoArbor service.
+Default output is concise plain text for host-AI tool use. Add
+`--format json` before the command to return the underlying JSON response. The
+skill does not write SQLite, CSV, or other derived files; durable reports and
+indexes are managed by the KnoArbor service.
 
 ## Query
 

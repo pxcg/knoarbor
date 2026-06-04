@@ -20,7 +20,6 @@ SCRIPT_PATH = (
     / "scripts"
     / "knoarbor.py"
 )
-WRAPPER_PATH = SCRIPT_PATH.with_name("query.py")
 
 
 def load_query_helper():
@@ -158,7 +157,7 @@ class SkillQueryHelperTests(unittest.TestCase):
                     vault_path="/tmp/wiki",
                     config_path=Path("/tmp/config.yaml"),
                     timeout=1,
-                    raw=True,
+                    output_format="json",
                 ),
             )
 
@@ -179,30 +178,43 @@ class SkillQueryHelperTests(unittest.TestCase):
                     vault_path=None,
                     config_path=Path("/tmp/config.yaml"),
                     timeout=1,
-                    raw=True,
+                    output_format="json",
                 ),
             )
 
         self.assertEqual(exit_code, 1)
 
-    def test_query_wrapper_rewrites_to_query_command(self) -> None:
-        spec = importlib.util.spec_from_file_location("knoarbor_skill_query_wrapper", WRAPPER_PATH)
-        if spec is None or spec.loader is None:
-            raise RuntimeError(f"Cannot load query wrapper from {WRAPPER_PATH}")
-        wrapper = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = wrapper
-        spec.loader.exec_module(wrapper)
-        with patch.object(
-            sys,
-            "argv",
-            ["query.py", "Agent Loop", "--raw", "--max-results", "1"],
-        ), patch.object(wrapper, "_load_main", return_value=lambda: 0) as load_main:
-            exit_code = wrapper.main()
-            rewritten_argv = list(sys.argv)
+    def test_print_or_format_supports_text_output(self) -> None:
+        helper = load_query_helper()
+        runtime = helper.Runtime(
+            base_url="http://127.0.0.1:8123",
+            vault_path="/tmp/wiki",
+            config_path=Path("/tmp/config.yaml"),
+            timeout=1,
+            output_format="text",
+        )
 
-        self.assertEqual(exit_code, 0)
-        self.assertEqual(rewritten_argv, ["query.py", "--raw", "query", "Agent Loop", "--max-results", "1"])
-        load_main.assert_called_once()
+        output = io.StringIO()
+        with redirect_stdout(output):
+            helper._print_or_format({"ok": True}, runtime, formatter=lambda _: "plain text")
+
+        self.assertEqual(output.getvalue().strip(), "plain text")
+
+    def test_print_or_format_supports_json_output(self) -> None:
+        helper = load_query_helper()
+        runtime = helper.Runtime(
+            base_url="http://127.0.0.1:8123",
+            vault_path="/tmp/wiki",
+            config_path=Path("/tmp/config.yaml"),
+            timeout=1,
+            output_format="json",
+        )
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            helper._print_or_format({"ok": True}, runtime, formatter=lambda _: "plain text")
+
+        self.assertIn('"ok": true', output.getvalue())
 
 
 if __name__ == "__main__":

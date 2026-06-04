@@ -14,8 +14,8 @@ uv run knoar serve
 
 ## 2. Install the skill
 
-Copy the whole skill directory, including `scripts/`, `references/`, and
-`resources/`, into the host AI tool's skill directory.
+Copy the whole skill directory, including `scripts/knoarbor.py`, `references/`,
+and `resources/`, into the host AI tool's skill directory.
 
 Example for Codex:
 

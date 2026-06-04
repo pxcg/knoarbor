@@ -20,7 +20,7 @@ to compile, maintain, retry, or cancel a run.
 - Modify raw sources, config files, or the local vault.
 - Read arbitrary local files outside what KnoArbor returns through its API.
 - Present weak local matches as authoritative.
-- Dump raw JSON to the end user unless explicitly requested.
+- Dump JSON to the end user unless explicitly requested.
 - Run large all-connector ingest unless the user explicitly asks for it.
 
 ## Privacy notes

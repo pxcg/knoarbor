@@ -8,10 +8,10 @@ Run:
 python3 scripts/knoarbor.py check
 ```
 
-Use `--raw` for machine-readable diagnostics:
+Use `--format json` for machine-readable diagnostics:
 
 ```bash
-python3 scripts/knoarbor.py --raw check
+python3 scripts/knoarbor.py --format json check
 ```
 
 ## Service is unavailable

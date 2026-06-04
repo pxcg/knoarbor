@@ -72,8 +72,6 @@ python3 scripts/knoarbor.py report list
 python3 scripts/knoarbor.py doctor
 ```
 
-`scripts/query.py` remains as a compatibility wrapper for old query-only calls.
-
 Run these commands from the skill directory, or invoke them with a path relative
 to the skill directory. The helper loads sibling scripts through `__file__`, so
 it does not require the KnoArbor repository path to be hard-coded.
@@ -81,12 +79,13 @@ it does not require the KnoArbor repository path to be hard-coded.
 ## Output Formats
 
 The helper defaults to concise plain text because host AI tools usually need a
-small, readable tool result. Use `--raw` before the command when structured JSON
-is needed for debugging or automation:
+small, readable tool result. Use `--format json` before the command when
+structured JSON is needed for debugging or automation:
 
 ```bash
-python3 scripts/knoarbor.py --raw query "agent loop"
-python3 scripts/knoarbor.py --raw page read concepts/Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py --format json query "agent loop"
+python3 scripts/knoarbor.py --format json page read concepts/Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py --format text query "agent loop"
 ```
 
 Do not ask the helper to create SQLite or other local data files. Persistent
@@ -164,7 +163,7 @@ Load only what is needed:
 
 ## Answer Rules
 
-- Do not paste raw JSON unless asked.
+- Do not paste JSON unless asked.
 - Do not present weak matches as authoritative.
 - Do not fabricate wiki results.
 - Do not read full wiki pages unless the user asks to inspect a page, asks to

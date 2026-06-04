@@ -22,7 +22,7 @@ def main() -> int:
     parser.add_argument("--vault", default=os.environ.get("KNOARBOR_VAULT_PATH"))
     parser.add_argument("--config", default=os.environ.get("KNOARBOR_CONFIG_PATH"))
     parser.add_argument("--timeout", type=float, default=30)
-    parser.add_argument("--raw", action="store_true", help="Print raw JSON responses.")
+    parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     _add_check(subparsers)
@@ -62,12 +62,12 @@ def main() -> int:
 
 
 class Runtime:
-    def __init__(self, *, base_url: str, vault_path: str | None, config_path: Path | None, timeout: float, raw: bool):
+    def __init__(self, *, base_url: str, vault_path: str | None, config_path: Path | None, timeout: float, output_format: str):
         self.base_url = base_url.rstrip("/")
         self.vault_path = vault_path
         self.config_path = config_path
         self.timeout = timeout
-        self.raw = raw
+        self.output_format = output_format
 
 
 def _runtime(args: argparse.Namespace) -> Runtime:
@@ -75,7 +75,7 @@ def _runtime(args: argparse.Namespace) -> Runtime:
     config = _load_yaml(config_path) if config_path else {}
     base_url = args.base_url or _base_url_from_runtime_endpoint(config_path) or _base_url_from_config(config) or DEFAULT_BASE_URL
     vault_path = args.vault or _vault_path_from_config(config, config_path)
-    return Runtime(base_url=base_url, vault_path=vault_path, config_path=config_path, timeout=args.timeout, raw=args.raw)
+    return Runtime(base_url=base_url, vault_path=vault_path, config_path=config_path, timeout=args.timeout, output_format=args.format)
 
 
 def _add_check(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -486,7 +486,7 @@ def _get_json(url: str, *, timeout: float) -> dict[str, Any]:
 
 
 def _print_or_format(response: dict[str, Any], runtime: Runtime, *, formatter) -> int:
-    if runtime.raw:
+    if runtime.output_format == "json":
         print(json.dumps(response, ensure_ascii=False, indent=2))
     else:
         print(formatter(response))
