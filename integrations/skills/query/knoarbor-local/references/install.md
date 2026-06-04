@@ -36,22 +36,15 @@ the KnoArbor project directory.
 If the host environment cannot run Python, use `references/http-api.md` to call
 the local HTTP API directly with `curl` or the host tool's HTTP client.
 
-## 3. Configure discovery
+## 3. Runtime discovery
 
-The helper can usually discover the local service from `config.yaml` and
-`.knoarbor/endpoint.json`. If needed, set explicit environment variables:
-
-```bash
-export KNOARBOR_BASE_URL=http://127.0.0.1:8000
-export KNOARBOR_VAULT_PATH=/absolute/path/to/wiki
-```
+The helper discovers the active local service from `config.yaml` and
+`.knoarbor/endpoint.json` when those files are available.
 
 For HTTP-only hosts, call `GET /runtime` after the base URL is known. The
 response provides the active vault path. If the service selected a different
 port and local files are readable, inspect `.knoarbor/endpoint.json` next to
 `config.yaml`.
-
-See `example.env`.
 
 ## 4. Test the skill
 
