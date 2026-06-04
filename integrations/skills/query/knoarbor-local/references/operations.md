@@ -9,6 +9,11 @@ python3 scripts/knoarbor.py --config /path/to/config.yaml doctor
 python3 scripts/knoarbor.py --raw query "agent loop"
 ```
 
+Default output is concise plain text for host-AI tool use. Add `--raw` before
+the command to return the underlying JSON response. The skill does not write
+SQLite, CSV, or other derived files; durable reports and indexes are managed by
+the KnoArbor service.
+
 ## Query
 
 ```bash

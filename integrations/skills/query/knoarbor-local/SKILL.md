@@ -74,6 +74,25 @@ python3 scripts/knoarbor.py doctor
 
 `scripts/query.py` remains as a compatibility wrapper for old query-only calls.
 
+Run these commands from the skill directory, or invoke them with a path relative
+to the skill directory. The helper loads sibling scripts through `__file__`, so
+it does not require the KnoArbor repository path to be hard-coded.
+
+## Output Formats
+
+The helper defaults to concise plain text because host AI tools usually need a
+small, readable tool result. Use `--raw` before the command when structured JSON
+is needed for debugging or automation:
+
+```bash
+python3 scripts/knoarbor.py --raw query "agent loop"
+python3 scripts/knoarbor.py --raw page read concepts/Agent-Loop-and-Control-Patterns.md
+```
+
+Do not ask the helper to create SQLite or other local data files. Persistent
+indexes, ledgers, and reports belong to the KnoArbor service and vault, not to
+the portable skill bundle.
+
 ## Progressive Retrieval Policy
 
 Use query as candidate discovery, not as the final answer shape. Prefer this
