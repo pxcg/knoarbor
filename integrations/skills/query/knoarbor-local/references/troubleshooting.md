@@ -22,13 +22,8 @@ Start KnoArbor:
 uv run knoar serve
 ```
 
-The helper resolves the service URL in this order:
-
-1. `--base-url`
-2. `KNOARBOR_BASE_URL`
-3. `.knoarbor/endpoint.json` next to `config.yaml`
-4. `server.host` and `server.port` from `config.yaml`
-5. `http://127.0.0.1:8000`
+The helper discovers the service from the active runtime endpoint and local
+project config when those files are available.
 
 If `8000` is occupied, `knoar serve` may choose another port and write it to
 `.knoarbor/endpoint.json`. That file includes the active `base_url` and
@@ -46,19 +41,14 @@ Use `references/http-api.md` for direct `curl` examples. In this mode:
 
 ## Vault path is missing
 
-Set one of:
+Run:
 
 ```bash
-export KNOARBOR_VAULT_PATH=/absolute/path/to/wiki
-python3 scripts/knoarbor.py --vault /absolute/path/to/wiki query "agent loop"
-python3 scripts/knoarbor.py --config /path/to/config.yaml query "agent loop"
+python3 scripts/knoarbor.py check
 ```
 
-The helper resolves the vault path in this order:
-
-1. `--vault`
-2. `KNOARBOR_VAULT_PATH`
-3. `vault.path` from `config.yaml`
+The output reports the resolved service URL, config path, vault path, and any
+connectivity errors.
 
 ## Query returns no results
 

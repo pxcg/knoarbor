@@ -4,8 +4,6 @@ Use `scripts/knoarbor.py` from the skill directory. Do not rely on the
 KnoArbor repository path. Global options come before the command:
 
 ```bash
-python3 scripts/knoarbor.py --base-url http://127.0.0.1:8000 --vault /path/to/wiki query "agent loop"
-python3 scripts/knoarbor.py --config /path/to/config.yaml doctor
 python3 scripts/knoarbor.py --format json query "agent loop"
 python3 scripts/knoarbor.py --format text query "agent loop"
 ```
