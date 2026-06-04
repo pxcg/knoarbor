@@ -24,7 +24,7 @@ read `.knoarbor/endpoint.json` next to `config.yaml`; it contains the active
 If neither the service URL nor the endpoint file is available to the host, ask
 the user for the KnoArbor base URL once.
 
-Set these values after discovery:
+The examples below use shell variables populated from runtime discovery:
 
 ```bash
 export KNOARBOR_BASE_URL="http://127.0.0.1:8000"
@@ -111,7 +111,7 @@ curl -sS -X POST "$KNOARBOR_BASE_URL/ingest" \
 ```bash
 curl -sS -X POST "$KNOARBOR_BASE_URL/lint" \
   -H 'Content-Type: application/json' \
-  -d "{\"execution\":\"queued\",\"vault_path\":\"$KNOARBOR_VAULT_PATH\",\"mode\":\"semantic_structural\",\"profile\":\"standard\",\"apply_safe_fixes\":true,\"auto_apply_reviewed_changes\":true,\"write_report\":true}"
+  -d "{\"execution\":\"queued\",\"vault_path\":\"$KNOARBOR_VAULT_PATH\",\"mode\":\"semantic_structural\",\"profile\":\"standard\",\"apply_safe_fixes\":true,\"auto_apply_reviewed_changes\":true,\"write_report\":true,\"scope\":{\"schema_version\":\"maintenance_scope.v1\",\"scope_id\":\"skill:http\",\"trigger\":\"manual\",\"source\":{\"kind\":\"skill\"},\"changed_pages\":[],\"recommended_lint_modes\":[\"semantic_structural\"],\"reason\":\"Manual maintenance run from KnoArbor skill.\"}}"
 ```
 
 ## Reports
@@ -145,7 +145,8 @@ curl -sS --get "$KNOARBOR_BASE_URL/runs/RUN_ID/events" \
   --data-urlencode "after=0" \
   --data-urlencode "limit=50"
 
-curl -sS -X POST "$KNOARBOR_BASE_URL/runs/RUN_ID/cancel?vault_path=$KNOARBOR_VAULT_PATH"
+curl -sS -X POST -G "$KNOARBOR_BASE_URL/runs/RUN_ID/cancel" \
+  --data-urlencode "vault_path=$KNOARBOR_VAULT_PATH"
 ```
 
 For host AI use, summarize returned JSON instead of pasting it verbatim unless

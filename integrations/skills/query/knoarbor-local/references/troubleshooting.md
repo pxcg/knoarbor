@@ -31,8 +31,9 @@ If `8000` is occupied, `knoar serve` may choose another port and write it to
 
 ## Python is unavailable
 
-The helper needs `python3`, but KnoArbor itself is still accessible through HTTP.
-Use `references/http-api.md` for direct `curl` examples. In this mode:
+The helper needs Python 3.9 or newer, but KnoArbor itself is still accessible
+through HTTP. Use `references/http-api.md` for direct `curl` examples. In this
+mode:
 
 1. If a base URL is known, call `GET /runtime` to discover `vault_path`.
 2. If the port is unknown and local files are readable, read

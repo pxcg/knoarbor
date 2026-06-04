@@ -54,6 +54,10 @@ def main() -> int:
             return _cmd_runs(args, runtime)
         if args.command == "report":
             return _cmd_report(args, runtime)
+    except urllib.error.HTTPError as exc:
+        print(_format_http_error(exc), file=sys.stderr)
+        print(f"Check whether the service is running at {runtime.base_url}/health.", file=sys.stderr)
+        return 1
     except urllib.error.URLError as exc:
         print(f"KnoArbor request failed: {exc}", file=sys.stderr)
         print(f"Check whether the service is running at {runtime.base_url}/health.", file=sys.stderr)
@@ -76,6 +80,11 @@ def _runtime(args: argparse.Namespace) -> Runtime:
     endpoint = _runtime_endpoint_data(config_path)
     base_url = args.base_url or _base_url_from_runtime_endpoint(endpoint) or _base_url_from_config(config) or DEFAULT_BASE_URL
     vault_path = args.vault or _vault_path_from_runtime_endpoint(endpoint) or _vault_path_from_config(config, config_path)
+    if not vault_path:
+        runtime_context = _runtime_context_from_service(base_url, args.timeout)
+        vault_path = _vault_path_from_runtime_endpoint(runtime_context)
+        if config_path is None:
+            config_path = _config_path_from_runtime_context(runtime_context)
     return Runtime(base_url=base_url, vault_path=vault_path, config_path=config_path, timeout=args.timeout, output_format=args.format)
 
 
@@ -349,7 +358,7 @@ def _config_candidates(value: str | None) -> list[Path]:
     candidates: list[Path] = []
     if value:
         candidates.append(Path(value).expanduser())
-    candidates.extend([Path.cwd() / "config.yaml", Path.home() / "Projects" / "KnoArbor" / "config.yaml"])
+    candidates.append(Path.cwd() / "config.yaml")
     return candidates
 
 
@@ -404,6 +413,13 @@ def _runtime_endpoint_data(config_path: Path | None) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _runtime_context_from_service(base_url: str, timeout: float) -> dict[str, Any]:
+    try:
+        return _get_json(f"{base_url.rstrip('/')}/runtime", timeout=timeout)
+    except (urllib.error.URLError, OSError, json.JSONDecodeError):
+        return {}
+
+
 def _base_url_from_runtime_endpoint(data: dict[str, Any]) -> str | None:
     base_url = data.get("base_url")
     return str(base_url).strip() if base_url else None
@@ -414,6 +430,13 @@ def _vault_path_from_runtime_endpoint(data: dict[str, Any]) -> str | None:
     if not vault_path:
         return None
     return str(Path(str(vault_path)).expanduser())
+
+
+def _config_path_from_runtime_context(data: dict[str, Any]) -> Path | None:
+    config_path = data.get("config_path")
+    if not config_path:
+        return None
+    return Path(str(config_path)).expanduser()
 
 
 def _vault_path_from_config(config: dict[str, Any], config_path: Path | None) -> str | None:
@@ -428,7 +451,7 @@ def _vault_path_from_config(config: dict[str, Any], config_path: Path | None) ->
 
 def _require_vault(runtime: Runtime) -> str:
     if not runtime.vault_path:
-        print("KnoArbor vault path is required. Set KNOARBOR_VAULT_PATH, pass --vault, or run from a project with config.yaml.", file=sys.stderr)
+        print("KnoArbor vault path is required. Run `check`, pass --vault, or use a service that exposes /runtime.", file=sys.stderr)
         raise SystemExit(2)
     return str(Path(runtime.vault_path).expanduser())
 
@@ -493,6 +516,38 @@ def _get_json(url: str, *, timeout: float) -> dict[str, Any]:
     request = urllib.request.Request(url, headers={"Accept": "application/json"}, method="GET")
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def _format_http_error(exc: urllib.error.HTTPError) -> str:
+    status = f"HTTP {exc.code}"
+    try:
+        raw_body = exc.read().decode("utf-8", errors="replace")
+    except OSError:
+        raw_body = ""
+    try:
+        payload = json.loads(raw_body) if raw_body else {}
+    except json.JSONDecodeError:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    error = payload.get("error")
+    lines = [f"KnoArbor request failed: {status}"]
+    if isinstance(error, dict):
+        code = error.get("code")
+        message = error.get("message") or exc.reason
+        lines.append(f"[{code}] {message}" if code else str(message))
+        if error.get("hint"):
+            lines.append(f"hint: {error['hint']}")
+        details = error.get("details")
+        if details:
+            lines.append(f"details: {json.dumps(details, ensure_ascii=False)}" if not isinstance(details, str) else f"details: {details}")
+    elif payload.get("detail"):
+        lines.append(str(payload["detail"]))
+    elif raw_body:
+        lines.append(raw_body.strip())
+    else:
+        lines.append(str(exc.reason))
+    return "\n".join(lines)
 
 
 def _print_or_format(response: dict[str, Any], runtime: Runtime, *, formatter) -> int:

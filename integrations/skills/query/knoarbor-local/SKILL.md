@@ -19,6 +19,7 @@ evidence.
 Use the smallest operation that satisfies the user request:
 
 - Knowledge question -> `query`.
+- Page discovery -> `page list`.
 - Expand/read a known result page -> `page read` with the returned page path.
 - Inspect page relationships -> `page links`.
 - Compile a specific file -> `ingest file`.
@@ -31,6 +32,10 @@ Use the smallest operation that satisfies the user request:
 Write operations (`ingest`, `lint`, `runs cancel`) require an explicit user
 request to compile, maintain, retry, or cancel. Query and page reads are safe
 read-only defaults.
+
+Do not use KnoArbor when the request is fully answerable from the current
+conversation, local repository files already in context, or a current external
+source, and no local wiki memory is needed.
 
 ## Intent Map
 
@@ -50,8 +55,10 @@ Map natural user requests to operations before choosing a command:
 - "What happened in the last run?", "which pages were written?", "why did it
   fail?", "show the report" -> `runs ...` and `report ...`.
 - "Retry failed ingest", "rerun failed items" -> `ingest recovery`.
-- "Check/fix/maintain the wiki", "repair broken links", "run governance" ->
-  `lint`.
+- "Check the wiki", "diagnose wiki quality", "scan for problems" -> `lint`
+  with no-apply flags.
+- "Fix the wiki", "repair broken links", "maintain the wiki", "run
+  governance" -> `lint` with default maintenance behavior.
 - "Is KnoArbor ready?", "why can't the skill connect?", "check my setup" ->
   `doctor` or `check`.
 
@@ -61,6 +68,7 @@ Use the bundled helper first:
 
 ```bash
 python3 scripts/knoarbor.py query "agent loop control patterns"
+python3 scripts/knoarbor.py page list --contains "agent loop"
 python3 scripts/knoarbor.py page read concepts/Agent-Loop-and-Control-Patterns.md
 python3 scripts/knoarbor.py page links concepts/Agent-Loop-and-Control-Patterns.md
 python3 scripts/knoarbor.py ingest file /absolute/path/to/file.md
@@ -80,6 +88,7 @@ Path rules:
 - Do not hard-code the user's local KnoArbor project path.
 - The helper uses only the Python standard library and loads sibling files
   through `__file__`.
+- The helper requires Python 3.9 or newer.
 
 Fallback rules:
 
@@ -123,9 +132,11 @@ flow:
    key points, and excerpts. Cite concise page paths.
 5. If evidence is relevant but thin, run a deeper compact query or read only the
    1-2 strongest pages with `page read`.
-6. If several candidates are plausible and the user's intent is ambiguous, list
+6. If the user asks for a broad summary, overview, or comparison, aggregate the
+   strongest relevant results instead of forcing a single page.
+7. If several candidates are plausible and the user's intent is ambiguous, list
    2-5 candidates with title, path, and reason, then ask the user to choose.
-7. If matches are weak, try a shorter or alternate query once. If still weak,
+8. If matches are weak, try a shorter or alternate query once. If still weak,
    say the local wiki does not contain enough evidence and ask a clarifying
    question or use another source.
 
@@ -168,6 +179,16 @@ For broad design, review, or comparison tasks, use `deep + compact` before
 reading full pages. For explicit full-content requests, prefer `page read` when
 the target page path is known; otherwise query first, then read the selected
 page.
+
+Evidence synthesis:
+
+- Cite concise page paths near important claims.
+- Treat KnoArbor as local memory. For unstable current facts, newer external
+  sources can override older wiki pages.
+- If wiki evidence conflicts with current sources or with another wiki page,
+  state the conflict instead of silently merging both.
+- Use source digest pages as provenance, not as a replacement for the generated
+  concept/entity/comparison/query pages.
 
 ## References
 

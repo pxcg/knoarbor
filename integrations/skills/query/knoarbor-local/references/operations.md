@@ -13,8 +13,8 @@ Default output is concise plain text for host-AI tool use. Add
 skill does not write SQLite, CSV, or other derived files; durable reports and
 indexes are managed by the KnoArbor service.
 
-The helper needs `python3`. If Python is unavailable, use the direct HTTP
-examples in `references/http-api.md`.
+The helper needs Python 3.9 or newer. If Python is unavailable, use the direct
+HTTP examples in `references/http-api.md`.
 
 ## Query
 
@@ -31,6 +31,8 @@ Progressive retrieval behavior:
 - Short lookup: keep result count small, usually 3-4.
 - Detailed analysis, design review, or comparison: use `deep + compact` before
   reading full pages.
+- Broad summary or comparison: aggregate the strongest relevant results instead
+  of forcing one page to represent the whole answer.
 - Multiple plausible candidates: list 2-5 candidate pages with title, path, and
   reason, then ask the user which one to expand.
 - Explicit full-content request: prefer `page read` if a page path is known;
@@ -89,6 +91,7 @@ the user's configured document preprocessor.
 ## Lint
 
 ```bash
+python3 scripts/knoarbor.py lint --mode deterministic --no-apply-safe-fixes --no-auto-apply-reviewed
 python3 scripts/knoarbor.py lint --mode deterministic
 python3 scripts/knoarbor.py lint --mode semantic_structural
 python3 scripts/knoarbor.py lint --mode semantic_full --profile deep
@@ -96,6 +99,10 @@ python3 scripts/knoarbor.py lint --scope-page concepts/Agent-Loop-and-Control-Pa
 ```
 
 Use lint when the user asks to check, maintain, repair, or explain wiki quality.
+For "check" or "diagnose" wording, use `--no-apply-safe-fixes
+--no-auto-apply-reviewed` to keep the run read-only. For "fix", "repair", or
+"maintain" wording, use the defaults so safe and reviewed changes can be
+applied.
 
 ## Runs and Reports
 

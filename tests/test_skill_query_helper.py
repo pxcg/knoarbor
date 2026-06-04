@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-import importlib.util
 import argparse
+import importlib.util
 import io
+import os
 import sys
 import tempfile
 import unittest
+import urllib.error
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
@@ -70,11 +72,69 @@ class SkillQueryHelperTests(unittest.TestCase):
 
     def test_config_lookup_does_not_fall_back_to_legacy_project_name(self) -> None:
         helper = load_query_helper()
-        candidates = [str(item) for item in helper._config_candidates(None)]
+        with tempfile.TemporaryDirectory() as tmp:
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(tmp)
+                candidates = [str(item) for item in helper._config_candidates(None)]
+            finally:
+                os.chdir(old_cwd)
 
-        self.assertIn(str(Path.cwd() / "config.yaml"), candidates)
-        self.assertIn(str(Path.home() / "Projects" / "KnoArbor" / "config.yaml"), candidates)
+        self.assertIn(str((Path(tmp) / "config.yaml").resolve()), candidates)
+        self.assertNotIn(str(Path.home() / "Projects" / "KnoArbor" / "config.yaml"), candidates)
         self.assertNotIn(str(Path.home() / "Projects" / "LLMWiki" / "config.yaml"), candidates)
+
+    def test_runtime_uses_service_context_when_config_is_missing(self) -> None:
+        helper = load_query_helper()
+
+        def fake_get_json(url: str, *, timeout: float) -> dict[str, str]:
+            self.assertEqual(url, "http://127.0.0.1:8123/runtime")
+            self.assertEqual(timeout, 1)
+            return {
+                "base_url": "http://127.0.0.1:8123",
+                "config_path": "/tmp/knoarbor/config.yaml",
+                "vault_path": "/tmp/knoarbor/wiki",
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(tmp)
+                with patch.object(helper, "_get_json", side_effect=fake_get_json):
+                    runtime = helper._runtime(
+                        argparse.Namespace(
+                            base_url="http://127.0.0.1:8123",
+                            vault=None,
+                            config=None,
+                            timeout=1,
+                            format="json",
+                        )
+                    )
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(runtime.base_url, "http://127.0.0.1:8123")
+        self.assertEqual(runtime.vault_path, "/tmp/knoarbor/wiki")
+        self.assertEqual(runtime.config_path, Path("/tmp/knoarbor/config.yaml"))
+
+    def test_formats_knoarbor_error_envelope(self) -> None:
+        helper = load_query_helper()
+        error = urllib.error.HTTPError(
+            url="http://127.0.0.1:8000/lint",
+            code=422,
+            msg="Unprocessable Entity",
+            hdrs={},
+            fp=io.BytesIO(
+                b'{"error":{"code":"KA-INPUT-001","message":"Missing scope","hint":"Provide maintenance scope.","details":{"field":"scope"}}}'
+            ),
+        )
+
+        message = helper._format_http_error(error)
+
+        self.assertIn("HTTP 422", message)
+        self.assertIn("[KA-INPUT-001] Missing scope", message)
+        self.assertIn("hint: Provide maintenance scope.", message)
+        self.assertIn('"field": "scope"', message)
 
     def test_formats_retrieval_response_for_host_ai(self) -> None:
         helper = load_query_helper()
