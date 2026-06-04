@@ -15,6 +15,9 @@ Default output is concise plain text for host-AI tool use. Add
 skill does not write SQLite, CSV, or other derived files; durable reports and
 indexes are managed by the KnoArbor service.
 
+The helper needs `python3`. If Python is unavailable, use the direct HTTP
+examples in `references/http-api.md`.
+
 ## Query
 
 ```bash

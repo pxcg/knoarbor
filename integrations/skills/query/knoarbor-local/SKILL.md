@@ -160,6 +160,8 @@ Load only what is needed:
 - `references/security.md`: read/write boundaries and privacy rules.
 - `references/troubleshooting.md`: service, vault, and query failures.
 - `references/install.md`: install and smoke-test notes.
+- `references/http-api.md`: direct `curl` examples for environments without
+  Python.
 
 ## Answer Rules
 

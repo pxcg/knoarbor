@@ -33,6 +33,13 @@ The helper resolves the service URL in this order:
 If `8000` is occupied, `knoar serve` may choose another port and write it to
 `.knoarbor/endpoint.json`.
 
+## Python is unavailable
+
+The helper needs `python3`, but KnoArbor itself is still accessible through HTTP.
+Use `references/http-api.md` for direct `curl` examples. In this mode you must
+provide `KNOARBOR_BASE_URL` and `KNOARBOR_VAULT_PATH` yourself because automatic
+config discovery is handled by the Python helper.
+
 ## Vault path is missing
 
 Set one of:
