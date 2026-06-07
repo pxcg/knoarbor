@@ -607,7 +607,8 @@ def _format_doctor(response: dict[str, Any]) -> str:
 
 
 def _format_query(response: dict[str, Any]) -> str:
-    lines = [f"Query: {response.get('query', '')}", f"Retrieval mode: {response.get('retrieval_mode', '')}", "", "Results:"]
+    stats = response.get("stats") if isinstance(response.get("stats"), dict) else {}
+    lines = [f"Query: {response.get('query', '')}", f"Vault: {stats.get('vault_path') or 'unknown'}", f"Retrieval mode: {response.get('retrieval_mode', '')}", "", "Results:"]
     for index, result in enumerate(response.get("results", [])[:10], start=1):
         lines.append(f"{index}. {result.get('title', '')} ({result.get('path', '')}) [{result.get('relevance', '')}, {result.get('match_kind', '')}]")
         if result.get("summary"):

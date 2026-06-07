@@ -99,9 +99,11 @@ class SkillQueryHelperTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             old_cwd = Path.cwd()
+            runtime_dir = Path(tmp) / "runtime"
+            runtime_dir.mkdir()
             try:
                 os.chdir(tmp)
-                with patch.object(helper, "_get_json", side_effect=fake_get_json):
+                with patch.dict(os.environ, {"KNOARBOR_RUNTIME_DIR": str(runtime_dir)}), patch.object(helper, "_get_json", side_effect=fake_get_json):
                     runtime = helper._runtime(
                         argparse.Namespace(
                             base_url="http://127.0.0.1:8123",
@@ -181,6 +183,7 @@ class SkillQueryHelperTests(unittest.TestCase):
             {
                 "query": "Agent Loop",
                 "retrieval_mode": "machine_hybrid_balanced",
+                "stats": {"vault_path": "/tmp/wiki"},
                 "results": [
                     {
                         "path": "concepts/Agent-Loop.md",
@@ -196,6 +199,7 @@ class SkillQueryHelperTests(unittest.TestCase):
         )
 
         self.assertIn("Agent Loop (concepts/Agent-Loop.md) [high, direct]", text)
+        self.assertIn("Vault: /tmp/wiki", text)
         self.assertIn("Context Pack:", text)
 
     def test_auto_query_settings_keep_compact_by_default(self) -> None:

@@ -28,6 +28,7 @@ class WikiSearchService:
         vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
         try:
             response = search_query(request)
+            response.stats["vault_path"] = str(vault_path)
             response.stats["query_trend"] = build_query_trend(vault_path)
             if request.record_query:
                 ledger_path = append_query_record(vault_path, request, response)
