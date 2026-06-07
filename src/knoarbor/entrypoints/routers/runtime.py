@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from knoarbor.core.config import default_config_path, load_config
-from knoarbor.runtime.endpoint import runtime_endpoint_path
+from knoarbor.runtime.endpoint import runtime_endpoint_path, user_runtime_endpoint_path
 
 
 class RuntimeContextResponse(BaseModel):
@@ -14,6 +14,7 @@ class RuntimeContextResponse(BaseModel):
     config_path: str | None = None
     vault_path: str | None = None
     endpoint_path: str | None = None
+    user_endpoint_path: str | None = None
     errors: list[str] = Field(default_factory=list)
 
 
@@ -32,6 +33,7 @@ def create_runtime_router() -> APIRouter:
             resolved_config_path = default_config_path()
             config_path = str(resolved_config_path)
             endpoint_path = str(runtime_endpoint_path(resolved_config_path))
+            user_endpoint_path = str(user_runtime_endpoint_path())
             config = load_config(resolved_config_path)
             vault_path = str(config.vault.path)
         except Exception as exc:  # pragma: no cover - defensive runtime disclosure
@@ -42,6 +44,7 @@ def create_runtime_router() -> APIRouter:
             config_path=config_path,
             vault_path=vault_path,
             endpoint_path=endpoint_path,
+            user_endpoint_path=user_endpoint_path,
             errors=errors,
         )
 

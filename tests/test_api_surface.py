@@ -85,6 +85,7 @@ class ApiSurfaceTests(unittest.TestCase):
         self.assertIn("config_path", payload)
         self.assertIn("vault_path", payload)
         self.assertIn("endpoint_path", payload)
+        self.assertIn("user_endpoint_path", payload)
         self.assertIn("errors", payload)
 
     def test_api_docs_cover_stable_public_routes(self) -> None:

@@ -296,17 +296,20 @@ class CliTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            runtime_dir = root / "runtime"
             (root / "wiki").mkdir()
             config = root / "config.yaml"
             config.write_text("vault:\n  path: ./wiki\n", encoding="utf-8")
 
-            with patch("uvicorn.run") as uvicorn_run, redirect_stdout(output):
+            with patch.dict(os.environ, {"KNOARBOR_RUNTIME_DIR": str(runtime_dir)}), patch("uvicorn.run") as uvicorn_run, redirect_stdout(output):
                 exit_code = main(["--config", str(config), "serve", "--host", "0.0.0.0", "--port", "8010"])
+            user_endpoint_exists = (runtime_dir / "endpoint.json").exists()
 
         self.assertEqual(exit_code, 0)
         self.assertIn("KnoArbor UI: http://127.0.0.1:8010", output.getvalue())
         self.assertIn("UI alias: http://127.0.0.1:8010/ui", output.getvalue())
         self.assertIn("API docs: http://127.0.0.1:8010/docs", output.getvalue())
+        self.assertTrue(user_endpoint_exists)
         uvicorn_run.assert_called_once()
 
     def test_serve_command_switches_when_port_is_occupied(self) -> None:
@@ -314,6 +317,7 @@ class CliTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            runtime_dir = root / "runtime"
             (root / "wiki").mkdir()
             config = root / "config.yaml"
             config.write_text("vault:\n  path: ./wiki\n", encoding="utf-8")
@@ -322,10 +326,11 @@ class CliTests(unittest.TestCase):
                 sock.listen(1)
                 occupied_port = sock.getsockname()[1]
 
-                with patch("uvicorn.run") as uvicorn_run, redirect_stdout(output):
+                with patch.dict(os.environ, {"KNOARBOR_RUNTIME_DIR": str(runtime_dir)}), patch("uvicorn.run") as uvicorn_run, redirect_stdout(output):
                     exit_code = main(["--config", str(config), "serve", "--host", "127.0.0.1", "--port", str(occupied_port)])
 
             endpoint = json.loads((root / ".knoarbor" / "endpoint.json").read_text(encoding="utf-8"))
+            user_endpoint = json.loads((runtime_dir / "endpoint.json").read_text(encoding="utf-8"))
 
         self.assertEqual(exit_code, 0)
         self.assertIn(f"Configured port {occupied_port} is in use; using", output.getvalue())
@@ -333,6 +338,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(endpoint["base_url"], f"http://127.0.0.1:{endpoint['port']}")
         self.assertEqual(endpoint["config_path"], str(config.resolve()))
         self.assertEqual(endpoint["vault_path"], str((root / "wiki").resolve()))
+        self.assertEqual(user_endpoint, endpoint)
         uvicorn_run.assert_called_once()
         self.assertEqual(uvicorn_run.call_args.kwargs["port"], endpoint["port"])
 

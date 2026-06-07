@@ -26,7 +26,8 @@ The helper discovers the service from the active runtime endpoint and local
 project config when those files are available.
 
 If `8000` is occupied, `knoar serve` may choose another port and write it to
-`.knoarbor/endpoint.json`. That file includes the active `base_url` and
+the user-level `.knoarbor/endpoint.json` and the project-local
+`.knoarbor/endpoint.json`. These files include the active `base_url` and
 `vault_path`.
 
 ## Python is unavailable
@@ -36,8 +37,9 @@ through HTTP. Use `references/http-api.md` for direct `curl` examples. In this
 mode:
 
 1. If a base URL is known, call `GET /runtime` to discover `vault_path`.
-2. If the port is unknown and local files are readable, read
-   `.knoarbor/endpoint.json` next to `config.yaml`.
+2. If the port is unknown and local files are readable, read the user-level
+   `.knoarbor/endpoint.json` or the project-local endpoint next to
+   `config.yaml`.
 3. If neither is available, ask the user for the KnoArbor base URL once.
 
 ## Vault path is missing

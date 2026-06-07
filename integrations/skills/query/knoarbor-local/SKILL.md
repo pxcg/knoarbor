@@ -96,9 +96,13 @@ Fallback rules:
   host tool's HTTP client.
 - If the helper cannot discover the service, run `python3 scripts/knoarbor.py
   check` and follow the reported service or vault diagnostics.
+- The helper first checks the user-level runtime endpoint written by
+  `knoar serve`, then project-local config and endpoint files, then `/runtime`.
+  This allows discovery when the service auto-selects a port other than 8000.
 - HTTP-only callers should use `GET /runtime` after the service URL is known.
-  If the service URL is unknown and local files are readable, use
-  `.knoarbor/endpoint.json` next to `config.yaml`.
+  If the service URL is unknown and local files are readable, use the
+  user-level `.knoarbor/endpoint.json` or the project-local endpoint next to
+  `config.yaml`.
 - If the local service is unavailable, report that KnoArbor is unavailable and
   continue with other available context. Do not fabricate wiki results.
 

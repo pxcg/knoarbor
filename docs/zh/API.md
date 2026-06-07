@@ -104,13 +104,15 @@ GET /runtime
   "config_path": "/path/to/config.yaml",
   "vault_path": "/path/to/wiki",
   "endpoint_path": "/path/to/.knoarbor/endpoint.json",
+  "user_endpoint_path": "~/.knoarbor/endpoint.json",
   "errors": []
 }
 ```
 
 集成工具需要发现当前知识库路径时，应使用该接口，而不是调用
 `/ui/api/*`。如果服务启动时自动切换端口，`knoar serve` 也会把实际
-运行地址写入 `config.yaml` 同级的 `.knoarbor/endpoint.json`。
+运行地址写入用户级 `.knoarbor/endpoint.json`，并同步写入
+`config.yaml` 同级的项目级 `.knoarbor/endpoint.json`。
 
 ## 运行报告
 

@@ -17,9 +17,10 @@ The skill calls KnoArbor's stable local API. It can query, read pages, trigger r
 
 ## Runtime Discovery
 
-The bundled helper discovers the active local service from `config.yaml` and
-`.knoarbor/endpoint.json` when those files are available. HTTP-only hosts should
-call `GET /runtime` after the service URL is known.
+The bundled helper discovers the active local service from the user-level
+runtime endpoint written by `knoar serve`, then from project-local `config.yaml`
+and `.knoarbor/endpoint.json` when those files are available. HTTP-only hosts
+should call `GET /runtime` after the service URL is known.
 
 Example:
 

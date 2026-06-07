@@ -105,14 +105,16 @@ HTTP-only integrations:
   "config_path": "/path/to/config.yaml",
   "vault_path": "/path/to/wiki",
   "endpoint_path": "/path/to/.knoarbor/endpoint.json",
+  "user_endpoint_path": "~/.knoarbor/endpoint.json",
   "errors": []
 }
 ```
 
 Use this instead of `/ui/api/*` when an integration needs to discover the
 current vault path. If the service auto-selects a different port, `knoar serve`
-also writes the same runtime address to `.knoarbor/endpoint.json` next to
-`config.yaml`.
+also writes the same runtime address to the user-level
+`.knoarbor/endpoint.json` and to the project-local `.knoarbor/endpoint.json`
+next to `config.yaml`.
 
 ## Reports
 

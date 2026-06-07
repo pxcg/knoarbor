@@ -14,6 +14,7 @@ from typing import Any
 
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
+RUNTIME_DIR_ENV = "KNOARBOR_RUNTIME_DIR"
 
 
 def main() -> int:
@@ -77,9 +78,11 @@ class Runtime:
 def _runtime(args: argparse.Namespace) -> Runtime:
     config_path = _resolve_config_path(args.config)
     config = _load_yaml(config_path) if config_path else {}
-    endpoint = _runtime_endpoint_data(config_path)
+    endpoint = _runtime_endpoint_data(config_path) or _user_runtime_endpoint_data()
     base_url = args.base_url or _base_url_from_runtime_endpoint(endpoint) or _base_url_from_config(config) or DEFAULT_BASE_URL
     vault_path = args.vault or _vault_path_from_runtime_endpoint(endpoint) or _vault_path_from_config(config, config_path)
+    if config_path is None:
+        config_path = _config_path_from_runtime_context(endpoint)
     if not vault_path:
         runtime_context = _runtime_context_from_service(base_url, args.timeout)
         vault_path = _vault_path_from_runtime_endpoint(runtime_context)
@@ -411,6 +414,24 @@ def _runtime_endpoint_data(config_path: Path | None) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def _user_runtime_endpoint_data() -> dict[str, Any]:
+    endpoint_path = _user_runtime_endpoint_path()
+    if not endpoint_path.exists():
+        return {}
+    try:
+        data = json.loads(endpoint_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _user_runtime_endpoint_path() -> Path:
+    runtime_dir = os.environ.get(RUNTIME_DIR_ENV)
+    if runtime_dir:
+        return Path(runtime_dir).expanduser().resolve() / "endpoint.json"
+    return Path.home() / ".knoarbor" / "endpoint.json"
 
 
 def _runtime_context_from_service(base_url: str, timeout: float) -> dict[str, Any]:

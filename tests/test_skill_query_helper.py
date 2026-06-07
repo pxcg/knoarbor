@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import io
+import json
 import os
 import sys
 import tempfile
@@ -116,6 +117,44 @@ class SkillQueryHelperTests(unittest.TestCase):
         self.assertEqual(runtime.base_url, "http://127.0.0.1:8123")
         self.assertEqual(runtime.vault_path, "/tmp/knoarbor/wiki")
         self.assertEqual(runtime.config_path, Path("/tmp/knoarbor/config.yaml"))
+
+    def test_runtime_uses_user_endpoint_before_default_port(self) -> None:
+        helper = load_query_helper()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            runtime_dir = root / "runtime"
+            runtime_dir.mkdir()
+            (runtime_dir / "endpoint.json").write_text(
+                json.dumps(
+                    {
+                        "base_url": "http://127.0.0.1:8124",
+                        "config_path": "/tmp/knoarbor/config.yaml",
+                        "vault_path": "/tmp/knoarbor/wiki",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"KNOARBOR_RUNTIME_DIR": str(runtime_dir)}), patch.object(helper, "_get_json") as get_json:
+                    runtime = helper._runtime(
+                        argparse.Namespace(
+                            base_url=None,
+                            vault=None,
+                            config=None,
+                            timeout=1,
+                            format="json",
+                        )
+                    )
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(runtime.base_url, "http://127.0.0.1:8124")
+        self.assertEqual(runtime.vault_path, "/tmp/knoarbor/wiki")
+        self.assertEqual(runtime.config_path, Path("/tmp/knoarbor/config.yaml"))
+        get_json.assert_not_called()
 
     def test_formats_knoarbor_error_envelope(self) -> None:
         helper = load_query_helper()

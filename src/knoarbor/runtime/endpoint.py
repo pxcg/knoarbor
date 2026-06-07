@@ -10,6 +10,7 @@ from typing import Any
 
 ENDPOINT_DIR_NAME = ".knoarbor"
 ENDPOINT_FILE_NAME = "endpoint.json"
+RUNTIME_DIR_ENV = "KNOARBOR_RUNTIME_DIR"
 
 
 def find_available_port(host: str, preferred_port: int, *, max_attempts: int = 100) -> tuple[int, bool]:
@@ -41,7 +42,6 @@ def write_runtime_endpoint(
     vault_path: str | Path | None = None,
 ) -> Path:
     endpoint_path = runtime_endpoint_path(config_path)
-    endpoint_path.parent.mkdir(parents=True, exist_ok=True)
     resolved_config_path = Path(config_path).expanduser().resolve()
     payload: dict[str, Any] = {
         "schema_version": "knoarbor_runtime_endpoint.v1",
@@ -53,12 +53,25 @@ def write_runtime_endpoint(
         "pid": os.getpid(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
-    endpoint_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    _write_endpoint_file(endpoint_path, payload)
+    _write_endpoint_file(user_runtime_endpoint_path(), payload)
     return endpoint_path
 
 
 def runtime_endpoint_path(config_path: str | Path) -> Path:
     return Path(config_path).expanduser().resolve().parent / ENDPOINT_DIR_NAME / ENDPOINT_FILE_NAME
+
+
+def user_runtime_endpoint_path() -> Path:
+    runtime_dir = os.environ.get(RUNTIME_DIR_ENV)
+    if runtime_dir:
+        return Path(runtime_dir).expanduser().resolve() / ENDPOINT_FILE_NAME
+    return Path.home() / ENDPOINT_DIR_NAME / ENDPOINT_FILE_NAME
+
+
+def _write_endpoint_file(endpoint_path: Path, payload: dict[str, Any]) -> None:
+    endpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    endpoint_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def _bind_host(host: str) -> str:

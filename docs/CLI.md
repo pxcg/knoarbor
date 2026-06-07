@@ -71,7 +71,9 @@ uv run knoar serve
 If the configured port is already in use, KnoArbor automatically switches to the
 next available local port and prints the actual UI/API address. The runtime
 endpoint is also written to `.knoarbor/endpoint.json` next to `config.yaml` so
-local integrations can discover the active service.
+local integrations can discover the active service. A user-level endpoint is
+also written to `~/.knoarbor/endpoint.json`, so host-AI skills can discover the
+service without running from the project directory.
 
 Override host and port:
 

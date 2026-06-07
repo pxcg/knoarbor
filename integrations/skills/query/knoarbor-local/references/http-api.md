@@ -18,8 +18,9 @@ The response includes `base_url`, `config_path`, `vault_path`, and
 `endpoint_path`. Use `vault_path` as `KNOARBOR_VAULT_PATH` for later calls.
 
 If the service auto-selected a different port and the host can read local files,
-read `.knoarbor/endpoint.json` next to `config.yaml`; it contains the active
-`base_url` and `vault_path`.
+read the user-level `.knoarbor/endpoint.json` written by `knoar serve`, or the
+project-local `.knoarbor/endpoint.json` next to `config.yaml`; it contains the
+active `base_url` and `vault_path`.
 
 If neither the service URL nor the endpoint file is available to the host, ask
 the user for the KnoArbor base URL once.
