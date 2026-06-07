@@ -186,6 +186,11 @@ Use `kind` to select the input shape:
 - `document`: ingest one already normalized `source_document`.
 - `recovery`: retry failed items from a previous ingest run.
 
+Ingest is a write workflow and always targets one vault per request. Select that
+vault with `vault_path`, or use `config_path` plus `vault_id` for a configured
+vault. It intentionally does not support `all_vaults=true`; start one run per
+vault when multiple knowledge bases need to be compiled.
+
 Configured sources:
 
 ```json
@@ -193,6 +198,7 @@ Configured sources:
   "execution": "queued",
   "kind": "connectors",
   "config_path": "./config.yaml",
+  "vault_id": "personal",
   "connector_names": ["markdown"],
   "write": true
 }
@@ -205,6 +211,7 @@ One local file:
   "execution": "queued",
   "kind": "file",
   "config_path": "./config.yaml",
+  "vault_id": "personal",
   "input_path": "/path/to/file.pdf",
   "write": true
 }
@@ -217,6 +224,7 @@ One local folder:
   "execution": "queued",
   "kind": "folder",
   "config_path": "./config.yaml",
+  "vault_id": "personal",
   "input_path": "/path/to/folder",
   "recursive": true,
   "write": true
@@ -233,6 +241,8 @@ One normalized source document:
 {
   "execution": "queued",
   "kind": "document",
+  "config_path": "./config.yaml",
+  "vault_id": "personal",
   "source_document": { "schema_version": "source_document.v1" },
   "write": true
 }
@@ -244,7 +254,8 @@ Recover a failed ingest run:
 {
   "execution": "queued",
   "kind": "recovery",
-  "recovery_vault_path": "/path/to/wiki",
+  "config_path": "./config.yaml",
+  "vault_id": "personal",
   "recovery_of_run_id": "20260525_123456_abcdef",
   "write": true
 }
@@ -268,12 +279,18 @@ Runs deterministic lint plus optional semantic structural or quality maintenance
 - `semantic_quality`
 - `semantic_full`
 
+Lint is also a write-capable maintenance workflow and targets one vault per
+request. Use `vault_path`, or use `config_path` plus `vault_id` for a configured
+vault. Cross-vault summaries are available through `/reports` and `/runs`, but
+maintenance itself should be started separately for each vault.
+
 Example:
 
 ```json
 {
   "execution": "queued",
-  "vault_path": "/path/to/wiki",
+  "config_path": "./config.yaml",
+  "vault_id": "personal",
   "mode": "semantic_structural",
   "scope": {
     "scope_id": "manual:api",

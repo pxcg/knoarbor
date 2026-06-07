@@ -128,6 +128,7 @@ Connector-based ingest:
 ```bash
 uv run knoar ingest --write
 uv run knoar ingest --connector markdown --write
+uv run knoar ingest --vault-id personal --connector markdown --write
 ```
 
 One-off file or folder ingest. Markdown files run directly; non-Markdown files
@@ -154,6 +155,7 @@ Recovery from a failed or partially failed ingest run:
 
 ```bash
 uv run knoar ingest --recover-run-id RUN_ID --write
+uv run knoar ingest --vault-id personal --recover-run-id RUN_ID --write
 ```
 
 `ingest` is a long-running command. Human-readable CLI output follows the local
@@ -161,12 +163,17 @@ run queue by default and prints progress events plus heartbeat lines. Use
 `--json` for a pure machine-readable response, or `--no-follow` when you
 explicitly want synchronous summary output.
 
+When multiple vaults are configured, ingest writes to one vault per command. Use
+`--vault-id <id>` to select a configured vault, or `--vault /path/to/wiki` for an
+explicit vault path.
+
 ### `lint`
 
 Run the unified lint maintenance workflow.
 
 ```bash
 uv run knoar lint
+uv run knoar lint --vault-id personal
 uv run knoar lint --mode deterministic
 uv run knoar lint --mode structural
 uv run knoar lint --mode quality
@@ -188,6 +195,10 @@ occasional deep audits.
 Like ingest, `lint` follows progress by default for human-readable output. Use
 `--json` for machine-readable output or `--no-follow` for synchronous summary
 output.
+
+When multiple vaults are configured, lint maintains one vault per command. Use
+`--vault-id <id>` to select a configured vault, or `--vault /path/to/wiki` for an
+explicit vault path.
 
 ### `query`
 

@@ -472,6 +472,70 @@ class SkillQueryHelperTests(unittest.TestCase):
         self.assertIn("all_vaults=true", url)
         self.assertIn("config_path=%2Ftmp%2Fconfig.yaml", url)
 
+    def test_ingest_command_sends_vault_id(self) -> None:
+        helper = load_query_helper()
+        runtime = helper.Runtime(
+            base_url="http://127.0.0.1:8123",
+            vault_path="/tmp/team-wiki",
+            config_path=Path("/tmp/config.yaml"),
+            timeout=1,
+            output_format="json",
+            vault_id="team",
+            vault_name="Team",
+        )
+        args = argparse.Namespace(
+            ingest_command="connector",
+            execution="queued",
+            write=True,
+            write_report=True,
+            append_ledger=True,
+            provider=None,
+            max_tokens=None,
+            all=True,
+            names=[],
+        )
+
+        with patch.object(helper, "_post_json", return_value={"flow": "ingest", "status": "queued"}) as post_json, redirect_stdout(io.StringIO()):
+            exit_code = helper._cmd_ingest(args, runtime)
+
+        self.assertEqual(exit_code, 0)
+        payload = post_json.call_args.args[1]
+        self.assertEqual(payload["vault_id"], "team")
+        self.assertEqual(payload["vault_path"], "/tmp/team-wiki")
+
+    def test_lint_command_sends_vault_id(self) -> None:
+        helper = load_query_helper()
+        runtime = helper.Runtime(
+            base_url="http://127.0.0.1:8123",
+            vault_path="/tmp/team-wiki",
+            config_path=Path("/tmp/config.yaml"),
+            timeout=1,
+            output_format="json",
+            vault_id="team",
+            vault_name="Team",
+        )
+        args = argparse.Namespace(
+            execution="queued",
+            write=True,
+            write_report=True,
+            append_ledger=True,
+            provider=None,
+            max_tokens=None,
+            mode="semantic_structural",
+            profile="standard",
+            apply_safe_fixes=True,
+            auto_apply_reviewed=True,
+            scope_pages=[],
+        )
+
+        with patch.object(helper, "_post_json", return_value={"flow": "lint", "status": "queued"}) as post_json, redirect_stdout(io.StringIO()):
+            exit_code = helper._cmd_lint(args, runtime)
+
+        self.assertEqual(exit_code, 0)
+        payload = post_json.call_args.args[1]
+        self.assertEqual(payload["vault_id"], "team")
+        self.assertEqual(payload["vault_path"], "/tmp/team-wiki")
+
     def test_auto_query_settings_keep_compact_by_default(self) -> None:
         helper = load_query_helper()
         settings = helper._query_settings(

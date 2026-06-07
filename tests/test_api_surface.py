@@ -435,6 +435,108 @@ connectors: {{}}
         self.assertEqual({run["vault_id"] for run in runs}, {"personal", "team"})
         self.assertEqual(runs[0]["run_id"], "20260604_team")
 
+    def test_lint_endpoint_accepts_vault_id_without_vault_path(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            personal = root / "personal-wiki"
+            team = root / "team-wiki"
+            personal.mkdir()
+            (team / "concepts").mkdir(parents=True)
+            (team / "concepts" / "Team-Agent.md").write_text("# Team Agent\n\n## Source\n\nraw/team.md\n", encoding="utf-8")
+            config_path = root / "config.yaml"
+            config_path.write_text(
+                f"""
+vaults:
+  default: personal
+  profiles:
+    personal:
+      name: Personal
+      path: {personal}
+    team:
+      name: Team
+      path: {team}
+models:
+  providers: {{}}
+connectors: {{}}
+""",
+                encoding="utf-8",
+            )
+            client = TestClient(create_app())
+            response = client.post(
+                "/lint",
+                json={
+                    "execution": "direct",
+                    "config_path": str(config_path),
+                    "vault_id": "team",
+                    "mode": "deterministic",
+                    "write_report": False,
+                    "append_ledger": False,
+                    "scope": {
+                        "scope_id": "test:team",
+                        "trigger": "manual",
+                        "source": {"kind": "test"},
+                        "changed_pages": [],
+                        "recommended_lint_modes": ["deterministic"],
+                        "reason": "Exercise vault_id lint selection.",
+                    },
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["flow"], "lint")
+        self.assertEqual(payload["execution"], "direct")
+        self.assertEqual(payload["result"]["deterministic_lint"]["stats"]["page_count"], 1)
+
+    def test_queued_ingest_uses_selected_vault_for_run_record(self) -> None:
+        import tempfile
+        import time
+
+        from knoarbor.core.schemas.ingest_run import IngestRunRequest
+        from knoarbor.runtime.run_monitor import read_run
+        from knoarbor.services.run_manager import RunManager
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            personal = root / "personal-wiki"
+            team = root / "team-wiki"
+            personal.mkdir()
+            team.mkdir()
+            config_path = root / "config.yaml"
+            config_path.write_text(
+                f"""
+vaults:
+  default: personal
+  profiles:
+    personal:
+      name: Personal
+      path: {personal}
+    team:
+      name: Team
+      path: {team}
+models:
+  providers: {{}}
+connectors: {{}}
+""",
+                encoding="utf-8",
+            )
+
+            started = RunManager().start_ingest(
+                IngestRunRequest(config_path=str(config_path), vault_id="team", write=False),
+                lambda request: {"ok": True, "vault_id": request.vault_id},
+            )
+
+            self.assertTrue((team / ".knoarbor" / "runs" / f"{started.run_id}.json").exists())
+            self.assertFalse((personal / ".knoarbor" / "runs" / f"{started.run_id}.json").exists())
+            for _ in range(20):
+                record = read_run(team, started.run_id)
+                if record.status == "completed":
+                    break
+                time.sleep(0.05)
+            self.assertEqual(record.status, "completed")
+
     def test_query_endpoint_returns_context_pack(self) -> None:
         import tempfile
 

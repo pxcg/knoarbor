@@ -10,6 +10,7 @@ from knoarbor.core.schemas.wiki_lint import LintRunRequest, WikiLintCandidateSel
 from knoarbor.core.schemas.wiki_query import WikiQueryFeedbackRequest, WikiSearchRequest
 from knoarbor.core.schemas.ingest_run import IngestFileRunRequest, IngestFolderRunRequest, IngestRecoveryRunRequest, IngestRunRequest
 from knoarbor.core.schemas.sources import SourceDocument
+from knoarbor.core.vaults import select_config_vault
 from knoarbor.pipelines.source import SourcePipeline
 from knoarbor.pipelines.ingest import IngestPipeline
 from knoarbor.pipelines.ingest_context import IngestContextProvider
@@ -429,6 +430,7 @@ def run_lint_run(args: argparse.Namespace) -> int:
     internal_mode = normalize_lint_run_mode(args.mode)
     request = LintRunRequest(
         obsidian_vault_path=str(vault_path),
+        vault_id=args.vault_id,
         scope=scope,
         mode=internal_mode,
         profile=args.profile,
@@ -550,6 +552,8 @@ def _as_list(value: object) -> list[object]:
 
 def run_ingest(args: argparse.Namespace) -> int:
     config = resolve_config(args)
+    vault_path = resolve_vault_path(args, config)
+    config = select_config_vault(config, vault_path=str(vault_path), vault_id=args.vault_id)
     if getattr(args, "recover_run_id", None):
         return _run_ingest_recovery_from_args(args, config, args.recover_run_id)
     if getattr(args, "source_document", None):
@@ -560,6 +564,8 @@ def run_ingest(args: argparse.Namespace) -> int:
     if _should_follow(args):
         request = IngestRunRequest(
             config_path=args.config,
+            vault_path=str(vault_path),
+            vault_id=args.vault_id,
             connector_names=args.connectors,
             provider=args.provider,
             max_tokens=args.max_tokens or config.models.default_max_tokens,
@@ -570,9 +576,9 @@ def run_ingest(args: argparse.Namespace) -> int:
         started = RunManager().start_ingest(request, IngestService().run)
         stream = sys.stderr if args.json else sys.stdout
         print(f"run_id: {started.run_id}", file=stream, flush=True)
-        exit_code = follow_run_events(config.vault.path, started.run_id, stream=stream)
+        exit_code = follow_run_events(vault_path, started.run_id, stream=stream)
         if args.json:
-            print_json(read_run(config.vault.path, started.run_id).model_dump())
+            print_json(read_run(vault_path, started.run_id).model_dump())
         return exit_code
 
     result = build_ingest_pipeline(args, config).run(
@@ -679,9 +685,12 @@ def run_ingest_path(args: argparse.Namespace) -> int:
 
 def run_ingest_file(args: argparse.Namespace) -> int:
     config = resolve_config(args)
+    vault_path = resolve_vault_path(args, config)
     request = IngestFileRunRequest(
         input_path=args.input,
         config_path=args.config,
+        vault_path=str(vault_path),
+        vault_id=args.vault_id,
         provider=args.provider,
         max_tokens=args.max_tokens or config.models.default_max_tokens,
         write=args.write,
@@ -692,9 +701,9 @@ def run_ingest_file(args: argparse.Namespace) -> int:
         started = RunManager().start_ingest_file(request, IngestService().run_file)
         stream = sys.stderr if args.json else sys.stdout
         print(f"run_id: {started.run_id}", file=stream, flush=True)
-        exit_code = follow_run_events(config.vault.path, started.run_id, stream=stream)
+        exit_code = follow_run_events(vault_path, started.run_id, stream=stream)
         if args.json:
-            print_json(read_run(config.vault.path, started.run_id).model_dump())
+            print_json(read_run(vault_path, started.run_id).model_dump())
         return exit_code
 
     result = IngestService().run_file(
@@ -727,9 +736,12 @@ def run_ingest_file(args: argparse.Namespace) -> int:
 
 def run_ingest_folder(args: argparse.Namespace) -> int:
     config = resolve_config(args)
+    vault_path = resolve_vault_path(args, config)
     request = IngestFolderRunRequest(
         input_path=args.input,
         config_path=args.config,
+        vault_path=str(vault_path),
+        vault_id=args.vault_id,
         provider=args.provider,
         max_tokens=args.max_tokens or config.models.default_max_tokens,
         write=args.write,
@@ -740,9 +752,9 @@ def run_ingest_folder(args: argparse.Namespace) -> int:
         started = RunManager().start_ingest_folder(request, IngestService().run_folder)
         stream = sys.stderr if args.json else sys.stdout
         print(f"run_id: {started.run_id}", file=stream, flush=True)
-        exit_code = follow_run_events(config.vault.path, started.run_id, stream=stream)
+        exit_code = follow_run_events(vault_path, started.run_id, stream=stream)
         if args.json:
-            print_json(read_run(config.vault.path, started.run_id).model_dump())
+            print_json(read_run(vault_path, started.run_id).model_dump())
         return exit_code
 
     result = IngestService().run_folder(request)

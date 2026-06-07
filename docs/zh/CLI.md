@@ -87,6 +87,7 @@ uv run knoar sources --connector codex --json --include-content
 ```bash
 uv run knoar ingest --write
 uv run knoar ingest --connector markdown --write
+uv run knoar ingest --vault-id personal --connector markdown --write
 ```
 
 一次性处理文件或文件夹。Markdown 直接进入知识编译；PDF、DOCX、PPTX 等富文档需要先在配置中启用 MinerU-compatible 预处理器：
@@ -111,11 +112,15 @@ uv run knoar ingest --source-document /path/to/source_document.json --write
 
 ```bash
 uv run knoar ingest --recover-run-id RUN_ID --write
+uv run knoar ingest --vault-id personal --recover-run-id RUN_ID --write
 ```
 
 `ingest` 属于长任务。面向人的 CLI 输出默认会进入本地运行队列并跟随进度，
 持续打印事件和心跳状态。需要纯机器可解析输出时使用 `--json`；需要同步摘要
 输出时使用 `--no-follow`。
+
+如果配置了多个知识库，知识编译每次只写入一个知识库。使用
+`--vault-id <id>` 选择已配置知识库，或使用 `--vault /path/to/wiki` 指定路径。
 
 ## 校验维护
 
@@ -123,6 +128,7 @@ uv run knoar ingest --recover-run-id RUN_ID --write
 
 ```bash
 uv run knoar lint
+uv run knoar lint --vault-id personal
 uv run knoar lint --mode deterministic
 uv run knoar lint --mode structural
 uv run knoar lint --mode quality
@@ -138,6 +144,9 @@ uv run knoar lint --mode full --profile deep
 
 `lint` 默认跟随进度；使用 `--json` 输出结构化结果，或用 `--no-follow`
 获取同步摘要。
+
+如果配置了多个知识库，校验维护每次只维护一个知识库。使用
+`--vault-id <id>` 选择已配置知识库，或使用 `--vault /path/to/wiki` 指定路径。
 
 ## 查询
 

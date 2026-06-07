@@ -115,7 +115,7 @@ curl -sS --get "$KNOARBOR_BASE_URL/wiki/pages/links" \
 ```bash
 curl -sS -X POST "$KNOARBOR_BASE_URL/ingest" \
   -H 'Content-Type: application/json' \
-  -d '{"execution":"queued","kind":"connectors","connector_names":["codex"],"write":true,"write_report":true,"append_ledger":true}'
+  -d "{\"execution\":\"queued\",\"kind\":\"connectors\",\"config_path\":\"$KNOARBOR_CONFIG_PATH\",\"vault_id\":\"personal\",\"connector_names\":[\"codex\"],\"write\":true,\"write_report\":true,\"append_ledger\":true}"
 ```
 
 ## Start File Ingest
@@ -123,7 +123,7 @@ curl -sS -X POST "$KNOARBOR_BASE_URL/ingest" \
 ```bash
 curl -sS -X POST "$KNOARBOR_BASE_URL/ingest" \
   -H 'Content-Type: application/json' \
-  -d '{"execution":"queued","kind":"file","input_path":"/absolute/path/to/file.md","write":true,"write_report":true,"append_ledger":true}'
+  -d "{\"execution\":\"queued\",\"kind\":\"file\",\"config_path\":\"$KNOARBOR_CONFIG_PATH\",\"vault_id\":\"personal\",\"input_path\":\"/absolute/path/to/file.md\",\"write\":true,\"write_report\":true,\"append_ledger\":true}"
 ```
 
 ## Start Folder Ingest
@@ -131,7 +131,7 @@ curl -sS -X POST "$KNOARBOR_BASE_URL/ingest" \
 ```bash
 curl -sS -X POST "$KNOARBOR_BASE_URL/ingest" \
   -H 'Content-Type: application/json' \
-  -d "{\"execution\":\"queued\",\"kind\":\"folder\",\"input_path\":\"/absolute/path/to/folder\",\"recursive\":true,\"write\":true,\"write_report\":true,\"append_ledger\":true}"
+  -d "{\"execution\":\"queued\",\"kind\":\"folder\",\"config_path\":\"$KNOARBOR_CONFIG_PATH\",\"vault_id\":\"personal\",\"input_path\":\"/absolute/path/to/folder\",\"recursive\":true,\"write\":true,\"write_report\":true,\"append_ledger\":true}"
 ```
 
 ## Retry Failed Ingest
@@ -139,16 +139,21 @@ curl -sS -X POST "$KNOARBOR_BASE_URL/ingest" \
 ```bash
 curl -sS -X POST "$KNOARBOR_BASE_URL/ingest" \
   -H 'Content-Type: application/json' \
-  -d "{\"execution\":\"queued\",\"kind\":\"recovery\",\"recovery_vault_path\":\"$KNOARBOR_VAULT_PATH\",\"recovery_of_run_id\":\"RUN_ID\",\"write\":true,\"write_report\":true,\"append_ledger\":true}"
+  -d "{\"execution\":\"queued\",\"kind\":\"recovery\",\"config_path\":\"$KNOARBOR_CONFIG_PATH\",\"vault_id\":\"personal\",\"recovery_of_run_id\":\"RUN_ID\",\"write\":true,\"write_report\":true,\"append_ledger\":true}"
 ```
+
+Ingest is a write workflow and targets one vault per request. Use
+`vault_path`, or use `config_path` plus `vault_id` for a configured vault.
 
 ## Run Lint Maintenance
 
 ```bash
 curl -sS -X POST "$KNOARBOR_BASE_URL/lint" \
   -H 'Content-Type: application/json' \
-  -d "{\"execution\":\"queued\",\"vault_path\":\"$KNOARBOR_VAULT_PATH\",\"mode\":\"semantic_structural\",\"profile\":\"standard\",\"apply_safe_fixes\":true,\"auto_apply_reviewed_changes\":true,\"write_report\":true,\"scope\":{\"schema_version\":\"maintenance_scope.v1\",\"scope_id\":\"skill:http\",\"trigger\":\"manual\",\"source\":{\"kind\":\"skill\"},\"changed_pages\":[],\"recommended_lint_modes\":[\"semantic_structural\"],\"reason\":\"Manual maintenance run from KnoArbor skill.\"}}"
+  -d "{\"execution\":\"queued\",\"config_path\":\"$KNOARBOR_CONFIG_PATH\",\"vault_id\":\"personal\",\"mode\":\"semantic_structural\",\"profile\":\"standard\",\"apply_safe_fixes\":true,\"auto_apply_reviewed_changes\":true,\"write_report\":true,\"scope\":{\"schema_version\":\"maintenance_scope.v1\",\"scope_id\":\"skill:http\",\"trigger\":\"manual\",\"source\":{\"kind\":\"skill\"},\"changed_pages\":[],\"recommended_lint_modes\":[\"semantic_structural\"],\"reason\":\"Manual maintenance run from KnoArbor skill.\"}}"
 ```
+
+Lint is also write-capable and targets one vault per request.
 
 ## Reports
 

@@ -314,6 +314,7 @@ def _cmd_page(args: argparse.Namespace, runtime: Runtime) -> int:
 def _cmd_ingest(args: argparse.Namespace, runtime: Runtime) -> int:
     payload = _workflow_payload(args)
     payload["vault_path"] = _require_vault(runtime)
+    payload["vault_id"] = runtime.vault_id
     if args.ingest_command == "connector":
         payload["kind"] = "connectors"
         if not args.all and args.names:
@@ -339,6 +340,7 @@ def _cmd_lint(args: argparse.Namespace, runtime: Runtime) -> int:
     payload.update(
         {
             "vault_path": vault_path,
+            "vault_id": runtime.vault_id,
             "mode": args.mode,
             "profile": args.profile,
             "apply_safe_fixes": args.apply_safe_fixes,

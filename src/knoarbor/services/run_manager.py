@@ -5,6 +5,7 @@ from typing import Any, Callable
 
 from knoarbor.core.config import default_config_path, load_config
 from knoarbor.core.errors import UserInputError
+from knoarbor.core.vaults import select_config_vault
 from knoarbor.core.schemas.ingest_run import (
     IngestDocumentRunRequest,
     IngestFileRunRequest,
@@ -27,15 +28,15 @@ class RunManager:
         self._queue = LocalRunQueue()
 
     def start_ingest(self, request: IngestRunRequest, runner: Callable[[IngestRunRequest], Any]) -> RunStartResponse:
-        config = load_config(request.config_path or default_config_path())
+        config = _request_config(request.config_path, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
         return self._start(config.vault.path, "ingest", request.model_dump(), lambda: runner(request))
 
     def start_ingest_file(self, request: IngestFileRunRequest, runner: Callable[[IngestFileRunRequest], Any]) -> RunStartResponse:
-        config = load_config(request.config_path or default_config_path())
+        config = _request_config(request.config_path, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
         return self._start(config.vault.path, "ingest", request.model_dump(), lambda: runner(request))
 
     def start_ingest_folder(self, request: IngestFolderRunRequest, runner: Callable[[IngestFolderRunRequest], Any]) -> RunStartResponse:
-        config = load_config(request.config_path or default_config_path())
+        config = _request_config(request.config_path, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
         return self._start(config.vault.path, "ingest", request.model_dump(), lambda: runner(request))
 
     def start_ingest_document(
@@ -43,9 +44,8 @@ class RunManager:
         request: IngestDocumentRunRequest,
         runner: Callable[[IngestDocumentRunRequest], Any],
     ) -> RunStartResponse:
-        config = load_config(request.config_path or default_config_path())
-        vault_path = Path(request.obsidian_vault_path).expanduser().resolve() if request.obsidian_vault_path else config.vault.path
-        return self._start(vault_path, "ingest", request.model_dump(), lambda: runner(request))
+        config = _request_config(request.config_path, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
+        return self._start(config.vault.path, "ingest", request.model_dump(), lambda: runner(request))
 
     def start_ingest_recovery(
         self,
@@ -76,6 +76,7 @@ class RunManager:
                 input_path=str(metadata["input_path"]),
                 recursive=bool(metadata.get("recursive", True)),
                 config_path=config_path,
+                vault_path=str(vault_path),
                 provider=provider,
                 max_tokens=max_tokens,
                 write=write,
@@ -83,12 +84,13 @@ class RunManager:
                 append_ledger=append_ledger,
                 recovery_of_run_id=run_id,
             )
-            config = load_config(recovery_request.config_path or default_config_path())
+            config = _request_config(recovery_request.config_path, vault_path=str(vault_path))
             return self._start(config.vault.path, "ingest", recovery_request.model_dump(), lambda: ingest_folder_runner(recovery_request))
         if isinstance(metadata.get("input_path"), str):
             recovery_request = IngestFileRunRequest(
                 input_path=str(metadata["input_path"]),
                 config_path=config_path,
+                vault_path=str(vault_path),
                 provider=provider,
                 max_tokens=max_tokens,
                 write=write,
@@ -96,11 +98,12 @@ class RunManager:
                 append_ledger=append_ledger,
                 recovery_of_run_id=run_id,
             )
-            config = load_config(recovery_request.config_path or default_config_path())
+            config = _request_config(recovery_request.config_path, vault_path=str(vault_path))
             return self._start(config.vault.path, "ingest", recovery_request.model_dump(), lambda: ingest_file_runner(recovery_request))
 
         recovery_request = IngestRunRequest(
             config_path=config_path,
+            vault_path=str(vault_path),
             connector_names=_metadata_str_list(metadata.get("connector_names")),
             provider=provider,
             max_tokens=max_tokens,
@@ -109,11 +112,13 @@ class RunManager:
             append_ledger=append_ledger,
             recovery_of_run_id=run_id,
         )
-        config = load_config(recovery_request.config_path or default_config_path())
+        config = _request_config(recovery_request.config_path, vault_path=str(vault_path))
         return self._start(config.vault.path, "ingest", recovery_request.model_dump(), lambda: ingest_runner(recovery_request))
 
     def start_lint(self, request: LintRunRequest, runner: Callable[[LintRunRequest], Any]) -> RunStartResponse:
-        return self._start(Path(request.obsidian_vault_path).expanduser().resolve(), "lint", request.model_dump(), lambda: runner(request))
+        vault_path = _request_vault_path_for_start(request.config_path, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
+        request = request.model_copy(update={"obsidian_vault_path": str(vault_path)})
+        return self._start(vault_path, "lint", request.model_dump(), lambda: runner(request))
 
     def start_query(self, request: WikiSearchRequest, runner: Callable[[WikiSearchRequest], Any]) -> RunStartResponse:
         return self._start(Path(request.obsidian_vault_path).expanduser().resolve(), "query", request.model_dump(), lambda: runner(request))
@@ -166,3 +171,14 @@ def _metadata_str_list(value: object) -> list[str] | None:
         return None
     items = [str(item) for item in value if isinstance(item, str) and item]
     return items or None
+
+
+def _request_config(config_path: str | None, *, vault_path: str | None = None, vault_id: str | None = None):
+    config = load_config(config_path or default_config_path())
+    return select_config_vault(config, vault_path=vault_path, vault_id=vault_id)
+
+
+def _request_vault_path_for_start(config_path: str | None, *, vault_path: str | None = None, vault_id: str | None = None) -> Path:
+    if vault_path:
+        return Path(vault_path).expanduser().resolve()
+    return _request_config(config_path, vault_id=vault_id).vault.path

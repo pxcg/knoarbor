@@ -89,6 +89,7 @@ python3 scripts/knoarbor.py ingest folder /absolute/path/to/folder --no-recursiv
 python3 scripts/knoarbor.py ingest connector codex
 python3 scripts/knoarbor.py ingest connector codex claude_code
 python3 scripts/knoarbor.py ingest connector --all
+python3 scripts/knoarbor.py --vault-id personal ingest connector codex
 python3 scripts/knoarbor.py ingest recovery RUN_ID
 ```
 
@@ -99,6 +100,10 @@ compile, ingest, retry, or update the wiki.
 configuration. Markdown files are ingested directly; non-Markdown files require
 the user's configured document preprocessor.
 
+When the user names a configured knowledge base, pass it with global
+`--vault-id <id>`. Ingest writes to one vault per run; do not use multi-vault
+query flags for write workflows.
+
 ## Lint
 
 ```bash
@@ -107,6 +112,7 @@ python3 scripts/knoarbor.py lint --mode deterministic
 python3 scripts/knoarbor.py lint --mode semantic_structural
 python3 scripts/knoarbor.py lint --mode semantic_full --profile deep
 python3 scripts/knoarbor.py lint --scope-page concepts/Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py --vault-id personal lint --mode semantic_structural
 ```
 
 Use lint when the user asks to check, maintain, repair, or explain wiki quality.
@@ -114,6 +120,9 @@ For "check" or "diagnose" wording, use `--no-apply-safe-fixes
 --no-auto-apply-reviewed` to keep the run read-only. For "fix", "repair", or
 "maintain" wording, use the defaults so safe and reviewed changes can be
 applied.
+
+Like ingest, lint maintains one vault per run. Use global `--vault-id <id>` when
+the user names a configured knowledge base.
 
 ## Runs and Reports
 

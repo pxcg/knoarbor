@@ -14,6 +14,7 @@ from knoarbor.core.schemas.wiki_lint import (
 )
 from knoarbor.core.config import default_config_path, load_config
 from knoarbor.core.errors import UserInputError
+from knoarbor.core.vaults import select_config_vault
 from knoarbor.audit.run_failure import write_run_failure_artifacts
 from knoarbor.pipelines import WikiLintPipeline
 from knoarbor.pipelines.lint import normalize_lint_run_mode
@@ -41,9 +42,10 @@ class WikiLinterService:
     def run_maintenance(self, request: LintRunRequest) -> LintRunResult:
         mode = normalize_lint_run_mode(request.mode)
         request = request.model_copy(update={"mode": mode})
-        configure_runtime_logging(Path(request.obsidian_vault_path))
         try:
             config = load_config(request.config_path or default_config_path())
+            config = select_config_vault(config, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
+            request = request.model_copy(update={"obsidian_vault_path": str(config.vault.path)})
             configure_runtime_logging(config.vault.path)
             if mode == "deterministic":
                 return WikiLintPipeline(privacy_config=config.privacy).run_maintenance(request)
@@ -73,7 +75,11 @@ class WikiLinterService:
         if not request.write_report and not request.append_ledger:
             return
         try:
-            vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
+            if request.obsidian_vault_path:
+                vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
+            else:
+                config = load_config(request.config_path or default_config_path())
+                vault_path = select_config_vault(config, vault_id=request.vault_id).vault.path
             monitor = current_run_monitor()
             write_run_failure_artifacts(
                 vault_path,

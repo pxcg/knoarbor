@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from knoarbor.core.schemas.execution import WorkflowResponse
 from knoarbor.core.schemas.ingest_run import IngestRecoveryRunRequest, UnifiedIngestRequest
+from knoarbor.entrypoints.vault_selection import resolve_single_vault
 from knoarbor.services import ApplicationServices
 
 
@@ -13,12 +14,11 @@ def create_ingest_router(services: ApplicationServices) -> APIRouter:
     @router.post("/ingest", response_model=WorkflowResponse, tags=["ingest"])
     async def run_ingest(request: UnifiedIngestRequest) -> WorkflowResponse:
         if request.kind == "recovery":
-            recovery_vault_path = request.recovery_vault_path or request.obsidian_vault_path
+            recovery_vault = resolve_single_vault(request.recovery_vault_path or request.obsidian_vault_path, request.vault_id, request.config_path)
             recovery_run_id = request.recovery_of_run_id
-            assert recovery_vault_path is not None
             assert recovery_run_id is not None
             started = services.runs.start_ingest_recovery(
-                recovery_vault_path,
+                str(recovery_vault.path),
                 recovery_run_id,
                 IngestRecoveryRunRequest(
                     config_path=request.config_path,

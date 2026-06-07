@@ -68,7 +68,8 @@ class LintRunRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     execution: WorkflowExecutionMode = "queued"
-    obsidian_vault_path: str = Field(..., alias="vault_path", min_length=1)
+    obsidian_vault_path: str | None = Field(default=None, alias="vault_path", min_length=1)
+    vault_id: str | None = None
     config_path: str | None = None
     provider: str | None = None
     scope: MaintenanceScope

@@ -5,6 +5,7 @@ from pathlib import Path
 from knoarbor.connectors.base import ConnectorConfig
 from knoarbor.core.config import KnoArborConfig, default_config_path, load_config
 from knoarbor.core.errors import UserInputError
+from knoarbor.core.vaults import select_config_vault
 from knoarbor.core.schemas.ingest_run import (
     IngestDocumentRunRequest,
     IngestFileRunRequest,
@@ -36,7 +37,7 @@ class IngestService:
     def run(self, request: IngestRunRequest) -> IngestPipelineResult:
         config: KnoArborConfig | None = None
         try:
-            config = _load_runtime_config(request.config_path)
+            config = _load_runtime_config(request.config_path, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
             pipeline = _build_ingest_pipeline(config, request.provider)
             return pipeline.run(
                 config,
@@ -53,8 +54,8 @@ class IngestService:
     def run_document(self, request: IngestDocumentRunRequest) -> IngestSourceResult:
         config: KnoArborConfig | None = None
         try:
-            config = _load_runtime_config(request.config_path)
-            vault_path = Path(request.obsidian_vault_path).expanduser().resolve() if request.obsidian_vault_path else config.vault.path
+            config = _load_runtime_config(request.config_path, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
+            vault_path = config.vault.path
             pipeline = _build_ingest_pipeline(config, request.provider)
             return pipeline.run_document(
                 request.source_document,
@@ -78,14 +79,13 @@ class IngestService:
                 segmentation_config=config.ingest.segmentation,
             )
         except Exception as exc:
-            explicit_vault = Path(request.obsidian_vault_path).expanduser().resolve() if request.obsidian_vault_path else None
-            _write_failure_artifacts(request, exc, config=config, vault_path=explicit_vault)
+            _write_failure_artifacts(request, exc, config=config)
             raise
 
     def run_file(self, request: IngestFileRunRequest) -> IngestPipelineResult:
         config: KnoArborConfig | None = None
         try:
-            config = _load_runtime_config(request.config_path)
+            config = _load_runtime_config(request.config_path, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
             markdown_path, processing_result = DocumentProcessingPipeline().prepare_input_file(config, Path(request.input_path))
             file_config = _markdown_files_config(config, [markdown_path])
             pipeline = _build_ingest_pipeline(file_config, request.provider)
@@ -105,7 +105,7 @@ class IngestService:
     def run_folder(self, request: IngestFolderRunRequest) -> IngestPipelineResult:
         config: KnoArborConfig | None = None
         try:
-            config = _load_runtime_config(request.config_path)
+            config = _load_runtime_config(request.config_path, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
             markdown_paths, processing_result = DocumentProcessingPipeline().prepare_input_folder(
                 config,
                 Path(request.input_path),
@@ -127,8 +127,9 @@ class IngestService:
             raise
 
 
-def _load_runtime_config(config_path: str | None) -> KnoArborConfig:
+def _load_runtime_config(config_path: str | None, *, vault_path: str | None = None, vault_id: str | None = None) -> KnoArborConfig:
     config = load_config(config_path or default_config_path())
+    config = select_config_vault(config, vault_path=vault_path, vault_id=vault_id)
     configure_runtime_logging(config.vault.path)
     return config
 

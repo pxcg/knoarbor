@@ -182,6 +182,10 @@ POST /ingest
 - `document`：编译一个已经标准化的 `source_document`。
 - `recovery`：重试上一次知识编译中失败的项目。
 
+知识编译是写入流程，每次请求只作用于一个知识库。可以直接传
+`vault_path`，也可以传 `config_path` 加 `vault_id` 来选择已配置知识库。
+它不支持 `all_vaults=true`；如果需要编译多个知识库，应分别启动多个运行。
+
 配置来源：
 
 ```json
@@ -189,6 +193,7 @@ POST /ingest
   "execution": "queued",
   "kind": "connectors",
   "config_path": "./config.yaml",
+  "vault_id": "personal",
   "connector_names": ["markdown"],
   "write": true
 }
@@ -201,6 +206,7 @@ POST /ingest
   "execution": "queued",
   "kind": "file",
   "config_path": "./config.yaml",
+  "vault_id": "personal",
   "input_path": "/path/to/file.pdf",
   "write": true
 }
@@ -213,6 +219,7 @@ POST /ingest
   "execution": "queued",
   "kind": "folder",
   "config_path": "./config.yaml",
+  "vault_id": "personal",
   "input_path": "/path/to/folder",
   "recursive": true,
   "write": true
@@ -228,6 +235,8 @@ POST /ingest
 {
   "execution": "queued",
   "kind": "document",
+  "config_path": "./config.yaml",
+  "vault_id": "personal",
   "source_document": { "schema_version": "source_document.v1" },
   "write": true
 }
@@ -239,7 +248,8 @@ POST /ingest
 {
   "execution": "queued",
   "kind": "recovery",
-  "recovery_vault_path": "/path/to/wiki",
+  "config_path": "./config.yaml",
+  "vault_id": "personal",
   "recovery_of_run_id": "20260525_123456_abcdef",
   "write": true
 }
@@ -262,6 +272,29 @@ POST /lint
 - `semantic_structural`
 - `semantic_quality`
 - `semantic_full`
+
+校验维护同样是可能写入页面的流程，每次请求只作用于一个知识库。
+可以直接传 `vault_path`，也可以传 `config_path` 加 `vault_id` 选择已配置知识库。
+跨知识库汇总请使用 `/reports` 和 `/runs`；真正的维护运行应按知识库分别启动。
+
+示例：
+
+```json
+{
+  "execution": "queued",
+  "config_path": "./config.yaml",
+  "vault_id": "personal",
+  "mode": "semantic_structural",
+  "scope": {
+    "scope_id": "manual:api",
+    "trigger": "manual",
+    "source": { "kind": "api" },
+    "changed_pages": [],
+    "recommended_lint_modes": ["semantic_structural"],
+    "reason": "Manual maintenance run."
+  }
+}
+```
 
 ## 知识查询
 
