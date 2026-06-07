@@ -293,7 +293,7 @@ def _cmd_query(args: argparse.Namespace, runtime: Runtime) -> int:
 def _cmd_page(args: argparse.Namespace, runtime: Runtime) -> int:
     vault_path = _require_vault(runtime)
     if args.page_command == "list":
-        response = _get_json(_url(runtime.base_url, "/wiki/pages", {"vault_path": vault_path}), timeout=runtime.timeout)
+        response = _get_json(_url(runtime.base_url, "/wiki/pages", _vault_query(runtime, {"vault_path": vault_path})), timeout=runtime.timeout)
         pages = response.get("pages", [])
         if args.page_dir:
             pages = [page for page in pages if page.get("directory") == args.page_dir]
@@ -303,16 +303,16 @@ def _cmd_page(args: argparse.Namespace, runtime: Runtime) -> int:
         response = {**response, "pages": pages}
         return _print_or_format(response, runtime, formatter=_format_page_list)
     if args.page_command == "read":
-        response = _get_json(_url(runtime.base_url, "/wiki/pages/content", {"vault_path": vault_path, "path": args.path}), timeout=runtime.timeout)
+        response = _get_json(_url(runtime.base_url, "/wiki/pages/content", _vault_query(runtime, {"vault_path": vault_path, "path": args.path})), timeout=runtime.timeout)
         return _print_or_format(response, runtime, formatter=_format_page_read)
     if args.page_command == "links":
-        response = _get_json(_url(runtime.base_url, "/wiki/pages/links", {"vault_path": vault_path, "path": args.path}), timeout=runtime.timeout)
+        response = _get_json(_url(runtime.base_url, "/wiki/pages/links", _vault_query(runtime, {"vault_path": vault_path, "path": args.path})), timeout=runtime.timeout)
         return _print_or_format(response, runtime, formatter=_format_page_links)
     return 2
 
 
 def _cmd_ingest(args: argparse.Namespace, runtime: Runtime) -> int:
-    payload = _workflow_payload(args)
+    payload = _workflow_payload(args, runtime)
     payload["vault_path"] = _require_vault(runtime)
     payload["vault_id"] = runtime.vault_id
     if args.ingest_command == "connector":
@@ -336,7 +336,7 @@ def _cmd_ingest(args: argparse.Namespace, runtime: Runtime) -> int:
 
 def _cmd_lint(args: argparse.Namespace, runtime: Runtime) -> int:
     vault_path = _require_vault(runtime)
-    payload = _workflow_payload(args)
+    payload = _workflow_payload(args, runtime)
     payload.update(
         {
             "vault_path": vault_path,
@@ -381,16 +381,16 @@ def _cmd_runs(args: argparse.Namespace, runtime: Runtime) -> int:
         return _print_or_format(response, runtime, formatter=_format_runs)
     vault_path = _require_vault(runtime)
     if args.runs_command == "get":
-        response = _get_json(_url(runtime.base_url, f"/runs/{args.run_id}", {"vault_path": vault_path}), timeout=runtime.timeout)
+        response = _get_json(_url(runtime.base_url, f"/runs/{args.run_id}", _vault_query(runtime, {"vault_path": vault_path})), timeout=runtime.timeout)
         return _print_or_format(response, runtime, formatter=_format_run)
     if args.runs_command == "events":
         response = _get_json(
-            _url(runtime.base_url, f"/runs/{args.run_id}/events", {"vault_path": vault_path, "after": args.after, "limit": args.limit}),
+            _url(runtime.base_url, f"/runs/{args.run_id}/events", _vault_query(runtime, {"vault_path": vault_path, "after": args.after, "limit": args.limit})),
             timeout=runtime.timeout,
         )
         return _print_or_format(response, runtime, formatter=_format_run_events)
     if args.runs_command == "cancel":
-        response = _post_json(_url(runtime.base_url, f"/runs/{args.run_id}/cancel", {"vault_path": vault_path}), {}, timeout=runtime.timeout)
+        response = _post_json(_url(runtime.base_url, f"/runs/{args.run_id}/cancel", _vault_query(runtime, {"vault_path": vault_path})), {}, timeout=runtime.timeout)
         return _print_or_format(response, runtime, formatter=_format_run)
     return 2
 
@@ -414,18 +414,29 @@ def _cmd_report(args: argparse.Namespace, runtime: Runtime) -> int:
         return _print_or_format(response, runtime, formatter=_format_reports)
     vault_path = _require_vault(runtime)
     if args.report_command == "read":
-        response = _get_json(_url(runtime.base_url, "/reports/content", {"vault_path": vault_path, "path": args.path}), timeout=runtime.timeout)
+        response = _get_json(_url(runtime.base_url, "/reports/content", _vault_query(runtime, {"vault_path": vault_path, "path": args.path})), timeout=runtime.timeout)
         return _print_or_format(response, runtime, formatter=_format_report)
     return 2
 
 
-def _workflow_payload(args: argparse.Namespace) -> dict[str, Any]:
+def _vault_query(runtime: Runtime, query: dict[str, Any]) -> dict[str, Any]:
+    payload = dict(query)
+    if runtime.vault_id:
+        payload["vault_id"] = runtime.vault_id
+    if runtime.config_path:
+        payload["config_path"] = str(runtime.config_path)
+    return payload
+
+
+def _workflow_payload(args: argparse.Namespace, runtime: Runtime) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "execution": args.execution,
         "write": args.write,
         "write_report": args.write_report,
         "append_ledger": args.append_ledger,
     }
+    if runtime.config_path:
+        payload["config_path"] = str(runtime.config_path)
     if args.provider:
         payload["provider"] = args.provider
     if args.max_tokens:

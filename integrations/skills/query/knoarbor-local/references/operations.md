@@ -16,6 +16,34 @@ indexes are managed by the KnoArbor service.
 The helper needs Python 3.9 or newer. If Python is unavailable, use the direct
 HTTP examples in `references/http-api.md`.
 
+## Natural Language To Command
+
+Use these examples to map user phrasing to the smallest useful operation:
+
+| User request | Command pattern |
+| --- | --- |
+| "我的 wiki 里有 Agent Loop 吗？" | `python3 scripts/knoarbor.py query "Agent Loop"` |
+| "用我的本地知识库解释 Agent Loop" | `python3 scripts/knoarbor.py query "Agent Loop 是什么"` |
+| "深入一点，比较 Agent Loop 和控制模式" | `python3 scripts/knoarbor.py query "Agent Loop 控制模式比较" --mode deep --max-results 8` |
+| "列出 Agent Loop 相关页面" | `python3 scripts/knoarbor.py page list --contains "Agent Loop"` |
+| "打开刚才那个页面全文" | `python3 scripts/knoarbor.py --vault-id <result.vault_id> page read <result.path>` |
+| "这个页面有哪些关联？" | `python3 scripts/knoarbor.py --vault-id <result.vault_id> page links <result.path>` |
+| "在所有知识库里查 iOS 音频检测" | `python3 scripts/knoarbor.py query "iOS 音频检测" --all-vaults` |
+| "只查学习知识库和工程知识库" | `python3 scripts/knoarbor.py query "主题" --query-vault-id rag-llm-learning --query-vault-id agent-engineering` |
+| "把这个 Markdown 文件加入知识库" | `python3 scripts/knoarbor.py ingest file /absolute/path/to/file.md` |
+| "编译这个资料文件夹" | `python3 scripts/knoarbor.py ingest folder /absolute/path/to/folder` |
+| "同步 Codex/Claude 聊天记录" | `python3 scripts/knoarbor.py ingest connector codex claude_code` |
+| "检查知识库有没有问题，不要修改" | `python3 scripts/knoarbor.py lint --mode deterministic --no-apply-safe-fixes --no-auto-apply-reviewed` |
+| "自动维护这个知识库" | `python3 scripts/knoarbor.py lint --mode semantic_structural` |
+| "刚才运行到哪了？" | `python3 scripts/knoarbor.py runs list` then `python3 scripts/knoarbor.py runs get RUN_ID` |
+| "为什么失败？看报告" | `python3 scripts/knoarbor.py report list` then `python3 scripts/knoarbor.py report read <report.path>` |
+| "重试失败的 ingest" | `python3 scripts/knoarbor.py ingest recovery RUN_ID` |
+| "KnoArbor 配好了吗？" | `python3 scripts/knoarbor.py doctor` |
+
+For write workflows, include global `--vault-id <id>` when the user names a
+configured knowledge base. Query may span multiple vaults; ingest and lint write
+to one vault per run.
+
 ## Query
 
 ```bash

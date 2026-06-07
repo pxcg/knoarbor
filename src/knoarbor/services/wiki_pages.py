@@ -26,6 +26,8 @@ class WikiPageSummary(BaseModel):
 
 class WikiPagesResponse(BaseModel):
     vault_path: str
+    vault_id: str | None = None
+    vault_name: str | None = None
     pages: list[WikiPageSummary] = Field(default_factory=list)
 
 
@@ -38,12 +40,18 @@ class WikiPageLink(BaseModel):
 
 class WikiPageBacklinksResponse(BaseModel):
     path: str
+    vault_path: str | None = None
+    vault_id: str | None = None
+    vault_name: str | None = None
     outbound_links: list[WikiPageLink] = Field(default_factory=list)
     backlinks: list[WikiPageLink] = Field(default_factory=list)
 
 
 class WikiPageDetail(BaseModel):
     path: str
+    vault_path: str | None = None
+    vault_id: str | None = None
+    vault_name: str | None = None
     content: str
     metadata: dict[str, str] = Field(default_factory=dict)
     summary: WikiPageSummary
@@ -54,20 +62,23 @@ class WikiPageDetail(BaseModel):
 class WikiPageService:
     """Read maintained wiki pages through the machine index boundary."""
 
-    def list_pages(self, vault_path: Path) -> WikiPagesResponse:
+    def list_pages(self, vault_path: Path, *, vault_id: str | None = None, vault_name: str | None = None) -> WikiPagesResponse:
         vault = _resolve_vault(vault_path)
         if not vault.exists():
-            return WikiPagesResponse(vault_path=str(vault), pages=[])
+            return WikiPagesResponse(vault_path=str(vault), vault_id=vault_id, vault_name=vault_name, pages=[])
         records = _page_records(vault)
-        return WikiPagesResponse(vault_path=str(vault), pages=[_summary_from_record(record) for record in records])
+        return WikiPagesResponse(vault_path=str(vault), vault_id=vault_id, vault_name=vault_name, pages=[_summary_from_record(record) for record in records])
 
-    def read_page(self, vault_path: Path, relative_path: str) -> WikiPageDetail:
+    def read_page(self, vault_path: Path, relative_path: str, *, vault_id: str | None = None, vault_name: str | None = None) -> WikiPageDetail:
         vault = _resolve_vault(vault_path)
         page_path = _resolve_vault_file(vault, relative_path)
         content = page_path.read_text(encoding="utf-8")
-        links = self.page_links(vault, page_path.relative_to(vault).as_posix())
+        links = self.page_links(vault, page_path.relative_to(vault).as_posix(), vault_id=vault_id, vault_name=vault_name)
         return WikiPageDetail(
             path=page_path.relative_to(vault).as_posix(),
+            vault_path=str(vault),
+            vault_id=vault_id,
+            vault_name=vault_name,
             content=content,
             metadata=parse_frontmatter(content),
             summary=_summary_from_content(vault, page_path, content),
@@ -75,7 +86,7 @@ class WikiPageService:
             backlinks=links.backlinks,
         )
 
-    def page_links(self, vault_path: Path, relative_path: str) -> WikiPageBacklinksResponse:
+    def page_links(self, vault_path: Path, relative_path: str, *, vault_id: str | None = None, vault_name: str | None = None) -> WikiPageBacklinksResponse:
         vault = _resolve_vault(vault_path)
         links = _link_records(vault)
         outbound = _unique_links(
@@ -86,7 +97,7 @@ class WikiPageService:
             (link for link in links if link.target_path == relative_path and link.source != relative_path),
             key=lambda link: link.source,
         )
-        return WikiPageBacklinksResponse(path=relative_path, outbound_links=outbound, backlinks=backlinks)
+        return WikiPageBacklinksResponse(path=relative_path, vault_path=str(vault), vault_id=vault_id, vault_name=vault_name, outbound_links=outbound, backlinks=backlinks)
 
 
 def _resolve_vault(vault_path: Path) -> Path:

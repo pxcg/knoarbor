@@ -528,6 +528,9 @@ connectors: {{}}
                 lambda request: {"ok": True, "vault_id": request.vault_id},
             )
 
+            self.assertEqual(started.run.vault_id, "team")
+            self.assertEqual(started.run.vault_name, "Team")
+            self.assertEqual(started.run.vault_path, str(team.resolve()))
             self.assertTrue((team / ".knoarbor" / "runs" / f"{started.run_id}.json").exists())
             self.assertFalse((personal / ".knoarbor" / "runs" / f"{started.run_id}.json").exists())
             for _ in range(20):
@@ -536,6 +539,63 @@ connectors: {{}}
                     break
                 time.sleep(0.05)
             self.assertEqual(record.status, "completed")
+
+    def test_queued_lint_response_includes_selected_vault_metadata(self) -> None:
+        import tempfile
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            personal = root / "personal-wiki"
+            team = root / "team-wiki"
+            personal.mkdir()
+            team.mkdir()
+            config_path = root / "config.yaml"
+            config_path.write_text(
+                f"""
+vaults:
+  default: personal
+  profiles:
+    personal:
+      name: Personal
+      path: {personal}
+    team:
+      name: Team
+      path: {team}
+models:
+  providers: {{}}
+connectors: {{}}
+""",
+                encoding="utf-8",
+            )
+            client = TestClient(create_app())
+            with patch("knoarbor.services.run_manager.LocalRunQueue.submit", return_value=None):
+                response = client.post(
+                    "/lint",
+                    json={
+                        "execution": "queued",
+                        "config_path": str(config_path),
+                        "vault_id": "team",
+                        "mode": "deterministic",
+                        "write_report": False,
+                        "append_ledger": False,
+                        "scope": {
+                            "scope_id": "test:team",
+                            "trigger": "manual",
+                            "source": {"kind": "test"},
+                            "changed_pages": [],
+                            "recommended_lint_modes": ["deterministic"],
+                            "reason": "Exercise queued vault metadata.",
+                        },
+                    },
+                )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["execution"], "queued")
+        self.assertEqual(payload["run"]["vault_id"], "team")
+        self.assertEqual(payload["run"]["vault_name"], "Team")
+        self.assertEqual(payload["run"]["vault_path"], str(team.resolve()))
 
     def test_query_endpoint_returns_context_pack(self) -> None:
         import tempfile
@@ -686,12 +746,20 @@ connectors: {{}}
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["vault_path"], str(archive_vault.resolve()))
+        self.assertEqual(payload["vault_id"], "archive")
+        self.assertEqual(payload["vault_name"], "Archive")
         self.assertEqual({page["path"] for page in payload["pages"]}, {"entities/Archive.md", "concepts/Archive-Concept.md"})
         self.assertEqual(content_response.status_code, 200)
-        self.assertEqual(content_response.json()["path"], "concepts/Archive-Concept.md")
-        self.assertIn("See [[entities/Archive|Archive]]", content_response.json()["content"])
+        content_payload = content_response.json()
+        self.assertEqual(content_payload["path"], "concepts/Archive-Concept.md")
+        self.assertEqual(content_payload["vault_id"], "archive")
+        self.assertEqual(content_payload["vault_name"], "Archive")
+        self.assertIn("See [[entities/Archive|Archive]]", content_payload["content"])
         self.assertEqual(links_response.status_code, 200)
-        self.assertEqual(links_response.json()["outbound_links"][0]["target_path"], "entities/Archive.md")
+        links_payload = links_response.json()
+        self.assertEqual(links_payload["vault_id"], "archive")
+        self.assertEqual(links_payload["vault_name"], "Archive")
+        self.assertEqual(links_payload["outbound_links"][0]["target_path"], "entities/Archive.md")
 
     def test_http_exception_uses_public_error_envelope(self) -> None:
         import tempfile

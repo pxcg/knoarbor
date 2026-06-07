@@ -408,6 +408,8 @@ class SkillQueryHelperTests(unittest.TestCase):
         url = get_json.call_args.args[0]
         self.assertIn("/wiki/pages/content", url)
         self.assertIn("vault_path=%2Ftmp%2Fteam-wiki", url)
+        self.assertIn("vault_id=team", url)
+        self.assertIn("config_path=%2Ftmp%2Fconfig.yaml", url)
         self.assertIn("path=concepts%2FAgent-Loop.md", url)
 
     def test_page_links_uses_resolved_vault_path_from_requested_vault_id(self) -> None:
@@ -430,6 +432,8 @@ class SkillQueryHelperTests(unittest.TestCase):
         url = get_json.call_args.args[0]
         self.assertIn("/wiki/pages/links", url)
         self.assertIn("vault_path=%2Ftmp%2Fteam-wiki", url)
+        self.assertIn("vault_id=team", url)
+        self.assertIn("config_path=%2Ftmp%2Fconfig.yaml", url)
         self.assertIn("path=concepts%2FAgent-Loop.md", url)
 
     def test_runs_list_can_search_all_vaults(self) -> None:
@@ -502,6 +506,7 @@ class SkillQueryHelperTests(unittest.TestCase):
         payload = post_json.call_args.args[1]
         self.assertEqual(payload["vault_id"], "team")
         self.assertEqual(payload["vault_path"], "/tmp/team-wiki")
+        self.assertEqual(payload["config_path"], "/tmp/config.yaml")
 
     def test_lint_command_sends_vault_id(self) -> None:
         helper = load_query_helper()
@@ -535,6 +540,7 @@ class SkillQueryHelperTests(unittest.TestCase):
         payload = post_json.call_args.args[1]
         self.assertEqual(payload["vault_id"], "team")
         self.assertEqual(payload["vault_path"], "/tmp/team-wiki")
+        self.assertEqual(payload["config_path"], "/tmp/config.yaml")
 
     def test_auto_query_settings_keep_compact_by_default(self) -> None:
         helper = load_query_helper()
