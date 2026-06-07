@@ -37,6 +37,27 @@ class VaultConfig(BaseModel):
         return value.expanduser()
 
 
+class VaultProfileConfig(BaseModel):
+    name: str
+    path: Path
+
+    @field_validator("path")
+    @classmethod
+    def expand_path(cls, value: Path) -> Path:
+        return value.expanduser()
+
+
+class VaultsConfig(BaseModel):
+    default: str = "default"
+    profiles: dict[str, VaultProfileConfig] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_default_profile(self) -> "VaultsConfig":
+        if self.profiles and self.default not in self.profiles:
+            raise ValueError("vaults.default must reference an item in vaults.profiles")
+        return self
+
+
 class ServerConfig(BaseModel):
     host: str = "127.0.0.1"
     port: int = Field(default=8000, ge=1, le=65535)
@@ -189,6 +210,7 @@ class KnoArborConfig(BaseModel):
     config_version: Literal[1] = SUPPORTED_CONFIG_VERSION
     project: ProjectConfig = Field(default_factory=ProjectConfig)
     vault: VaultConfig
+    vaults: VaultsConfig = Field(default_factory=VaultsConfig)
     server: ServerConfig = Field(default_factory=ServerConfig)
     models: ModelsConfig = Field(default_factory=ModelsConfig)
     document_processing: DocumentProcessingConfig = Field(default_factory=DocumentProcessingConfig)
@@ -198,8 +220,38 @@ class KnoArborConfig(BaseModel):
     lint: LintConfig = Field(default_factory=LintConfig)
     privacy: PrivacyConfig = Field(default_factory=PrivacyConfig)
 
+    @model_validator(mode="after")
+    def align_active_vault(self) -> "KnoArborConfig":
+        if self.vaults.profiles:
+            active = self.vaults.profiles[self.vaults.default]
+            self.vault = VaultConfig(path=active.path)
+        elif self.vault.path:
+            self.vaults = VaultsConfig(
+                default="default",
+                profiles={
+                    "default": VaultProfileConfig(
+                        name=self.project.name or "Default",
+                        path=self.vault.path,
+                    )
+                },
+            )
+        return self
+
     def enabled_connectors(self) -> list[str]:
         return [name for name, config in self.connectors.items() if config.enabled]
+
+    def active_vault_id(self) -> str:
+        return self.vaults.default
+
+    def active_vault_name(self) -> str:
+        profile = self.vaults.profiles.get(self.vaults.default)
+        return profile.name if profile else self.project.name
+
+    def vault_profiles_summary(self) -> list[dict[str, str]]:
+        return [
+            {"id": vault_id, "name": profile.name, "path": str(profile.path)}
+            for vault_id, profile in sorted(self.vaults.profiles.items())
+        ]
 
     def validate_runtime_paths(self) -> None:
         if not self.vault.path.exists():
@@ -258,6 +310,7 @@ def migrate_config_data(data: dict[str, Any]) -> dict[str, Any]:
         migrated = migration(migrated)
         version = _parse_config_version(migrated.get("config_version"))
     migrated["config_version"] = SUPPORTED_CONFIG_VERSION
+    migrated = _ensure_vault_contract(migrated)
     return migrated
 
 
@@ -344,11 +397,58 @@ def resolve_config_data_paths(data: dict[str, Any], base_dir: Path) -> dict[str,
         vault = dict(copied["vault"])
         vault["path"] = _resolve_path_value(vault.get("path"), base_dir)
         copied["vault"] = vault
+    if isinstance(copied.get("vaults"), dict):
+        copied["vaults"] = _resolve_vault_profiles(copied["vaults"], base_dir)
     if isinstance(copied.get("connectors"), dict):
         copied["connectors"] = _resolve_connector_paths(copied["connectors"], base_dir)
     if isinstance(copied.get("document_processing"), dict):
         copied["document_processing"] = _resolve_document_processing_paths(copied["document_processing"], base_dir)
     return copied
+
+
+def _ensure_vault_contract(data: dict[str, Any]) -> dict[str, Any]:
+    migrated = dict(data)
+    vault = migrated.get("vault")
+    vaults = migrated.get("vaults")
+    if isinstance(vaults, dict) and isinstance(vaults.get("profiles"), dict) and vaults["profiles"]:
+        default_id = str(vaults.get("default") or "default")
+        profiles = vaults["profiles"]
+        if default_id not in profiles:
+            raise ConfigMigrationError("vaults.default must reference an item in vaults.profiles")
+        active_profile = profiles[default_id]
+        if isinstance(active_profile, dict) and active_profile.get("path"):
+            migrated["vault"] = {"path": active_profile["path"]}
+        return migrated
+    if isinstance(vault, dict) and vault.get("path"):
+        project = migrated.get("project") if isinstance(migrated.get("project"), dict) else {}
+        migrated["vaults"] = {
+            "default": "default",
+            "profiles": {
+                "default": {
+                    "name": str(project.get("name") or "Default"),
+                    "path": vault["path"],
+                }
+            },
+        }
+        return migrated
+    return migrated
+
+
+def _resolve_vault_profiles(vaults: dict[str, Any], base_dir: Path) -> dict[str, Any]:
+    resolved = dict(vaults)
+    profiles = resolved.get("profiles")
+    if isinstance(profiles, dict):
+        next_profiles: dict[str, Any] = {}
+        for vault_id, profile in profiles.items():
+            if not isinstance(profile, dict):
+                next_profiles[vault_id] = profile
+                continue
+            item = dict(profile)
+            if "path" in item:
+                item["path"] = _resolve_path_value(item["path"], base_dir)
+            next_profiles[vault_id] = item
+        resolved["profiles"] = next_profiles
+    return resolved
 
 
 def _resolve_document_processing_paths(document_processing: dict[str, Any], base_dir: Path) -> dict[str, Any]:

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { getPage, type PageDetail, type PageLink, type PageSummary } from "../api/client";
+import { getPage, getPages, type PageDetail, type PageLink, type PageSummary } from "../api/client";
 import type { AppContext } from "../App";
 import { AsyncMarkdownPreview } from "../components/AsyncMarkdownPreview";
 import { DelayedTooltip } from "../components/DelayedTooltip";
@@ -19,28 +19,53 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeVaultPath, setActiveVaultPath] = useState(context.vaultPath);
-  const vaultOptions = useMemo(() => configuredVaultOptions(context), [context.summary.project_name, context.vaultPath]);
+  const [vaultPages, setVaultPages] = useState<PageSummary[]>(context.pages);
+  const [pagesLoading, setPagesLoading] = useState(false);
+  const vaultOptions = useMemo(() => configuredVaultOptions(context), [context.summary.vaults, context.summary.project_name, context.vaultPath]);
 
   const directoryCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const page of context.pages) {
+    for (const page of vaultPages) {
       counts.set(page.directory, (counts.get(page.directory) || 0) + 1);
     }
     return counts;
-  }, [context.pages]);
+  }, [vaultPages]);
 
   const filteredPages = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return context.pages.filter((page) => {
+    return vaultPages.filter((page) => {
       if (directory && page.directory !== directory) return false;
       if (!query) return true;
       return `${page.title} ${page.path} ${page.summary} ${page.tags.join(" ")}`.toLowerCase().includes(query);
     });
-  }, [context.pages, directory, search]);
+  }, [vaultPages, directory, search]);
 
   useEffect(() => {
     setActiveVaultPath(context.vaultPath);
+    setVaultPages(context.pages);
   }, [context.vaultPath]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (activeVaultPath === context.vaultPath) {
+      setVaultPages(context.pages);
+      return;
+    }
+    setPagesLoading(true);
+    getPages(activeVaultPath)
+      .then((response) => {
+        if (!cancelled) setVaultPages(response.pages);
+      })
+      .catch((error) => {
+        if (!cancelled) context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
+      })
+      .finally(() => {
+        if (!cancelled) setPagesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeVaultPath, context.pages, context.setNotice, context.vaultPath]);
 
   useEffect(() => {
     if (focusedPagePath) setSelectedPath(focusedPagePath);
@@ -99,7 +124,7 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
           <div className="wiki-directory-section">
             <button className={`wiki-directory-row ${directory === "" ? "active" : ""}`} onClick={() => setDirectory("")} type="button">
               <span>{context.t("allPages")}</span>
-              <strong>{context.pages.length}</strong>
+              <strong>{vaultPages.length}</strong>
             </button>
             {PAGE_DIRECTORIES.filter((item) => directoryCounts.has(item)).map((item) => (
               <button className={`wiki-directory-row ${directory === item ? "active" : ""}`} key={item} onClick={() => setDirectory(item)} type="button">
@@ -113,7 +138,7 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
         <article className="panel wiki-list-panel">
           <div className="panel-header compact">
             <h2>{context.t("wikiPageList")}</h2>
-            <span className="pill">{filteredPages.length} {context.t("pages")}</span>
+            <span className="pill">{pagesLoading ? context.t("loading") : `${filteredPages.length} ${context.t("pages")}`}</span>
           </div>
           <label className="field compact-field">
             <span>{context.t("search")}</span>
@@ -173,6 +198,10 @@ function WikiPageRow({ page, active, onClick }: { page: PageSummary; active: boo
 }
 
 function configuredVaultOptions(context: AppContext) {
+  const configured = context.summary.vaults?.filter((vault) => vault.path);
+  if (configured?.length) {
+    return configured.map((vault) => ({ name: vault.name || vault.id || lastPathSegment(vault.path), path: vault.path }));
+  }
   const name = context.summary.project_name?.trim() || lastPathSegment(context.vaultPath) || "KnoArbor";
   return [{ name, path: context.vaultPath }];
 }

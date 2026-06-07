@@ -1,7 +1,7 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { useState } from "react";
 
-import type { ConfigForm, ConfigFormProvider } from "../../api/client";
+import type { ConfigForm, ConfigFormProvider, ConfigVaultProfile } from "../../api/client";
 import { BrandIcon, type BrandIconName } from "../BrandIcon";
 
 type SectionProps = {
@@ -48,10 +48,40 @@ const PROVIDER_PRESETS: ConfigFormProvider[] = [
 export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
   function createNewVaultDraft() {
     const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const id = `vault-${stamp}`;
+    const vaults = normalizedVaults(form);
     setForm({
       ...form,
       project_name: `${t("newVaultDefaultName")} ${stamp}`,
       vault_path: `./wiki-${stamp}`,
+      vault_id: id,
+      vaults: [...vaults.map((vault) => ({ ...vault, active: false })), { id, name: `${t("newVaultDefaultName")} ${stamp}`, path: `./wiki-${stamp}`, active: true }],
+    });
+  }
+
+  function updateVault(index: number, patch: Partial<ConfigVaultProfile>) {
+    const vaults = normalizedVaults(form).map((vault, candidateIndex) => (candidateIndex === index ? { ...vault, ...patch } : vault));
+    syncVaults(vaults);
+  }
+
+  function activateVault(index: number) {
+    const vaults = normalizedVaults(form).map((vault, candidateIndex) => ({ ...vault, active: candidateIndex === index }));
+    syncVaults(vaults);
+  }
+
+  function removeVault(index: number) {
+    const vaults = normalizedVaults(form).filter((_, candidateIndex) => candidateIndex !== index);
+    syncVaults(vaults.length ? vaults : [{ id: "default", name: "My Knowledge Base", path: "./wiki", active: true }]);
+  }
+
+  function syncVaults(vaults: ConfigVaultProfile[]) {
+    const active = vaults.find((vault) => vault.active) || vaults[0];
+    setForm({
+      ...form,
+      project_name: active.name,
+      vault_path: active.path,
+      vault_id: active.id,
+      vaults: vaults.map((vault) => ({ ...vault, active: vault.id === active.id })),
     });
   }
 
@@ -66,18 +96,41 @@ export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
           {t("newVault")}
         </button>
       </div>
-      <div className="form-grid config-basic-grid" id="settings-basic">
-        <label className="field">
-          <span>{t("projectName")}</span>
-          <input value={form.project_name} onChange={(event) => setForm({ ...form, project_name: event.target.value })} placeholder={t("projectNamePlaceholder")} />
-        </label>
-        <label className="field">
-          <span>{t("vaultPath")}</span>
-          <input value={form.vault_path} onChange={(event) => setForm({ ...form, vault_path: event.target.value })} placeholder="./wiki" />
-        </label>
+      <div className="vault-profile-list" id="settings-basic">
+        {normalizedVaults(form).map((vault, index) => (
+          <div className={`vault-profile-row ${vault.active ? "active" : ""}`} key={`${vault.id}-${index}`}>
+            <label className="radio-field">
+              <input type="radio" checked={vault.active} onChange={() => activateVault(index)} />
+              <span>{t("activeVault")}</span>
+            </label>
+            <label className="field compact-field">
+              <span>{t("vaultId")}</span>
+              <input value={vault.id} onChange={(event) => updateVault(index, { id: event.target.value })} placeholder="personal" />
+            </label>
+            <label className="field compact-field">
+              <span>{t("projectName")}</span>
+              <input value={vault.name} onChange={(event) => updateVault(index, { name: event.target.value })} placeholder={t("projectNamePlaceholder")} />
+            </label>
+            <label className="field compact-field vault-path-field">
+              <span>{t("vaultPath")}</span>
+              <input value={vault.path} onChange={(event) => updateVault(index, { path: event.target.value })} placeholder="./wiki" />
+            </label>
+            <button className="icon-button" type="button" onClick={() => removeVault(index)} aria-label={t("removeVault")} disabled={normalizedVaults(form).length <= 1}>
+              ×
+            </button>
+          </div>
+        ))}
       </div>
     </>
   );
+}
+
+function normalizedVaults(form: ConfigForm): ConfigVaultProfile[] {
+  const vaults = form.vaults?.length
+    ? form.vaults
+    : [{ id: form.vault_id || "default", name: form.project_name || "My Knowledge Base", path: form.vault_path || "./wiki", active: true }];
+  const activeId = form.vault_id || vaults.find((vault) => vault.active)?.id || vaults[0]?.id;
+  return vaults.map((vault) => ({ ...vault, active: vault.id === activeId || Boolean(vault.active && !activeId) }));
 }
 
 export function ConfigRuntimeSection({ form, setForm, t }: SectionProps) {

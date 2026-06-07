@@ -18,14 +18,25 @@ config_version: 1
 
 迁移 helper 只做结构迁移。它可以在未来 schema 中移动或重命名字段，但不能猜测用户意图、修复密钥或编造本地路径。如果配置文件版本高于当前 KnoArbor 支持的版本，程序会明确报错。
 
-## Wiki 目录
+## 知识库目录
 
 ```yaml
+vaults:
+  default: personal
+  profiles:
+    personal:
+      name: 我的知识库
+      path: ./wiki
+
 vault:
   path: ./wiki
 ```
 
-`vault.path` 是运行时 Wiki 目录。该目录会包含 raw sources、Wiki 页面、运行报告、检查点和操作台账。
+`vaults.profiles` 是正式的多知识库配置。每个 profile 包含稳定 ID、显示名称和本地路径。`vaults.default` 选择当前默认知识库；CLI、API、前端和宿主 AI skill 在没有单次请求路径覆盖时都会使用该默认知识库。
+
+`vault.path` 是当前默认知识库解析后的路径，用于简单单知识库部署和内部请求默认值。当配置了 `vaults.profiles` 时，KnoArbor 会从 `vaults.default` 自动派生 `vault.path`。
+
+知识库目录会包含 raw sources、Wiki 页面、运行报告、检查点和操作台账。该目录可能包含私人资料，默认不应提交到 git。
 
 ## 模型供应商
 

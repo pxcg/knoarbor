@@ -1532,6 +1532,42 @@ button.action-card {
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
 }
 
+.vault-profile-list {
+  display: grid;
+  gap: 10px;
+}
+
+.vault-profile-row {
+  align-items: end;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(110px, 0.18fr) minmax(120px, 0.18fr) minmax(180px, 0.24fr) minmax(240px, 1fr) 36px;
+  padding: 12px;
+}
+
+.vault-profile-row.active {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.radio-field {
+  align-items: center;
+  color: var(--text);
+  display: flex;
+  font-size: 13px;
+  gap: 8px;
+  margin-bottom: 16px;
+  white-space: nowrap;
+}
+
+.vault-path-field input {
+  font-family: var(--mono-font);
+  font-size: 12px;
+}
+
 .config-runtime-grid {
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
 }
@@ -3197,6 +3233,10 @@ blockquote {
 @media (max-width: 1180px) {
   .graph-workspace {
     grid-template-columns: 1fr;
+  }
+
+  .vault-profile-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .settings-card-grid,

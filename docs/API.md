@@ -104,6 +104,15 @@ HTTP-only integrations:
   "base_url": "http://127.0.0.1:8000",
   "config_path": "/path/to/config.yaml",
   "vault_path": "/path/to/wiki",
+  "vault_id": "personal",
+  "vault_name": "My Knowledge Base",
+  "vaults": [
+    {
+      "id": "personal",
+      "name": "My Knowledge Base",
+      "path": "/path/to/wiki"
+    }
+  ],
   "endpoint_path": "/path/to/.knoarbor/endpoint.json",
   "user_endpoint_path": "~/.knoarbor/endpoint.json",
   "errors": []

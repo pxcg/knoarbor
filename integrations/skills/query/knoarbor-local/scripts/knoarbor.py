@@ -67,12 +67,26 @@ def main() -> int:
 
 
 class Runtime:
-    def __init__(self, *, base_url: str, vault_path: str | None, config_path: Path | None, timeout: float, output_format: str):
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        vault_path: str | None,
+        config_path: Path | None,
+        timeout: float,
+        output_format: str,
+        vault_id: str | None = None,
+        vault_name: str | None = None,
+        vaults: list[dict[str, str]] | None = None,
+    ):
         self.base_url = base_url.rstrip("/")
         self.vault_path = vault_path
         self.config_path = config_path
         self.timeout = timeout
         self.output_format = output_format
+        self.vault_id = vault_id
+        self.vault_name = vault_name
+        self.vaults = vaults or []
 
 
 def _runtime(args: argparse.Namespace) -> Runtime:
@@ -81,14 +95,32 @@ def _runtime(args: argparse.Namespace) -> Runtime:
     endpoint = _runtime_endpoint_data(config_path) or _user_runtime_endpoint_data()
     base_url = args.base_url or _base_url_from_runtime_endpoint(endpoint) or _base_url_from_config(config) or DEFAULT_BASE_URL
     vault_path = args.vault or _vault_path_from_runtime_endpoint(endpoint) or _vault_path_from_config(config, config_path)
+    vault_id = _vault_id_from_runtime_endpoint(endpoint)
+    vault_name = _vault_name_from_runtime_endpoint(endpoint)
+    vaults = _vaults_from_runtime_endpoint(endpoint) or _vaults_from_config(config, config_path)
+    if not args.vault:
+        vault_id = vault_id or _vault_id_from_config(config)
+        vault_name = vault_name or _vault_name_from_config(config)
     if config_path is None:
         config_path = _config_path_from_runtime_context(endpoint)
     if not vault_path:
         runtime_context = _runtime_context_from_service(base_url, args.timeout)
         vault_path = _vault_path_from_runtime_endpoint(runtime_context)
+        vault_id = vault_id or _vault_id_from_runtime_endpoint(runtime_context)
+        vault_name = vault_name or _vault_name_from_runtime_endpoint(runtime_context)
+        vaults = vaults or _vaults_from_runtime_endpoint(runtime_context)
         if config_path is None:
             config_path = _config_path_from_runtime_context(runtime_context)
-    return Runtime(base_url=base_url, vault_path=vault_path, config_path=config_path, timeout=args.timeout, output_format=args.format)
+    return Runtime(
+        base_url=base_url,
+        vault_path=vault_path,
+        config_path=config_path,
+        timeout=args.timeout,
+        output_format=args.format,
+        vault_id=vault_id,
+        vault_name=vault_name,
+        vaults=vaults,
+    )
 
 
 def _add_check(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -192,6 +224,9 @@ def _cmd_check(args: argparse.Namespace, runtime: Runtime) -> int:
         "base_url": runtime.base_url,
         "config_path": str(runtime.config_path) if runtime.config_path else None,
         "vault_path": str(Path(runtime.vault_path).expanduser()) if runtime.vault_path else None,
+        "vault_id": runtime.vault_id,
+        "vault_name": runtime.vault_name,
+        "vaults": runtime.vaults,
         "service_online": False,
         "health": None,
         "errors": [],
@@ -453,6 +488,32 @@ def _vault_path_from_runtime_endpoint(data: dict[str, Any]) -> str | None:
     return str(Path(str(vault_path)).expanduser())
 
 
+def _vault_id_from_runtime_endpoint(data: dict[str, Any]) -> str | None:
+    vault_id = data.get("vault_id")
+    return str(vault_id).strip() if vault_id else None
+
+
+def _vault_name_from_runtime_endpoint(data: dict[str, Any]) -> str | None:
+    vault_name = data.get("vault_name")
+    return str(vault_name).strip() if vault_name else None
+
+
+def _vaults_from_runtime_endpoint(data: dict[str, Any]) -> list[dict[str, str]]:
+    vaults = data.get("vaults")
+    if not isinstance(vaults, list):
+        return []
+    normalized: list[dict[str, str]] = []
+    for item in vaults:
+        if not isinstance(item, dict):
+            continue
+        vault_id = item.get("id")
+        name = item.get("name")
+        path = item.get("path")
+        if vault_id and name and path:
+            normalized.append({"id": str(vault_id), "name": str(name), "path": str(path)})
+    return normalized
+
+
 def _config_path_from_runtime_context(data: dict[str, Any]) -> Path | None:
     config_path = data.get("config_path")
     if not config_path:
@@ -461,10 +522,64 @@ def _config_path_from_runtime_context(data: dict[str, Any]) -> Path | None:
 
 
 def _vault_path_from_config(config: dict[str, Any], config_path: Path | None) -> str | None:
+    vaults = config.get("vaults")
+    if isinstance(vaults, dict) and isinstance(vaults.get("profiles"), dict):
+        default_id = str(vaults.get("default") or "default")
+        profile = vaults["profiles"].get(default_id)
+        if isinstance(profile, dict) and profile.get("path"):
+            return _resolve_config_path_value(profile["path"], config_path)
     vault = config.get("vault")
     if not isinstance(vault, dict) or not vault.get("path"):
         return None
-    path = Path(str(vault["path"])).expanduser()
+    return _resolve_config_path_value(vault["path"], config_path)
+
+
+def _vault_id_from_config(config: dict[str, Any]) -> str | None:
+    vaults = config.get("vaults")
+    if not isinstance(vaults, dict):
+        return "default" if _vault_path_from_config(config, None) else None
+    default_id = vaults.get("default")
+    return str(default_id).strip() if default_id else None
+
+
+def _vault_name_from_config(config: dict[str, Any]) -> str | None:
+    vault_id = _vault_id_from_config(config)
+    vaults = config.get("vaults")
+    if not vault_id or not isinstance(vaults, dict) or not isinstance(vaults.get("profiles"), dict):
+        project = config.get("project")
+        return str(project["name"]).strip() if isinstance(project, dict) and project.get("name") else None
+    profile = vaults["profiles"].get(vault_id)
+    if not isinstance(profile, dict):
+        return None
+    name = profile.get("name")
+    return str(name).strip() if name else None
+
+
+def _vaults_from_config(config: dict[str, Any], config_path: Path | None) -> list[dict[str, str]]:
+    vaults = config.get("vaults")
+    if not isinstance(vaults, dict) or not isinstance(vaults.get("profiles"), dict):
+        vault_path = _vault_path_from_config(config, config_path)
+        if not vault_path:
+            return []
+        project = config.get("project")
+        name = str(project.get("name") or "Default") if isinstance(project, dict) else "Default"
+        return [{"id": "default", "name": name, "path": vault_path}]
+    result: list[dict[str, str]] = []
+    for vault_id, profile in vaults["profiles"].items():
+        if not isinstance(profile, dict) or not profile.get("path"):
+            continue
+        result.append(
+            {
+                "id": str(vault_id),
+                "name": str(profile.get("name") or vault_id),
+                "path": _resolve_config_path_value(profile["path"], config_path),
+            }
+        )
+    return result
+
+
+def _resolve_config_path_value(value: object, config_path: Path | None) -> str:
+    path = Path(str(value)).expanduser()
     if not path.is_absolute() and config_path:
         path = config_path.parent / path
     return str(path.resolve())
@@ -583,9 +698,13 @@ def _format_check(response: dict[str, Any]) -> str:
     lines = [
         f"KnoArbor base URL: {response.get('base_url')}",
         f"Config path: {response.get('config_path') or 'not found'}",
+        f"Vault: {response.get('vault_name') or response.get('vault_id') or 'unknown'}",
         f"Vault path: {response.get('vault_path') or 'not configured'}",
         f"Service online: {'yes' if response.get('service_online') else 'no'}",
     ]
+    vaults = response.get("vaults")
+    if isinstance(vaults, list) and vaults:
+        lines.append("Available vaults: " + ", ".join(str(item.get("name") or item.get("id") or item.get("path")) for item in vaults if isinstance(item, dict)))
     lines.extend(f"Error: {error}" for error in response.get("errors", []))
     return "\n".join(lines)
 
@@ -608,7 +727,10 @@ def _format_doctor(response: dict[str, Any]) -> str:
 
 def _format_query(response: dict[str, Any]) -> str:
     stats = response.get("stats") if isinstance(response.get("stats"), dict) else {}
-    lines = [f"Query: {response.get('query', '')}", f"Vault: {stats.get('vault_path') or 'unknown'}", f"Retrieval mode: {response.get('retrieval_mode', '')}", "", "Results:"]
+    vault_label = stats.get("vault_name") or stats.get("vault_id") or stats.get("vault_path") or "unknown"
+    if stats.get("vault_path") and vault_label != stats.get("vault_path"):
+        vault_label = f"{vault_label} ({stats.get('vault_path')})"
+    lines = [f"Query: {response.get('query', '')}", f"Vault: {vault_label}", f"Retrieval mode: {response.get('retrieval_mode', '')}", "", "Results:"]
     for index, result in enumerate(response.get("results", [])[:10], start=1):
         lines.append(f"{index}. {result.get('title', '')} ({result.get('path', '')}) [{result.get('relevance', '')}, {result.get('match_kind', '')}]")
         if result.get("summary"):

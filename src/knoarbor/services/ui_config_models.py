@@ -55,6 +55,13 @@ class UiModelProviderForm(BaseModel):
     api_key_configured: bool = False
 
 
+class UiVaultProfileForm(BaseModel):
+    id: str
+    name: str
+    path: str
+    active: bool = False
+
+
 class UiConfigDiagnosticItem(BaseModel):
     name: str
     category: str
@@ -81,6 +88,8 @@ class UiConfigDiagnostics(BaseModel):
 class UiConfigFormResponse(BaseModel):
     project_name: str
     vault_path: str
+    vault_id: str = "default"
+    vaults: list[UiVaultProfileForm] = Field(default_factory=list)
     server_host: str
     server_port: int
     default_provider: str = ""
@@ -135,6 +144,8 @@ class UiConfigFormUpdateRequest(BaseModel):
     config_path: str | None = None
     project_name: str = Field(default="My Knowledge Base", min_length=1)
     vault_path: str = Field(..., min_length=1)
+    vault_id: str = "default"
+    vaults: list[UiVaultProfileForm] = Field(default_factory=list)
     server_host: str = Field(default="127.0.0.1", min_length=1)
     server_port: int = Field(default=8000, ge=1, le=65535)
     default_provider: str = ""
@@ -181,5 +192,4 @@ class UiConfigFormUpdateRequest(BaseModel):
     mineru_start_page_id: int = Field(default=0, ge=0)
     mineru_end_page_id: int = Field(default=99999, ge=0)
     mineru_extra_fields_json: str = "{}"
-
 

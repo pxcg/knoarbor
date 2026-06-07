@@ -10,6 +10,15 @@ project:
 
 config_version: 1
 
+vaults:
+  default: personal
+  profiles:
+    personal:
+      name: My Knowledge Base
+      path: ./wiki
+
+# `vault` is the active vault resolved from `vaults.default`. It is kept for
+# existing CLI/API internals and simple one-vault deployments.
 vault:
   path: ./wiki
 

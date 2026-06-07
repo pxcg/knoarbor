@@ -119,6 +119,44 @@ models:
             self.assertFalse(form_response.json()["providers"][0]["json_mode"])
             self.assertTrue(form_response.json()["openclaw_enabled"])
 
+    def test_ui_config_form_saves_multiple_vault_profiles(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            config_path = root / "config.yaml"
+            client = TestClient(create_app())
+
+            response = client.put(
+                "/ui/api/config/form",
+                json={
+                    "config_path": str(config_path),
+                    "project_name": "Team Vault",
+                    "vault_path": str(root / "team-wiki"),
+                    "vault_id": "team",
+                    "vaults": [
+                        {"id": "personal", "name": "Personal Vault", "path": str(root / "wiki"), "active": False},
+                        {"id": "team", "name": "Team Vault", "path": str(root / "team-wiki"), "active": True},
+                    ],
+                    "server_host": "127.0.0.1",
+                    "server_port": 8000,
+                    "default_provider": "",
+                    "default_max_tokens": 30000,
+                    "request_timeout_seconds": 600,
+                    "providers": [],
+                },
+            )
+
+            self.assertEqual(response.status_code, 200)
+            saved = config_path.read_text(encoding="utf-8")
+            self.assertIn("vaults:", saved)
+            self.assertIn("default: team", saved)
+            self.assertIn("name: Team Vault", saved)
+            form_response = client.get("/ui/api/config/form", params={"config_path": str(config_path)})
+            self.assertEqual(form_response.status_code, 200)
+            payload = form_response.json()
+            self.assertEqual(payload["vault_id"], "team")
+            self.assertEqual(payload["vault_path"], str((root / "team-wiki").resolve()))
+            self.assertEqual(len(payload["vaults"]), 2)
+
     def test_ui_config_form_saves_project_internal_paths_as_relative(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)

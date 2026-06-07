@@ -45,6 +45,38 @@ class ConfigTests(unittest.TestCase):
         self.assertTrue(config.query.include_related)
         self.assertEqual(config.models.default_max_tokens, 30000)
         self.assertEqual(config.models.request_timeout_seconds, 600.0)
+        self.assertEqual(config.active_vault_id(), "default")
+        self.assertEqual(config.vault_profiles_summary()[0]["path"], "wiki")
+
+    def test_vault_profiles_select_active_vault(self) -> None:
+        config = KnoArborConfig.model_validate(
+            {
+                "vault": {"path": "./old-wiki"},
+                "vaults": {
+                    "default": "team",
+                    "profiles": {
+                        "personal": {"name": "Personal", "path": "./wiki"},
+                        "team": {"name": "Team", "path": "./team-wiki"},
+                    },
+                },
+            }
+        )
+
+        self.assertEqual(config.vault.path, Path("team-wiki"))
+        self.assertEqual(config.active_vault_id(), "team")
+        self.assertEqual(config.active_vault_name(), "Team")
+
+    def test_vault_profiles_reject_missing_default(self) -> None:
+        with self.assertRaisesRegex(ValueError, "vaults.default"):
+            KnoArborConfig.model_validate(
+                {
+                    "vault": {"path": "./wiki"},
+                    "vaults": {
+                        "default": "missing",
+                        "profiles": {"personal": {"name": "Personal", "path": "./wiki"}},
+                    },
+                }
+            )
 
     def test_config_loads_from_yaml_file_and_resolves_relative_paths(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

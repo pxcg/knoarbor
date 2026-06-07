@@ -40,6 +40,9 @@ def write_runtime_endpoint(
     port: int,
     base_url: str,
     vault_path: str | Path | None = None,
+    vault_id: str | None = None,
+    vault_name: str | None = None,
+    vaults: list[dict[str, str]] | None = None,
 ) -> Path:
     endpoint_path = runtime_endpoint_path(config_path)
     resolved_config_path = Path(config_path).expanduser().resolve()
@@ -50,6 +53,9 @@ def write_runtime_endpoint(
         "port": port,
         "config_path": str(resolved_config_path),
         "vault_path": str(Path(vault_path).expanduser().resolve()) if vault_path is not None else None,
+        "vault_id": vault_id,
+        "vault_name": vault_name,
+        "vaults": vaults or [],
         "pid": os.getpid(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }

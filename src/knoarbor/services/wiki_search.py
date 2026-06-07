@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from knoarbor.core.config import default_config_path, load_config
 from knoarbor.core.errors import UserInputError
 from knoarbor.core.schemas.wiki_query import (
     WikiContextRequest,
@@ -29,6 +30,7 @@ class WikiSearchService:
         try:
             response = search_query(request)
             response.stats["vault_path"] = str(vault_path)
+            response.stats.update(_vault_stats(vault_path))
             response.stats["query_trend"] = build_query_trend(vault_path)
             if request.record_query:
                 ledger_path = append_query_record(vault_path, request, response)
@@ -76,3 +78,18 @@ class WikiSearchService:
             )
         except Exception as report_exc:
             logger.exception("query_failure_report_write_failed error=%s original_error=%s", report_exc, exc)
+
+
+def _vault_stats(vault_path: Path) -> dict[str, str]:
+    try:
+        config = load_config(default_config_path())
+    except Exception:
+        return {}
+    resolved = vault_path.expanduser().resolve()
+    for vault_id, profile in config.vaults.profiles.items():
+        try:
+            if profile.path.expanduser().resolve() == resolved:
+                return {"vault_id": vault_id, "vault_name": profile.name}
+        except OSError:
+            continue
+    return {}

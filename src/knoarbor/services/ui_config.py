@@ -26,6 +26,7 @@ from knoarbor.services.ui_config_models import (
     UiConfigUpdateRequest,
     UiConfigUpdateResponse,
     UiModelProviderForm,
+    UiVaultProfileForm,
 )
 from knoarbor.storage.source_metrics import connector_source_metric_identity, load_source_counts, source_metric_key, update_source_counts
 
@@ -95,8 +96,11 @@ def summarize_default_config() -> dict[str, object]:
 def summarize_config_content(content: str, *, base_dir: Path) -> dict[str, object]:
     config = config_from_content(content, base_dir=base_dir)
     return {
-        "project_name": config.project.name,
+        "project_name": config.active_vault_name(),
         "vault_path": str(config.vault.path),
+        "vault_id": config.active_vault_id(),
+        "vault_name": config.active_vault_name(),
+        "vaults": config.vault_profiles_summary(),
         "server": f"{config.server.host}:{config.server.port}",
         "default_provider": config.models.default_provider,
         "provider_count": len(config.models.providers),
@@ -141,8 +145,18 @@ def config_to_form(config: KnoArborConfig) -> UiConfigFormResponse:
     generic_chat_settings = generic_chat.settings if generic_chat else {}
     markdown_settings = markdown.settings if markdown else {}
     return UiConfigFormResponse(
-        project_name=config.project.name,
+        project_name=config.active_vault_name(),
         vault_path=str(config.vault.path),
+        vault_id=config.active_vault_id(),
+        vaults=[
+            UiVaultProfileForm(
+                id=vault_id,
+                name=profile.name,
+                path=str(profile.path),
+                active=vault_id == config.active_vault_id(),
+            )
+            for vault_id, profile in sorted(config.vaults.profiles.items())
+        ],
         server_host=config.server.host,
         server_port=config.server.port,
         default_provider=config.models.default_provider or "",
@@ -422,9 +436,12 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
         }
     data = dict(base_data)
     data["config_version"] = 1
-    data["project"] = {**dict(data.get("project") or {}), "name": form.project_name.strip()}
+    vault_profiles, active_vault_id = _vault_profiles_from_form(form, base_dir)
+    active_vault = vault_profiles[active_vault_id]
+    data["project"] = {**dict(data.get("project") or {}), "name": active_vault["name"]}
     data["project"].setdefault("host_project_root", ".")
-    data["vault"] = {**dict(data.get("vault") or {}), "path": _portable_config_path(form.vault_path, base_dir)}
+    data["vaults"] = {"default": active_vault_id, "profiles": vault_profiles}
+    data["vault"] = {**dict(data.get("vault") or {}), "path": active_vault["path"]}
     data["server"] = {**dict(data.get("server") or {}), "host": form.server_host.strip(), "port": form.server_port}
     data["models"] = {
         **dict(data.get("models") or {}),
@@ -500,6 +517,35 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
     document_processing["mineru"] = mineru
     data["document_processing"] = document_processing
     return yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
+
+
+def _vault_profiles_from_form(form: UiConfigFormUpdateRequest, base_dir: Path) -> tuple[dict[str, dict[str, str]], str]:
+    profiles: dict[str, dict[str, str]] = {}
+    requested_active = (form.vault_id or "").strip()
+    for item in form.vaults:
+        vault_id = _normalize_vault_id(item.id)
+        name = item.name.strip()
+        path = item.path.strip()
+        if not vault_id or not name or not path:
+            continue
+        profiles[vault_id] = {"name": name, "path": _portable_config_path(path, base_dir)}
+        if item.active:
+            requested_active = vault_id
+    if not profiles:
+        fallback_id = _normalize_vault_id(form.vault_id) or "default"
+        profiles[fallback_id] = {
+            "name": form.project_name.strip(),
+            "path": _portable_config_path(form.vault_path, base_dir),
+        }
+        requested_active = fallback_id
+    if requested_active not in profiles:
+        requested_active = next(iter(profiles))
+    return profiles, requested_active
+
+
+def _normalize_vault_id(value: str) -> str:
+    normalized = re.sub(r"[^a-zA-Z0-9_-]+", "-", value.strip()).strip("-").lower()
+    return normalized
 
 
 def _mineru_extra_fields_json(extra_fields: dict[str, object]) -> str:

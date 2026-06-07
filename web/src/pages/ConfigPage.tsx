@@ -252,6 +252,18 @@ function SettingsLoadingState({ t }: { t: (key: string) => string }) {
 function normalizeConfigForm(form: ConfigForm): ConfigForm {
   return {
     ...form,
+    vault_id: form.vault_id || "default",
+    vaults:
+      form.vaults?.length
+        ? form.vaults
+        : [
+            {
+              id: form.vault_id || "default",
+              name: form.project_name || "My Knowledge Base",
+              path: form.vault_path || "./wiki",
+              active: true,
+            },
+          ],
     providers: form.providers || [],
     enabled_connectors: form.enabled_connectors || [],
     markdown_roots: form.markdown_roots || [],

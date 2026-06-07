@@ -18,6 +18,9 @@ export type UiConfigUpdateResponse = {
 export type ConfigSummary = {
   project_name?: string;
   vault_path?: string;
+  vault_id?: string;
+  vault_name?: string;
+  vaults?: ConfigVaultSummary[];
   server?: string;
   default_provider?: string;
   provider_count?: number;
@@ -78,9 +81,24 @@ export type ConfigFormProvider = {
   api_key_configured: boolean;
 };
 
+export type ConfigVaultProfile = {
+  id: string;
+  name: string;
+  path: string;
+  active: boolean;
+};
+
+export type ConfigVaultSummary = {
+  id: string;
+  name: string;
+  path: string;
+};
+
 export type ConfigForm = {
   project_name: string;
   vault_path: string;
+  vault_id: string;
+  vaults: ConfigVaultProfile[];
   server_host: string;
   server_port: number;
   default_provider: string;

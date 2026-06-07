@@ -34,11 +34,29 @@ Migration helpers are structural only. They may move or rename fields in a futur
 ## Vault
 
 ```yaml
+vaults:
+  default: personal
+  profiles:
+    personal:
+      name: My Knowledge Base
+      path: ./wiki
+
 vault:
   path: ./wiki
 ```
 
-The vault is the runtime Markdown knowledge base. It is ignored by git because it can contain private notes, source documents, and generated pages.
+`vaults.profiles` is the formal multi-vault registry. Each profile has a stable
+ID, a display name, and a local path. `vaults.default` selects the active vault
+used by CLI, API, UI, and host-AI skill calls when no request-specific path is
+provided.
+
+`vault.path` is the resolved active vault path kept for simple one-vault
+deployments and internal request defaults. When `vaults.profiles` is present,
+KnoArbor derives `vault.path` from `vaults.default`.
+
+Vault directories are runtime Markdown knowledge bases. They are ignored by git
+because they can contain private notes, source documents, generated pages,
+checkpoints, ledgers, and reports.
 
 ## Models
 

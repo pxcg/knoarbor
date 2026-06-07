@@ -51,6 +51,30 @@ class SkillQueryHelperTests(unittest.TestCase):
             self.assertEqual(helper._base_url_from_config(config), "http://127.0.0.1:8123")
             self.assertEqual(helper._vault_path_from_config(config, config_path), str((root / "wiki").resolve()))
 
+    def test_resolves_default_vault_profile_from_config(self) -> None:
+        helper = load_query_helper()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config_path = root / "config.yaml"
+            config_path.write_text(
+                "vaults:\n"
+                "  default: team\n"
+                "  profiles:\n"
+                "    personal:\n"
+                "      name: Personal\n"
+                "      path: ./wiki\n"
+                "    team:\n"
+                "      name: Team\n"
+                "      path: ./team-wiki\n"
+                "vault:\n"
+                "  path: ./wiki\n",
+                encoding="utf-8",
+            )
+
+            config = helper._load_yaml(config_path)
+
+        self.assertEqual(helper._vault_path_from_config(config, config_path), str((root / "team-wiki").resolve()))
+
     def test_prefers_runtime_endpoint_next_to_config(self) -> None:
         helper = load_query_helper()
         with tempfile.TemporaryDirectory() as tmp:

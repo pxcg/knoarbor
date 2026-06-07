@@ -63,6 +63,9 @@ def run_serve(args: argparse.Namespace) -> int:
         port=port,
         base_url=base_url,
         vault_path=config.vault.path,
+        vault_id=config.active_vault_id(),
+        vault_name=config.active_vault_name(),
+        vaults=config.vault_profiles_summary(),
     )
     if switched_port:
         print(f"Configured port {preferred_port} is in use; using {port} instead.")
@@ -139,6 +142,13 @@ def ensure_local_config(config_path: Path, *, vault_path: str | None = None) -> 
     config_path.parent.mkdir(parents=True, exist_ok=True)
     data = _load_bundled_example_config()
     if vault_path:
+        project = dict(data.get("project") or {})
+        vault_name = str(project.get("name") or "KnoArbor")
+        vaults = dict(data.get("vaults") or {})
+        profiles = dict(vaults.get("profiles") or {})
+        default_id = str(vaults.get("default") or "default")
+        profiles[default_id] = {"name": vault_name, "path": vault_path}
+        data["vaults"] = {"default": default_id, "profiles": profiles}
         vault = dict(data.get("vault") or {})
         vault["path"] = vault_path
         data["vault"] = vault
