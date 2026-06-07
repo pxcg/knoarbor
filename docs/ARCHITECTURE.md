@@ -316,12 +316,15 @@ Responsibilities:
 - call stable core APIs for workflow execution, run state, query context, and wiki page reads;
 - call `/ui/api/*` only for UI-specific adapters such as config forms, diagnostics summaries, bundled docs, and report previews;
 - render Markdown, diffs, reports, and graph views with reusable local components.
+- maintain a UI-side Vault Runtime state for active vault selection, vault-scoped cache keys, and multi-vault display state.
 
 Non-responsibilities:
 
 - source discovery, checkpoint logic, segmentation, page operation planning, lint execution, retry policy, vault writes, and report generation;
 - parsing wiki pages through a separate UI-only code path when a core `/wiki/*` read API exists;
 - silently repairing malformed API payloads that should have been validated by Python Core.
+
+The Vault Runtime is a frontend state boundary, not a storage layer. It maps configured vault profiles to stable UI identities, keeps React Query caches partitioned by `vaultId`, and passes the resolved vault path to API calls. This lets the UI switch active vaults without clearing unrelated page state and prepares future multi-vault views where several vault summaries can be shown side by side.
 
 For the v0.x line, KnoArbor keeps a lightweight local component system instead of adopting a full UI component framework. If forms, menus, dialogs, tables, and report views continue to grow, the next architectural step should be extracting shared UI primitives or adopting a small component library deliberately, not adding page-specific styling patches.
 

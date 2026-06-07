@@ -67,7 +67,7 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
         actionLabel: context.t("openRuns"),
         onAction: () => context.navigate("runs"),
       });
-      await context.loadVaultState(context.vaultPath);
+      await context.loadVaultState();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setRunOutput(message);

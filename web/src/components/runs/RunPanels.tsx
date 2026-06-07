@@ -84,7 +84,7 @@ function RunMonitorItem({ context, run }: { context: AppContext; run: RunRecord 
         config_path: context.configPath,
       });
       context.setNotice({ message: context.t("rerunStarted") });
-      await context.loadVaultState(context.vaultPath);
+      await context.loadVaultState();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       context.setNotice({ message, error: true });
@@ -157,7 +157,7 @@ function RunMonitorItem({ context, run }: { context: AppContext; run: RunRecord 
               </button>
             )}
             {run.status !== "failed" && run.status !== "completed" && run.status !== "cancelled" && run.status !== "partially_failed" && (
-              <button className="button secondary" onClick={() => void cancelRun(context.vaultPath, run.run_id).then(() => context.loadVaultState(context.vaultPath))}>
+              <button className="button secondary" onClick={() => void cancelRun(context.vaultPath, run.run_id).then(() => context.loadVaultState())}>
                 {context.t("cancel")}
               </button>
             )}

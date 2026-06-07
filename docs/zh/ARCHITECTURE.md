@@ -311,12 +311,15 @@ Web UI 是建立在公开 API 和 UI 专用 HTTP 适配器之上的本地管理�
 - 通过稳定核心 API 运行流程、读取运行状态、查询上下文和 Wiki 页面；
 - 只在配置表单、诊断摘要、内置文档和报告预览等界面专用场景调用 `/ui/api/*`；
 - 使用可复用本地组件渲染 Markdown、diff、报告和图谱。
+- 维护 UI 侧的 Vault Runtime 状态，用于当前知识库选择、按知识库分区的缓存 key，以及多知识库展示状态。
 
 不负责：
 
 - 来源发现、checkpoint、分段、页面 operation 规划、lint 执行、重试策略、vault 写入和报告生成；
 - 在已有核心 `/wiki/*` 页面读取 API 时，再实现一套 UI 专用页面解析逻辑；
 - 静默修复本应由 Python Core 校验的异常 API payload。
+
+Vault Runtime 是前端状态边界，不是存储层。它把配置中的知识库 profiles 映射为稳定的 UI 身份，用 `vaultId` 分区 React Query 缓存，并在 API 调用时传入解析后的 vault path。这样 UI 可以在不清空无关页面状态的情况下切换当前知识库，也为后续在一个页面并排展示多个知识库摘要打基础。
 
 v0.x 阶段，KnoArbor 暂时保留轻量本地组件体系，不引入完整 UI 组件框架。如果表单、菜单、弹窗、表格和报告视图继续膨胀，下一步应有意识地抽取共享 UI primitives，或正式引入小型组件库，而不是继续追加页面级样式补丁。
 
