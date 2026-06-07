@@ -17,6 +17,9 @@ type AppShellProps = {
   onRefresh: () => void;
   onSetLanguage: (language: Language) => void;
   onToggleSidebar: () => void;
+  vaultOptions: Array<{ id: string; name: string; path: string }>;
+  activeVaultId: string;
+  onSetActiveVault: (vaultId: string) => void;
 };
 
 export function AppShell({
@@ -32,6 +35,9 @@ export function AppShell({
   onRefresh,
   onSetLanguage,
   onToggleSidebar,
+  vaultOptions,
+  activeVaultId,
+  onSetActiveVault,
 }: AppShellProps) {
   return (
     <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
@@ -52,6 +58,18 @@ export function AppShell({
             <p className="topbar-subtitle">{viewSubtitles[language][activeView]}</p>
           </div>
           <div className="topbar-actions">
+            {vaultOptions.length > 1 && (
+              <label className="topbar-vault-select" aria-label={t("activeVault")}>
+                <span>{t("activeVault")}</span>
+                <select value={activeVaultId} onChange={(event) => onSetActiveVault(event.target.value)}>
+                  {vaultOptions.map((vault) => (
+                    <option value={vault.id} key={vault.id}>
+                      {vault.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <div className="language-switch" aria-label={t("language")}>
               <button className={language === "en" ? "active" : ""} onClick={() => onSetLanguage("en")} type="button">
                 EN

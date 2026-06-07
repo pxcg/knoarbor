@@ -113,6 +113,7 @@ export function App() {
   const [focusedWikiPath, setFocusedWikiPath] = useState<string | null>(null);
   const [focusedReportPath, setFocusedReportPath] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("knoarbor.sidebarCollapsed") === "true");
+  const [selectedVaultId, setSelectedVaultId] = useState(() => localStorage.getItem("knoarbor.activeVaultId") || "");
   const previousActiveRunCountRef = useRef(0);
   const queryClient = useQueryClient();
 
@@ -135,7 +136,13 @@ export function App() {
 
   const effectiveConfigPath = configQuery.data?.config_path ?? configPath;
   const effectiveSummary = configQuery.data?.summary || summary;
-  const vaultPath = effectiveSummary.vault_path || "./wiki";
+  const vaultOptions = useMemo(() => buildVaultOptions(effectiveSummary), [effectiveSummary]);
+  const activeVault =
+    vaultOptions.find((vault) => vault.id === selectedVaultId) ||
+    vaultOptions.find((vault) => vault.id === effectiveSummary.vault_id) ||
+    vaultOptions[0];
+  const vaultPath = activeVault?.path || effectiveSummary.vault_path || "./wiki";
+  const activeVaultId = activeVault?.id || effectiveSummary.vault_id || "default";
 
   const doctorQuery = useQuery({
     queryKey: queryKeys.doctor(effectiveConfigPath),
@@ -227,6 +234,14 @@ export function App() {
     });
   }, []);
 
+  const setActiveVaultId = useCallback((next: string) => {
+    localStorage.setItem("knoarbor.activeVaultId", next);
+    setSelectedVaultId(next);
+    setFocusedPageId(null);
+    setFocusedWikiPath(null);
+    setFocusedReportPath(null);
+  }, []);
+
   const loadVaultState = useCallback(async (path: string) => {
     const [statusResult, reportsResult, activeRunsResult, recentRunsResult] = await Promise.allSettled([
       queryClient.refetchQueries({ queryKey: queryKeys.status(path) }),
@@ -278,6 +293,15 @@ export function App() {
   }, [configQuery.data]);
 
   useEffect(() => {
+    if (!vaultOptions.length) return;
+    const exists = vaultOptions.some((vault) => vault.id === selectedVaultId);
+    if (exists) return;
+    const next = effectiveSummary.vault_id || vaultOptions[0].id;
+    localStorage.setItem("knoarbor.activeVaultId", next);
+    setSelectedVaultId(next);
+  }, [effectiveSummary.vault_id, selectedVaultId, vaultOptions]);
+
+  useEffect(() => {
     const previousRuns = previousActiveRunCountRef.current;
     previousActiveRunCountRef.current = activeRuns.length;
     if (previousRuns > 0 && activeRuns.length === 0) void loadVaultState(vaultPath);
@@ -287,7 +311,12 @@ export function App() {
     setNotice(null);
     try {
       const configResult = await queryClient.fetchQuery({ queryKey: queryKeys.config, queryFn: getConfig });
-      const path = configResult.summary?.vault_path || "./wiki";
+      const nextVaultOptions = buildVaultOptions(configResult.summary || {});
+      const nextVault =
+        nextVaultOptions.find((vault) => vault.id === selectedVaultId) ||
+        nextVaultOptions.find((vault) => vault.id === configResult.summary?.vault_id) ||
+        nextVaultOptions[0];
+      const path = nextVault?.path || configResult.summary?.vault_path || "./wiki";
       await Promise.all([
         queryClient.refetchQueries({ queryKey: queryKeys.health }),
         queryClient.refetchQueries({ queryKey: queryKeys.doctor(configResult.config_path) }),
@@ -298,7 +327,7 @@ export function App() {
       setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
       return false;
     }
-  }, [loadVaultState, queryClient]);
+  }, [loadVaultState, queryClient, selectedVaultId]);
 
   const refreshManually = useCallback(async () => {
     setIsRefreshing(true);
@@ -424,6 +453,9 @@ export function App() {
       openReport,
       status,
       summary: effectiveSummary,
+      activeVaultId,
+      vaultOptions,
+      setActiveVaultId,
       vaultPath,
       refreshAll,
       loadVaultState,
@@ -452,6 +484,9 @@ export function App() {
       setActiveRunsCached,
       status,
       effectiveSummary,
+      activeVaultId,
+      vaultOptions,
+      setActiveVaultId,
       vaultPath,
       refreshAll,
       loadVaultState,
@@ -485,6 +520,9 @@ export function App() {
       onRefresh={refreshManually}
       onSetLanguage={setLanguage}
       onToggleSidebar={toggleSidebar}
+      vaultOptions={vaultOptions}
+      activeVaultId={activeVaultId}
+      onSetActiveVault={setActiveVaultId}
     >
         {notice && (
           <section className={`notice ${notice.error ? "error" : ""}`}>
@@ -560,6 +598,9 @@ export type AppContext = {
   openReport: (path: string) => void;
   status: UiStatusResponse | null;
   summary: ConfigSummary;
+  activeVaultId: string;
+  vaultOptions: Array<{ id: string; name: string; path: string }>;
+  setActiveVaultId: (vaultId: string) => void;
   vaultPath: string;
   refreshAll: () => Promise<boolean>;
   loadVaultState: (path: string) => Promise<void>;
@@ -567,3 +608,21 @@ export type AppContext = {
   setLanguage: (language: Language) => void;
   t: (key: string) => string;
 };
+
+function buildVaultOptions(summary: ConfigSummary): Array<{ id: string; name: string; path: string }> {
+  const configured = summary.vaults?.filter((vault) => vault.id && vault.path) || [];
+  if (configured.length) {
+    return configured.map((vault) => ({
+      id: vault.id,
+      name: vault.name || vault.id,
+      path: vault.path,
+    }));
+  }
+  return [
+    {
+      id: summary.vault_id || "default",
+      name: summary.vault_name || summary.project_name || "KnoArbor",
+      path: summary.vault_path || "./wiki",
+    },
+  ];
+}
