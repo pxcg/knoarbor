@@ -227,7 +227,18 @@ def config_diagnostics(config: KnoArborConfig, *, refresh_source_counts: bool = 
     cached_counts = load_source_counts(vault)
     refreshed_counts: dict[str, int] = {}
 
-    path_items.append(_path_diagnostic("vault", "path", vault, enabled=True))
+    path_items.append(_path_diagnostic("vault", "path", vault, enabled=True, detail=f"active:{config.active_vault_id()}"))
+    for vault_id, profile in sorted(config.vaults.profiles.items()):
+        active = vault_id == config.active_vault_id()
+        path_items.append(
+            _path_diagnostic(
+                f"vault.{vault_id}",
+                "path",
+                Path(profile.path).expanduser(),
+                enabled=True,
+                detail=f"{profile.name} ({'active' if active else 'available'})",
+            )
+        )
 
     codex = config.connectors.get("codex")
     codex_settings = codex.settings if codex else {}

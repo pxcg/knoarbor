@@ -383,6 +383,45 @@ models:
             self.assertEqual(markdown["source_types"], ["markdown"])
             self.assertEqual(markdown["detail"], "")
 
+    def test_ui_config_diagnostics_include_vault_profiles(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            personal = root / "personal-wiki"
+            missing_team = root / "team-wiki"
+            personal.mkdir()
+            config_path = root / "config.yaml"
+            config_path.write_text(
+                f"""
+vaults:
+  default: personal
+  profiles:
+    personal:
+      name: Personal
+      path: {personal.as_posix()}
+    team:
+      name: Team
+      path: {missing_team.as_posix()}
+models:
+  providers: {{}}
+connectors: {{}}
+""",
+                encoding="utf-8",
+            )
+            client = TestClient(create_app())
+
+            response = client.get("/ui/api/config/diagnostics", params={"config_path": str(config_path)})
+
+            self.assertEqual(response.status_code, 200)
+            paths = {item["name"]: item for item in response.json()["paths"]}
+            self.assertIn("vault", paths)
+            self.assertIn("vault.personal", paths)
+            self.assertIn("vault.team", paths)
+            self.assertTrue(paths["vault.personal"]["ok"])
+            self.assertEqual(paths["vault.personal"]["detail"], "Personal (active)")
+            self.assertFalse(paths["vault.team"]["ok"])
+            self.assertEqual(paths["vault.team"]["code"], "path_missing")
+            self.assertEqual(paths["vault.team"]["detail"], "Team (available)")
+
     def test_ui_config_rejects_inline_secrets(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             config_path = Path(tmp_dir) / "config.yaml"

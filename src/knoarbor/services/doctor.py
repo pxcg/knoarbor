@@ -83,8 +83,50 @@ class DoctorService:
     def _vault_checks(self, config: KnoArborConfig) -> list[DoctorCheck]:
         vault = config.vault.path
         checks: list[DoctorCheck] = []
+        active_vault_id = config.active_vault_id()
+        profiles = config.vaults.profiles
+        checks.append(
+            DoctorCheck(
+                name="vault.profiles",
+                status="ok" if profiles else "warning",
+                message=f"{len(profiles)} vault profile(s) configured." if profiles else "No vault profiles are configured.",
+                details={"active_vault_id": active_vault_id, "profiles": config.vault_profiles_summary()},
+            )
+        )
+        for vault_id, profile in sorted(profiles.items()):
+            profile_path = profile.path
+            active = vault_id == active_vault_id
+            if not profile_path.exists():
+                checks.append(
+                    DoctorCheck(
+                        name=f"vault.profile.{vault_id}",
+                        status="error" if active else "warning",
+                        message="Active vault profile directory does not exist." if active else "Vault profile directory does not exist.",
+                        details={"vault_id": vault_id, "vault_name": profile.name, "vault_path": str(profile_path), "active": active},
+                    )
+                )
+                continue
+            if not profile_path.is_dir():
+                checks.append(
+                    DoctorCheck(
+                        name=f"vault.profile.{vault_id}",
+                        status="error" if active else "warning",
+                        message="Active vault profile path is not a directory." if active else "Vault profile path is not a directory.",
+                        details={"vault_id": vault_id, "vault_name": profile.name, "vault_path": str(profile_path), "active": active},
+                    )
+                )
+                continue
+            checks.append(
+                DoctorCheck(
+                    name=f"vault.profile.{vault_id}",
+                    status="ok",
+                    message="Vault profile directory exists.",
+                    details={"vault_id": vault_id, "vault_name": profile.name, "vault_path": str(profile_path), "active": active},
+                )
+            )
         if not vault.exists():
             return [
+                *checks,
                 DoctorCheck(
                     name="vault.exists",
                     status="error",
@@ -94,6 +136,7 @@ class DoctorService:
             ]
         if not vault.is_dir():
             return [
+                *checks,
                 DoctorCheck(
                     name="vault.exists",
                     status="error",

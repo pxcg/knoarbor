@@ -131,6 +131,47 @@ class DoctorServiceTests(unittest.TestCase):
         self.assertEqual(checks["connectors.enabled"].status, "ok")
         self.assertNotIn("connectors.markdown", checks)
 
+    def test_reports_all_vault_profiles(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            personal = root / "personal-wiki"
+            missing_team = root / "missing-team-wiki"
+            personal.mkdir()
+            for name in ["SCHEMA.md", "index.md", "log.md", ".knoarborignore"]:
+                (personal / name).write_text("", encoding="utf-8")
+            config = root / "config.yaml"
+            config.write_text(
+                f"""
+vaults:
+  default: personal
+  profiles:
+    personal:
+      name: Personal
+      path: {personal}
+    team:
+      name: Team
+      path: {missing_team}
+models:
+  default_provider: local
+  providers:
+    local:
+      base_url: http://127.0.0.1:11434/v1
+      model: qwen
+connectors: {{}}
+""",
+                encoding="utf-8",
+            )
+
+            report = DoctorService().run(config_path=config, check_model_runtime=False, check_connector_runtime=False)
+
+        checks = {check.name: check for check in report.checks}
+        self.assertEqual(checks["vault.profiles"].status, "ok")
+        self.assertEqual(checks["vault.profiles"].details["active_vault_id"], "personal")
+        self.assertEqual(checks["vault.profile.personal"].status, "ok")
+        self.assertTrue(checks["vault.profile.personal"].details["active"])
+        self.assertEqual(checks["vault.profile.team"].status, "warning")
+        self.assertFalse(checks["vault.profile.team"].details["active"])
+
 
 class DoctorEntrypointTests(unittest.TestCase):
     def test_cli_doctor_json_returns_report(self) -> None:
