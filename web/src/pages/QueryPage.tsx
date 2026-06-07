@@ -30,20 +30,20 @@ export function QueryPage({ context, embedded = false }: Props) {
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
-      const responses = await Promise.all(targetVaults.map(async (vault) => {
-        const response = await searchWiki(vault.path, query.trim(), {
-          mode,
-          context_format: contextFormat,
-          page_dirs: pageDirsValue,
-        });
-        return { vault, response };
+      const response = await searchWiki(context.vaultPath, query.trim(), {
+        mode,
+        context_format: contextFormat,
+        page_dirs: pageDirsValue,
+        all_vaults: vaultScope === "all",
+        vault_ids: vaultScope === "selected" ? targetVaults.map((vault) => vault.id) : [],
+      });
+      const nextScopedResults = (response.results || []).map((result) => ({
+        vault: vaultForResult(context.vaultOptions, context.activeVaultId, context.vaultPath, result),
+        result,
       }));
-      const nextScopedResults = responses.flatMap(({ vault, response }) =>
-        (response.results || []).map((result) => ({ vault, result })),
-      );
       setScopedResults(nextScopedResults);
       context.setQueryResults(nextScopedResults.map((item) => item.result));
-      context.setQueryContextPack(buildScopedContextPack(responses));
+      context.setQueryContextPack(response.context_pack || "");
       if (targetVaults.some((vault) => vault.id === context.activeVaultId)) {
         const trend = await getQueryTrends(context.vaultPath);
         context.setQueryTrend(trend);
@@ -255,22 +255,21 @@ function resolveQueryVaults(
   return current.length ? current : vaults.slice(0, 1);
 }
 
-function buildScopedContextPack(
-  responses: Array<{ vault: VaultOption; response: { context_pack?: string } }>,
-) {
-  return responses
-    .map(({ vault, response }) => {
-      const contextPack = response.context_pack || "";
-      if (!contextPack.trim()) return "";
-      return `# ${vault.name}\n\n${contextPack}`;
-    })
-    .filter(Boolean)
-    .join("\n\n---\n\n");
-}
-
 function openResultPage(context: AppContext, vault: VaultOption, path: string) {
   context.setActiveVaultId(vault.id);
   context.openWikiPage(path);
+}
+
+function vaultForResult(vaults: VaultOption[], activeVaultId: string, activeVaultPath: string, result: QueryResult): VaultOption {
+  const byId = result.vault_id ? vaults.find((vault) => vault.id === result.vault_id) : null;
+  if (byId) return byId;
+  const byPath = result.vault_path ? vaults.find((vault) => vault.path === result.vault_path) : null;
+  if (byPath) return byPath;
+  return vaults.find((vault) => vault.id === activeVaultId) || {
+    id: activeVaultId,
+    name: result.vault_name || activeVaultId,
+    path: activeVaultPath,
+  };
 }
 
 function openResultGraph(context: AppContext, vault: VaultOption, path: string) {

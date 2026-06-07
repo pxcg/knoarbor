@@ -30,6 +30,8 @@ class WikiSearchRequest(BaseModel):
 
     obsidian_vault_path: str | None = Field(default=None, alias="vault_path", min_length=1)
     vault_id: str | None = None
+    vault_ids: list[str] = Field(default_factory=list)
+    all_vaults: bool = False
     config_path: str | None = None
     query: str = Field(..., min_length=1)
     mode: Literal["quick", "balanced", "deep"] = "balanced"
@@ -49,8 +51,8 @@ class WikiSearchRequest(BaseModel):
 
     @model_validator(mode="after")
     def require_vault_selector(self) -> "WikiSearchRequest":
-        if not self.obsidian_vault_path and not self.vault_id:
-            raise ValueError("vault_path or vault_id is required")
+        if not self.obsidian_vault_path and not self.vault_id and not self.vault_ids and not self.all_vaults:
+            raise ValueError("vault_path, vault_id, vault_ids, or all_vaults is required")
         return self
 
     @field_validator("query")
@@ -120,6 +122,9 @@ class WikiQueryTrendResponse(BaseModel):
 
 class WikiSearchResult(BaseModel):
     path: str
+    vault_id: str | None = None
+    vault_name: str | None = None
+    vault_path: str | None = None
     title: str
     type: str
     status: str | None = None

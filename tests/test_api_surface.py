@@ -208,6 +208,55 @@ connectors: {{}}
         self.assertEqual(payload["stats"]["vault_name"], "Team")
         self.assertEqual(payload["results"][0]["path"], "concepts/Team-Agent.md")
 
+    def test_query_endpoint_accepts_all_vaults(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            personal_vault = root / "personal-wiki"
+            team_vault = root / "team-wiki"
+            (personal_vault / "concepts").mkdir(parents=True)
+            (team_vault / "concepts").mkdir(parents=True)
+            (personal_vault / "concepts" / "Personal-Agent.md").write_text(
+                "# Personal Agent\n\n## Summary\n\nPersonal agent loop note.\n",
+                encoding="utf-8",
+            )
+            (team_vault / "concepts" / "Team-Agent.md").write_text(
+                "# Team Agent\n\n## Summary\n\nTeam agent coordination note.\n",
+                encoding="utf-8",
+            )
+            (root / "config.yaml").write_text(
+                f"""
+vaults:
+  default: personal
+  profiles:
+    personal:
+      name: Personal
+      path: {personal_vault}
+    team:
+      name: Team
+      path: {team_vault}
+models:
+  providers: {{}}
+connectors: {{}}
+""",
+                encoding="utf-8",
+            )
+            with _chdir(root):
+                client = TestClient(create_app())
+                response = client.post(
+                    "/query",
+                    json={"config_path": str(root / "config.yaml"), "all_vaults": True, "query": "agent", "max_results": 5},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["stats"]["multi_vault"])
+        self.assertEqual(payload["stats"]["vault_ids"], ["personal", "team"])
+        self.assertEqual({result["vault_id"] for result in payload["results"]}, {"personal", "team"})
+        self.assertIn("# Personal", payload["context_pack"])
+        self.assertIn("# Team", payload["context_pack"])
+
     def test_query_trends_endpoint_returns_repeated_gaps(self) -> None:
         import tempfile
 

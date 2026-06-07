@@ -153,6 +153,8 @@ def _add_query(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) 
     parser.add_argument("--page-dir", action="append", dest="page_dirs", default=[])
     parser.add_argument("--include-related", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--include-content", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--all-vaults", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--query-vault-id", action="append", dest="query_vault_ids", default=[], help="Search a configured vault ID. Repeat to search multiple vaults.")
     parser.add_argument("--auto", action=argparse.BooleanOptionalAction, default=True)
 
 
@@ -265,12 +267,14 @@ def _cmd_doctor(args: argparse.Namespace, runtime: Runtime) -> int:
 
 
 def _cmd_query(args: argparse.Namespace, runtime: Runtime) -> int:
-    vault_path = _require_vault(runtime)
+    vault_path = runtime.vault_path if args.all_vaults or args.query_vault_ids else _require_vault(runtime)
     settings = _query_settings(args)
     payload = {
         "query": args.query,
         "vault_path": vault_path,
         "vault_id": runtime.vault_id,
+        "vault_ids": args.query_vault_ids,
+        "all_vaults": args.all_vaults,
         "config_path": str(runtime.config_path) if runtime.config_path else None,
         "mode": settings["mode"],
         "context_format": settings["context_format"],
@@ -766,7 +770,9 @@ def _format_query(response: dict[str, Any]) -> str:
         vault_label = f"{vault_label} ({stats.get('vault_path')})"
     lines = [f"Query: {response.get('query', '')}", f"Vault: {vault_label}", f"Retrieval mode: {response.get('retrieval_mode', '')}", "", "Results:"]
     for index, result in enumerate(response.get("results", [])[:10], start=1):
-        lines.append(f"{index}. {result.get('title', '')} ({result.get('path', '')}) [{result.get('relevance', '')}, {result.get('match_kind', '')}]")
+        vault_label = result.get("vault_name") or result.get("vault_id") or result.get("vault_path")
+        prefix = f"{vault_label} · " if vault_label else ""
+        lines.append(f"{index}. {prefix}{result.get('title', '')} ({result.get('path', '')}) [{result.get('relevance', '')}, {result.get('match_kind', '')}]")
         if result.get("summary"):
             lines.append(f"   {result['summary']}")
         for point in result.get("key_points", [])[:3]:

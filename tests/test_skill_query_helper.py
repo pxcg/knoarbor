@@ -294,6 +294,100 @@ class SkillQueryHelperTests(unittest.TestCase):
         self.assertIn("Vault: /tmp/wiki", text)
         self.assertIn("Context Pack:", text)
 
+    def test_formats_multi_vault_retrieval_response_for_host_ai(self) -> None:
+        helper = load_query_helper()
+        text = helper._format_query(
+            {
+                "query": "Agent Loop",
+                "retrieval_mode": "machine_hybrid_balanced",
+                "stats": {"multi_vault": True, "vault_count": 2},
+                "results": [
+                    {
+                        "vault_id": "personal",
+                        "vault_name": "Personal",
+                        "path": "concepts/Agent-Loop.md",
+                        "title": "Agent Loop",
+                        "relevance": "high",
+                        "match_kind": "direct",
+                    },
+                    {
+                        "vault_id": "team",
+                        "vault_name": "Team",
+                        "path": "entities/OpenClaw.md",
+                        "title": "OpenClaw",
+                        "relevance": "medium",
+                        "match_kind": "related",
+                    },
+                ],
+            }
+        )
+
+        self.assertIn("Personal · Agent Loop (concepts/Agent-Loop.md)", text)
+        self.assertIn("Team · OpenClaw (entities/OpenClaw.md)", text)
+
+    def test_query_command_can_search_all_vaults_without_resolved_vault_path(self) -> None:
+        helper = load_query_helper()
+        runtime = helper.Runtime(
+            base_url="http://127.0.0.1:8123",
+            vault_path=None,
+            config_path=Path("/tmp/config.yaml"),
+            timeout=1,
+            output_format="json",
+        )
+        args = argparse.Namespace(
+            query="Agent Loop",
+            mode="balanced",
+            context_format="compact",
+            max_results=6,
+            page_dirs=[],
+            include_related=True,
+            include_content=False,
+            auto=True,
+            all_vaults=True,
+            query_vault_ids=[],
+        )
+
+        with patch.object(helper, "_post_json", return_value={"query": "Agent Loop", "results": []}) as post_json, redirect_stdout(io.StringIO()):
+            exit_code = helper._cmd_query(args, runtime)
+
+        self.assertEqual(exit_code, 0)
+        payload = post_json.call_args.args[1]
+        self.assertTrue(payload["all_vaults"])
+        self.assertEqual(payload["vault_ids"], [])
+        self.assertIsNone(payload["vault_path"])
+        self.assertEqual(payload["config_path"], "/tmp/config.yaml")
+
+    def test_query_command_can_search_selected_vault_ids_without_resolved_vault_path(self) -> None:
+        helper = load_query_helper()
+        runtime = helper.Runtime(
+            base_url="http://127.0.0.1:8123",
+            vault_path=None,
+            config_path=Path("/tmp/config.yaml"),
+            timeout=1,
+            output_format="json",
+        )
+        args = argparse.Namespace(
+            query="Agent Loop",
+            mode="balanced",
+            context_format="compact",
+            max_results=6,
+            page_dirs=[],
+            include_related=True,
+            include_content=False,
+            auto=True,
+            all_vaults=False,
+            query_vault_ids=["personal", "team"],
+        )
+
+        with patch.object(helper, "_post_json", return_value={"query": "Agent Loop", "results": []}) as post_json, redirect_stdout(io.StringIO()):
+            exit_code = helper._cmd_query(args, runtime)
+
+        self.assertEqual(exit_code, 0)
+        payload = post_json.call_args.args[1]
+        self.assertFalse(payload["all_vaults"])
+        self.assertEqual(payload["vault_ids"], ["personal", "team"])
+        self.assertIsNone(payload["vault_path"])
+
     def test_auto_query_settings_keep_compact_by_default(self) -> None:
         helper = load_query_helper()
         settings = helper._query_settings(

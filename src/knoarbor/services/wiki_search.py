@@ -27,11 +27,17 @@ class WikiSearchService:
     """Retrieves compact wiki context for Hermes or other query callers."""
 
     def search(self, request: WikiSearchRequest) -> WikiSearchResponse:
+        if request.all_vaults or request.vault_ids:
+            return self._search_many(request)
+        return self._search_one(request)
+
+    def _search_one(self, request: WikiSearchRequest) -> WikiSearchResponse:
         request, vault_path = _resolve_query_request(request)
         try:
             response = search_query(request)
             response.stats["vault_path"] = str(vault_path)
             response.stats.update(_vault_stats(vault_path, config_path=request.config_path, vault_id=request.vault_id))
+            _annotate_results_with_vault(response, vault_path)
             response.stats["query_trend"] = build_query_trend(vault_path)
             if request.record_query:
                 ledger_path = append_query_record(vault_path, request, response)
@@ -42,6 +48,64 @@ class WikiSearchService:
         except Exception as exc:
             self._write_failure_artifacts(vault_path, request, exc)
             raise
+
+    def _search_many(self, request: WikiSearchRequest) -> WikiSearchResponse:
+        config = load_config(Path(request.config_path).expanduser().resolve() if request.config_path else default_config_path())
+        target_vault_ids = list(config.vaults.profiles) if request.all_vaults else _unique_nonempty(request.vault_ids)
+        if not target_vault_ids:
+            raise UserInputError("No vault_ids were provided and no configured vault profiles are available.")
+
+        responses: list[WikiSearchResponse] = []
+        warnings: list[str] = []
+        for vault_id in target_vault_ids:
+            if vault_id not in config.vaults.profiles:
+                known = ", ".join(sorted(config.vaults.profiles)) or "none"
+                raise UserInputError(f"Unknown vault_id: {vault_id}. Known vaults: {known}")
+            scoped_request = request.model_copy(
+                update={
+                    "obsidian_vault_path": None,
+                    "vault_id": vault_id,
+                    "vault_ids": [],
+                    "all_vaults": False,
+                },
+            )
+            response = self._search_one(scoped_request)
+            responses.append(response)
+            warnings.extend(response.warnings)
+
+        merged_results = sorted(
+            [result for response in responses for result in response.results],
+            key=lambda item: item.score,
+            reverse=True,
+        )[: request.max_results]
+        context_pack = _merge_context_packs(responses)
+        return WikiSearchResponse(
+            query=request.query,
+            retrieval_mode=request.mode,
+            results=merged_results,
+            context_pack=context_pack,
+            answer_guidance=_merge_unique([item for response in responses for item in response.answer_guidance]),
+            gap_suggestions=[item for response in responses for item in response.gap_suggestions],
+            gaps=_merge_unique([item for response in responses for item in response.gaps]),
+            warnings=_merge_unique(warnings),
+            stats={
+                "multi_vault": True,
+                "vault_count": len(responses),
+                "vault_ids": target_vault_ids,
+                "result_count": len(merged_results),
+                "context_pack_chars": len(context_pack),
+                "per_vault": [
+                    {
+                        "vault_id": response.stats.get("vault_id"),
+                        "vault_name": response.stats.get("vault_name"),
+                        "vault_path": response.stats.get("vault_path"),
+                        "result_count": len(response.results),
+                    }
+                    for response in responses
+                ],
+            },
+            trace={"vault_ids": target_vault_ids},
+        )
 
     def context(self, request: WikiContextRequest) -> WikiContextResponse:
         return build_wiki_context(request)
@@ -96,6 +160,53 @@ def _vault_stats(vault_path: Path, *, config_path: str | None = None, vault_id: 
     if vault_id:
         return {"vault_id": vault_id}
     return {}
+
+
+def _annotate_results_with_vault(response: WikiSearchResponse, vault_path: Path) -> None:
+    vault_id = response.stats.get("vault_id")
+    vault_name = response.stats.get("vault_name")
+    for index, result in enumerate(response.results):
+        response.results[index] = result.model_copy(
+            update={
+                "vault_id": str(vault_id) if vault_id else None,
+                "vault_name": str(vault_name) if vault_name else None,
+                "vault_path": str(vault_path),
+            },
+        )
+
+
+def _merge_context_packs(responses: list[WikiSearchResponse]) -> str:
+    sections: list[str] = []
+    for response in responses:
+        context_pack = response.context_pack.strip()
+        if not context_pack:
+            continue
+        vault_label = response.stats.get("vault_name") or response.stats.get("vault_id") or response.stats.get("vault_path") or "unknown"
+        sections.append(f"# {vault_label}\n\n{context_pack}")
+    return "\n\n---\n\n".join(sections)
+
+
+def _merge_unique(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    output: list[str] = []
+    for item in items:
+        if item in seen:
+            continue
+        seen.add(item)
+        output.append(item)
+    return output
+
+
+def _unique_nonempty(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    output: list[str] = []
+    for item in items:
+        text = item.strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        output.append(text)
+    return output
 
 
 def _resolve_query_request(request: WikiSearchRequest) -> tuple[WikiSearchRequest, Path]:

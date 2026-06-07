@@ -66,7 +66,9 @@ http://127.0.0.1:8000
 
 只读 API 支持显式传入 `vault_path`，也支持传入配置中的 `vault_id`。集成到
 共享 `config.yaml` 时优先使用 `vault_id`；临时自动化脚本可以直接传
-`vault_path`。
+`vault_path`。`POST /query` 还支持跨知识库检索：传入 `all_vaults: true`
+查询全部已配置知识库，或传入 `vault_ids: [...]` 查询指定知识库。返回结果会标注
+`vault_id`、`vault_name` 和 `vault_path`。
 
 ```http
 POST /query
@@ -270,6 +272,30 @@ POST /query
 {
   "vault_path": "/path/to/wiki",
   "query": "agent loop",
+  "mode": "balanced",
+  "context_format": "compact"
+}
+```
+
+查询全部已配置知识库：
+
+```json
+{
+  "config_path": "/path/to/config.yaml",
+  "query": "agent loop",
+  "all_vaults": true,
+  "mode": "balanced",
+  "context_format": "compact"
+}
+```
+
+查询指定知识库：
+
+```json
+{
+  "config_path": "/path/to/config.yaml",
+  "query": "agent loop",
+  "vault_ids": ["personal", "team"],
   "mode": "balanced",
   "context_format": "compact"
 }

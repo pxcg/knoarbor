@@ -30,6 +30,7 @@ The examples below use shell variables populated from runtime discovery:
 ```bash
 export KNOARBOR_BASE_URL="http://127.0.0.1:8000"
 export KNOARBOR_VAULT_PATH="/absolute/path/to/wiki"
+export KNOARBOR_CONFIG_PATH="/absolute/path/to/config.yaml"
 ```
 
 ## Check Service
@@ -50,6 +51,22 @@ curl -sS --get "$KNOARBOR_BASE_URL/doctor"
 curl -sS -X POST "$KNOARBOR_BASE_URL/query" \
   -H 'Content-Type: application/json' \
   -d "{\"query\":\"agent loop\",\"vault_path\":\"$KNOARBOR_VAULT_PATH\",\"mode\":\"balanced\",\"context_format\":\"compact\",\"max_results\":6,\"include_related\":true,\"include_content\":false,\"caller\":\"generic-skill\"}"
+```
+
+Query all configured vaults:
+
+```bash
+curl -sS -X POST "$KNOARBOR_BASE_URL/query" \
+  -H 'Content-Type: application/json' \
+  -d "{\"query\":\"agent loop\",\"config_path\":\"$KNOARBOR_CONFIG_PATH\",\"all_vaults\":true,\"mode\":\"balanced\",\"context_format\":\"compact\",\"max_results\":6,\"include_related\":true,\"include_content\":false,\"caller\":\"generic-skill\"}"
+```
+
+Query selected configured vaults:
+
+```bash
+curl -sS -X POST "$KNOARBOR_BASE_URL/query" \
+  -H 'Content-Type: application/json' \
+  -d "{\"query\":\"agent loop\",\"config_path\":\"$KNOARBOR_CONFIG_PATH\",\"vault_ids\":[\"personal\",\"team\"],\"mode\":\"balanced\",\"context_format\":\"compact\",\"max_results\":6,\"include_related\":true,\"include_content\":false,\"caller\":\"generic-skill\"}"
 ```
 
 ## List Pages

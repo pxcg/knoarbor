@@ -191,6 +191,9 @@ export type GraphResponse = {
 
 export type QueryResult = {
   path: string;
+  vault_id?: string | null;
+  vault_name?: string | null;
+  vault_path?: string | null;
   title: string;
   type: string;
   status: string;
@@ -463,6 +466,8 @@ export type QuerySearchOptions = {
   page_dirs?: string[];
   max_results?: number;
   include_content?: boolean;
+  vault_ids?: string[];
+  all_vaults?: boolean;
 };
 
 export async function searchWiki(
@@ -483,6 +488,8 @@ export async function searchWiki(
     body: {
       vault_path: vaultPath,
       query,
+      vault_ids: options.vault_ids || [],
+      all_vaults: options.all_vaults || false,
       mode: options.mode || "balanced",
       context_format: options.context_format || "compact",
       page_dirs: options.page_dirs || [],

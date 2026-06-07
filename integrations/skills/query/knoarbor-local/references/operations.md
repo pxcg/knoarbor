@@ -22,6 +22,8 @@ HTTP examples in `references/http-api.md`.
 python3 scripts/knoarbor.py query "Agent Loop 是什么"
 python3 scripts/knoarbor.py query "Agent Loop 控制模式" --mode deep --max-results 8
 python3 scripts/knoarbor.py query "Agent Loop 页面全文" --context-format full --include-content
+python3 scripts/knoarbor.py query "Agent Loop" --all-vaults
+python3 scripts/knoarbor.py query "Agent Loop" --query-vault-id personal --query-vault-id team
 ```
 
 Progressive retrieval behavior:
@@ -33,6 +35,8 @@ Progressive retrieval behavior:
   reading full pages.
 - Broad summary or comparison: aggregate the strongest relevant results instead
   of forcing one page to represent the whole answer.
+- Multi-vault question: use `--all-vaults` when the user asks across local
+  knowledge bases, or repeat `--query-vault-id` for a named subset.
 - Multiple plausible candidates: list 2-5 candidate pages with title, path, and
   reason, then ask the user which one to expand.
 - Explicit full-content request: prefer `page read` if a page path is known;

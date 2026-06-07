@@ -66,7 +66,9 @@ Both endpoints always return the same workflow envelope:
 
 Read APIs accept either an explicit `vault_path` or a configured `vault_id`.
 Use `vault_id` when integrating with a shared `config.yaml`; use `vault_path`
-for one-off automation.
+for one-off automation. `POST /query` also supports multi-vault retrieval with
+`all_vaults: true` or `vault_ids: [...]`; each result is annotated with
+`vault_id`, `vault_name`, and `vault_path`.
 
 ```http
 POST /query
@@ -293,6 +295,30 @@ Retrieves relevant wiki pages, excerpts, related context, trace data, and a prom
 {
   "vault_path": "/path/to/wiki",
   "query": "agent loop",
+  "mode": "balanced",
+  "context_format": "compact"
+}
+```
+
+Configured multi-vault query:
+
+```json
+{
+  "config_path": "/path/to/config.yaml",
+  "query": "agent loop",
+  "all_vaults": true,
+  "mode": "balanced",
+  "context_format": "compact"
+}
+```
+
+Selected-vault query:
+
+```json
+{
+  "config_path": "/path/to/config.yaml",
+  "query": "agent loop",
+  "vault_ids": ["personal", "team"],
   "mode": "balanced",
   "context_format": "compact"
 }
