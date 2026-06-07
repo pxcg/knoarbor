@@ -35,6 +35,8 @@ export function OverviewPage({ context, onNavigate }: Props) {
         <MetricCard tone="violet" label={context.t("graphEdges")} value={context.graph?.stats.edge_count ?? "--"} hint={context.t("resolvedWikilinks")} />
       </div>
 
+      <VaultOverviewPanel context={context} />
+
       <article className="panel next-steps-panel">
         <div className="panel-header">
           <div>
@@ -67,6 +69,46 @@ export function OverviewPage({ context, onNavigate }: Props) {
         )}
       </article>
     </section>
+  );
+}
+
+function VaultOverviewPanel({ context }: { context: AppContext }) {
+  return (
+    <article className="panel vault-overview-panel">
+      <div className="panel-header">
+        <div>
+          <h2>{context.t("vaultOverview")}</h2>
+          <p className="panel-copy">{context.t("vaultOverviewCopy")}</p>
+        </div>
+        <span className="pill">{`${context.vaultOverviews.length} ${context.t("allVaults")}`}</span>
+      </div>
+      <div className="vault-overview-grid">
+        {context.vaultOverviews.map((item) => (
+          <button
+            className={`vault-overview-card ${item.vault.id === context.activeVaultId ? "active" : ""}`}
+            key={item.vault.id}
+            onClick={() => context.setActiveVaultId(item.vault.id)}
+            type="button"
+          >
+            <span className="vault-card-head">
+              <strong>{item.vault.name}</strong>
+              {item.vault.id === context.activeVaultId && <em>{context.t("activeVault")}</em>}
+            </span>
+            <code>{item.vault.path}</code>
+            {item.error ? (
+              <small className="danger-text">{item.error}</small>
+            ) : (
+              <span className="vault-card-metrics">
+                <span>{context.t("pages")}: {item.status?.pages ?? "--"}</span>
+                <span>{context.t("lintIssues")}: {item.status?.issues ?? "--"}</span>
+                <span>{context.t("activeRuns")}: {item.activeRuns.length}</span>
+                <span>{context.t("reports")}: {item.reports.length}</span>
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+    </article>
   );
 }
 

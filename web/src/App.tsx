@@ -9,7 +9,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   getConfig,
@@ -37,7 +37,7 @@ import { detectLanguage, translate } from "./i18n";
 import { queryKeys } from "./queryKeys";
 import type { Language, ViewName } from "./types";
 import type { RunRecord } from "./types";
-import { buildVaultOptions, nextValidVaultId, resolveActiveVault, type VaultOption } from "./vaultRuntime";
+import { buildVaultOptions, nextValidVaultId, resolveActiveVault, type VaultOption, type VaultOverview } from "./vaultRuntime";
 
 const loadOverviewPage = () => import("./pages/OverviewPage").then((module) => ({ default: module.OverviewPage }));
 const loadRunsPage = () => import("./pages/RunsPage").then((module) => ({ default: module.RunsPage }));
@@ -210,6 +210,16 @@ export function App() {
     placeholderData: keepPreviousData,
   });
 
+  const vaultOverviewQueries = useQueries({
+    queries: vaultOptions.map((vault) => ({
+      queryKey: queryKeys.overview(vault.id),
+      queryFn: () => fetchVaultOverview(vault),
+      enabled: configQuery.isSuccess && vaultOptions.length > 1,
+      staleTime: 20_000,
+      placeholderData: keepPreviousData,
+    })),
+  });
+
   const doctorReport = doctorQuery.data || null;
   const status = statusQuery.data || null;
   const graph = graphQuery.data || null;
@@ -218,6 +228,26 @@ export function App() {
   const queryTrend = queryTrendQuery.data || null;
   const activeRuns = activeRunsQuery.data?.runs || [];
   const recentRuns = recentRunsQuery.data?.runs || [];
+  const vaultOverviews = vaultOptions.length > 1
+    ? vaultOptions.map((vault, index) => {
+      const query = vaultOverviewQueries[index];
+      return query?.data || {
+        vault,
+        status: vault.id === activeVaultId ? status : null,
+        activeRuns: vault.id === activeVaultId ? activeRuns : [],
+        recentRuns: vault.id === activeVaultId ? recentRuns : [],
+        reports: vault.id === activeVaultId ? reports : [],
+        error: query?.error instanceof Error ? query.error.message : query?.isError ? t("vaultRefreshFailed") : null,
+      };
+    })
+    : [{
+      vault: activeVault,
+      status,
+      activeRuns,
+      recentRuns,
+      reports,
+      error: null,
+    }];
 
   const setLanguage = useCallback((next: Language) => {
     localStorage.setItem("knoarbor.language", next);
@@ -449,6 +479,7 @@ export function App() {
       summary: effectiveSummary,
       activeVaultId,
       vaultOptions,
+      vaultOverviews,
       setActiveVaultId,
       vaultPath,
       refreshAll,
@@ -480,6 +511,7 @@ export function App() {
       effectiveSummary,
       activeVaultId,
       vaultOptions,
+      vaultOverviews,
       setActiveVaultId,
       vaultPath,
       refreshAll,
@@ -594,6 +626,7 @@ export type AppContext = {
   summary: ConfigSummary;
   activeVaultId: string;
   vaultOptions: VaultOption[];
+  vaultOverviews: VaultOverview[];
   setActiveVaultId: (vaultId: string) => void;
   vaultPath: string;
   refreshAll: () => Promise<boolean>;
@@ -602,3 +635,22 @@ export type AppContext = {
   setLanguage: (language: Language) => void;
   t: (key: string) => string;
 };
+
+async function fetchVaultOverview(vault: VaultOption): Promise<VaultOverview> {
+  const [statusResult, activeRunsResult, recentRunsResult, reportsResult] = await Promise.allSettled([
+    getStatus(vault.path),
+    getActiveRuns(vault.path),
+    getRuns(vault.path, false, 6),
+    getReports(vault.path),
+  ]);
+  const error = [statusResult, activeRunsResult, recentRunsResult, reportsResult]
+    .find((result) => result.status === "rejected");
+  return {
+    vault,
+    status: statusResult.status === "fulfilled" ? statusResult.value : null,
+    activeRuns: activeRunsResult.status === "fulfilled" ? activeRunsResult.value.runs : [],
+    recentRuns: recentRunsResult.status === "fulfilled" ? recentRunsResult.value.runs : [],
+    reports: reportsResult.status === "fulfilled" ? reportsResult.value.reports : [],
+    error: error?.status === "rejected" ? String(error.reason instanceof Error ? error.reason.message : error.reason) : null,
+  };
+}

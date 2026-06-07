@@ -6,6 +6,7 @@ export const queryKeys = {
   reports: (vaultId: string) => ["vault", vaultId, "reports"] as const,
   activeRuns: (vaultId: string) => ["vault", vaultId, "runs", "active"] as const,
   recentRuns: (vaultId: string) => ["vault", vaultId, "runs", "recent"] as const,
+  overview: (vaultId: string) => ["vault", vaultId, "overview"] as const,
   graph: (vaultId: string) => ["vault", vaultId, "graph"] as const,
   pages: (vaultId: string) => ["vault", vaultId, "pages"] as const,
   queryTrends: (vaultId: string) => ["vault", vaultId, "query-trends"] as const,

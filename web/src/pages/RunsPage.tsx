@@ -9,6 +9,7 @@ type Props = {
 export function RunsPage({ context }: Props) {
   return (
     <section className="view active">
+      <VaultRunsSummary context={context} />
       <ActiveRunsPanel context={context} includeRecoverable />
       <RunPreflight context={context} />
       <article className="panel">
@@ -48,6 +49,35 @@ export function RunsPage({ context }: Props) {
         </div>
       </article>
     </section>
+  );
+}
+
+function VaultRunsSummary({ context }: { context: AppContext }) {
+  if (context.vaultOverviews.length <= 1) return null;
+  return (
+    <article className="panel vault-runs-panel">
+      <div className="panel-header">
+        <div>
+          <h2>{context.t("allVaults")}</h2>
+          <p className="panel-copy">{context.t("vaultOverviewCopy")}</p>
+        </div>
+      </div>
+      <div className="vault-run-grid">
+        {context.vaultOverviews.map((item) => (
+          <button
+            className={`vault-run-card ${item.vault.id === context.activeVaultId ? "active" : ""}`}
+            key={item.vault.id}
+            onClick={() => context.setActiveVaultId(item.vault.id)}
+            type="button"
+          >
+            <strong>{item.vault.name}</strong>
+            <span>{context.t("activeRuns")}: {item.activeRuns.length}</span>
+            <span>{context.t("recentRuns")}: {item.recentRuns.length}</span>
+            <span>{context.t("reports")}: {item.reports.length}</span>
+          </button>
+        ))}
+      </div>
+    </article>
   );
 }
 

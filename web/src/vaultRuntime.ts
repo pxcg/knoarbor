@@ -1,9 +1,20 @@
 import type { ConfigSummary } from "./api/client";
+import type { ReportSummary, UiStatusResponse } from "./api/client";
+import type { RunRecord } from "./types";
 
 export type VaultOption = {
   id: string;
   name: string;
   path: string;
+};
+
+export type VaultOverview = {
+  vault: VaultOption;
+  status: UiStatusResponse | null;
+  activeRuns: RunRecord[];
+  recentRuns: RunRecord[];
+  reports: ReportSummary[];
+  error?: string | null;
 };
 
 export function buildVaultOptions(summary: ConfigSummary): VaultOption[] {

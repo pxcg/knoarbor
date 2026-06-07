@@ -822,6 +822,93 @@ h2 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.vault-overview-panel,
+.vault-runs-panel {
+  margin-bottom: 18px;
+}
+
+.vault-overview-grid,
+.vault-run-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.vault-overview-card,
+.vault-run-card {
+  appearance: none;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  padding: 13px 14px;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.vault-overview-card:hover,
+.vault-run-card:hover,
+.vault-overview-card.active,
+.vault-run-card.active {
+  border-color: rgba(16, 111, 91, 0.35);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.vault-card-head {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.vault-card-head strong,
+.vault-run-card strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vault-card-head em {
+  background: #ecfdf5;
+  border-radius: 999px;
+  color: #047857;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 750;
+  padding: 3px 7px;
+}
+
+.vault-overview-card code {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vault-card-metrics {
+  color: var(--muted-strong);
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  font-size: 12px;
+}
+
+.vault-run-card span {
+  color: var(--muted-strong);
+  font-size: 12px;
+}
+
+.danger-text {
+  color: var(--danger);
+}
+
 .page-intro {
   grid-template-columns: minmax(0, 1fr);
   min-height: 0;
