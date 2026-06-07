@@ -6,6 +6,7 @@
 config.yaml
 config.local.yaml
 wiki/
+vaults/
 .knoarbor/
 __pycache__/
 *.pyc
