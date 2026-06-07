@@ -699,6 +699,7 @@ def _format_check(response: dict[str, Any]) -> str:
         f"KnoArbor base URL: {response.get('base_url')}",
         f"Config path: {response.get('config_path') or 'not found'}",
         f"Vault: {response.get('vault_name') or response.get('vault_id') or 'unknown'}",
+        f"Vault ID: {response.get('vault_id') or 'unknown'}",
         f"Vault path: {response.get('vault_path') or 'not configured'}",
         f"Service online: {'yes' if response.get('service_online') else 'no'}",
     ]

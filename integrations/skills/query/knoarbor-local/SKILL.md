@@ -86,8 +86,8 @@ Path rules:
   a path relative to this skill directory.
 - Do not assume the current working directory is the KnoArbor repository.
 - Do not hard-code the user's local KnoArbor project path.
-- The helper uses only the Python standard library and loads sibling files
-  through `__file__`.
+- The helper uses only the Python standard library and is safe to run from any
+  current working directory when addressed by its skill-relative path.
 - The helper requires Python 3.9 or newer.
 
 Fallback rules:
