@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import sys
 import unittest
+import os
+from contextlib import contextmanager
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -12,6 +14,16 @@ from knoarbor.entrypoints.api import create_app
 from knoarbor.entrypoints.api_contract import stable_route_set, ui_route_set
 from knoarbor.core.errors import ERROR_HINTS
 from knoarbor import __version__
+
+
+@contextmanager
+def _chdir(path: Path):
+    previous = Path.cwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(previous)
 
 
 REMOVED_PROTOTYPE_ROUTES = {
@@ -154,6 +166,47 @@ class ApiSurfaceTests(unittest.TestCase):
         self.assertIn("query_ledger_path", payload["stats"])
         self.assertIn("initial_scope_dirs", payload["trace"])
         self.assertGreater(payload["stats"]["context_pack_chars"], 0)
+
+    def test_query_endpoint_accepts_vault_id(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            team_vault = root / "team-wiki"
+            (team_vault / "concepts").mkdir(parents=True)
+            (team_vault / "concepts" / "Team-Agent.md").write_text(
+                "# Team Agent\n\n## Summary\n\nTeam agent coordination note.\n",
+                encoding="utf-8",
+            )
+            (root / "config.yaml").write_text(
+                f"""
+vaults:
+  default: personal
+  profiles:
+    personal:
+      name: Personal
+      path: ./personal-wiki
+    team:
+      name: Team
+      path: {team_vault}
+models:
+  providers: {{}}
+connectors: {{}}
+""",
+                encoding="utf-8",
+            )
+            with _chdir(root):
+                client = TestClient(create_app())
+                response = client.post(
+                    "/query",
+                    json={"config_path": str(root / "config.yaml"), "vault_id": "team", "query": "team agent", "max_results": 3},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["stats"]["vault_id"], "team")
+        self.assertEqual(payload["stats"]["vault_name"], "Team")
+        self.assertEqual(payload["results"][0]["path"], "concepts/Team-Agent.md")
 
     def test_query_trends_endpoint_returns_repeated_gaps(self) -> None:
         import tempfile
@@ -340,6 +393,37 @@ class ApiSurfaceTests(unittest.TestCase):
             self.assertEqual(run_payload["status"], "failed")
             self.assertEqual(run_payload["error_info"]["code"], "KA-CFG-001")
             self.assertIn("Config file does not exist", run_payload["error"])
+
+    def test_wiki_pages_endpoint_accepts_vault_id(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            archive_vault = root / "archive-wiki"
+            (archive_vault / "entities").mkdir(parents=True)
+            (archive_vault / "entities" / "Archive.md").write_text("# Archive\n\nStored page.\n", encoding="utf-8")
+            (root / "config.yaml").write_text(
+                f"""
+vaults:
+  default: archive
+  profiles:
+    archive:
+      name: Archive
+      path: {archive_vault}
+models:
+  providers: {{}}
+connectors: {{}}
+""",
+                encoding="utf-8",
+            )
+            with _chdir(root):
+                client = TestClient(create_app())
+                response = client.get("/wiki/pages", params={"config_path": str(root / "config.yaml"), "vault_id": "archive"})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["vault_path"], str(archive_vault.resolve()))
+        self.assertEqual(payload["pages"][0]["path"], "entities/Archive.md")
 
     def test_http_exception_uses_public_error_envelope(self) -> None:
         import tempfile

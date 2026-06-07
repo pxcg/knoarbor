@@ -62,6 +62,21 @@ http://127.0.0.1:8000
 }
 ```
 
+## 知识库选择
+
+只读 API 支持显式传入 `vault_path`，也支持传入配置中的 `vault_id`。集成到
+共享 `config.yaml` 时优先使用 `vault_id`；临时自动化脚本可以直接传
+`vault_path`。
+
+```http
+POST /query
+GET /wiki/pages?vault_id=personal
+GET /reports?vault_id=personal
+GET /runs?vault_id=personal
+```
+
+如果需要从非默认配置文件解析 `vault_id`，同时传入 `config_path`。
+
 ## 错误格式
 
 公开 API 错误统一使用 KnoArbor 错误目录。稳定判断字段是 `error.code`，粗分类字段是 `error.category`。

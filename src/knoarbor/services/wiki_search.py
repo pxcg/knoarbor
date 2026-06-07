@@ -4,6 +4,7 @@ from pathlib import Path
 
 from knoarbor.core.config import default_config_path, load_config
 from knoarbor.core.errors import UserInputError
+from knoarbor.core.vaults import resolve_config_vault_path
 from knoarbor.core.schemas.wiki_query import (
     WikiContextRequest,
     WikiContextResponse,
@@ -26,11 +27,11 @@ class WikiSearchService:
     """Retrieves compact wiki context for Hermes or other query callers."""
 
     def search(self, request: WikiSearchRequest) -> WikiSearchResponse:
-        vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
+        request, vault_path = _resolve_query_request(request)
         try:
             response = search_query(request)
             response.stats["vault_path"] = str(vault_path)
-            response.stats.update(_vault_stats(vault_path))
+            response.stats.update(_vault_stats(vault_path, config_path=request.config_path, vault_id=request.vault_id))
             response.stats["query_trend"] = build_query_trend(vault_path)
             if request.record_query:
                 ledger_path = append_query_record(vault_path, request, response)
@@ -46,7 +47,7 @@ class WikiSearchService:
         return build_wiki_context(request)
 
     def feedback(self, request: WikiQueryFeedbackRequest) -> WikiQueryFeedbackResponse:
-        vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
+        request, vault_path = _resolve_feedback_request(request)
         if not vault_path.exists() or not vault_path.is_dir():
             raise UserInputError(f"obsidian_vault_path does not exist or is not a directory: {vault_path}")
         ledger_path = append_query_feedback(vault_path, request)
@@ -80,16 +81,41 @@ class WikiSearchService:
             logger.exception("query_failure_report_write_failed error=%s original_error=%s", report_exc, exc)
 
 
-def _vault_stats(vault_path: Path) -> dict[str, str]:
+def _vault_stats(vault_path: Path, *, config_path: str | None = None, vault_id: str | None = None) -> dict[str, str]:
     try:
-        config = load_config(default_config_path())
+        config = load_config(Path(config_path).expanduser().resolve() if config_path else default_config_path())
     except Exception:
         return {}
+    resolved = vault_path.expanduser().resolve()
+    for profile_id, profile in config.vaults.profiles.items():
+        try:
+            if profile.path.expanduser().resolve() == resolved:
+                return {"vault_id": profile_id, "vault_name": profile.name}
+        except OSError:
+            continue
+    if vault_id:
+        return {"vault_id": vault_id}
+    return {}
+
+
+def _resolve_query_request(request: WikiSearchRequest) -> tuple[WikiSearchRequest, Path]:
+    config = load_config(Path(request.config_path).expanduser().resolve() if request.config_path else default_config_path())
+    vault_path = resolve_config_vault_path(config, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
+    return request.model_copy(update={"obsidian_vault_path": str(vault_path), "vault_id": request.vault_id or _vault_id_for_path(config, vault_path)}), vault_path
+
+
+def _resolve_feedback_request(request: WikiQueryFeedbackRequest) -> tuple[WikiQueryFeedbackRequest, Path]:
+    config = load_config(Path(request.config_path).expanduser().resolve() if request.config_path else default_config_path())
+    vault_path = resolve_config_vault_path(config, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
+    return request.model_copy(update={"obsidian_vault_path": str(vault_path), "vault_id": request.vault_id or _vault_id_for_path(config, vault_path)}), vault_path
+
+
+def _vault_id_for_path(config, vault_path: Path) -> str | None:
     resolved = vault_path.expanduser().resolve()
     for vault_id, profile in config.vaults.profiles.items():
         try:
             if profile.path.expanduser().resolve() == resolved:
-                return {"vault_id": vault_id, "vault_name": profile.name}
+                return vault_id
         except OSError:
             continue
-    return {}
+    return None

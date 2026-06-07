@@ -104,6 +104,43 @@ class CliTests(unittest.TestCase):
             self.assertIn("concepts/Agent-Loop.md", output.getvalue())
             self.assertTrue((vault / "maintenance" / "query_ledger.jsonl").exists())
 
+    def test_query_command_accepts_vault_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            personal = root / "personal-wiki"
+            team = root / "team-wiki"
+            (personal / "concepts").mkdir(parents=True)
+            (team / "concepts").mkdir(parents=True)
+            (personal / "concepts" / "Personal.md").write_text("# Personal\n\n## Summary\n\nPersonal note.\n", encoding="utf-8")
+            (team / "concepts" / "Team-Agent.md").write_text("# Team Agent\n\n## Summary\n\nTeam agent note.\n", encoding="utf-8")
+            config = root / "config.yaml"
+            config.write_text(
+                f"""
+vaults:
+  default: personal
+  profiles:
+    personal:
+      name: Personal
+      path: {personal}
+    team:
+      name: Team
+      path: {team}
+models:
+  providers: {{}}
+connectors: {{}}
+""",
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                exit_code = main(["--config", str(config), "query", "--vault-id", "team", "team agent"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Team Agent", output.getvalue())
+        self.assertIn("concepts/Team-Agent.md", output.getvalue())
+        self.assertNotIn("Personal.md", output.getvalue())
+
     def test_query_command_can_write_query_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)

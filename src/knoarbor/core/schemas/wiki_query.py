@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class WikiPageReadRequest(BaseModel):
@@ -28,7 +28,9 @@ class WikiPageReadResponse(BaseModel):
 class WikiSearchRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    obsidian_vault_path: str = Field(..., alias="vault_path", min_length=1)
+    obsidian_vault_path: str | None = Field(default=None, alias="vault_path", min_length=1)
+    vault_id: str | None = None
+    config_path: str | None = None
     query: str = Field(..., min_length=1)
     mode: Literal["quick", "balanced", "deep"] = "balanced"
     page_dirs: list[str] = Field(default_factory=list)
@@ -44,6 +46,12 @@ class WikiSearchRequest(BaseModel):
     record_query: bool = True
     write_report: bool = False
     caller: str | None = None
+
+    @model_validator(mode="after")
+    def require_vault_selector(self) -> "WikiSearchRequest":
+        if not self.obsidian_vault_path and not self.vault_id:
+            raise ValueError("vault_path or vault_id is required")
+        return self
 
     @field_validator("query")
     @classmethod
@@ -73,13 +81,21 @@ class WikiQueryGapSuggestion(BaseModel):
 class WikiQueryFeedbackRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    obsidian_vault_path: str = Field(..., alias="vault_path", min_length=1)
+    obsidian_vault_path: str | None = Field(default=None, alias="vault_path", min_length=1)
+    vault_id: str | None = None
+    config_path: str | None = None
     query: str = Field(..., min_length=1)
     useful: bool | None = None
     selected_paths: list[str] = Field(default_factory=list)
     rejected_paths: list[str] = Field(default_factory=list)
     comment: str = ""
     caller: str | None = None
+
+    @model_validator(mode="after")
+    def require_feedback_vault_selector(self) -> "WikiQueryFeedbackRequest":
+        if not self.obsidian_vault_path and not self.vault_id:
+            raise ValueError("vault_path or vault_id is required")
+        return self
 
     @field_validator("query")
     @classmethod

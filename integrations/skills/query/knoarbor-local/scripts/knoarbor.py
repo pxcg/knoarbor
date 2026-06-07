@@ -21,6 +21,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Operate a local KnoArbor service from a host-AI skill.")
     parser.add_argument("--base-url", default=os.environ.get("KNOARBOR_BASE_URL"))
     parser.add_argument("--vault", default=os.environ.get("KNOARBOR_VAULT_PATH"))
+    parser.add_argument("--vault-id", default=os.environ.get("KNOARBOR_VAULT_ID"))
     parser.add_argument("--config", default=os.environ.get("KNOARBOR_CONFIG_PATH"))
     parser.add_argument("--timeout", type=float, default=30)
     parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format.")
@@ -92,23 +93,34 @@ class Runtime:
 def _runtime(args: argparse.Namespace) -> Runtime:
     config_path = _resolve_config_path(args.config)
     config = _load_yaml(config_path) if config_path else {}
-    endpoint = _runtime_endpoint_data(config_path) or _user_runtime_endpoint_data()
+    endpoint = _runtime_endpoint_data(config_path) if config_path else _user_runtime_endpoint_data()
     base_url = args.base_url or _base_url_from_runtime_endpoint(endpoint) or _base_url_from_config(config) or DEFAULT_BASE_URL
-    vault_path = args.vault or _vault_path_from_runtime_endpoint(endpoint) or _vault_path_from_config(config, config_path)
+    vaults = _vaults_from_runtime_endpoint(endpoint) or _vaults_from_config(config, config_path)
+    arg_vault_id = getattr(args, "vault_id", None)
+    requested_vault_id = arg_vault_id.strip() if arg_vault_id else None
+    selected_vault_path = _vault_path_for_id(vaults, requested_vault_id)
+    vault_path = args.vault or selected_vault_path or (None if requested_vault_id else _vault_path_from_runtime_endpoint(endpoint) or _vault_path_from_config(config, config_path))
     vault_id = _vault_id_from_runtime_endpoint(endpoint)
     vault_name = _vault_name_from_runtime_endpoint(endpoint)
-    vaults = _vaults_from_runtime_endpoint(endpoint) or _vaults_from_config(config, config_path)
-    if not args.vault:
+    if requested_vault_id:
+        vault_id = requested_vault_id
+        vault_name = _vault_name_for_id(vaults, requested_vault_id) or vault_name
+    if not args.vault and not requested_vault_id:
         vault_id = vault_id or _vault_id_from_config(config)
         vault_name = vault_name or _vault_name_from_config(config)
     if config_path is None:
         config_path = _config_path_from_runtime_context(endpoint)
     if not vault_path:
         runtime_context = _runtime_context_from_service(base_url, args.timeout)
-        vault_path = _vault_path_from_runtime_endpoint(runtime_context)
+        runtime_vaults = _vaults_from_runtime_endpoint(runtime_context)
+        selected_vault_path = _vault_path_for_id(runtime_vaults, requested_vault_id)
+        vault_path = selected_vault_path or (None if requested_vault_id else _vault_path_from_runtime_endpoint(runtime_context))
         vault_id = vault_id or _vault_id_from_runtime_endpoint(runtime_context)
         vault_name = vault_name or _vault_name_from_runtime_endpoint(runtime_context)
-        vaults = vaults or _vaults_from_runtime_endpoint(runtime_context)
+        vaults = vaults or runtime_vaults
+        if requested_vault_id:
+            vault_id = requested_vault_id
+            vault_name = _vault_name_for_id(vaults, requested_vault_id) or vault_name
         if config_path is None:
             config_path = _config_path_from_runtime_context(runtime_context)
     return Runtime(
@@ -258,6 +270,8 @@ def _cmd_query(args: argparse.Namespace, runtime: Runtime) -> int:
     payload = {
         "query": args.query,
         "vault_path": vault_path,
+        "vault_id": runtime.vault_id,
+        "config_path": str(runtime.config_path) if runtime.config_path else None,
         "mode": settings["mode"],
         "context_format": settings["context_format"],
         "max_results": settings["max_results"],
@@ -293,6 +307,7 @@ def _cmd_page(args: argparse.Namespace, runtime: Runtime) -> int:
 
 def _cmd_ingest(args: argparse.Namespace, runtime: Runtime) -> int:
     payload = _workflow_payload(args)
+    payload["vault_path"] = _require_vault(runtime)
     if args.ingest_command == "connector":
         payload["kind"] = "connectors"
         if not args.all and args.names:
@@ -578,6 +593,24 @@ def _vaults_from_config(config: dict[str, Any], config_path: Path | None) -> lis
     return result
 
 
+def _vault_path_for_id(vaults: list[dict[str, str]], vault_id: str | None) -> str | None:
+    if not vault_id:
+        return None
+    for item in vaults:
+        if item.get("id") == vault_id:
+            return item.get("path")
+    return None
+
+
+def _vault_name_for_id(vaults: list[dict[str, str]], vault_id: str | None) -> str | None:
+    if not vault_id:
+        return None
+    for item in vaults:
+        if item.get("id") == vault_id:
+            return item.get("name")
+    return None
+
+
 def _resolve_config_path_value(value: object, config_path: Path | None) -> str:
     path = Path(str(value)).expanduser()
     if not path.is_absolute() and config_path:
@@ -587,7 +620,7 @@ def _resolve_config_path_value(value: object, config_path: Path | None) -> str:
 
 def _require_vault(runtime: Runtime) -> str:
     if not runtime.vault_path:
-        print("KnoArbor vault path is required. Run `check`, pass --vault, or use a service that exposes /runtime.", file=sys.stderr)
+        print("KnoArbor vault path is required. Run `check`, pass --vault/--vault-id, or use a service that exposes /runtime.", file=sys.stderr)
         raise SystemExit(2)
     return str(Path(runtime.vault_path).expanduser())
 

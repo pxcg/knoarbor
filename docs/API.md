@@ -62,6 +62,22 @@ Both endpoints always return the same workflow envelope:
 }
 ```
 
+## Vault Selection
+
+Read APIs accept either an explicit `vault_path` or a configured `vault_id`.
+Use `vault_id` when integrating with a shared `config.yaml`; use `vault_path`
+for one-off automation.
+
+```http
+POST /query
+GET /wiki/pages?vault_id=personal
+GET /reports?vault_id=personal
+GET /runs?vault_id=personal
+```
+
+When an API call must resolve `vault_id` from a non-default config file, pass
+`config_path` alongside `vault_id`.
+
 ## Error Contract
 
 Public API errors use the shared KnoArbor error catalog. The stable lookup key is `error.code`; `error.category` is the coarse class for programmatic handling.

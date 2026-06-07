@@ -146,6 +146,7 @@ uv run knoar query "检索主题"
 uv run knoar query --mode deep "Agent Loop 是什么？"
 uv run knoar query --context-format full "Agent Loop 是什么？"
 uv run knoar query --write-report "Agent Loop 是什么？"
+uv run knoar query --vault-id personal "Agent Loop 是什么？"
 ```
 
 查询阶段返回的是本地 Wiki 上下文，不负责替代宿主 AI 生成最终聊天回答。
@@ -162,6 +163,7 @@ uv run knoar query-feedback "Agent Loop 是什么？" --useful --selected-path c
 
 ```bash
 uv run knoar runs --vault ./wiki
+uv run knoar runs --vault-id personal
 uv run knoar runs list --vault ./wiki
 uv run knoar runs --active --vault ./wiki
 uv run knoar runs events RUN_ID --vault ./wiki

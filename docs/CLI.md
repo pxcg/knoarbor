@@ -87,6 +87,7 @@ Print a local vault summary.
 
 ```bash
 uv run knoar status --vault ./wiki
+uv run knoar status --vault-id personal
 ```
 
 ### `doctor`
@@ -197,6 +198,7 @@ generate a final answer.
 uv run knoar query "Agent Loop 和控制模式是什么？"
 uv run knoar query --mode deep --max-results 8 "RAG 和 LLM-Wiki 的区别"
 uv run knoar query --context-format full "Agent Loop 和控制模式是什么？"
+uv run knoar query --vault-id personal "Agent Loop 是什么？"
 ```
 
 Modes:

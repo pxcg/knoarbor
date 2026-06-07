@@ -43,6 +43,7 @@ from knoarbor.cli_utils import (
 
 def add_vault_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--vault", default=None, help="Path to the Obsidian wiki vault. Overrides config.yaml.")
+    parser.add_argument("--vault-id", default=None, help="Configured vault profile ID. Ignored when --vault is provided.")
 
 
 def run_serve(args: argparse.Namespace) -> int:

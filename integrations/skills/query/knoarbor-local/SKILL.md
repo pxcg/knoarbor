@@ -68,6 +68,7 @@ Use the bundled helper first:
 
 ```bash
 python3 scripts/knoarbor.py query "agent loop control patterns"
+python3 scripts/knoarbor.py --vault-id personal query "agent loop control patterns"
 python3 scripts/knoarbor.py page list --contains "agent loop"
 python3 scripts/knoarbor.py page read concepts/Agent-Loop-and-Control-Patterns.md
 python3 scripts/knoarbor.py page links concepts/Agent-Loop-and-Control-Patterns.md
@@ -89,6 +90,8 @@ Path rules:
 - The helper uses only the Python standard library and is safe to run from any
   current working directory when addressed by its skill-relative path.
 - The helper requires Python 3.9 or newer.
+- Use `--vault-id <id>` when the user has multiple configured knowledge bases.
+  Use `check` first if the available vault IDs are unknown.
 
 Fallback rules:
 

@@ -9,6 +9,7 @@ from typing import TextIO
 
 from knoarbor.core.config import default_config_path, load_config
 from knoarbor.core.errors import UserInputError
+from knoarbor.core.vaults import resolve_config_vault_path
 from knoarbor.runtime import configure_runtime_logging, runtime_logger
 from knoarbor.runtime.run_monitor import read_run, read_run_events
 from knoarbor.core.schemas.run_monitor import TERMINAL_RUN_STATUSES
@@ -108,9 +109,7 @@ def resolve_config_path(args: argparse.Namespace) -> Path:
 
 
 def resolve_vault_path(args: argparse.Namespace, config) -> Path:
-    if args.vault:
-        return Path(args.vault).expanduser().resolve()
-    return config.vault.path
+    return resolve_config_vault_path(config, vault_path=getattr(args, "vault", None), vault_id=getattr(args, "vault_id", None))
 
 
 def count_raw_sources(vault_path: Path) -> int:
