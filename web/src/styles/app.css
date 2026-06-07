@@ -2477,6 +2477,35 @@ textarea {
   color: #475569;
 }
 
+.origin-badge.vault-origin {
+  border-color: #94a3b8;
+  color: #334155;
+  background: #f8fafc;
+}
+
+.query-vault-picker {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: -6px 0 14px;
+  padding: 10px 12px;
+}
+
+.compact-checkbox {
+  color: var(--muted-strong);
+  font-size: 12.5px;
+  font-weight: 650;
+  gap: 7px;
+}
+
+.compact-checkbox input {
+  margin: 0;
+}
+
 .result-item p {
   margin: 0;
   color: var(--muted-strong);

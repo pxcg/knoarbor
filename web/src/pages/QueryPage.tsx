@@ -2,6 +2,8 @@ import { useState } from "react";
 
 import { getQueryTrends, searchWiki } from "../api/client";
 import type { AppContext } from "../App";
+import type { QueryResult } from "../api/client";
+import type { VaultOption } from "../vaultRuntime";
 
 type Props = {
   context: AppContext;
@@ -12,7 +14,10 @@ export function QueryPage({ context, embedded = false }: Props) {
   const [query, setQuery] = useState("Agent Loop 控制模式");
   const [mode, setMode] = useState<"quick" | "balanced" | "deep">("balanced");
   const [contextFormat, setContextFormat] = useState<"compact" | "full">("compact");
+  const [vaultScope, setVaultScope] = useState<"current" | "all" | "selected">("current");
+  const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([context.activeVaultId]);
   const [pageDirs, setPageDirs] = useState("");
+  const [scopedResults, setScopedResults] = useState<ScopedQueryResult[]>([]);
 
   async function handleSearch() {
     if (!query.trim()) {
@@ -20,25 +25,40 @@ export function QueryPage({ context, embedded = false }: Props) {
       return;
     }
     try {
-      const response = await searchWiki(context.vaultPath, query.trim(), {
-        mode,
-        context_format: contextFormat,
-        page_dirs: pageDirs
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean),
-      });
-      context.setQueryResults(response.results || []);
-      context.setQueryContextPack(response.context_pack || "");
-      const trend = await getQueryTrends(context.vaultPath);
-      context.setQueryTrend(trend);
+      const targetVaults = resolveQueryVaults(context.vaultOptions, context.activeVaultId, vaultScope, selectedVaultIds);
+      const pageDirsValue = pageDirs
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      const responses = await Promise.all(targetVaults.map(async (vault) => {
+        const response = await searchWiki(vault.path, query.trim(), {
+          mode,
+          context_format: contextFormat,
+          page_dirs: pageDirsValue,
+        });
+        return { vault, response };
+      }));
+      const nextScopedResults = responses.flatMap(({ vault, response }) =>
+        (response.results || []).map((result) => ({ vault, result })),
+      );
+      setScopedResults(nextScopedResults);
+      context.setQueryResults(nextScopedResults.map((item) => item.result));
+      context.setQueryContextPack(buildScopedContextPack(responses));
+      if (targetVaults.some((vault) => vault.id === context.activeVaultId)) {
+        const trend = await getQueryTrends(context.vaultPath);
+        context.setQueryTrend(trend);
+      }
     } catch (error) {
       context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
     }
   }
 
   const repeatedGaps = context.queryTrend?.repeated_gap_queries || [];
-  const hasQueryResults = context.queryResults.length > 0;
+  const visibleResults = scopedResults.length ? scopedResults : context.queryResults.map((result) => ({
+    vault: context.vaultOptions.find((vault) => vault.id === context.activeVaultId) || { id: context.activeVaultId, name: context.activeVaultId, path: context.vaultPath },
+    result,
+  }));
+  const hasQueryResults = visibleResults.length > 0;
   const hasContextPack = Boolean(context.queryContextPack);
 
   return (
@@ -58,6 +78,15 @@ export function QueryPage({ context, embedded = false }: Props) {
           <input value={query} onChange={(event) => setQuery(event.target.value)} />
         </label>
         <div className="query-controls">
+          <label className="field">
+            <span>{context.t("queryVaultScope")}</span>
+            <select value={vaultScope} onChange={(event) => setVaultScope(event.target.value as "current" | "all" | "selected")}>
+              <option value="current">{context.t("queryCurrentVault")}</option>
+              <option value="all">{context.t("queryAllVaults")}</option>
+              <option value="selected">{context.t("querySelectedVaults")}</option>
+            </select>
+            <small>{context.t("queryAcrossVaults")}</small>
+          </label>
           <label className="field">
             <span>{context.t("queryRetrievalMode")}</span>
             <select value={mode} onChange={(event) => setMode(event.target.value as "quick" | "balanced" | "deep")}>
@@ -80,6 +109,25 @@ export function QueryPage({ context, embedded = false }: Props) {
             <small>{context.t("initialPageDirsHint")}</small>
           </label>
         </div>
+        {vaultScope === "selected" && (
+          <div className="query-vault-picker">
+            {context.vaultOptions.map((vault) => (
+              <label key={vault.id} className="checkbox-field compact-checkbox">
+                <input
+                  type="checkbox"
+                  checked={selectedVaultIds.includes(vault.id)}
+                  onChange={(event) => {
+                    setSelectedVaultIds((current) => {
+                      if (event.target.checked) return Array.from(new Set([...current, vault.id]));
+                      return current.filter((id) => id !== vault.id);
+                    });
+                  }}
+                />
+                <span>{vault.name}</span>
+              </label>
+            ))}
+          </div>
+        )}
         <div className="query-health">
           <article>
             <span>{context.t("queryTrendSample")}</span>
@@ -109,20 +157,21 @@ export function QueryPage({ context, embedded = false }: Props) {
         )}
         <div className="result-list">
           {hasQueryResults ? (
-            context.queryResults.map((result) => (
-              <article className="result-item" key={result.path}>
+            visibleResults.map(({ vault, result }) => (
+              <article className="result-item" key={`${vault.id}:${result.path}`}>
                 <div className="result-item-header">
                   <h3>{result.title || result.path}</h3>
                   <div className="button-row compact-row">
-                    <button className="button secondary small-button" type="button" onClick={() => context.openWikiPage(result.path)}>
+                    <button className="button secondary small-button" type="button" onClick={() => openResultPage(context, vault, result.path)}>
                       {context.t("openInWiki")}
                     </button>
-                    <button className="button secondary small-button" type="button" onClick={() => context.openPageInGraph(result.path)}>
+                    <button className="button secondary small-button" type="button" onClick={() => openResultGraph(context, vault, result.path)}>
                       {context.t("openInGraph")}
                     </button>
                   </div>
                 </div>
                 <div className="result-meta">
+                  <span className="origin-badge vault-origin">{context.t("sourceVault")}: {vault.name}</span>
                   <span className={`origin-badge ${result.match_kind === "related" ? "related" : "direct"}`}>
                     {result.match_kind === "related" ? context.t("relatedContext") : context.t("directMatch")}
                   </span>
@@ -184,4 +233,47 @@ export function QueryPage({ context, embedded = false }: Props) {
       </article>
     </section>
   );
+}
+
+type ScopedQueryResult = {
+  vault: VaultOption;
+  result: QueryResult;
+};
+
+function resolveQueryVaults(
+  vaults: VaultOption[],
+  activeVaultId: string,
+  scope: "current" | "all" | "selected",
+  selectedVaultIds: string[],
+) {
+  if (scope === "all") return vaults;
+  if (scope === "selected") {
+    const selected = vaults.filter((vault) => selectedVaultIds.includes(vault.id));
+    return selected.length ? selected : vaults.filter((vault) => vault.id === activeVaultId);
+  }
+  const current = vaults.filter((vault) => vault.id === activeVaultId);
+  return current.length ? current : vaults.slice(0, 1);
+}
+
+function buildScopedContextPack(
+  responses: Array<{ vault: VaultOption; response: { context_pack?: string } }>,
+) {
+  return responses
+    .map(({ vault, response }) => {
+      const contextPack = response.context_pack || "";
+      if (!contextPack.trim()) return "";
+      return `# ${vault.name}\n\n${contextPack}`;
+    })
+    .filter(Boolean)
+    .join("\n\n---\n\n");
+}
+
+function openResultPage(context: AppContext, vault: VaultOption, path: string) {
+  context.setActiveVaultId(vault.id);
+  context.openWikiPage(path);
+}
+
+function openResultGraph(context: AppContext, vault: VaultOption, path: string) {
+  context.setActiveVaultId(vault.id);
+  context.openPageInGraph(path);
 }
