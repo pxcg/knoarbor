@@ -388,6 +388,50 @@ class SkillQueryHelperTests(unittest.TestCase):
         self.assertEqual(payload["vault_ids"], ["personal", "team"])
         self.assertIsNone(payload["vault_path"])
 
+    def test_page_read_uses_resolved_vault_path_from_requested_vault_id(self) -> None:
+        helper = load_query_helper()
+        runtime = helper.Runtime(
+            base_url="http://127.0.0.1:8123",
+            vault_path="/tmp/team-wiki",
+            config_path=Path("/tmp/config.yaml"),
+            timeout=1,
+            output_format="json",
+            vault_id="team",
+            vault_name="Team",
+        )
+        args = argparse.Namespace(page_command="read", path="concepts/Agent-Loop.md")
+
+        with patch.object(helper, "_get_json", return_value={"path": "concepts/Agent-Loop.md", "content": "# Agent Loop"}) as get_json, redirect_stdout(io.StringIO()):
+            exit_code = helper._cmd_page(args, runtime)
+
+        self.assertEqual(exit_code, 0)
+        url = get_json.call_args.args[0]
+        self.assertIn("/wiki/pages/content", url)
+        self.assertIn("vault_path=%2Ftmp%2Fteam-wiki", url)
+        self.assertIn("path=concepts%2FAgent-Loop.md", url)
+
+    def test_page_links_uses_resolved_vault_path_from_requested_vault_id(self) -> None:
+        helper = load_query_helper()
+        runtime = helper.Runtime(
+            base_url="http://127.0.0.1:8123",
+            vault_path="/tmp/team-wiki",
+            config_path=Path("/tmp/config.yaml"),
+            timeout=1,
+            output_format="json",
+            vault_id="team",
+            vault_name="Team",
+        )
+        args = argparse.Namespace(page_command="links", path="concepts/Agent-Loop.md")
+
+        with patch.object(helper, "_get_json", return_value={"path": "concepts/Agent-Loop.md", "outbound_links": [], "backlinks": []}) as get_json, redirect_stdout(io.StringIO()):
+            exit_code = helper._cmd_page(args, runtime)
+
+        self.assertEqual(exit_code, 0)
+        url = get_json.call_args.args[0]
+        self.assertIn("/wiki/pages/links", url)
+        self.assertIn("vault_path=%2Ftmp%2Fteam-wiki", url)
+        self.assertIn("path=concepts%2FAgent-Loop.md", url)
+
     def test_auto_query_settings_keep_compact_by_default(self) -> None:
         helper = load_query_helper()
         settings = helper._query_settings(

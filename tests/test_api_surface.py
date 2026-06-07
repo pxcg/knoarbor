@@ -450,7 +450,12 @@ connectors: {{}}
             root = Path(tmp_dir)
             archive_vault = root / "archive-wiki"
             (archive_vault / "entities").mkdir(parents=True)
+            (archive_vault / "concepts").mkdir(parents=True)
             (archive_vault / "entities" / "Archive.md").write_text("# Archive\n\nStored page.\n", encoding="utf-8")
+            (archive_vault / "concepts" / "Archive-Concept.md").write_text(
+                "# Archive Concept\n\nSee [[entities/Archive|Archive]].\n",
+                encoding="utf-8",
+            )
             (root / "config.yaml").write_text(
                 f"""
 vaults:
@@ -468,11 +473,24 @@ connectors: {{}}
             with _chdir(root):
                 client = TestClient(create_app())
                 response = client.get("/wiki/pages", params={"config_path": str(root / "config.yaml"), "vault_id": "archive"})
+                content_response = client.get(
+                    "/wiki/pages/content",
+                    params={"config_path": str(root / "config.yaml"), "vault_id": "archive", "path": "concepts/Archive-Concept.md"},
+                )
+                links_response = client.get(
+                    "/wiki/pages/links",
+                    params={"config_path": str(root / "config.yaml"), "vault_id": "archive", "path": "concepts/Archive-Concept.md"},
+                )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["vault_path"], str(archive_vault.resolve()))
-        self.assertEqual(payload["pages"][0]["path"], "entities/Archive.md")
+        self.assertEqual({page["path"] for page in payload["pages"]}, {"entities/Archive.md", "concepts/Archive-Concept.md"})
+        self.assertEqual(content_response.status_code, 200)
+        self.assertEqual(content_response.json()["path"], "concepts/Archive-Concept.md")
+        self.assertIn("See [[entities/Archive|Archive]]", content_response.json()["content"])
+        self.assertEqual(links_response.status_code, 200)
+        self.assertEqual(links_response.json()["outbound_links"][0]["target_path"], "entities/Archive.md")
 
     def test_http_exception_uses_public_error_envelope(self) -> None:
         import tempfile

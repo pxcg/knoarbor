@@ -73,6 +73,7 @@ python3 scripts/knoarbor.py query "agent loop control patterns" --all-vaults
 python3 scripts/knoarbor.py query "agent loop control patterns" --query-vault-id personal --query-vault-id team
 python3 scripts/knoarbor.py page list --contains "agent loop"
 python3 scripts/knoarbor.py page read concepts/Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py --vault-id personal page read concepts/Agent-Loop-and-Control-Patterns.md
 python3 scripts/knoarbor.py page links concepts/Agent-Loop-and-Control-Patterns.md
 python3 scripts/knoarbor.py ingest file /absolute/path/to/file.md
 python3 scripts/knoarbor.py ingest folder /absolute/path/to/folder
@@ -173,6 +174,16 @@ Use `page read` when:
 Do not automatically read many pages in full. When more than 2-3 pages may be
 needed, list candidates first and let the user pick a scope.
 
+When a query result includes `vault_id`, pass that same vault ID to `page read`
+or `page links`:
+
+```bash
+python3 scripts/knoarbor.py --vault-id <result.vault_id> page read <result.path>
+python3 scripts/knoarbor.py --vault-id <result.vault_id> page links <result.path>
+```
+
+This keeps follow-up reads in the same knowledge base as the selected result.
+
 Do not call `/health` before every query. Use `scripts/knoarbor.py check` only
 when setup is being tested or a request fails.
 
@@ -181,6 +192,8 @@ when setup is being tested or a request fails.
 Important query fields:
 
 - `results[].path`: stable page path for citation or `page read`.
+- `results[].vault_id`, `vault_name`, `vault_path`: selected result provenance
+  for multi-vault follow-up reads.
 - `results[].summary`, `key_points`, `excerpts`, `source`: local evidence.
 - `results[].match_kind`: retrieval origin only; judge relevance yourself.
 - `context_pack`: compact evidence bundle for synthesis.

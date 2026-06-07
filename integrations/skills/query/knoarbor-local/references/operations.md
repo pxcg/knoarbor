@@ -58,6 +58,9 @@ python3 scripts/knoarbor.py page list --contains "Agent Loop"
 
 # User selects a page or asks for the full page.
 python3 scripts/knoarbor.py page read concepts/Agent-Loop-and-Control-Patterns.md
+
+# User selects a result from a multi-vault query.
+python3 scripts/knoarbor.py --vault-id personal page read concepts/Agent-Loop-and-Control-Patterns.md
 ```
 
 ## Page Reading
@@ -68,10 +71,14 @@ python3 scripts/knoarbor.py page list --dir concepts
 python3 scripts/knoarbor.py page list --contains "Agent Loop"
 python3 scripts/knoarbor.py page read concepts/Agent-Loop-and-Control-Patterns.md
 python3 scripts/knoarbor.py page links concepts/Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py --vault-id personal page read concepts/Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py --vault-id personal page links concepts/Agent-Loop-and-Control-Patterns.md
 ```
 
 Use `page read` after query when the user asks to expand a specific result. Do
-not rerun query just to read a known page path.
+not rerun query just to read a known page path. For multi-vault query results,
+reuse the result's `vault_id` with `--vault-id` so the selected page is read
+from the same knowledge base.
 
 ## Ingest
 

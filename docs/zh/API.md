@@ -325,6 +325,10 @@ GET /wiki/pages/links?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
 
 `/wiki/pages` 返回页面摘要和链接元数据。`/wiki/pages/content` 返回单个 Markdown 页面及其元数据。`/wiki/pages/links` 返回指向目标页面的页面。
 
+这些接口也支持同时传入 `config_path` 和 `vault_id`。当用户选择跨知识库
+`/query` 返回的某个结果时，应使用该结果的 `vault_id` 读取页面正文或链接，
+确保后续查看仍然落在同一个知识库。
+
 ## 移除的原型端点
 
 原型期的连接器、草稿写入、扫描、操作执行、拆分工作流端点和通用 run-start 端点都不再公开。请使用 `POST /ingest`、`POST /lint`、`POST /query` 以及上述运行监控端点。

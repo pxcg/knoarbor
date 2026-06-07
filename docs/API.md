@@ -389,6 +389,10 @@ GET /wiki/pages/links?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
 
 `/wiki/pages` returns page summaries and link metadata. `/wiki/pages/content` returns one Markdown page with metadata and rendered summary fields. `/wiki/pages/links` returns pages that link to the selected page.
 
+These endpoints also accept `vault_id` with `config_path`. When a result from
+a multi-vault `/query` response is selected, pass the result's `vault_id` to
+read or inspect the page in the same knowledge base.
+
 ## UI Endpoints
 
 The management UI is served at:

@@ -84,11 +84,29 @@ curl -sS --get "$KNOARBOR_BASE_URL/wiki/pages/content" \
   --data-urlencode "path=concepts/Agent-Loop-and-Control-Patterns.md"
 ```
 
+Read a page selected from a multi-vault query result:
+
+```bash
+curl -sS --get "$KNOARBOR_BASE_URL/wiki/pages/content" \
+  --data-urlencode "config_path=$KNOARBOR_CONFIG_PATH" \
+  --data-urlencode "vault_id=personal" \
+  --data-urlencode "path=concepts/Agent-Loop-and-Control-Patterns.md"
+```
+
 ## Page Links
 
 ```bash
 curl -sS --get "$KNOARBOR_BASE_URL/wiki/pages/links" \
   --data-urlencode "vault_path=$KNOARBOR_VAULT_PATH" \
+  --data-urlencode "path=concepts/Agent-Loop-and-Control-Patterns.md"
+```
+
+Inspect links for a page selected from a multi-vault query result:
+
+```bash
+curl -sS --get "$KNOARBOR_BASE_URL/wiki/pages/links" \
+  --data-urlencode "config_path=$KNOARBOR_CONFIG_PATH" \
+  --data-urlencode "vault_id=personal" \
   --data-urlencode "path=concepts/Agent-Loop-and-Control-Patterns.md"
 ```
 
