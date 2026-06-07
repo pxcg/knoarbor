@@ -905,6 +905,40 @@ h2 {
   font-size: 12px;
 }
 
+.vault-list-group {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.vault-list-group + .vault-list-group {
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding-top: 12px;
+}
+
+.vault-list-group header {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 0 2px;
+}
+
+.vault-list-group header strong {
+  color: var(--muted-strong);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vault-list-group header span {
+  flex: none;
+}
+
 .danger-text {
   color: var(--danger);
 }

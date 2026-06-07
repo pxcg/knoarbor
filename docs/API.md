@@ -151,6 +151,9 @@ GET /reports/content?vault_path=/path/to/wiki&path=maintenance/ingest_report_YYY
 ```
 
 Lists or reads Markdown workflow reports from the vault `maintenance/` folder.
+`GET /reports` also accepts `all_vaults=true` or repeated `vault_ids` with
+`config_path`; each returned report includes `vault_id`, `vault_name`, and
+`vault_path`. Reading one report still requires a single vault selector.
 Reports are public integration APIs because host AI tools often need to explain
 what changed, what failed, or which pages were written after a run.
 
@@ -346,6 +349,11 @@ GET /runs/{run_id}/events?vault_path=/path/to/wiki&after=0&limit=200
 GET /runs/{run_id}/stream?after=0
 POST /runs/{run_id}/cancel
 ```
+
+`GET /runs` also accepts `all_vaults=true` or repeated `vault_ids` with
+`config_path`; each returned run includes `vault_id`, `vault_name`, and
+`vault_path`. Single-run read, event, stream, and cancel operations require one
+vault selector because run IDs are vault-local.
 
 `/stream` uses Server-Sent Events:
 

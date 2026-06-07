@@ -19,7 +19,6 @@ from knoarbor.services.ui_config_models import (
     UiConfigUpdateResponse,
 )
 from knoarbor.services.wiki_graph import WikiGraph, build_wiki_graph
-from knoarbor.services.wiki_reports import WikiReportDetail, WikiReportSummary, WikiReportsResponse, WikiReportService
 from knoarbor.storage.wiki_index import ensure_machine_index, machine_index_dir
 
 
@@ -42,7 +41,6 @@ class UiProjectDoc(BaseModel):
 def create_ui_router() -> APIRouter:
     router = APIRouter()
     config_service = UiConfigService()
-    report_service = WikiReportService()
 
     @router.get("/", include_in_schema=False)
     async def root_index() -> FileResponse:
@@ -105,17 +103,9 @@ def create_ui_router() -> APIRouter:
         path = Path(vault_path or _summary_from_default_config().get("vault_path") or "./wiki").expanduser().resolve()
         return build_wiki_graph(path)
 
-    @router.get("/ui/api/reports", response_model=UiReportsResponse, tags=["ui"])
-    async def read_ui_reports(vault_path: str | None = Query(default=None)) -> UiReportsResponse:
-        return report_service.list_reports(_resolve_vault_path(vault_path))
-
     @router.get("/ui/api/tokens", tags=["ui"])
     async def read_ui_tokens(vault_path: str | None = Query(default=None), limit: int = Query(default=5000, ge=1, le=50000)) -> dict[str, object]:
         return read_token_analysis(_resolve_vault_path(vault_path), limit=limit)
-
-    @router.get("/ui/api/report", response_model=UiReportDetail, tags=["ui"])
-    async def read_ui_report(path: str, vault_path: str | None = Query(default=None)) -> UiReportDetail:
-        return report_service.read_report(_resolve_vault_path(vault_path), path)
 
     @router.get("/ui/api/docs/{doc_path:path}", response_model=UiProjectDoc, tags=["ui"])
     async def read_ui_doc(doc_path: str) -> UiProjectDoc:
@@ -276,8 +266,3 @@ def _resolve_vault_file(vault_path: Path, relative_path: str) -> Path:
     if not page_path.exists() or not page_path.is_file():
         raise HTTPException(status_code=404, detail=f"Vault file not found: {relative_path}")
     return page_path
-
-
-UiReportSummary = WikiReportSummary
-UiReportsResponse = WikiReportsResponse
-UiReportDetail = WikiReportDetail

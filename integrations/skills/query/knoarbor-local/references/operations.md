@@ -119,15 +119,20 @@ applied.
 
 ```bash
 python3 scripts/knoarbor.py runs list
+python3 scripts/knoarbor.py runs list --all-vaults
 python3 scripts/knoarbor.py runs get RUN_ID
 python3 scripts/knoarbor.py runs events RUN_ID
 python3 scripts/knoarbor.py runs cancel RUN_ID
 python3 scripts/knoarbor.py report list
+python3 scripts/knoarbor.py report list --all-vaults
 python3 scripts/knoarbor.py report read maintenance/ingest_report_YYYYMMDD_HHMMSS.md
 ```
 
 Use these when the user asks what happened, where a task is stuck, what changed,
-or which pages were written.
+or which pages were written. Use `--all-vaults` for list commands when the user
+asks across configured knowledge bases. Use a single vault selector for
+`runs get/events/cancel` and `report read` because run IDs and report paths are
+vault-local.
 
 ## Diagnostics
 

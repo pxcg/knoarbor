@@ -257,6 +257,9 @@ export type PageLink = {
 
 export type ReportSummary = {
   path: string;
+  vault_id?: string | null;
+  vault_name?: string | null;
+  vault_path?: string | null;
   title: string;
   kind: string;
   updated?: string | null;
@@ -266,6 +269,9 @@ export type ReportSummary = {
 
 export type ReportDetail = {
   path: string;
+  vault_id?: string | null;
+  vault_name?: string | null;
+  vault_path?: string | null;
   content: string;
   summary: ReportSummary;
 };
@@ -408,12 +414,29 @@ export async function getPageLinks(vaultPath: string, path: string): Promise<{ p
   return requestJson(`/wiki/pages/links?vault_path=${encodeURIComponent(vaultPath)}&path=${encodeURIComponent(path)}`);
 }
 
-export async function getReports(vaultPath: string): Promise<{ vault_path: string; reports: ReportSummary[] }> {
-  return requestJson(`/ui/api/reports?vault_path=${encodeURIComponent(vaultPath)}`);
+export type VaultScopedListOptions = {
+  config_path?: string | null;
+  vault_id?: string | null;
+  vault_ids?: string[];
+  all_vaults?: boolean;
+};
+
+function vaultListQuery(vaultPath: string, options: VaultScopedListOptions = {}) {
+  const params = new URLSearchParams();
+  if (vaultPath) params.set("vault_path", vaultPath);
+  if (options.config_path) params.set("config_path", options.config_path);
+  if (options.vault_id) params.set("vault_id", options.vault_id);
+  if (options.all_vaults) params.set("all_vaults", "true");
+  for (const vaultId of options.vault_ids || []) params.append("vault_ids", vaultId);
+  return params.toString();
+}
+
+export async function getReports(vaultPath: string, options: VaultScopedListOptions = {}): Promise<{ vault_path: string; vault_id?: string | null; vault_name?: string | null; reports: ReportSummary[] }> {
+  return requestJson(`/reports?${vaultListQuery(vaultPath, options)}`);
 }
 
 export async function getReport(vaultPath: string, path: string): Promise<ReportDetail> {
-  return requestJson(`/ui/api/report?vault_path=${encodeURIComponent(vaultPath)}&path=${encodeURIComponent(path)}`);
+  return requestJson(`/reports/content?vault_path=${encodeURIComponent(vaultPath)}&path=${encodeURIComponent(path)}`);
 }
 
 export async function getTokenAnalysis(vaultPath: string, limit = 5000): Promise<TokenAnalysis> {
@@ -437,8 +460,9 @@ export async function runLint(body: Record<string, unknown>): Promise<unknown> {
   return requestJson("/lint", { method: "POST", body: { execution: "queued", ...body } });
 }
 
-export async function getRuns(vaultPath: string, activeOnly = false, limit = 50): Promise<{ runs: import("../types").RunRecord[] }> {
-  return requestJson(`/runs?vault_path=${encodeURIComponent(vaultPath)}&active_only=${activeOnly ? "true" : "false"}&limit=${limit}`);
+export async function getRuns(vaultPath: string, activeOnly = false, limit = 50, options: VaultScopedListOptions = {}): Promise<{ runs: import("../types").RunRecord[] }> {
+  const params = vaultListQuery(vaultPath, options);
+  return requestJson(`/runs?${params}&active_only=${activeOnly ? "true" : "false"}&limit=${limit}`);
 }
 
 export async function getActiveRuns(vaultPath: string): Promise<{ runs: import("../types").RunRecord[] }> {

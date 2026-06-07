@@ -12,6 +12,9 @@ from knoarbor.core.markdown import compact_inline_text, extract_heading
 
 class WikiReportSummary(BaseModel):
     path: str
+    vault_id: str | None = None
+    vault_name: str | None = None
+    vault_path: str | None = None
     title: str
     kind: str
     updated: str | None = None
@@ -21,36 +24,46 @@ class WikiReportSummary(BaseModel):
 
 class WikiReportsResponse(BaseModel):
     vault_path: str
+    vault_id: str | None = None
+    vault_name: str | None = None
     reports: list[WikiReportSummary] = Field(default_factory=list)
 
 
 class WikiReportDetail(BaseModel):
     path: str
+    vault_id: str | None = None
+    vault_name: str | None = None
+    vault_path: str | None = None
     content: str
     summary: WikiReportSummary
 
 
 class WikiReportService:
-    def list_reports(self, vault_path: Path) -> WikiReportsResponse:
+    def list_reports(self, vault_path: Path, *, vault_id: str | None = None, vault_name: str | None = None) -> WikiReportsResponse:
         vault = vault_path.expanduser().resolve()
-        return WikiReportsResponse(vault_path=str(vault), reports=collect_report_summaries(vault))
+        return WikiReportsResponse(
+            vault_path=str(vault),
+            vault_id=vault_id,
+            vault_name=vault_name,
+            reports=collect_report_summaries(vault, vault_id=vault_id, vault_name=vault_name),
+        )
 
-    def read_report(self, vault_path: Path, path: str) -> WikiReportDetail:
+    def read_report(self, vault_path: Path, path: str, *, vault_id: str | None = None, vault_name: str | None = None) -> WikiReportDetail:
         vault = vault_path.expanduser().resolve()
         report_path = resolve_report_path(vault, path)
         content = report_path.read_text(encoding="utf-8")
-        summary = summarize_report(vault, report_path, content)
-        return WikiReportDetail(path=summary.path, content=content, summary=summary)
+        summary = summarize_report(vault, report_path, content, vault_id=vault_id, vault_name=vault_name)
+        return WikiReportDetail(path=summary.path, vault_id=vault_id, vault_name=vault_name, vault_path=str(vault), content=content, summary=summary)
 
 
-def collect_report_summaries(vault_path: Path) -> list[WikiReportSummary]:
+def collect_report_summaries(vault_path: Path, *, vault_id: str | None = None, vault_name: str | None = None) -> list[WikiReportSummary]:
     maintenance_path = vault_path / "maintenance"
     if not maintenance_path.exists():
         return []
     reports: list[WikiReportSummary] = []
     for path in sorted(maintenance_path.glob("*report*.md"), key=lambda item: item.stat().st_mtime, reverse=True):
         content = path.read_text(encoding="utf-8")
-        reports.append(summarize_report(vault_path, path, content))
+        reports.append(summarize_report(vault_path, path, content, vault_id=vault_id, vault_name=vault_name))
     return reports
 
 
@@ -67,7 +80,7 @@ def resolve_report_path(vault_path: Path, relative_path: str) -> Path:
     return report_path
 
 
-def summarize_report(vault_path: Path, path: Path, content: str) -> WikiReportSummary:
+def summarize_report(vault_path: Path, path: Path, content: str, *, vault_id: str | None = None, vault_name: str | None = None) -> WikiReportSummary:
     relative = path.relative_to(vault_path).as_posix()
     name = path.name.lower()
     if "lint" in name:
@@ -82,6 +95,9 @@ def summarize_report(vault_path: Path, path: Path, content: str) -> WikiReportSu
         kind = "maintenance"
     return WikiReportSummary(
         path=relative,
+        vault_id=vault_id,
+        vault_name=vault_name,
+        vault_path=str(vault_path.expanduser().resolve()),
         title=extract_heading(content, path.stem),
         kind=kind,
         updated=_mtime_iso(path),

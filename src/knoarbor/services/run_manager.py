@@ -118,18 +118,18 @@ class RunManager:
     def start_query(self, request: WikiSearchRequest, runner: Callable[[WikiSearchRequest], Any]) -> RunStartResponse:
         return self._start(Path(request.obsidian_vault_path).expanduser().resolve(), "query", request.model_dump(), lambda: runner(request))
 
-    def list(self, vault_path: str, *, active_only: bool = False, limit: int = 50) -> RunListResponse:
+    def list(self, vault_path: str, *, active_only: bool = False, limit: int = 50, vault_id: str | None = None, vault_name: str | None = None) -> RunListResponse:
         response = list_runs(Path(vault_path), active_only=active_only, limit=limit)
-        return RunListResponse(runs=[with_recovery_assessment(record) for record in response.runs])
+        return RunListResponse(runs=[_annotate_run(with_recovery_assessment(record), vault_path, vault_id=vault_id, vault_name=vault_name) for record in response.runs])
 
-    def read(self, vault_path: str, run_id: str) -> RunRecord:
-        return with_recovery_assessment(read_run(Path(vault_path), run_id))
+    def read(self, vault_path: str, run_id: str, *, vault_id: str | None = None, vault_name: str | None = None) -> RunRecord:
+        return _annotate_run(with_recovery_assessment(read_run(Path(vault_path), run_id)), vault_path, vault_id=vault_id, vault_name=vault_name)
 
     def events(self, vault_path: str, run_id: str, *, after: int = 0, limit: int = 200) -> RunEventsResponse:
         return RunEventsResponse(events=read_run_events(Path(vault_path), run_id, after=after, limit=limit))
 
-    def cancel(self, vault_path: str, run_id: str) -> RunRecord:
-        return request_cancel(Path(vault_path), run_id)
+    def cancel(self, vault_path: str, run_id: str, *, vault_id: str | None = None, vault_name: str | None = None) -> RunRecord:
+        return _annotate_run(request_cancel(Path(vault_path), run_id), vault_path, vault_id=vault_id, vault_name=vault_name)
 
     def _start(self, vault_path: Path, flow: str, metadata: dict[str, Any], target: Callable[[], Any]) -> RunStartResponse:
         configure_runtime_logging(vault_path)
@@ -147,6 +147,10 @@ def _compact_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
         else:
             compact[key] = value
     return compact
+
+
+def _annotate_run(record: RunRecord, vault_path: str, *, vault_id: str | None = None, vault_name: str | None = None) -> RunRecord:
+    return record.model_copy(update={"vault_id": vault_id, "vault_name": vault_name, "vault_path": str(Path(vault_path).expanduser().resolve())})
 
 
 def _metadata_str(value: object) -> str | None:

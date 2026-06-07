@@ -80,7 +80,9 @@ python3 scripts/knoarbor.py ingest folder /absolute/path/to/folder
 python3 scripts/knoarbor.py ingest connector codex
 python3 scripts/knoarbor.py lint --mode semantic_structural
 python3 scripts/knoarbor.py runs list
+python3 scripts/knoarbor.py runs list --all-vaults
 python3 scripts/knoarbor.py report list
+python3 scripts/knoarbor.py report list --all-vaults
 python3 scripts/knoarbor.py doctor
 ```
 

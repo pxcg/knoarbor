@@ -432,6 +432,46 @@ class SkillQueryHelperTests(unittest.TestCase):
         self.assertIn("vault_path=%2Ftmp%2Fteam-wiki", url)
         self.assertIn("path=concepts%2FAgent-Loop.md", url)
 
+    def test_runs_list_can_search_all_vaults(self) -> None:
+        helper = load_query_helper()
+        runtime = helper.Runtime(
+            base_url="http://127.0.0.1:8123",
+            vault_path=None,
+            config_path=Path("/tmp/config.yaml"),
+            timeout=1,
+            output_format="json",
+        )
+        args = argparse.Namespace(runs_command="list", active_only=False, limit=10, all_vaults=True)
+
+        with patch.object(helper, "_get_json", return_value={"runs": []}) as get_json, redirect_stdout(io.StringIO()):
+            exit_code = helper._cmd_runs(args, runtime)
+
+        self.assertEqual(exit_code, 0)
+        url = get_json.call_args.args[0]
+        self.assertIn("/runs", url)
+        self.assertIn("all_vaults=true", url)
+        self.assertIn("config_path=%2Ftmp%2Fconfig.yaml", url)
+
+    def test_report_list_can_search_all_vaults(self) -> None:
+        helper = load_query_helper()
+        runtime = helper.Runtime(
+            base_url="http://127.0.0.1:8123",
+            vault_path=None,
+            config_path=Path("/tmp/config.yaml"),
+            timeout=1,
+            output_format="json",
+        )
+        args = argparse.Namespace(report_command="list", all_vaults=True)
+
+        with patch.object(helper, "_get_json", return_value={"reports": []}) as get_json, redirect_stdout(io.StringIO()):
+            exit_code = helper._cmd_report(args, runtime)
+
+        self.assertEqual(exit_code, 0)
+        url = get_json.call_args.args[0]
+        self.assertIn("/reports", url)
+        self.assertIn("all_vaults=true", url)
+        self.assertIn("config_path=%2Ftmp%2Fconfig.yaml", url)
+
     def test_auto_query_settings_keep_compact_by_default(self) -> None:
         helper = load_query_helper()
         settings = helper._query_settings(

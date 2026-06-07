@@ -36,8 +36,6 @@ UI_PUBLIC_ROUTES: tuple[str, ...] = (
     "/ui/api/config/diagnostics",
     "/ui/api/status",
     "/ui/api/graph",
-    "/ui/api/reports",
-    "/ui/api/report",
     "/ui/api/docs/{doc_path}",
     "/ui/{asset_path}",
 )

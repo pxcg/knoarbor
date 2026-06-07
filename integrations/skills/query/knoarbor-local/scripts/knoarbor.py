@@ -205,6 +205,7 @@ def _add_runs(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -
     list_parser = run_sub.add_parser("list", help="List recent runs.")
     list_parser.add_argument("--active-only", action=argparse.BooleanOptionalAction, default=False)
     list_parser.add_argument("--limit", type=int, default=10)
+    list_parser.add_argument("--all-vaults", action=argparse.BooleanOptionalAction, default=False)
     get_parser = run_sub.add_parser("get", help="Read one run record.")
     get_parser.add_argument("run_id")
     events_parser = run_sub.add_parser("events", help="Read run events.")
@@ -218,7 +219,8 @@ def _add_runs(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -
 def _add_report(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     parser = subparsers.add_parser("report", help="List or read workflow reports.")
     report_sub = parser.add_subparsers(dest="report_command", required=True)
-    report_sub.add_parser("list", help="List reports.")
+    list_parser = report_sub.add_parser("list", help="List reports.")
+    list_parser.add_argument("--all-vaults", action=argparse.BooleanOptionalAction, default=False)
     read_parser = report_sub.add_parser("read", help="Read one report by maintenance path.")
     read_parser.add_argument("path")
 
@@ -357,13 +359,25 @@ def _cmd_lint(args: argparse.Namespace, runtime: Runtime) -> int:
 
 
 def _cmd_runs(args: argparse.Namespace, runtime: Runtime) -> int:
-    vault_path = _require_vault(runtime)
     if args.runs_command == "list":
+        vault_path = runtime.vault_path if args.all_vaults else _require_vault(runtime)
         response = _get_json(
-            _url(runtime.base_url, "/runs", {"vault_path": vault_path, "active_only": str(args.active_only).lower(), "limit": args.limit}),
+            _url(
+                runtime.base_url,
+                "/runs",
+                {
+                    "vault_path": vault_path,
+                    "vault_id": runtime.vault_id,
+                    "config_path": str(runtime.config_path) if runtime.config_path else None,
+                    "all_vaults": str(args.all_vaults).lower(),
+                    "active_only": str(args.active_only).lower(),
+                    "limit": args.limit,
+                },
+            ),
             timeout=runtime.timeout,
         )
         return _print_or_format(response, runtime, formatter=_format_runs)
+    vault_path = _require_vault(runtime)
     if args.runs_command == "get":
         response = _get_json(_url(runtime.base_url, f"/runs/{args.run_id}", {"vault_path": vault_path}), timeout=runtime.timeout)
         return _print_or_format(response, runtime, formatter=_format_run)
@@ -380,10 +394,23 @@ def _cmd_runs(args: argparse.Namespace, runtime: Runtime) -> int:
 
 
 def _cmd_report(args: argparse.Namespace, runtime: Runtime) -> int:
-    vault_path = _require_vault(runtime)
     if args.report_command == "list":
-        response = _get_json(_url(runtime.base_url, "/reports", {"vault_path": vault_path}), timeout=runtime.timeout)
+        vault_path = runtime.vault_path if args.all_vaults else _require_vault(runtime)
+        response = _get_json(
+            _url(
+                runtime.base_url,
+                "/reports",
+                {
+                    "vault_path": vault_path,
+                    "vault_id": runtime.vault_id,
+                    "config_path": str(runtime.config_path) if runtime.config_path else None,
+                    "all_vaults": str(args.all_vaults).lower(),
+                },
+            ),
+            timeout=runtime.timeout,
+        )
         return _print_or_format(response, runtime, formatter=_format_reports)
+    vault_path = _require_vault(runtime)
     if args.report_command == "read":
         response = _get_json(_url(runtime.base_url, "/reports/content", {"vault_path": vault_path, "path": args.path}), timeout=runtime.timeout)
         return _print_or_format(response, runtime, formatter=_format_report)
@@ -833,7 +860,8 @@ def _format_runs(response: dict[str, Any]) -> str:
     runs = response.get("runs", [])
     lines = [f"Runs: {len(runs)}"]
     for run in runs:
-        lines.append(f"- {run.get('run_id')} {run.get('flow')} {run.get('status')} stage={run.get('stage')} report={run.get('report_path') or '-'}")
+        vault_label = run.get("vault_name") or run.get("vault_id") or run.get("vault_path") or "unknown"
+        lines.append(f"- {vault_label} · {run.get('run_id')} {run.get('flow')} {run.get('status')} stage={run.get('stage')} report={run.get('report_path') or '-'}")
     return "\n".join(lines)
 
 
@@ -863,7 +891,8 @@ def _format_reports(response: dict[str, Any]) -> str:
     reports = response.get("reports", [])
     lines = [f"Reports: {len(reports)}"]
     for report in reports[:80]:
-        lines.append(f"- {report.get('kind')} {report.get('title')} {report.get('updated')} {report.get('path')}")
+        vault_label = report.get("vault_name") or report.get("vault_id") or report.get("vault_path") or "unknown"
+        lines.append(f"- {vault_label} · {report.get('kind')} {report.get('title')} {report.get('updated')} {report.get('path')}")
     return "\n".join(lines)
 
 

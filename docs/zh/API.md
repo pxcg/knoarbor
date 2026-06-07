@@ -149,6 +149,9 @@ GET /reports/content?vault_path=/path/to/wiki&path=maintenance/ingest_report_YYY
 
 列出或读取知识库 `maintenance/` 目录下的 Markdown 流程报告。报告属于公开集成 API，
 因为宿主 AI 经常需要解释一次运行写入了哪些页面、为什么失败、修改了什么。
+`GET /reports` 也支持配合 `config_path` 传入 `all_vaults=true` 或重复的
+`vault_ids`。返回的每条报告会包含 `vault_id`、`vault_name` 和 `vault_path`。
+读取单个报告仍然需要明确一个知识库。
 
 ## 运行诊断
 
@@ -312,6 +315,11 @@ GET /runs/{run_id}/events?vault_path=/path/to/wiki&after=0&limit=200
 GET /runs/{run_id}/stream?after=0
 POST /runs/{run_id}/cancel
 ```
+
+`GET /runs` 也支持配合 `config_path` 传入 `all_vaults=true` 或重复的
+`vault_ids`。返回的每条运行记录会包含 `vault_id`、`vault_name` 和
+`vault_path`。读取单个运行、事件、流式事件和取消运行仍然需要明确一个知识库，
+因为 run_id 是知识库局部标识。
 
 `/stream` 使用 Server-Sent Events。取消是协作式的，正在进行的模型请求可能会在下一个检查点前先完成。
 

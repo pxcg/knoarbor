@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { getPage, getReport, getRunEvents, type ReportDetail } from "../api/client";
+import { getPage, getReport, getRunEvents, type ReportDetail, type ReportSummary } from "../api/client";
 import type { AppContext } from "../App";
 import { ReportReadableView } from "../components/report/ReportReadableView";
 import { parseReportRunId } from "../components/report/reportParser";
@@ -17,18 +17,23 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
   const [selected, setSelected] = useState<ReportDetail | null>(null);
   const [selectedRunEvents, setSelectedRunEvents] = useState<RunEvent[]>([]);
   const [activeKind, setActiveKind] = useState<"ingest" | "lint" | "query">("lint");
-  const filteredReports = useMemo(() => context.reports.filter((report) => reportBucket(report.kind) === activeKind), [activeKind, context.reports]);
+  const allReports = useMemo(() => {
+    const reports = context.vaultOverviews.length > 1 ? context.vaultOverviews.flatMap((item) => item.reports) : context.reports;
+    return [...reports].sort((left, right) => String(right.updated || "").localeCompare(String(left.updated || "")));
+  }, [context.reports, context.vaultOverviews]);
+  const filteredReports = useMemo(() => allReports.filter((report) => reportBucket(report.kind) === activeKind), [activeKind, allReports]);
+  const groupedReports = useMemo(() => groupReportsByVault(filteredReports, context), [context, filteredReports]);
   const reportOverview = useMemo(
     () =>
       (["ingest", "lint", "query"] as const).map((kind) => {
-        const reports = context.reports.filter((report) => reportBucket(report.kind) === kind);
+        const reports = allReports.filter((report) => reportBucket(report.kind) === kind);
         return {
           kind,
           count: reports.length,
           latest: reports[0]?.updated || context.t("unknown"),
         };
       }),
-    [context.reports, context.t],
+    [allReports, context.t],
   );
 
   function switchReportKind(kind: "ingest" | "lint" | "query") {
@@ -38,9 +43,10 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
     }
   }
 
-  const loadReport = useCallback(async (path: string) => {
+  const loadReport = useCallback(async (reportSummary: ReportSummary) => {
     try {
-      const report = await getReport(context.vaultPath, path);
+      const vault = vaultForReport(context, reportSummary);
+      const report = await getReport(vault.path, reportSummary.path);
       setSelected(report);
       setSelectedRunEvents([]);
       const runId = parseReportRunId(report.content);
@@ -48,7 +54,7 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
         return;
       }
       try {
-        const events = await getRunEvents(context.vaultPath, runId);
+        const events = await getRunEvents(vault.path, runId);
         setSelectedRunEvents(events.events || []);
       } catch {
         setSelectedRunEvents([]);
@@ -56,16 +62,16 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
     } catch (error) {
       context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
     }
-  }, [context.vaultPath, context.setNotice]);
+  }, [context]);
 
   useEffect(() => {
     if (!focusedReportPath) return;
-    const report = context.reports.find((item) => item.path === focusedReportPath);
+    const report = allReports.find((item) => item.path === focusedReportPath);
     if (report) {
       setActiveKind(reportBucket(report.kind));
+      void loadReport(report);
     }
-    void loadReport(focusedReportPath);
-  }, [context.reports, focusedReportPath, loadReport]);
+  }, [allReports, focusedReportPath, loadReport]);
 
   useEffect(() => {
     const first = filteredReports[0];
@@ -77,7 +83,7 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
       return;
     }
     if (!selected || reportBucket(selected.summary.kind) !== activeKind) {
-      void loadReport(first.path);
+      void loadReport(first);
     }
   }, [activeKind, filteredReports, loadReport, selected]);
 
@@ -110,15 +116,25 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
           </div>
           <div className="page-list">
             {filteredReports.length ? (
-              filteredReports.map((report) => (
-                <button className={`report-row ${selected?.path === report.path ? "active" : ""}`} key={report.path} onClick={() => void loadReport(report.path)}>
-                  <span className="pill">{localizeReportKind(report.kind, context.t)}</span>
-                  <strong>{localizeReportTitle(report.title || report.path, report.kind, context.t)}</strong>
-                  <span>
-                    {report.updated || context.t("unknown")} · {Math.round(report.size / 1024)} KB
-                  </span>
-                  <small>{report.path}</small>
-                </button>
+              groupedReports.map((group) => (
+                <section className="vault-list-group" key={group.key}>
+                  {context.vaultOptions.length > 1 && (
+                    <header>
+                      <strong>{group.label}</strong>
+                      <span>{group.reports.length} {context.t("reports")}</span>
+                    </header>
+                  )}
+                  {group.reports.map((report) => (
+                    <button className={`report-row ${selectedKey(selected) === reportKey(report) ? "active" : ""}`} key={reportKey(report)} onClick={() => void loadReport(report)}>
+                      <span className="pill">{localizeReportKind(report.kind, context.t)}</span>
+                      <strong>{localizeReportTitle(report.title || report.path, report.kind, context.t)}</strong>
+                      <span>
+                        {report.updated || context.t("unknown")} · {Math.round(report.size / 1024)} KB
+                      </span>
+                      <small>{report.path}</small>
+                    </button>
+                  ))}
+                </section>
               ))
             ) : (
               <article className="result-item">
@@ -144,7 +160,7 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
                 content={selected.content}
                 t={context.t}
                 onOpenPage={context.openWikiPage}
-                loadPage={(path) => getPage(context.vaultPath, path)}
+                loadPage={(path) => getPage(selected.vault_path || context.vaultPath, path)}
                 inlinePagePreview
               />
               <ReportRunEvents events={selectedRunEvents} t={context.t} />
@@ -160,6 +176,39 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
       </div>
     </section>
   );
+}
+
+function vaultForReport(context: AppContext, report: ReportSummary) {
+  return (
+    (report.vault_id ? context.vaultOptions.find((vault) => vault.id === report.vault_id) : null) ||
+    (report.vault_path ? context.vaultOptions.find((vault) => vault.path === report.vault_path) : null) ||
+    context.vaultOptions.find((vault) => vault.id === context.activeVaultId) || {
+      id: context.activeVaultId,
+      name: report.vault_name || context.activeVaultId,
+      path: context.vaultPath,
+    }
+  );
+}
+
+function groupReportsByVault(reports: ReportSummary[], context: AppContext) {
+  const groups = new Map<string, { key: string; label: string; reports: ReportSummary[] }>();
+  for (const report of reports) {
+    const vault = vaultForReport(context, report);
+    const key = vault.id || vault.path || "vault";
+    const group = groups.get(key) || { key, label: vault.name || key, reports: [] };
+    group.reports.push(report);
+    groups.set(key, group);
+  }
+  return Array.from(groups.values());
+}
+
+function reportKey(report: ReportSummary | ReportDetail) {
+  const summary = "summary" in report ? report.summary : report;
+  return `${summary.vault_id || summary.vault_path || "vault"}:${summary.path}`;
+}
+
+function selectedKey(report: ReportDetail | null) {
+  return report ? reportKey(report) : "";
 }
 
 function ReportRunEvents({ events, t }: { events: RunEvent[]; t: (key: string) => string }) {

@@ -44,6 +44,9 @@ class RunProgress(BaseModel):
 class RunRecord(BaseModel):
     schema_version: Literal["run_record.v1"] = "run_record.v1"
     run_id: str
+    vault_id: str | None = None
+    vault_name: str | None = None
+    vault_path: str | None = None
     flow: RunFlow
     status: RunStatus
     stage: str = "queued"

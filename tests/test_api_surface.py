@@ -26,6 +26,33 @@ def _chdir(path: Path):
         os.chdir(previous)
 
 
+def _write_run_record(vault: Path, run_id: str, updated_at: str) -> None:
+    run_dir = vault / ".knoarbor" / "runs"
+    run_dir.mkdir(parents=True)
+    (run_dir / f"{run_id}.json").write_text(
+        f"""{{
+  "schema_version": "run_record.v1",
+  "run_id": "{run_id}",
+  "flow": "ingest",
+  "status": "completed",
+  "stage": "completed",
+  "message": "completed",
+  "started_at": "{updated_at}",
+  "updated_at": "{updated_at}",
+  "last_heartbeat_at": "{updated_at}",
+  "finished_at": "{updated_at}",
+  "elapsed_seconds": 1.0,
+  "progress": {{"completed": 1}},
+  "metrics": {{}},
+  "metadata": {{}},
+  "result_summary": {{"report_path": "maintenance/ingest_report.md"}},
+  "error_info": {{}},
+  "cancel_requested": false
+}}""",
+        encoding="utf-8",
+    )
+
+
 REMOVED_PROTOTYPE_ROUTES = {
     "/ingest/run",
     "/ingest/document",
@@ -335,6 +362,78 @@ connectors: {{}}
             read_payload = read_response.json()
             self.assertEqual(read_payload["path"], "maintenance/ingest_report_20260604_120000.md")
             self.assertIn("written_pages", read_payload["content"])
+
+    def test_reports_endpoint_accepts_all_vaults(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            personal = root / "personal-wiki"
+            team = root / "team-wiki"
+            for vault, name in [(personal, "personal"), (team, "team")]:
+                maintenance = vault / "maintenance"
+                maintenance.mkdir(parents=True)
+                (maintenance / f"ingest_report_{name}.md").write_text(f"# {name.title()} Ingest Report\n", encoding="utf-8")
+            config_path = root / "config.yaml"
+            config_path.write_text(
+                f"""
+vaults:
+  default: personal
+  profiles:
+    personal:
+      name: Personal
+      path: {personal}
+    team:
+      name: Team
+      path: {team}
+models:
+  providers: {{}}
+connectors: {{}}
+""",
+                encoding="utf-8",
+            )
+            client = TestClient(create_app())
+            response = client.get("/reports", params={"config_path": str(config_path), "all_vaults": "true"})
+
+        self.assertEqual(response.status_code, 200)
+        reports = response.json()["reports"]
+        self.assertEqual({report["vault_id"] for report in reports}, {"personal", "team"})
+        self.assertEqual({report["vault_name"] for report in reports}, {"Personal", "Team"})
+
+    def test_runs_endpoint_accepts_all_vaults(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            personal = root / "personal-wiki"
+            team = root / "team-wiki"
+            _write_run_record(personal, "20260604_personal", "2026-06-04T12:00:00")
+            _write_run_record(team, "20260604_team", "2026-06-04T12:01:00")
+            config_path = root / "config.yaml"
+            config_path.write_text(
+                f"""
+vaults:
+  default: personal
+  profiles:
+    personal:
+      name: Personal
+      path: {personal}
+    team:
+      name: Team
+      path: {team}
+models:
+  providers: {{}}
+connectors: {{}}
+""",
+                encoding="utf-8",
+            )
+            client = TestClient(create_app())
+            response = client.get("/runs", params={"config_path": str(config_path), "all_vaults": "true", "limit": 10})
+
+        self.assertEqual(response.status_code, 200)
+        runs = response.json()["runs"]
+        self.assertEqual({run["vault_id"] for run in runs}, {"personal", "team"})
+        self.assertEqual(runs[0]["run_id"], "20260604_team")
 
     def test_query_endpoint_returns_context_pack(self) -> None:
         import tempfile

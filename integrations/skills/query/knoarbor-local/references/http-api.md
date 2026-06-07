@@ -155,6 +155,10 @@ curl -sS -X POST "$KNOARBOR_BASE_URL/lint" \
 ```bash
 curl -sS --get "$KNOARBOR_BASE_URL/reports" \
   --data-urlencode "vault_path=$KNOARBOR_VAULT_PATH"
+
+curl -sS --get "$KNOARBOR_BASE_URL/reports" \
+  --data-urlencode "config_path=$KNOARBOR_CONFIG_PATH" \
+  --data-urlencode "all_vaults=true"
 ```
 
 ## Read One Report
@@ -170,6 +174,12 @@ curl -sS --get "$KNOARBOR_BASE_URL/reports/content" \
 ```bash
 curl -sS --get "$KNOARBOR_BASE_URL/runs" \
   --data-urlencode "vault_path=$KNOARBOR_VAULT_PATH" \
+  --data-urlencode "active_only=false" \
+  --data-urlencode "limit=10"
+
+curl -sS --get "$KNOARBOR_BASE_URL/runs" \
+  --data-urlencode "config_path=$KNOARBOR_CONFIG_PATH" \
+  --data-urlencode "all_vaults=true" \
   --data-urlencode "active_only=false" \
   --data-urlencode "limit=10"
 

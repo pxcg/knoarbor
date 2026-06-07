@@ -2,15 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
 
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
-from knoarbor.core.config import default_config_path, load_config
 from knoarbor.core.errors import RunNotFound, error_info
 from knoarbor.core.schemas.run_monitor import RunEventsResponse, RunListResponse, RunRecord, TERMINAL_RUN_STATUSES
-from knoarbor.core.vaults import resolve_config_vault_path
+from knoarbor.entrypoints.vault_selection import resolve_single_vault, resolve_vault_group
 from knoarbor.services import ApplicationServices
 
 
@@ -21,11 +19,16 @@ def create_runs_router(services: ApplicationServices) -> APIRouter:
     async def list_run_records(
         vault_path: str | None = Query(default=None),
         vault_id: str | None = Query(default=None),
+        vault_ids: list[str] = Query(default_factory=list),
+        all_vaults: bool = Query(default=False),
         config_path: str | None = Query(default=None),
         active_only: bool = False,
         limit: int = 50,
     ) -> RunListResponse:
-        return services.runs.list(str(_resolve_vault_path(vault_path, vault_id, config_path)), active_only=active_only, limit=limit)
+        vaults = resolve_vault_group(vault_path=vault_path, vault_id=vault_id, vault_ids=vault_ids, all_vaults=all_vaults, config_path=config_path)
+        responses = [services.runs.list(str(vault.path), active_only=active_only, limit=limit, vault_id=vault.vault_id, vault_name=vault.vault_name) for vault in vaults]
+        runs = sorted((run for response in responses for run in response.runs), key=lambda item: item.updated_at, reverse=True)[:limit]
+        return RunListResponse(runs=runs)
 
     @router.get("/runs/{run_id}", response_model=RunRecord, tags=["runs"])
     async def get_run(
@@ -34,7 +37,8 @@ def create_runs_router(services: ApplicationServices) -> APIRouter:
         vault_id: str | None = Query(default=None),
         config_path: str | None = Query(default=None),
     ) -> RunRecord:
-        return services.runs.read(str(_resolve_vault_path(vault_path, vault_id, config_path)), run_id)
+        vault = resolve_single_vault(vault_path, vault_id, config_path)
+        return services.runs.read(str(vault.path), run_id, vault_id=vault.vault_id, vault_name=vault.vault_name)
 
     @router.get("/runs/{run_id}/events", response_model=RunEventsResponse, tags=["runs"])
     async def get_run_events(
@@ -45,7 +49,8 @@ def create_runs_router(services: ApplicationServices) -> APIRouter:
         after: int = 0,
         limit: int = 200,
     ) -> RunEventsResponse:
-        return services.runs.events(str(_resolve_vault_path(vault_path, vault_id, config_path)), run_id, after=after, limit=limit)
+        vault = resolve_single_vault(vault_path, vault_id, config_path)
+        return services.runs.events(str(vault.path), run_id, after=after, limit=limit)
 
     @router.get("/runs/{run_id}/stream", tags=["runs"])
     async def stream_run_events(
@@ -55,7 +60,7 @@ def create_runs_router(services: ApplicationServices) -> APIRouter:
         config_path: str | None = Query(default=None),
         after: int = 0,
     ) -> StreamingResponse:
-        resolved_vault_path = str(_resolve_vault_path(vault_path, vault_id, config_path))
+        resolved_vault_path = str(resolve_single_vault(vault_path, vault_id, config_path).path)
 
         async def _stream():
             cursor = after
@@ -85,11 +90,7 @@ def create_runs_router(services: ApplicationServices) -> APIRouter:
         vault_id: str | None = Query(default=None),
         config_path: str | None = Query(default=None),
     ) -> RunRecord:
-        return services.runs.cancel(str(_resolve_vault_path(vault_path, vault_id, config_path)), run_id)
+        vault = resolve_single_vault(vault_path, vault_id, config_path)
+        return services.runs.cancel(str(vault.path), run_id, vault_id=vault.vault_id, vault_name=vault.vault_name)
 
     return router
-
-
-def _resolve_vault_path(vault_path: str | None, vault_id: str | None, config_path: str | None) -> Path:
-    config = load_config(Path(config_path).expanduser().resolve() if config_path else default_config_path())
-    return resolve_config_vault_path(config, vault_path=vault_path, vault_id=vault_id)

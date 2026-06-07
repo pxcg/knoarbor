@@ -4,6 +4,9 @@ export type Language = "en" | "zh";
 
 export type RunRecord = {
   run_id: string;
+  vault_id?: string | null;
+  vault_name?: string | null;
+  vault_path?: string | null;
   flow: "ingest" | "lint" | "query";
   status:
     | "created"
