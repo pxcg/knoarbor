@@ -138,6 +138,7 @@ class ApiSurfaceTests(unittest.TestCase):
         connectors = {item["name"]: item for item in payload["connectors"]}
         self.assertIn("markdown", connectors)
         self.assertEqual(connectors["markdown"]["source_types"], ["markdown"])
+        self.assertIn("roots", connectors["markdown"]["settings_schema"]["properties"])
         self.assertIn("codex", connectors)
         self.assertEqual(connectors["codex"]["source_types"], ["codex_chat"])
 

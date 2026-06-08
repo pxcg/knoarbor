@@ -35,6 +35,7 @@ class SourceCatalogService:
                     name=capability.name,
                     version=capability.version,
                     source_types=capability.source_types,
+                    settings_schema=capability.settings_schema,
                     supports_discovery=capability.supports_discovery,
                     supports_checkpoint=capability.supports_checkpoint,
                     supports_segmentation_hint=capability.supports_segmentation_hint,

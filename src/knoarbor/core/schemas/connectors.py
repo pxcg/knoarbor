@@ -31,6 +31,7 @@ class SourceConnectorCatalogItem(BaseModel):
     name: str
     version: str
     source_types: list[str] = Field(default_factory=list)
+    settings_schema: dict[str, object] = Field(default_factory=dict)
     supports_discovery: bool = True
     supports_checkpoint: bool = True
     supports_segmentation_hint: bool = False

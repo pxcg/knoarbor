@@ -183,7 +183,9 @@ GET /sources?config_path=/path/to/config.yaml&connector=markdown
 Returns the source connector capability catalog without scanning local files.
 Use this endpoint when an external tool needs to know which input sources
 KnoArbor supports, which `source_type` values each connector emits, and whether
-a connector supports checkpointing or segmentation hints.
+a connector supports checkpointing or segmentation hints. Each connector also
+includes a lightweight `settings_schema` describing supported config fields,
+such as `roots`, `sessions_dir`, `session_files`, `pattern`, and `recursive`.
 
 When `config_path` is provided, each catalog item is annotated with:
 

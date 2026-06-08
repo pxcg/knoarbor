@@ -20,6 +20,7 @@ class ConnectorContractTests(unittest.TestCase):
         self.assertTrue(expected.issubset(names))
         markdown = next(item for item in capabilities if item.name == "markdown")
         self.assertEqual(markdown.source_types, ["markdown"])
+        self.assertEqual(markdown.settings_schema["required"], ["roots"])
 
     def test_registered_connectors_have_stable_contract_metadata(self) -> None:
         capabilities = {item.name: item for item in ConnectorRegistry().capabilities()}
@@ -36,6 +37,7 @@ class ConnectorContractTests(unittest.TestCase):
             with self.subTest(name=name):
                 capability = capabilities[name]
                 self.assertEqual(capability.source_types, source_types)
+                self.assertTrue(capability.settings_schema)
                 self.assertTrue(capability.supports_discovery)
                 self.assertTrue(capability.supports_checkpoint)
                 self.assertEqual(

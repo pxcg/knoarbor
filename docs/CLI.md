@@ -118,7 +118,8 @@ uv run knoar sources --connector codex --json --include-content
 
 Use `--catalog` to print the connector capability catalog without scanning
 local files. This shows connector names, versions, emitted `source_type` values,
-and whether checkpointing or segmentation hints are supported.
+whether checkpointing or segmentation hints are supported, and the lightweight
+settings schema for JSON output.
 
 `sources --json` prints compact preflight metadata by default. Use
 `--include-content` only when you intentionally need the full normalized

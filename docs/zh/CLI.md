@@ -77,7 +77,8 @@ uv run knoar sources --connector codex --json --include-content
 ```
 
 使用 `--catalog` 可以只打印资料来源连接器能力清单，不扫描本地文件。它会展示
-连接器名称、版本、输出的 `source_type`，以及是否支持断点和分段提示。
+连接器名称、版本、输出的 `source_type`、是否支持断点和分段提示；JSON 输出
+还包含轻量 settings schema。
 
 `sources --json` 默认输出紧凑 preflight 元数据。只有需要完整标准化
 `SourceDocument.content` 时，才使用 `--include-content`。

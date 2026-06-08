@@ -178,6 +178,8 @@ GET /sources?config_path=/path/to/config.yaml&connector=markdown
 
 返回资料来源连接器能力清单，但不会扫描本地文件。外部工具可以用它了解
 KnoArbor 支持哪些来源、每个连接器会产生哪些 `source_type`，以及是否支持断点和分段提示。
+每个连接器也会返回轻量 `settings_schema`，描述支持的配置字段，例如
+`roots`、`sessions_dir`、`session_files`、`pattern` 和 `recursive`。
 
 传入 `config_path` 时，每个连接器会额外标注：
 
