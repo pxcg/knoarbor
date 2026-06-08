@@ -17,6 +17,7 @@ SKIP_DIRS = {
     "build",
     "dist",
     "node_modules",
+    "vaults",
     "web",
     "wiki",
 }
