@@ -110,10 +110,15 @@ ingest.
 
 ```bash
 uv run knoar sources
+uv run knoar sources --catalog
 uv run knoar sources --connector markdown
 uv run knoar sources --connector codex --json
 uv run knoar sources --connector codex --json --include-content
 ```
+
+Use `--catalog` to print the connector capability catalog without scanning
+local files. This shows connector names, versions, emitted `source_type` values,
+and whether checkpointing or segmentation hints are supported.
 
 `sources --json` prints compact preflight metadata by default. Use
 `--include-content` only when you intentionally need the full normalized

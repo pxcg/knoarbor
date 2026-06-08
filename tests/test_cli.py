@@ -259,6 +259,48 @@ connectors: {{}}
         self.assertNotIn("sections", content)
         self.assertGreater(content["text_chars"], 0)
 
+    def test_sources_catalog_prints_connector_capabilities_without_discovery(self) -> None:
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            exit_code = main(["sources", "--catalog", "--connector", "codex"])
+
+        self.assertEqual(exit_code, 0)
+        text = output.getvalue()
+        self.assertIn("connectors: 1", text)
+        self.assertIn("codex", text)
+        self.assertIn("codex_chat", text)
+
+    def test_sources_catalog_json_marks_configured_connectors(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "wiki"
+            vault.mkdir()
+            config = root / "config.yaml"
+            config.write_text(
+                f"""
+vault:
+  path: {vault}
+connectors:
+  markdown:
+    enabled: true
+    settings:
+      roots:
+        - {root}
+""",
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                exit_code = main(["--config", str(config), "sources", "--catalog", "--connector", "markdown", "--json"])
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["schema_version"], "source_catalog.v1")
+        self.assertTrue(payload["connectors"][0]["configured"])
+        self.assertTrue(payload["connectors"][0]["enabled"])
+
     def test_init_creates_local_config_when_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)

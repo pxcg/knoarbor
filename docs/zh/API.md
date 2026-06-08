@@ -29,6 +29,7 @@ http://127.0.0.1:8000
 | 服务状态 | `GET /health` | 轻量服务心跳 |
 | 运行上下文 | `GET /runtime` | 发现当前本地 API 地址、配置路径、知识库路径和 endpoint 文件 |
 | 诊断 | `GET /doctor` | 只读运行前检查 |
+| 资料来源 | `GET /sources` | 读取资料来源连接器能力清单 |
 | 知识编译 | `POST /ingest` | 编译配置来源、标准文档、单个文件或文件夹，或恢复失败编译 |
 | 校验维护 | `POST /lint` | 执行确定性、结构、质量或完整维护 |
 | 知识查询 | `POST /query` | 为宿主 AI 检索 Wiki 上下文 |
@@ -167,6 +168,23 @@ GET /doctor?check_model_runtime=false&check_connector_runtime=false
 - `check_connector_runtime`：为 `true` 时运行资料来源发现，并返回发现的资料数量。
 
 页面加载类检查建议传 `false`，显式就绪测试再传 `true`。
+
+## 资料来源
+
+```http
+GET /sources
+GET /sources?config_path=/path/to/config.yaml&connector=markdown
+```
+
+返回资料来源连接器能力清单，但不会扫描本地文件。外部工具可以用它了解
+KnoArbor 支持哪些来源、每个连接器会产生哪些 `source_type`，以及是否支持断点和分段提示。
+
+传入 `config_path` 时，每个连接器会额外标注：
+
+- `configured`：该连接器是否出现在配置文件中。
+- `enabled`：该连接器是否在配置文件中启用。
+
+实际文件发现仍由 `GET /doctor` 的运行时检查和 `knoar sources` 预检命令负责。
 
 ## 知识编译
 

@@ -29,6 +29,7 @@ Public endpoints are organized by product capability, not by internal workflow s
 | Service status | `GET /health` | Lightweight service heartbeat |
 | Runtime context | `GET /runtime` | Discover the active local API URL, config path, vault path, and endpoint file |
 | Diagnostics | `GET /doctor` | Read-only setup checks |
+| Sources | `GET /sources` | Read source connector capability catalog |
 | Ingest | `POST /ingest` | Compile configured sources, one normalized document, one file or folder, or recover a failed ingest |
 | Lint | `POST /lint` | Run deterministic, structural, quality, or full maintenance |
 | Query | `POST /query` | Retrieve wiki context for a host AI |
@@ -171,6 +172,26 @@ Runs read-only setup diagnostics for config loading, vault structure, model envi
 - `check_connector_runtime`: when `true`, runs connector discovery and reports discovered source counts.
 
 Use `false` for UI/on-load checks and `true` for explicit readiness tests.
+
+## Sources
+
+```http
+GET /sources
+GET /sources?config_path=/path/to/config.yaml&connector=markdown
+```
+
+Returns the source connector capability catalog without scanning local files.
+Use this endpoint when an external tool needs to know which input sources
+KnoArbor supports, which `source_type` values each connector emits, and whether
+a connector supports checkpointing or segmentation hints.
+
+When `config_path` is provided, each catalog item is annotated with:
+
+- `configured`: whether that connector appears in the config file.
+- `enabled`: whether that connector is enabled in the config file.
+
+Source file discovery remains part of `GET /doctor` runtime checks and the
+`knoar sources` CLI preflight command.
 
 ## Ingest
 

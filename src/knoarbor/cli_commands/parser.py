@@ -148,6 +148,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sources_parser.add_argument("--json", action="store_true", help="Print compact source preflight JSON.")
     sources_parser.add_argument(
+        "--catalog",
+        action="store_true",
+        help="Print connector capability catalog instead of reading source documents.",
+    )
+    sources_parser.add_argument(
         "--include-content",
         action=argparse.BooleanOptionalAction,
         default=False,

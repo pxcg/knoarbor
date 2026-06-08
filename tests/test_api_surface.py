@@ -127,6 +127,52 @@ class ApiSurfaceTests(unittest.TestCase):
         self.assertIn("user_endpoint_path", payload)
         self.assertIn("errors", payload)
 
+    def test_sources_endpoint_returns_connector_catalog(self) -> None:
+        client = TestClient(create_app())
+
+        response = client.get("/sources")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["schema_version"], "source_catalog.v1")
+        connectors = {item["name"]: item for item in payload["connectors"]}
+        self.assertIn("markdown", connectors)
+        self.assertEqual(connectors["markdown"]["source_types"], ["markdown"])
+        self.assertIn("codex", connectors)
+        self.assertEqual(connectors["codex"]["source_types"], ["codex_chat"])
+
+    def test_sources_endpoint_can_annotate_configured_connectors(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "wiki"
+            vault.mkdir()
+            config = root / "config.yaml"
+            config.write_text(
+                f"""
+vault:
+  path: {vault}
+connectors:
+  markdown:
+    enabled: true
+    settings:
+      roots:
+        - {root}
+""",
+                encoding="utf-8",
+            )
+            client = TestClient(create_app())
+
+            response = client.get("/sources", params={"config_path": str(config), "connector": "markdown"})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(len(payload["connectors"]), 1)
+        self.assertEqual(payload["connectors"][0]["name"], "markdown")
+        self.assertTrue(payload["connectors"][0]["configured"])
+        self.assertTrue(payload["connectors"][0]["enabled"])
+
     def test_api_docs_cover_stable_public_routes(self) -> None:
         docs = (Path(__file__).resolve().parents[1] / "docs" / "API.md").read_text(encoding="utf-8")
 

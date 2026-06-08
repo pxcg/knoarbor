@@ -18,6 +18,7 @@ from knoarbor.services.doctor import DoctorService
 from knoarbor.services.wiki_search import WikiSearchService
 from knoarbor.services.ingest import IngestService
 from knoarbor.services.run_manager import RunManager
+from knoarbor.services.source_catalog import SourceCatalogService
 from knoarbor.services.wiki_linter import WikiLinterService
 from knoarbor.pipelines.lint import WikiLintPipeline, normalize_lint_run_mode
 from knoarbor.runtime.run_monitor import list_runs, read_run, read_run_events, request_cancel
@@ -489,6 +490,32 @@ def run_lint_run(args: argparse.Namespace) -> int:
 
 
 def run_sources(args: argparse.Namespace) -> int:
+    if args.catalog:
+        response = SourceCatalogService().list_catalog(
+            config_path=args.config,
+            connector_names=args.connectors,
+        )
+        if args.json:
+            print_json(response.model_dump())
+            return 0
+        print(f"connectors: {len(response.connectors)}")
+        for item in response.connectors:
+            flags = []
+            if item.enabled:
+                flags.append("enabled")
+            elif item.configured:
+                flags.append("configured")
+            if item.supports_checkpoint:
+                flags.append("checkpoint")
+            if item.supports_segmentation_hint:
+                flags.append("segmentation")
+            if item.requires_external_service:
+                flags.append("external")
+            suffix = f" [{', '.join(flags)}]" if flags else ""
+            source_types = ", ".join(item.source_types) or "none"
+            print(f"- {item.name} ({item.version}) -> {source_types}{suffix}")
+        return 0
+
     config = resolve_config(args)
     response = SourcePipeline().run_enabled(config, connector_names=args.connectors)
     if args.json:
