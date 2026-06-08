@@ -45,6 +45,20 @@ curl -sS "$KNOARBOR_BASE_URL/health"
 curl -sS --get "$KNOARBOR_BASE_URL/doctor"
 ```
 
+## Source Catalog
+
+```bash
+curl -sS --get "$KNOARBOR_BASE_URL/sources" \
+  --data-urlencode "config_path=$KNOARBOR_CONFIG_PATH"
+
+curl -sS --get "$KNOARBOR_BASE_URL/sources" \
+  --data-urlencode "config_path=$KNOARBOR_CONFIG_PATH" \
+  --data-urlencode "connector=codex"
+```
+
+This reads connector capabilities and settings schemas only. It does not scan
+local files and does not start ingest.
+
 ## Query Wiki Context
 
 ```bash

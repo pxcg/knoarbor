@@ -25,6 +25,7 @@ Use the smallest operation that satisfies the user request:
 - Compile a specific file -> `ingest file`.
 - Compile a one-off folder -> `ingest folder`.
 - Compile configured sources -> `ingest connector`.
+- Inspect supported source connectors -> `sources catalog`.
 - Check or maintain the wiki -> `lint`.
 - Explain progress, failures, or outputs -> `runs ...` and `report ...`.
 - Check readiness -> `doctor`; use `check` only for a fast service/vault probe.
@@ -52,6 +53,8 @@ Map natural user requests to operations before choosing a command:
   these materials" -> `ingest file` or `ingest folder`.
 - "Update from Codex/Hermes/Claude/OpenClaw history", "sync my configured
   sources" -> `ingest connector`.
+- "What sources does KnoArbor support?", "which connectors are enabled?", "how
+  can I configure sources?" -> `sources catalog`.
 - "What happened in the last run?", "which pages were written?", "why did it
   fail?", "show the report" -> `runs ...` and `report ...`.
 - "Retry failed ingest", "rerun failed items" -> `ingest recovery`.
@@ -75,6 +78,8 @@ python3 scripts/knoarbor.py page list --contains "agent loop"
 python3 scripts/knoarbor.py page read concepts/Agent-Loop-and-Control-Patterns.md
 python3 scripts/knoarbor.py --vault-id personal page read concepts/Agent-Loop-and-Control-Patterns.md
 python3 scripts/knoarbor.py page links concepts/Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py sources catalog
+python3 scripts/knoarbor.py sources catalog --connector codex
 python3 scripts/knoarbor.py ingest file /absolute/path/to/file.md
 python3 scripts/knoarbor.py ingest folder /absolute/path/to/folder
 python3 scripts/knoarbor.py ingest connector codex

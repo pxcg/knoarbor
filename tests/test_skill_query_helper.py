@@ -436,6 +436,47 @@ class SkillQueryHelperTests(unittest.TestCase):
         self.assertIn("config_path=%2Ftmp%2Fconfig.yaml", url)
         self.assertIn("path=concepts%2FAgent-Loop.md", url)
 
+    def test_sources_catalog_uses_public_sources_endpoint(self) -> None:
+        helper = load_query_helper()
+        runtime = helper.Runtime(
+            base_url="http://127.0.0.1:8123",
+            vault_path="/tmp/team-wiki",
+            config_path=Path("/tmp/config.yaml"),
+            timeout=1,
+            output_format="json",
+            vault_id="team",
+            vault_name="Team",
+        )
+        args = argparse.Namespace(sources_command="catalog", connector=["codex"])
+
+        with patch.object(helper, "_get_json", return_value={"schema_version": "source_catalog.v1", "connectors": []}) as get_json, redirect_stdout(io.StringIO()):
+            exit_code = helper._cmd_sources(args, runtime)
+
+        self.assertEqual(exit_code, 0)
+        url = get_json.call_args.args[0]
+        self.assertIn("/sources", url)
+        self.assertIn("config_path=%2Ftmp%2Fconfig.yaml", url)
+        self.assertIn("connector=codex", url)
+
+    def test_formats_sources_catalog_for_host_ai(self) -> None:
+        helper = load_query_helper()
+        text = helper._format_sources_catalog(
+            {
+                "connectors": [
+                    {
+                        "name": "codex",
+                        "version": "codex@1",
+                        "source_types": ["codex_chat"],
+                        "supports_checkpoint": True,
+                        "supports_segmentation_hint": True,
+                    }
+                ]
+            }
+        )
+
+        self.assertIn("Source connectors: 1", text)
+        self.assertIn("codex (codex@1) -> codex_chat", text)
+
     def test_runs_list_can_search_all_vaults(self) -> None:
         helper = load_query_helper()
         runtime = helper.Runtime(

@@ -33,6 +33,8 @@ Use these examples to map user phrasing to the smallest useful operation:
 | "把这个 Markdown 文件加入知识库" | `python3 scripts/knoarbor.py ingest file /absolute/path/to/file.md` |
 | "编译这个资料文件夹" | `python3 scripts/knoarbor.py ingest folder /absolute/path/to/folder` |
 | "同步 Codex/Claude 聊天记录" | `python3 scripts/knoarbor.py ingest connector codex claude_code` |
+| "KnoArbor 支持哪些资料来源？" | `python3 scripts/knoarbor.py sources catalog` |
+| "Codex 来源怎么配置？" | `python3 scripts/knoarbor.py --format json sources catalog --connector codex` |
 | "检查知识库有没有问题，不要修改" | `python3 scripts/knoarbor.py lint --mode deterministic --no-apply-safe-fixes --no-auto-apply-reviewed` |
 | "自动维护这个知识库" | `python3 scripts/knoarbor.py lint --mode semantic_structural` |
 | "刚才运行到哪了？" | `python3 scripts/knoarbor.py runs list` then `python3 scripts/knoarbor.py runs get RUN_ID` |
@@ -131,6 +133,18 @@ the user's configured document preprocessor.
 When the user names a configured knowledge base, pass it with global
 `--vault-id <id>`. Ingest writes to one vault per run; do not use multi-vault
 query flags for write workflows.
+
+## Source Catalog
+
+```bash
+python3 scripts/knoarbor.py sources catalog
+python3 scripts/knoarbor.py sources catalog --connector markdown
+python3 scripts/knoarbor.py --format json sources catalog --connector codex
+```
+
+Use this when the user asks which input sources are supported, which connectors
+are enabled, or what settings a connector accepts. This command reads connector
+capabilities only; it does not scan local files and does not start ingest.
 
 ## Lint
 

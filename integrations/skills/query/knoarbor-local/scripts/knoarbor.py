@@ -31,6 +31,7 @@ def main() -> int:
     _add_doctor(subparsers)
     _add_query(subparsers)
     _add_page(subparsers)
+    _add_sources(subparsers)
     _add_ingest(subparsers)
     _add_lint(subparsers)
     _add_runs(subparsers)
@@ -48,6 +49,8 @@ def main() -> int:
             return _cmd_query(args, runtime)
         if args.command == "page":
             return _cmd_page(args, runtime)
+        if args.command == "sources":
+            return _cmd_sources(args, runtime)
         if args.command == "ingest":
             return _cmd_ingest(args, runtime)
         if args.command == "lint":
@@ -168,6 +171,13 @@ def _add_page(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -
     read_parser.add_argument("path")
     links_parser = page_sub.add_parser("links", help="Read outbound links and backlinks for one page.")
     links_parser.add_argument("path")
+
+
+def _add_sources(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    parser = subparsers.add_parser("sources", help="Inspect supported source connectors.")
+    source_sub = parser.add_subparsers(dest="sources_command", required=True)
+    catalog = source_sub.add_parser("catalog", help="Read the source connector capability catalog.")
+    catalog.add_argument("--connector", action="append", default=[])
 
 
 def _add_ingest(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -308,6 +318,18 @@ def _cmd_page(args: argparse.Namespace, runtime: Runtime) -> int:
     if args.page_command == "links":
         response = _get_json(_url(runtime.base_url, "/wiki/pages/links", _vault_query(runtime, {"vault_path": vault_path, "path": args.path})), timeout=runtime.timeout)
         return _print_or_format(response, runtime, formatter=_format_page_links)
+    return 2
+
+
+def _cmd_sources(args: argparse.Namespace, runtime: Runtime) -> int:
+    if args.sources_command == "catalog":
+        query: dict[str, Any] = {}
+        if runtime.config_path:
+            query["config_path"] = str(runtime.config_path)
+        if args.connector:
+            query["connector"] = args.connector
+        response = _get_json(_url(runtime.base_url, "/sources", query), timeout=runtime.timeout)
+        return _print_or_format(response, runtime, formatter=_format_sources_catalog)
     return 2
 
 
@@ -850,6 +872,27 @@ def _format_page_links(response: dict[str, Any]) -> str:
     lines.append("Backlinks:")
     for link in response.get("backlinks", []):
         lines.append(f"- {link.get('source')}")
+    return "\n".join(lines)
+
+
+def _format_sources_catalog(response: dict[str, Any]) -> str:
+    connectors = response.get("connectors", [])
+    lines = [f"Source connectors: {len(connectors)}"]
+    for item in connectors:
+        flags = []
+        if item.get("enabled"):
+            flags.append("enabled")
+        elif item.get("configured"):
+            flags.append("configured")
+        if item.get("supports_checkpoint"):
+            flags.append("checkpoint")
+        if item.get("supports_segmentation_hint"):
+            flags.append("segmentation")
+        if item.get("requires_external_service"):
+            flags.append("external")
+        suffix = f" [{', '.join(flags)}]" if flags else ""
+        source_types = ", ".join(str(value) for value in item.get("source_types", [])) or "none"
+        lines.append(f"- {item.get('name')} ({item.get('version')}) -> {source_types}{suffix}")
     return "\n".join(lines)
 
 
