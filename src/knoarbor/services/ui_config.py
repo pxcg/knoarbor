@@ -7,11 +7,11 @@ from typing import Any
 
 import yaml
 
-from knoarbor.connectors.base import ConnectorCapabilities
-from knoarbor.connectors.registry import ConnectorRegistry
 from knoarbor.core.config import KnoArborConfig, default_config_path, prepare_config_data
 from knoarbor.core.errors import UserInputError
+from knoarbor.core.schemas.connectors import SourceConnectorCatalogItem
 from knoarbor.semantic.llm import is_local_or_private_model_endpoint
+from knoarbor.services.source_catalog import SourceCatalogService
 from knoarbor.services.ui_config_models import (
     DEFAULT_CHAT_RAW_OUTPUT_DIR,
     DEFAULT_CHAT_SESSION_DIRS,
@@ -409,14 +409,14 @@ def config_diagnostics(config: KnoArborConfig, *, refresh_source_counts: bool = 
     return UiConfigDiagnostics(connectors=connector_items, processors=processor_items, providers=provider_items, paths=path_items)
 
 
-def _connector_contracts() -> dict[str, ConnectorCapabilities]:
-    registry = ConnectorRegistry()
-    return {item.name: item for item in registry.capabilities()}
+def _connector_contracts() -> dict[str, SourceConnectorCatalogItem]:
+    catalog = SourceCatalogService().list_catalog()
+    return {item.name: item for item in catalog.connectors}
 
 
 def _connector_diagnostic(
     item: UiConfigDiagnosticItem,
-    capabilities_by_name: dict[str, ConnectorCapabilities],
+    capabilities_by_name: dict[str, SourceConnectorCatalogItem],
 ) -> UiConfigDiagnosticItem:
     capability = capabilities_by_name.get(item.name)
     data = item.model_dump()
