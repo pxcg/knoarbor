@@ -6,7 +6,29 @@ This project follows a simple release-note format for public releases.
 
 ## Unreleased
 
-- No public changes yet.
+No public changes yet.
+
+## 1.2.0 - 2026-06-08
+
+### Added
+
+- Added first-class multi-vault profiles with stable vault IDs, display names, and paths.
+- Added multi-vault query across all configured vaults or a selected vault set, with each result annotated by vault ID, name, and path.
+- Added multi-vault run and report listing so operators can inspect workflow activity across configured knowledge bases.
+- Added vault-aware write workflow selection for ingest and lint, while keeping each write run scoped to one vault.
+- Added local skill metadata, icons, retrieval guidance, and natural-language command examples for host AI integrations.
+
+### Changed
+
+- Tightened CLI, API, UI, and skill semantics around `vault_id`, `vault_path`, and `config_path`.
+- Improved local skill runtime discovery and follow-up page reads so selected query results can be opened from the same vault.
+- Improved queued run responses so selected vault metadata is returned immediately after starting ingest or lint.
+- Updated public API and CLI documentation for multi-vault read workflows and single-vault write workflows.
+
+### Validation
+
+- Development gate, release readiness, and clean-clone smoke checks are expected for the final release candidate.
+- Live model validation should be run when a configured provider is available.
 
 ## 1.0.0 - 2026-06-03
 

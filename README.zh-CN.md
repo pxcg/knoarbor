@@ -9,7 +9,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-3776AB.svg" alt="Python 3.12+">
-  <img src="https://img.shields.io/badge/status-1.0%20public%20release-0f766e.svg" alt="1.0 public release status">
+  <img src="https://img.shields.io/badge/status-1.2%20multi--vault%20release-0f766e.svg" alt="1.2 multi-vault release status">
   <a href="docs/zh/QUICKSTART.md"><img src="https://img.shields.io/badge/docs-quickstart-111827.svg" alt="Quickstart"></a>
 </p>
 
@@ -28,7 +28,7 @@ KnoArbor 不是另一个聊天界面。它更像一层长期知识基础设施�
 | 输入 | Markdown 笔记、AI 聊天记录、通用聊天日志，以及可选 MinerU 预处理后的富文档 |
 | 输出 | 本地 Markdown Wiki，包括来源摘要、实体、概念、查询页、报告、账本和图谱链接 |
 | 使用方式 | CLI、FastAPI、本地管理控制台，以及宿主 AI skill 模板 |
-| 运行模型 | 本地优先、单用户、文件型知识库，带队列、文件锁、断点和报告 |
+| 运行模型 | 本地优先、单用户、文件型多知识库，带队列、文件锁、断点和报告 |
 
 ## 为什么需要 KnoArbor
 
@@ -49,6 +49,7 @@ KnoArbor 不是另一个聊天界面。它更像一层长期知识基础设施�
 - **校验维护流程**：扫描确定性问题，诊断结构、溯源和质量问题，评审维护动作，并自动应用通过审核的修复。
 - **知识查询流程**：返回排序页面、摘录、来源线索、图谱上下文和可供外部 AI 使用的上下文包。
 - **来源溯源**：区分 raw source、source digest 和生成知识页面。
+- **多知识库配置**：在一份配置中管理多个命名本地知识库，并支持单库或多库查询。
 - **OpenAI 兼容模型**：支持 DeepSeek、OpenAI、OpenRouter、Ollama、LM Studio、vLLM 兼容端点等。
 - **CLI、API 和本地控制台**：可以通过终端、本地 HTTP API 或内置 Web 控制台使用。
 - **Skill 集成**：提供通用本地 Wiki skill 模板，方便接入支持本地技能的 AI 工具。

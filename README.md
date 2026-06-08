@@ -9,7 +9,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-3776AB.svg" alt="Python 3.12+">
-  <img src="https://img.shields.io/badge/status-1.0%20public%20release-0f766e.svg" alt="1.0 public release status">
+  <img src="https://img.shields.io/badge/status-1.2%20multi--vault%20release-0f766e.svg" alt="1.2 multi-vault release status">
   <a href="docs/QUICKSTART.md"><img src="https://img.shields.io/badge/docs-quickstart-111827.svg" alt="Quickstart"></a>
 </p>
 
@@ -28,7 +28,7 @@ Raw sources -> Ingest -> Markdown wiki -> Lint -> Query context
 | Input | Markdown notes, AI chat sessions, generic chat logs, and optional MinerU-preprocessed rich documents |
 | Output | A local Markdown wiki with source digests, entities, concepts, queries, reports, ledgers, and graph links |
 | Interfaces | CLI, FastAPI, local management console, and host-AI skill template |
-| Runtime model | Local-first, single-user, file-based vault with queue, locks, checkpoints, and reports |
+| Runtime model | Local-first, single-user, file-based vaults with queue, locks, checkpoints, and reports |
 
 ## Why KnoArbor
 
@@ -49,6 +49,7 @@ This makes the wiki a reusable artifact, not a transient retrieval result.
 - **Lint pipeline**: scans deterministic wiki issues, diagnoses structural/provenance/quality problems, reviews maintenance actions, and applies approved repairs.
 - **Query pipeline**: returns ranked pages, excerpts, source pointers, graph context, and a context pack for external AI tools.
 - **Source provenance**: separates raw sources, source digest pages, and generated knowledge pages.
+- **Multi-vault profiles**: manage multiple named local knowledge bases from one configuration and query one or many vaults.
 - **OpenAI-compatible models**: works with DeepSeek, OpenAI, OpenRouter, Ollama, LM Studio, vLLM-compatible endpoints, and similar providers.
 - **CLI, API, and local console**: run from terminal, HTTP API, or the bundled web UI served at `/` with `/ui` kept as a compatibility alias.
 - **Skill integration**: includes a generic local wiki skill template for AI tools that can call a local HTTP service.
@@ -293,7 +294,7 @@ Query is retrieval-only. KnoArbor returns context and evidence; the host AI is r
 
 ## Current Status
 
-KnoArbor is preparing its first public 1.0 release. The core local workflows, CLI, stable HTTP API, bundled console, and host-AI skill template are intended to be usable as a single-user local knowledge engine.
+KnoArbor is in the 1.x local-first release line. The core local workflows, CLI, stable HTTP API, bundled console, multi-vault configuration, and host-AI skill template are intended to be usable as a single-user local knowledge engine.
 
 Implemented today:
 
@@ -303,6 +304,7 @@ Implemented today:
 - FastAPI service and CLI entry points.
 - Local React console bundled with the Python package.
 - Runtime wiki initialization, machine index, queue, locks, ledgers, reports, and checkpoints.
+- Multi-vault configuration, query, run/report listing, and skill drilldown.
 
 Not included in the current local-first release:
 
