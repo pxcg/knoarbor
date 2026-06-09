@@ -69,6 +69,22 @@ spec should explain the accepted design and rejected alternatives clearly
 enough that future maintainers do not need to reconstruct the discussion from
 commit history.
 
+### Roadmap Spec Management
+
+The 1.3-1.7 roadmap lines use different management strategies:
+
+| Line | Strategy | What must be updated first |
+| --- | --- | --- |
+| 1.3 Source Ecosystem | Connector-contract governance | Source capability, settings schema, connector checklist, source behavior changes. |
+| 1.4 Machine Index Layer | Architecture-contract design | Index provider boundary, durable index storage, rebuild/freshness API or CLI. |
+| 1.5 Knowledge Governance | Operation taxonomy and audit design | Lint operation names, risk/review policy, executor support, report/diff schema. |
+| 1.6 Productized Console | Product interaction and UI architecture | Navigation, loading strategy, report views, shared components, UI adapter boundaries. |
+| 1.7 CLI/API/Skill Closure | Compatibility and surface parity | Public endpoint names, CLI flags, response envelopes, skill operations. |
+
+Use the relevant spec before coding. If a change spans multiple lines, update
+the smallest set of specs that own the affected contracts, and keep duplicated
+explanation out of long-term docs.
+
 ## Branch Discipline
 
 Follow the branch model in [Development](DEVELOPMENT.md#branch-and-release-model).

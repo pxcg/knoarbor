@@ -85,6 +85,8 @@ Done when:
 
 Goal: make retrieval better without requiring a heavyweight database.
 
+Active spec: [1.4 Machine Index Layer](../specs/1.4-machine-index-layer/requirements.md).
+
 Focus areas:
 
 - Add a machine index layer separate from the human-facing `index.md`.
@@ -101,6 +103,8 @@ Done when:
 ## 1.5.x: Knowledge Governance
 
 Goal: make autonomous maintenance trustworthy.
+
+Active spec: [1.5 Knowledge Governance](../specs/1.5-knowledge-governance/requirements.md).
 
 Focus areas:
 
@@ -120,6 +124,8 @@ Done when:
 
 Goal: make the UI feel like a product rather than a developer control panel.
 
+Active spec: [1.6 Productized Console](../specs/1.6-productized-console/requirements.md).
+
 Focus areas:
 
 - Improve first-run onboarding.
@@ -136,6 +142,8 @@ Done when:
 ## 1.7.x: CLI, API, And Skill Closure
 
 Goal: make all user-facing surfaces consistent.
+
+Active spec: [1.7 CLI, API, And Skill Closure](../specs/1.7-cli-api-skill-closure/requirements.md).
 
 Focus areas:
 

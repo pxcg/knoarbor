@@ -23,6 +23,16 @@ tests, and release notes.
 | Release decision | `docs/RELEASE_CHECKLIST.md`, `scripts/release-check.sh` |
 | Feature-level requirements, design, tasks, and verification | `specs/<feature>/` |
 
+## Active Roadmap Specs
+
+| Roadmap line | Spec | Management focus |
+| --- | --- | --- |
+| 1.3.x | [Source Ecosystem](1.3-source-ecosystem/requirements.md) | Connector boundaries, source catalog, source settings schema, source preflight. |
+| 1.4.x | [Machine Index Layer](1.4-machine-index-layer/requirements.md) | Retrieval provider contracts, local machine index, rebuild/freshness state. |
+| 1.5.x | [Knowledge Governance](1.5-knowledge-governance/requirements.md) | Lint operation taxonomy, autonomous repair, review evidence, reports and diffs. |
+| 1.6.x | [Productized Console](1.6-productized-console/requirements.md) | UI information architecture, loading strategy, report readability, component reuse. |
+| 1.7.x | [CLI/API/Skill Closure](1.7-cli-api-skill-closure/requirements.md) | Public surface parity, response envelopes, skill operation maturity before 2.0. |
+
 ## Spec Lifecycle
 
 Use a feature spec when a change introduces or significantly changes:

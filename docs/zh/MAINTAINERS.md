@@ -49,6 +49,20 @@ KnoArbor 对影响架构、公开契约、来源 connector、语义契约、流�
 
 实现规则：如果代码实现证明原设计不合适，应在同一次变更中更新规格，而不是添加局部兜底。规格应说明接受的设计和拒绝的替代方案，让后续维护者不必从提交历史中还原讨论。
 
+### 路线图规格管理策略
+
+1.3 到 1.7 的路线图主题使用不同管理策略：
+
+| 版本线 | 策略 | 编码前必须先更新的内容 |
+| --- | --- | --- |
+| 1.3 资料来源生态 | Connector 契约治理 | 来源能力、settings schema、connector 检查表、来源行为变化。 |
+| 1.4 机器索引层 | 架构契约设计 | Index provider 边界、持久索引存储、rebuild/freshness API 或 CLI。 |
+| 1.5 知识治理 | Operation taxonomy 与审计设计 | Lint operation 名称、风险/审查策略、executor 支持、报告/diff schema。 |
+| 1.6 控制台产品化 | 产品交互与 UI 架构 | 导航、加载策略、报告视图、共享组件、UI adapter 边界。 |
+| 1.7 CLI/API/Skill 闭环 | 兼容性与入口一致性 | 公开 endpoint 名称、CLI 参数、response envelope、Skill 操作。 |
+
+编码前先使用对应规格。如果一个变更跨多个版本主题，只更新真正拥有该契约的最小规格集合，并避免把同一解释复制进长期文档。
+
 ## 分支纪律
 
 遵循 [开发说明](DEVELOPMENT.md#分支与发布模型) 中的分支模型。

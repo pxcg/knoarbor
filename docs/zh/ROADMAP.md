@@ -83,6 +83,8 @@ KnoArbor 1.0.0 是第一个公开的本地优先版本，已经具备知识编�
 
 目标：在不强依赖重型数据库的前提下提升检索。
 
+当前规格：[1.4 Machine Index Layer](../../specs/1.4-machine-index-layer/requirements.md)。
+
 重点：
 
 - 引入独立于人类可读 `index.md` 的机器索引层。
@@ -99,6 +101,8 @@ KnoArbor 1.0.0 是第一个公开的本地优先版本，已经具备知识编�
 ## 1.5.x：知识治理
 
 目标：让自动维护更可信。
+
+当前规格：[1.5 Knowledge Governance](../../specs/1.5-knowledge-governance/requirements.md)。
 
 重点：
 
@@ -118,6 +122,8 @@ KnoArbor 1.0.0 是第一个公开的本地优先版本，已经具备知识编�
 
 目标：让 UI 更像成熟产品，而不是开发控制台。
 
+当前规格：[1.6 Productized Console](../../specs/1.6-productized-console/requirements.md)。
+
 重点：
 
 - 完善首次启动引导。
@@ -134,6 +140,8 @@ KnoArbor 1.0.0 是第一个公开的本地优先版本，已经具备知识编�
 ## 1.7.x：CLI、API、Skill 闭环
 
 目标：让所有用户入口保持一致。
+
+当前规格：[1.7 CLI, API, And Skill Closure](../../specs/1.7-cli-api-skill-closure/requirements.md)。
 
 重点：
 
