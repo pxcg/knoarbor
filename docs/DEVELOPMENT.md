@@ -234,6 +234,19 @@ Specs are not a second roadmap and should not duplicate long-term docs. They
 are the implementation bridge between `docs/ROADMAP.md`, architecture
 boundaries, code, and verification.
 
+Conformance rule:
+
+- `requirements.md` owns what must be true for users.
+- `design.md` owns where the behavior belongs and which alternatives were
+  rejected.
+- `tasks.md` owns current implementation status.
+- `verification.md` owns the checks required before the work is considered
+  complete.
+
+Code should be placed in the layer named by the spec design. If implementation
+requires a different layer boundary than the spec described, update the spec in
+the same change instead of adding a local workaround.
+
 ## Package Layout
 
 ```text

@@ -71,6 +71,43 @@ specs/<feature>/
 When implementation evidence changes the design, update the spec before or in
 the same commit as the code change.
 
+## SDD Conformance Checklist
+
+A change is considered aligned with KnoArbor's spec-driven development model
+when the spec, code, tests, and docs agree on the same ownership boundary.
+
+Before implementation:
+
+- identify the roadmap line or feature spec that owns the change;
+- update `requirements.md` when the user-facing goal, non-goal, or acceptance
+  criteria changes;
+- update `design.md` when layer ownership, data flow, public contracts, or
+  rejected alternatives change;
+- update `tasks.md` before or during implementation so task status reflects
+  reality;
+- update `verification.md` when the test gate or manual release check changes.
+
+During implementation:
+
+- place code in the owning architecture layer described by `design.md`;
+- keep adapters thin: CLI, API, UI, and skills should call stable services or
+  pipelines instead of reimplementing workflow policy;
+- keep semantic agents narrow: prompts and schemas may describe decisions, but
+  storage, checkpoints, retries, and reports belong to non-semantic layers;
+- keep connector-specific behavior inside connectors or document processors;
+- do not add broad fallbacks unless the spec names the trigger, owner, report
+  surface, and verification check.
+
+Before completion:
+
+- run the verification commands listed in the feature spec or explain why a
+  listed check is not applicable;
+- promote stable user-facing behavior into `docs/` when the behavior is public;
+- update release notes when the change is release-facing;
+- leave the working implementation simpler than the spec: if the spec has
+  obsolete rejected paths or stale task wording, clean it up before marking the
+  feature complete.
+
 ## Engineering Rules
 
 Feature specs must follow the project-wide rules in:
