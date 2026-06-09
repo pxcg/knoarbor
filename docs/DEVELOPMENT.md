@@ -212,6 +212,28 @@ Hard rules:
   correct a release process failure before users have consumed the artifact.
 - Do not use `main` as the normal daily development branch after `dev` exists.
 
+## Spec-Driven Development Flow
+
+Use [`specs/`](../specs/README.md) for changes that are larger than an isolated
+fix. A feature spec is required when the change affects public contracts,
+architecture boundaries, source connectors, semantic contracts, workflow
+behavior, autonomous maintenance, or release-critical user experience.
+
+Recommended flow:
+
+1. Start from the roadmap theme or user problem.
+2. Create or update `specs/<feature>/requirements.md`.
+3. Define owning layers, contracts, data flow, and rejected alternatives in
+   `specs/<feature>/design.md`.
+4. Track implementation status in `specs/<feature>/tasks.md`.
+5. Define automated and manual checks in `specs/<feature>/verification.md`.
+6. Implement code and tests against the spec.
+7. Promote stable user-facing behavior into `docs/` and release notes.
+
+Specs are not a second roadmap and should not duplicate long-term docs. They
+are the implementation bridge between `docs/ROADMAP.md`, architecture
+boundaries, code, and verification.
+
 ## Package Layout
 
 ```text

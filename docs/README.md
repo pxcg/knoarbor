@@ -22,6 +22,7 @@ Chinese documentation lives in [zh/](zh/). This documentation tree is intended f
 - [Architecture](ARCHITECTURE.md): current system architecture and implementation boundaries.
 - [Provenance Design](PROVENANCE_DESIGN.md): source chain semantics across raw sources, source digests, and knowledge pages.
 - [Backup And Recovery](BACKUP_AND_RECOVERY.md): runtime vault backup, git recovery boundaries, and safe index rebuilds.
+- [Feature Specs](../specs/README.md): spec-driven requirements, design, tasks, and verification for multi-step architecture or contract changes.
 
 ## Operations
 
@@ -61,7 +62,7 @@ Showcase -> Quickstart -> Configuration -> Troubleshooting -> CLI Reference -> C
 For contributors:
 
 ```text
-Core Concepts -> Architecture -> Provenance Design -> API Compatibility -> Roadmap -> Development -> Maintainer Guide -> Testing -> Contributing
+Core Concepts -> Architecture -> Provenance Design -> API Compatibility -> Roadmap -> Feature Specs -> Development -> Maintainer Guide -> Testing -> Contributing
 ```
 
 For release preparation:

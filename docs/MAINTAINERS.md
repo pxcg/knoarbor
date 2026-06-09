@@ -25,11 +25,49 @@ Use this map when deciding where a change belongs:
 | `docs/RELEASE_CHECKLIST.md` | Release decision checklist | Feature roadmap |
 | `docs/ROADMAP.md` | Direction from 1.0 to 2.0 | Per-commit changelog or sprint task list |
 | `docs/MAINTAINERS.md` | Maintenance rules and long-term governance | User onboarding instructions |
+| `specs/<feature>/*` | Feature-level requirements, design, task status, and verification plan | Stable user docs, release notes, or private design debates unrelated to the feature |
 | `CHANGELOG.md` and `docs/releases/*` | Version-specific changes | Future planning |
 
 When a feature changes behavior, update the smallest set of documents that own
 that behavior. Avoid copying the same explanation into many files; link to the
 source-of-truth document instead.
+
+## Spec-Driven Development
+
+KnoArbor uses lightweight spec-driven development for changes that affect
+architecture, public contracts, source connectors, semantic contracts,
+workflow behavior, or release-critical user experience.
+
+Specs live in [`specs/`](../specs/README.md). They connect roadmap themes to
+implementation, tests, and release notes. They do not replace long-term public
+documentation:
+
+- `docs/ROADMAP.md` owns product direction and version themes.
+- `docs/ARCHITECTURE.md` owns stable layer boundaries.
+- `docs/API.md`, `docs/CLI.md`, and `docs/CONFIGURATION.md` own public
+  contracts.
+- `specs/<feature>/` owns the feature-level requirement, design, task, and
+  verification record.
+
+Create or update a feature spec when a change introduces or significantly
+changes:
+
+- public API endpoints, CLI commands, config fields, report schemas, or skill
+  operations;
+- source connectors, source types, document preprocessing, or source
+  segmentation behavior;
+- architecture layers or cross-layer contracts;
+- semantic prompt/schema contracts;
+- autonomous maintenance, verification, retry, or recovery behavior.
+
+Small typo fixes, isolated UI copy changes, dependency patch bumps, and
+single-file bug fixes can reference an existing spec or skip a dedicated spec.
+
+Implementation rule: when code reveals that the planned design is wrong,
+update the spec in the same change rather than adding a local workaround. The
+spec should explain the accepted design and rejected alternatives clearly
+enough that future maintainers do not need to reconstruct the discussion from
+commit history.
 
 ## Branch Discipline
 

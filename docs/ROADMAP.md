@@ -8,6 +8,10 @@ The path to 2.0.0 is about turning that baseline into a stable long-term knowled
 
 This roadmap is directional rather than a strict promise. Minor releases may be reordered when implementation evidence suggests a better sequence.
 
+Multi-step roadmap items are implemented through feature specs in
+[`specs/`](../specs/README.md). Specs own feature-level requirements, design,
+task status, and verification; this roadmap owns only long-term direction.
+
 ## Release Themes
 
 | Version | Theme | Outcome |
@@ -60,6 +64,8 @@ Done when:
 ## 1.3.x: Source Ecosystem
 
 Goal: expand input coverage without weakening connector boundaries.
+
+Active spec: [1.3 Source Ecosystem](../specs/1.3-source-ecosystem/requirements.md).
 
 Focus areas:
 
