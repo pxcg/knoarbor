@@ -265,6 +265,38 @@ Short version:
 - Do not add fallback behavior unless it has been reviewed as a long-term reliability mechanism.
 - Do not commit runtime wiki data, private raw sources, or model credentials.
 
+## Connector Development Checklist
+
+Adding a source connector is a source-layer change. Use the active
+[1.3 Source Ecosystem spec](../specs/1.3-source-ecosystem/requirements.md)
+when the connector changes public capability metadata or source behavior.
+
+Checklist:
+
+1. Implement `discover`, `fetch`, and `to_document` behind the `SourceConnector`
+   protocol.
+2. Register the connector in `connectors/registry.py`.
+3. Declare capability metadata through `capabilities()` or default capability
+   inference:
+   - connector name and version;
+   - emitted `source_types`;
+   - `settings_schema`;
+   - checkpoint, segmentation hint, and external-service flags.
+4. Keep source-specific parsing inside the connector. Do not add connector
+   branches to ingest semantic prompts, page writers, or API routes.
+5. Emit normalized `SourceDocument` values before checkpointing, segmentation,
+   relation planning, or drafting.
+6. Add connector tests for discovery, normalization, capability metadata, and
+   malformed input.
+7. Update API/CLI/config docs only when the public connector surface changes.
+
+Before merging connector work, run at least:
+
+```bash
+uv run python -m unittest tests.test_connector_contracts tests.test_source_pipeline tests.test_cli tests.test_api_surface
+uv run python scripts/check-doc-links.py
+```
+
 ## Frontend Design Baseline
 
 KnoArbor's console should feel like a mature knowledge workbench, not a decorative landing page or a raw admin console.

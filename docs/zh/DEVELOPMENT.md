@@ -186,6 +186,31 @@ KnoArbor 使用小型发布分支模型。目标是在保持公开历史清晰�
 - 自动维护操作必须保留报告和台账。
 - 不提交 API Key、个人知识库内容或运行时 Wiki。
 
+## Connector 开发检查表
+
+新增资料来源 connector 属于来源层变更。如果 connector 会改变公开能力元数据或来源行为，需要使用当前 [1.3 Source Ecosystem 规格](../../specs/1.3-source-ecosystem/requirements.md)。
+
+检查表：
+
+1. 在 `SourceConnector` 协议后实现 `discover`、`fetch` 和 `to_document`。
+2. 在 `connectors/registry.py` 注册 connector。
+3. 通过 `capabilities()` 或默认推断声明能力元数据：
+   - connector 名称和版本；
+   - 输出的 `source_types`；
+   - `settings_schema`；
+   - checkpoint、分段提示和外部服务标志。
+4. 来源特定解析留在 connector 内部。不要把 connector 分支写进 ingest 语义 prompt、页面 writer 或 API route。
+5. 在 checkpoint、segmentation、relation planning 或 drafting 前输出标准 `SourceDocument`。
+6. 为 discovery、normalization、能力元数据和异常输入添加 connector 测试。
+7. 只有公开 connector 行为变化时，才更新 API/CLI/config 文档。
+
+合入 connector 相关工作前，至少运行：
+
+```bash
+uv run python -m unittest tests.test_connector_contracts tests.test_source_pipeline tests.test_cli tests.test_api_surface
+uv run python scripts/check-doc-links.py
+```
+
 ## 前端设计基线
 
 KnoArbor 控制台应该像成熟的知识工作台，而不是装饰性首页或原始管理后台。

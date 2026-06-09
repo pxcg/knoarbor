@@ -29,7 +29,7 @@ Status values:
 - [done] Provide default settings schemas for existing connectors.
 - [done] Ensure registered connectors expose source types and settings schema.
 - [done] Add connector contract tests.
-- [next] Add a connector development checklist to docs.
+- [done] Add a connector development checklist to docs.
 - [later] Decide whether connector settings schemas should include display
   metadata for the web console.
 
