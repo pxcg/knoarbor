@@ -6,11 +6,12 @@ The path to 2.0.0 is about turning that baseline into a stable long-term knowled
 
 > Move from a usable local AI Wiki engine to a dependable, extensible knowledge system with stable installation, stable configuration, stable connectors, stable retrieval, and trustworthy autonomous maintenance.
 
-This roadmap is directional rather than a strict promise. Minor releases may be reordered when implementation evidence suggests a better sequence.
+This roadmap is directional planning. Minor releases may be reordered when implementation evidence suggests a better sequence.
 
 Multi-step roadmap items are implemented through feature specs in
 [`specs/`](../specs/README.md). Specs own feature-level requirements, design,
-task status, and verification; this roadmap owns only long-term direction.
+task status, and verification. [Capability Map](CAPABILITY_MAP.md) owns the
+cross-feature implementation state. This roadmap owns long-term direction.
 
 ## Release Themes
 
@@ -122,7 +123,7 @@ Done when:
 
 ## 1.6.x: Productized Console
 
-Goal: make the UI feel like a product rather than a developer control panel.
+Goal: make the UI feel like a mature product surface.
 
 Active spec: [1.6 Productized Console](../specs/1.6-productized-console/requirements.md).
 
@@ -149,7 +150,7 @@ Focus areas:
 
 - Keep the public API small: health, doctor, ingest, lint, query, runs, and wiki pages.
 - Make CLI output human-readable by default and machine-readable with `--json`.
-- Keep skill behavior focused on host-AI context retrieval rather than answer generation.
+- Keep skill behavior centered on host-AI context retrieval.
 - Add skill operations only when they map cleanly to stable API capabilities.
 - Preserve API response envelopes and schema versions.
 
@@ -173,9 +174,9 @@ The 2.0 baseline should freeze:
 - basic package and launcher behavior;
 - privacy and secret-handling rules.
 
-## Non-Goals Before 2.0
+## Later-Horizon Capabilities
 
-These are useful but should not block the 2.0 path:
+These capabilities are useful and belong to a later product horizon:
 
 - multi-user authentication and permissions;
 - hosted SaaS deployment;
@@ -185,7 +186,7 @@ These are useful but should not block the 2.0 path:
 - collaborative editing;
 - turning KnoArbor into a chat assistant.
 
-KnoArbor should remain a knowledge engine that other tools can use, not another general chat surface.
+KnoArbor should remain a knowledge engine that other tools can use.
 
 ## Guiding Principles
 

@@ -15,6 +15,7 @@
 - [接口说明](API.md)：本地 HTTP API 的用途和边界。
 - [API 兼容性](API_COMPATIBILITY.md)：稳定 endpoint、schema version 和废弃策略。
 - [路线图](ROADMAP.md)：从 1.0 公开版本到 2.0 长期兼容基线的发展路径。
+- [能力地图](CAPABILITY_MAP.md)：跨功能的能力状态和职责归属。
 - [错误码](ERROR_CODES.md)：CLI/API 的稳定错误码和排查建议。
 - [故障排查](TROUBLESHOOTING.md)：配置、模型、UI、ingest 和运行时常见问题。
 - [核心概念](CONCEPTS.md)：raw source、source digest、wiki page、ingest、lint、query。
@@ -22,6 +23,7 @@
 ## 架构
 
 - [架构设计](ARCHITECTURE.md)：系统分层、流程边界和长期演进方向。
+- [架构决策记录](../adr/README.md)：长期架构决策和 ADR 模板。
 - [溯源设计](PROVENANCE_DESIGN.md)：原始资料、来源摘要和知识页面之间的证据链。
 - [备份与恢复](BACKUP_AND_RECOVERY.md)：运行时知识库备份、git 恢复边界和索引重建。
 - [功能规格](../../specs/README.md)：多步骤架构或契约变更的需求、设计、任务和验收记录。

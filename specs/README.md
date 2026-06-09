@@ -4,7 +4,7 @@ KnoArbor uses a lightweight spec-driven development workflow for changes that
 affect architecture, public contracts, source connectors, semantic contracts,
 workflow behavior, or release-critical user experience.
 
-This directory does not replace the public documentation in `docs/`. Specs are
+This directory works alongside the public documentation in `docs/`. Specs are
 feature-level implementation artifacts that connect the roadmap to code,
 tests, and release notes.
 
@@ -14,7 +14,9 @@ tests, and release notes.
 | --- | --- |
 | Product positioning and common usage | `README.md`, `README.zh-CN.md` |
 | Long-term roadmap | `docs/ROADMAP.md`, `docs/zh/ROADMAP.md` |
+| Cross-feature capability state | `docs/CAPABILITY_MAP.md`, `docs/zh/CAPABILITY_MAP.md` |
 | Architecture layers and ownership | `docs/ARCHITECTURE.md`, `docs/zh/ARCHITECTURE.md` |
+| Durable architecture decisions | `docs/adr/*.md` |
 | Maintainer process and governance | `docs/MAINTAINERS.md`, `docs/zh/MAINTAINERS.md` |
 | Public API contract | `docs/API.md`, `src/knoarbor/entrypoints/api_contract.py` |
 | CLI contract | `docs/CLI.md`, `src/knoarbor/cli_commands/parser.py` |
@@ -48,6 +50,22 @@ Use a feature spec when a change introduces or significantly changes:
 
 Small typo fixes, isolated UI copy changes, dependency patch bumps, and
 single-file bug fixes can reference an existing spec or skip a dedicated spec.
+
+## SDD Intensity
+
+Choose the lightest SDD level that still keeps requirements, design, task
+state, implementation, and verification aligned.
+
+| Level | Applies to | Required record |
+| --- | --- | --- |
+| Full spec | Public contracts, architecture layers, source connectors, semantic contracts, workflow behavior, autonomous maintenance, durable reports, or release themes. | `specs/<feature>/{requirements,design,tasks,verification}.md` |
+| Light spec | A focused extension inside an accepted boundary, such as a UI interaction refinement, a small connector setting, or an existing CLI/API parameter. | Existing feature spec task and verification update. |
+| Patch record | Copy edits, focused bug fixes, tests for existing behavior, dependency patch bumps, or small type fixes. | Commit message and relevant test evidence. |
+| ADR | A durable decision that is expensive to reverse, especially public API shape, vault semantics, model boundary, storage/index strategy, or extension model. | `docs/adr/NNNN-title.md`, linked from related specs or docs. |
+
+Full specs and ADRs can be used together. The ADR records the durable decision;
+the feature spec records implementation requirements, task state, and
+verification.
 
 ## File Shape
 
@@ -95,13 +113,13 @@ During implementation:
 - keep semantic agents narrow: prompts and schemas may describe decisions, but
   storage, checkpoints, retries, and reports belong to non-semantic layers;
 - keep connector-specific behavior inside connectors or document processors;
-- do not add broad fallbacks unless the spec names the trigger, owner, report
+- add broad fallbacks only when the spec names the trigger, owner, report
   surface, and verification check.
 
 Before completion:
 
-- run the verification commands listed in the feature spec or explain why a
-  listed check is not applicable;
+- run the verification commands listed in the feature spec or record why a
+  listed check is outside the changed scope;
 - promote stable user-facing behavior into `docs/` when the behavior is public;
 - update release notes when the change is release-facing;
 - leave the working implementation simpler than the spec: if the spec has

@@ -13,6 +13,7 @@ Chinese documentation lives in [zh/](zh/). This documentation tree is intended f
 - [API Reference](API.md): FastAPI endpoints and boundary rules.
 - [API Compatibility](API_COMPATIBILITY.md): stable endpoint policy, schema versioning, and deprecation rules.
 - [Roadmap](ROADMAP.md): planned path from the 1.0 public release to the 2.0 compatibility baseline.
+- [Capability Map](CAPABILITY_MAP.md): cross-feature capability status and ownership map.
 - [Error Codes](ERROR_CODES.md): stable CLI/API error codes and troubleshooting hints.
 - [Troubleshooting](TROUBLESHOOTING.md): common setup, model, UI, ingest, and runtime issues.
 - [Core Concepts](CONCEPTS.md): raw sources, source documents, wiki page types, ingest, lint, query, and runtime vault.
@@ -20,6 +21,7 @@ Chinese documentation lives in [zh/](zh/). This documentation tree is intended f
 ## Architecture
 
 - [Architecture](ARCHITECTURE.md): current system architecture and implementation boundaries.
+- [Architecture Decision Records](adr/README.md): durable architecture decisions and ADR template.
 - [Provenance Design](PROVENANCE_DESIGN.md): source chain semantics across raw sources, source digests, and knowledge pages.
 - [Backup And Recovery](BACKUP_AND_RECOVERY.md): runtime vault backup, git recovery boundaries, and safe index rebuilds.
 - [Feature Specs](../specs/README.md): spec-driven requirements, design, tasks, and verification for multi-step architecture or contract changes.

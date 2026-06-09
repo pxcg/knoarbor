@@ -4,9 +4,9 @@ This guide is for long-term KnoArbor maintainers. It complements
 [Development](DEVELOPMENT.md), [Architecture](ARCHITECTURE.md), and
 [Release Preflight Checklist](RELEASE_CHECKLIST.md).
 
-The goal is to keep feature growth disciplined: new capabilities should enter
-the project through clear layers, stable contracts, tests, and user-visible
-documentation rather than ad hoc patches.
+The goal is to keep feature growth disciplined: new capabilities enter the
+project through clear layers, stable contracts, tests, and user-visible
+documentation.
 
 ## Documentation Ownership
 
@@ -24,6 +24,8 @@ Use this map when deciding where a change belongs:
 | `docs/TESTING.md` | Quality gates and test boundaries | Release checklist prose duplicated verbatim |
 | `docs/RELEASE_CHECKLIST.md` | Release decision checklist | Feature roadmap |
 | `docs/ROADMAP.md` | Direction from 1.0 to 2.0 | Per-commit changelog or sprint task list |
+| `docs/CAPABILITY_MAP.md` | Cross-feature capability state and ownership | Detailed feature design or release notes |
+| `docs/adr/*` | Durable architecture decisions | Task progress or implementation diary |
 | `docs/MAINTAINERS.md` | Maintenance rules and long-term governance | User onboarding instructions |
 | `specs/<feature>/*` | Feature-level requirements, design, task status, and verification plan | Stable user docs, release notes, or private design debates unrelated to the feature |
 | `CHANGELOG.md` and `docs/releases/*` | Version-specific changes | Future planning |
@@ -32,6 +34,32 @@ When a feature changes behavior, update the smallest set of documents that own
 that behavior. Avoid copying the same explanation into many files; link to the
 source-of-truth document instead.
 
+## Documentation Style
+
+Long-lived project documents describe the current accepted system. Use direct,
+objective, and normative language:
+
+- define the current responsibility, boundary, input, output, and verification
+  path;
+- describe ownership with terms such as "owns", "routes through", "is
+  represented by", and "is verified by";
+- place migration history, debugging narration, and day-by-day execution notes
+  in release notes, commit messages, or maintainer records;
+- keep public docs focused on stable behavior users and contributors can rely
+  on.
+
+Prefer current-state wording:
+
+| Prefer | Reserve for local notes |
+| --- | --- |
+| "The query layer returns context packs for host AI tools." | Chat-assistant comparison notes. |
+| "Source segmentation belongs to the pipeline layer." | Placement contrast notes from design discussion. |
+| "UI adapters call stable API services." | Adapter-policy correction notes. |
+| "Runtime owns queue, heartbeat, cancellation, and recovery state." | Chronological debugging notes. |
+
+Historical contrast is useful in ADR alternatives, release notes, and migration
+records. Stable docs should present the accepted design first.
+
 ## Spec-Driven Development
 
 KnoArbor uses lightweight spec-driven development for changes that affect
@@ -39,8 +67,8 @@ architecture, public contracts, source connectors, semantic contracts,
 workflow behavior, or release-critical user experience.
 
 Specs live in [`specs/`](../specs/README.md). They connect roadmap themes to
-implementation, tests, and release notes. They do not replace long-term public
-documentation:
+implementation, tests, and release notes. Long-term public documentation keeps
+the stable user and contributor view:
 
 - `docs/ROADMAP.md` owns product direction and version themes.
 - `docs/ARCHITECTURE.md` owns stable layer boundaries.
@@ -63,11 +91,10 @@ changes:
 Small typo fixes, isolated UI copy changes, dependency patch bumps, and
 single-file bug fixes can reference an existing spec or skip a dedicated spec.
 
-Implementation rule: when code reveals that the planned design is wrong,
-update the spec in the same change rather than adding a local workaround. The
-spec should explain the accepted design and rejected alternatives clearly
-enough that future maintainers do not need to reconstruct the discussion from
-commit history.
+Implementation rule: when code reveals that the planned design needs revision,
+update the spec in the same change and keep the implementation aligned. The
+spec should explain the accepted design and alternatives clearly enough for
+future maintainers to understand the decision without reading commit history.
 
 ### Roadmap Spec Management
 
@@ -95,7 +122,7 @@ In short:
 - focused work uses `feature/*`, `fix/*`, or `docs/*`;
 - release tags are created from `main` only;
 - urgent hotfixes may branch from `main`, then must be merged back into `dev`;
-- public release tags should not be rewritten after users have consumed them.
+- public release tags remain stable after users have consumed them.
 
 If a change is committed directly to `main` for documentation or release
 metadata, merge `main` back into `dev` before continuing feature work.
@@ -112,9 +139,10 @@ Before adding or moving a capability, identify the owning layer:
 - **Semantic layer**: prompt contracts, model gateway, validated schemas.
 - **Adapter layer**: CLI, API, UI, npm launcher, skills.
 
-Add new behavior where ownership is strongest. Do not compensate across layers.
-For example, API routes should not repair malformed semantic output, and prompt
-contracts should not own file-lock or checkpoint policy.
+Add new behavior where ownership is strongest. Keep cross-layer compensation
+out of implementation paths. For example, API routes own transport and request
+validation; semantic output repair belongs to the semantic runner; file-lock
+and checkpoint policy belong to runtime and pipeline layers.
 
 Architecture changes should normally include:
 
