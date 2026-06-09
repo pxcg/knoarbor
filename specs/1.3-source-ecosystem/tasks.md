@@ -36,9 +36,9 @@ Status values:
 ## UI Integration
 
 - [done] Make UI diagnostics reuse `SourceCatalogService`.
-- [later] Reduce remaining connector display hardcoding in the console where it
+- [done] Reduce remaining connector display hardcoding in the console where it
   improves maintainability without over-abstracting the UI.
-- [later] Let the Sources page optionally show connector settings schema in a
+- [done] Let the Sources page optionally show connector settings schema in a
   user-friendly detail panel.
 
 ## Skill Integration

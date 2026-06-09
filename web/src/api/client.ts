@@ -72,6 +72,26 @@ export type ConfigDiagnostics = {
   paths: ConfigDiagnosticItem[];
 };
 
+export type SourceConnectorCatalogItem = {
+  schema_version: "source_connector_catalog_item.v1";
+  name: string;
+  version: string;
+  source_types: string[];
+  settings_schema: Record<string, unknown>;
+  supports_discovery: boolean;
+  supports_checkpoint: boolean;
+  supports_segmentation_hint: boolean;
+  requires_external_service: boolean;
+  configured: boolean;
+  enabled: boolean;
+};
+
+export type SourceCatalogResponse = {
+  schema_version: "source_catalog.v1";
+  config_path?: string | null;
+  connectors: SourceConnectorCatalogItem[];
+};
+
 export type ConfigFormProvider = {
   name: string;
   base_url: string;
@@ -384,6 +404,14 @@ export async function getConfigDiagnostics(configPath?: string | null, options: 
   if (options.refreshSourceCounts) params.set("refresh_source_counts", "true");
   const suffix = params.toString() ? `?${params.toString()}` : "";
   return requestJson(`/ui/api/config/diagnostics${suffix}`);
+}
+
+export async function getSourceCatalog(configPath?: string | null, connectors: string[] = []): Promise<SourceCatalogResponse> {
+  const params = new URLSearchParams();
+  if (configPath) params.set("config_path", configPath);
+  for (const connector of connectors) params.append("connector", connector);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return requestJson(`/sources${suffix}`);
 }
 
 export async function saveConfigForm(configPath: string | null, form: ConfigForm): Promise<UiConfigUpdateResponse> {

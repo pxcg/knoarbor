@@ -1,10 +1,13 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-import { getPage, getReport, runIngest, runIngestFile, runLint, type ReportDetail } from "../api/client";
+import { getPage, getReport, getSourceCatalog, runIngest, runIngestFile, runLint, type ReportDetail } from "../api/client";
 import type { AppContext } from "../App";
 import { localizeReportKind, localizeReportTitle } from "../components/reportLabels";
 import { RunFlowGuide } from "../components/runs/RunPanels";
 import { runStatusLabel } from "../components/runStatus";
+import { queryKeys } from "../queryKeys";
+import { sortSourceConnectors, sourceTitle } from "../sourceCatalog";
 import type { RunRecord } from "../types";
 
 const ReportReadableView = lazy(() => import("../components/report/ReportReadableView").then((module) => ({ default: module.ReportReadableView })));
@@ -29,6 +32,12 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
   const [terminalNoticeRunId, setTerminalNoticeRunId] = useState<string | null>(null);
   const configReady = context.configExists;
   const isSingleMode = mode !== "both";
+  const sourceCatalogQuery = useQuery({
+    queryKey: queryKeys.sourceCatalog(context.configPath),
+    queryFn: () => getSourceCatalog(context.configPath),
+    staleTime: 60_000,
+  });
+  const connectorOptions = sortSourceConnectors(sourceCatalogQuery.data?.connectors || []);
 
   useEffect(() => {
     if (!trackedRunId) return;
@@ -116,12 +125,11 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
             <span>{context.t("inputsToRun")}</span>
             <select value={inputScope} onChange={(event) => setInputScope(event.target.value)}>
               <option value="enabled">{context.t("enabledConnectors")}</option>
-              <option value="markdown">{context.t("markdownConnector")}</option>
-              <option value="hermes">{context.t("hermesConnector")}</option>
-              <option value="codex">{context.t("codexConnector")}</option>
-              <option value="openclaw">{context.t("openclawConnector")}</option>
-              <option value="claude_code">{context.t("claudeCodeConnector")}</option>
-              <option value="generic_chat">{context.t("genericChatConnector")}</option>
+              {connectorOptions.map((connector) => (
+                <option value={connector.name} key={connector.name}>
+                  {sourceTitle(connector.name, context.t)}
+                </option>
+              ))}
               <option value="file">{context.t("singleFileInput")}</option>
               <option value="custom">{context.t("customConnectorList")}</option>
             </select>
@@ -317,8 +325,8 @@ function splitList(value: string) {
 }
 
 function connectorNames(inputScope: string, customValue: string) {
-  if (inputScope === "enabled") return null;
-  if (["markdown", "hermes", "codex", "openclaw", "claude_code", "generic_chat"].includes(inputScope)) return [inputScope];
+  if (inputScope === "enabled" || inputScope === "file") return null;
+  if (inputScope !== "custom") return [inputScope];
   const custom = splitList(customValue);
   return custom.length ? custom : null;
 }

@@ -1,21 +1,12 @@
 import type { ConfigDiagnosticItem, ConfigDiagnostics } from "../../api/client";
-import { BrandIcon, type BrandIconName } from "../BrandIcon";
+import { sourceIconName } from "../../sourceCatalog";
+import { BrandIcon } from "../BrandIcon";
 import { LineIcon, type IconName } from "../LineIcon";
 
 type Props = {
   diagnostics?: ConfigDiagnostics | null;
   loading?: boolean;
   t: (key: string) => string;
-};
-
-const BRAND_DIAGNOSTIC_ICONS: Record<string, BrandIconName> = {
-  markdown: "markdown",
-  hermes: "hermes",
-  codex: "codex",
-  openclaw: "openclaw",
-  claude_code: "claude_code",
-  generic_chat: "generic_chat",
-  mineru: "mineru",
 };
 
 export function ConfigDiagnosticsPanel({ diagnostics, loading = false, t }: Props) {
@@ -57,7 +48,7 @@ function DiagnosticGroup({ title, items, t }: { title: string; items: ConfigDiag
 }
 
 function DiagnosticIcon({ item }: { item: ConfigDiagnosticItem }) {
-  const brand = BRAND_DIAGNOSTIC_ICONS[item.name];
+  const brand = sourceIconName(item.name);
   if (brand) {
     return (
       <span className="diagnostic-icon source-diagnostic-icon">
