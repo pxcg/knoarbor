@@ -222,6 +222,29 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Vault path does not exist"):
             config.validate_runtime_paths()
 
+    def test_provider_max_output_tokens_overrides_global_default(self) -> None:
+        config = KnoArborConfig.model_validate(
+            {
+                "vault": {"path": "./wiki"},
+                "models": {
+                    "default_provider": "local",
+                    "default_max_tokens": 30000,
+                    "providers": {
+                        "local": {
+                            "base_url": "http://127.0.0.1:11434/v1",
+                            "model": "qwen",
+                            "context_window": 32768,
+                            "max_output_tokens": 8000,
+                        }
+                    },
+                },
+            }
+        )
+
+        self.assertEqual(config.models.providers["local"].context_window, 32768)
+        self.assertEqual(config.models.resolve_max_tokens(), 8000)
+        self.assertEqual(config.models.resolve_max_tokens("local", requested=4096), 4096)
+
 
 if __name__ == "__main__":
     unittest.main()

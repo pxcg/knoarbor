@@ -100,6 +100,8 @@ models:
                             "api_key_env": "LOCAL_API_KEY",
                             "model": "local-model",
                             "json_mode": False,
+                            "context_window": 32768,
+                            "max_output_tokens": 8000,
                             "api_key_configured": False,
                         }
                     ],
@@ -117,7 +119,58 @@ models:
             form_response = client.get("/ui/api/config/form", params={"config_path": str(config_path)})
             self.assertEqual(form_response.status_code, 200)
             self.assertFalse(form_response.json()["providers"][0]["json_mode"])
+            self.assertEqual(form_response.json()["providers"][0]["context_window"], 32768)
+            self.assertEqual(form_response.json()["providers"][0]["max_output_tokens"], 8000)
             self.assertTrue(form_response.json()["openclaw_enabled"])
+
+    def test_ui_config_marks_local_model_provider_ready_without_api_key(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "config.yaml"
+            config_path.write_text(
+                """
+vault:
+  path: ./wiki
+models:
+  default_provider: vllm
+  providers:
+    cloud_missing_env:
+      base_url: https://example.com/v1
+      model: cloud-model
+    ollama:
+      base_url: http://localhost:11434/v1
+      model: qwen2.5:14b
+      json_mode: false
+      context_window: 32768
+      max_output_tokens: 8000
+    vllm:
+      base_url: http://127.0.0.1:8001/v1
+      model: local-model
+      json_mode: false
+      context_window: 32768
+      max_output_tokens: 8000
+""",
+                encoding="utf-8",
+            )
+            client = TestClient(create_app())
+
+            form_response = client.get("/ui/api/config/form", params={"config_path": str(config_path)})
+            self.assertEqual(form_response.status_code, 200)
+            providers = {item["name"]: item for item in form_response.json()["providers"]}
+            self.assertTrue(providers["ollama"]["api_key_configured"])
+            self.assertTrue(providers["vllm"]["api_key_configured"])
+            self.assertEqual(providers["vllm"]["context_window"], 32768)
+            self.assertEqual(providers["vllm"]["max_output_tokens"], 8000)
+            self.assertFalse(providers["cloud_missing_env"]["api_key_configured"])
+
+            diagnostics_response = client.get("/ui/api/config/diagnostics", params={"config_path": str(config_path)})
+            self.assertEqual(diagnostics_response.status_code, 200)
+            diagnostics = {item["name"]: item for item in diagnostics_response.json()["providers"]}
+            self.assertTrue(diagnostics["ollama"]["ok"])
+            self.assertTrue(diagnostics["vllm"]["ok"])
+            self.assertIn("context_window=32768", diagnostics["vllm"]["detail"])
+            self.assertIn("max_output_tokens=8000", diagnostics["vllm"]["detail"])
+            self.assertFalse(diagnostics["cloud_missing_env"]["ok"])
+            self.assertEqual(diagnostics["cloud_missing_env"]["detail"], "api_key_env")
 
     def test_ui_config_form_saves_multiple_vault_profiles(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

@@ -44,6 +44,8 @@ class DoctorServiceTests(unittest.TestCase):
                 "    local:\n"
                 "      base_url: http://127.0.0.1:11434/v1\n"
                 "      model: qwen\n"
+                "      context_window: 32768\n"
+                "      max_output_tokens: 8000\n"
                 "connectors:\n"
                 "  markdown:\n"
                 "    enabled: true\n"
@@ -67,6 +69,8 @@ class DoctorServiceTests(unittest.TestCase):
         checks = {check.name: check for check in report.checks}
         self.assertEqual(checks["models.api_key_env"].status, "ok")
         self.assertEqual(checks["models.endpoint"].status, "ok")
+        self.assertEqual(checks["models.default_provider"].details["context_window"], 32768)
+        self.assertEqual(checks["models.default_provider"].details["effective_max_tokens"], 8000)
         self.assertEqual(checks["models.structured_output"].status, "ok")
         self.assertEqual(checks["connectors.markdown"].details["source_count"], 1)
         self.assertEqual(checks["wiki.content"].status, "ok")

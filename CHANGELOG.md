@@ -8,6 +8,26 @@ This project follows a simple release-note format for public releases.
 
 No public changes yet.
 
+## 1.2.1 - 2026-06-10
+
+### Added
+
+- Added provider-level `context_window` and `max_output_tokens` settings for local and hosted OpenAI-compatible model providers.
+- Added runtime context-window detection for vLLM-compatible `/v1/models` metadata.
+- Added runtime context-window detection for Ollama via `/api/show` when `/v1/models` does not expose context metadata.
+- Added model capability fields to doctor diagnostics and the settings UI.
+
+### Changed
+
+- Semantic ingest and lint now resolve output token limits from the selected provider before falling back to the global `models.default_max_tokens`.
+- Updated model provider examples and installation/configuration documentation for Ollama and vLLM local runtimes.
+
+### Validation
+
+- Python unit test suite passes.
+- Ruff checks pass for modified Python modules.
+- Bundled management UI was rebuilt successfully.
+
 ## 1.2.0 - 2026-06-08
 
 ### Added

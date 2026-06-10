@@ -52,6 +52,8 @@ class UiModelProviderForm(BaseModel):
     api_key_env: str = ""
     model: str = ""
     json_mode: bool = True
+    context_window: int | None = None
+    max_output_tokens: int | None = None
     api_key_configured: bool = False
 
 
@@ -192,4 +194,3 @@ class UiConfigFormUpdateRequest(BaseModel):
     mineru_start_page_id: int = Field(default=0, ge=0)
     mineru_end_page_id: int = Field(default=99999, ge=0)
     mineru_extra_fields_json: str = "{}"
-

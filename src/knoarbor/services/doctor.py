@@ -195,7 +195,14 @@ class DoctorService:
                 name="models.default_provider",
                 status="ok",
                 message="Default model provider is configured.",
-                details={"default_provider": provider_name, "model": provider.model, "base_url": provider.base_url},
+                details={
+                    "default_provider": provider_name,
+                    "model": provider.model,
+                    "base_url": provider.base_url,
+                    "context_window": provider.context_window,
+                    "max_output_tokens": provider.max_output_tokens,
+                    "effective_max_tokens": config.models.resolve_max_tokens(provider_name),
+                },
             )
         )
         if not provider.model:
@@ -225,7 +232,13 @@ class DoctorService:
                 name="models.endpoint",
                 status="ok" if health.available else "warning",
                 message=health.message,
-                details={"provider": provider_name, "model": provider.model, **health.details},
+                details={
+                    "provider": provider_name,
+                    "model": provider.model,
+                    "context_window": provider.context_window,
+                    "max_output_tokens": provider.max_output_tokens,
+                    **health.details,
+                },
             ),
             DoctorCheck(
                 name="models.structured_output",
@@ -342,6 +355,11 @@ def _configured_model_check(provider_name: str, provider: ModelProviderConfig, h
     details: dict[str, object] = {
         "provider": provider_name,
         "model": provider.model,
+        "context_window": provider.context_window,
+        "max_output_tokens": provider.max_output_tokens,
+        "detected_context_window": health.details.get("detected_context_window"),
+        "effective_context_window": health.details.get("effective_context_window") or provider.context_window,
+        "context_window_source": health.details.get("context_window_source"),
         "models_list_valid": health.details.get("models_list_valid"),
         "model_count": health.details.get("model_count", 0),
         "configured_model_found": health.details.get("configured_model_found"),

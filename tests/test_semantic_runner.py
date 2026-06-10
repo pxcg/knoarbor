@@ -417,6 +417,7 @@ class SemanticRunnerTests(unittest.TestCase):
             api_key="",
             model="qwen3:14b",
             json_mode=False,
+            configured_context_window=32768,
         )
 
         class ModelsResponse:
@@ -429,7 +430,7 @@ class SemanticRunnerTests(unittest.TestCase):
                 return False
 
             def read(self) -> bytes:
-                return b'{"object":"list","data":[{"id":"qwen3:14b"},{"id":"llama3.1:8b"}]}'
+                return b'{"object":"list","data":[{"id":"qwen3:14b","max_model_len":65536},{"id":"llama3.1:8b"}]}'
 
         with patch("urllib.request.urlopen", return_value=ModelsResponse()):
             health = client.check()
@@ -438,6 +439,87 @@ class SemanticRunnerTests(unittest.TestCase):
         self.assertTrue(health.details["models_list_valid"])
         self.assertEqual(health.details["model_count"], 2)
         self.assertTrue(health.details["configured_model_found"])
+        self.assertEqual(health.details["detected_context_window"], 65536)
+        self.assertEqual(health.details["effective_context_window"], 65536)
+        self.assertEqual(health.details["context_window_source"], "runtime")
+
+    def test_openai_compatible_client_detects_ollama_context_window_from_show(self) -> None:
+        client = OpenAICompatibleChatClient(
+            provider="ollama",
+            base_url="http://127.0.0.1:11434/v1",
+            api_key="",
+            model="qwen3:14b",
+            json_mode=False,
+            configured_context_window=32768,
+        )
+
+        class ModelsResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self) -> bytes:
+                return b'{"object":"list","data":[{"id":"qwen3:14b"}]}'
+
+        class ShowResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self) -> bytes:
+                return b'{"model_info":{"qwen3.context_length":40960},"parameters":"temperature 0.7\\nnum_ctx 32768"}'
+
+        def fake_urlopen(request, **_kwargs):
+            if request.full_url.endswith("/api/show"):
+                return ShowResponse()
+            return ModelsResponse()
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            health = client.check()
+
+        self.assertTrue(health.available)
+        self.assertTrue(health.details["ollama_show_available"])
+        self.assertEqual(health.details["detected_context_window"], 40960)
+        self.assertEqual(health.details["effective_context_window"], 40960)
+        self.assertEqual(health.details["context_window_source"], "runtime")
+
+    def test_openai_compatible_client_falls_back_to_configured_context_window(self) -> None:
+        client = OpenAICompatibleChatClient(
+            provider="vllm",
+            base_url="http://127.0.0.1:8001/v1",
+            api_key="",
+            model="local-model",
+            json_mode=True,
+            configured_context_window=32768,
+        )
+
+        class ModelsResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self) -> bytes:
+                return b'{"object":"list","data":[{"id":"local-model"}]}'
+
+        with patch("urllib.request.urlopen", return_value=ModelsResponse()):
+            health = client.check()
+
+        self.assertTrue(health.available)
+        self.assertIsNone(health.details["detected_context_window"])
+        self.assertEqual(health.details["effective_context_window"], 32768)
+        self.assertEqual(health.details["context_window_source"], "config")
 
     def test_openai_compatible_client_reports_empty_ollama_model_list(self) -> None:
         client = OpenAICompatibleChatClient(

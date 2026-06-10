@@ -82,11 +82,14 @@ models:
       base_url: https://api.deepseek.com
       api_key_env: DEEPSEEK_API_KEY
       model: deepseek-v4-flash
+      json_mode: true
+      context_window:
+      max_output_tokens:
 ```
 
 All providers currently use OpenAI-compatible Chat Completions APIs through the `ModelGateway` boundary. You do not need to configure a provider `type`. Hosted providers usually need `api_key_env`; local or private endpoints such as Ollama and vLLM may set `api_key_env: null`.
 
-`default_max_tokens` and `request_timeout_seconds` are intentionally generous. Ingest and lint are wiki compilation tasks, not short chat replies; relation planning, page drafting, and maintenance review often need longer outputs and more time.
+`default_max_tokens` and `request_timeout_seconds` are intentionally generous. Ingest and lint are wiki compilation tasks, not short chat replies; relation planning, page drafting, and maintenance review often need longer outputs and more time. A provider can override the global output limit with `max_output_tokens`. `context_window` records the model's usable context window for diagnostics and budget checks. Runtime diagnostics try to detect context length from vLLM `/v1/models` metadata and Ollama `/api/show`; when detection is unavailable, KnoArbor falls back to the configured `context_window`.
 
 Configuration design follows the common shape used by AI workflow projects:
 
@@ -123,12 +126,18 @@ models:
       api_key_env:
       model: qwen2.5:14b
       json_mode: false
+      context_window: 32768
+      max_output_tokens: 8000
     vllm:
       base_url: http://localhost:8001/v1
       api_key_env:
       model: Qwen/Qwen3-32B-Instruct
       json_mode: false
+      context_window: 32768
+      max_output_tokens: 8000
 ```
+
+`max_tokens` passed from CLI or API has the highest priority for a single run. If it is omitted, KnoArbor uses the selected provider's `max_output_tokens`; if that is also omitted, it uses `models.default_max_tokens`.
 
 For local providers, run `uv run knoar doctor --json` after starting the
 runtime. Doctor checks that `/models` is reachable and that the configured model

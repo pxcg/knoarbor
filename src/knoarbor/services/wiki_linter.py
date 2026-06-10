@@ -57,7 +57,7 @@ class WikiLinterService:
                 semantic = None
             semantic_pipeline = WikiLintPipeline(semantic, privacy_config=config.privacy)
             request_with_defaults = request.model_copy(
-                update={"max_tokens": request.max_tokens or config.models.default_max_tokens}
+                update={"max_tokens": config.models.resolve_max_tokens(request.provider, request.max_tokens)}
             )
             return semantic_pipeline.run_maintenance(request_with_defaults)
         except Exception as exc:

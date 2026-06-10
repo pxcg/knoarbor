@@ -169,7 +169,9 @@ def config_to_form(config: KnoArborConfig) -> UiConfigFormResponse:
                 api_key_env=provider.api_key_env or "",
                 model=provider.model or "",
                 json_mode=provider.json_mode,
-                api_key_configured=bool(provider.api_key()),
+                context_window=provider.context_window,
+                max_output_tokens=provider.max_output_tokens,
+                api_key_configured=_provider_credentials_ready(provider),
             )
             for name, provider in sorted(config.models.providers.items())
         ],
@@ -215,6 +217,12 @@ def config_to_form(config: KnoArborConfig) -> UiConfigFormResponse:
         mineru_end_page_id=int(config.document_processing.mineru.extra_fields.get("end_page_id", 99999)),
         mineru_extra_fields_json=_mineru_extra_fields_json(config.document_processing.mineru.extra_fields),
     )
+
+
+def _provider_credentials_ready(provider: Any) -> bool:
+    if provider.api_key_env:
+        return bool(provider.api_key())
+    return is_local_or_private_model_endpoint(provider.base_url)
 
 
 def config_diagnostics(config: KnoArborConfig, *, refresh_source_counts: bool = False) -> UiConfigDiagnostics:
@@ -402,7 +410,12 @@ def config_diagnostics(config: KnoArborConfig, *, refresh_source_counts: bool = 
         elif not provider.api_key():
             missing.append("api_key")
         ok = not missing
-        provider_items.append(UiConfigDiagnosticItem(name=name, category="provider", enabled=True, ok=ok, code="ready" if ok else "provider_incomplete", detail=", ".join(missing)))
+        detail_parts = list(missing)
+        if provider.context_window:
+            detail_parts.append(f"context_window={provider.context_window}")
+        if provider.max_output_tokens:
+            detail_parts.append(f"max_output_tokens={provider.max_output_tokens}")
+        provider_items.append(UiConfigDiagnosticItem(name=name, category="provider", enabled=True, ok=ok, code="ready" if ok else "provider_incomplete", detail=", ".join(detail_parts)))
 
     if refreshed_counts:
         update_source_counts(vault, refreshed_counts)
@@ -444,6 +457,8 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
             "api_key_env": provider.api_key_env.strip() or None,
             "model": provider.model.strip(),
             "json_mode": provider.json_mode,
+            "context_window": provider.context_window,
+            "max_output_tokens": provider.max_output_tokens,
         }
     data = dict(base_data)
     data["config_version"] = 1

@@ -88,7 +88,9 @@ models:
 ```
 
 Ollama 或 vLLM 等本地端点可以使用 `api_key_env: null`。启动本地模型端点后，
-运行 `uv run knoar doctor --json`，确认配置中的模型已经暴露出来。
+运行 `uv run knoar doctor --json`，确认配置中的模型已经暴露出来。本地模型还应配置
+provider 级 `context_window` 和 `max_output_tokens`，例如 `context_window: 32768`、
+`max_output_tokens: 8000`。
 
 ## 富文档处理
 

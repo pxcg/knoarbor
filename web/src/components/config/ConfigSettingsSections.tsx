@@ -17,6 +17,8 @@ const PROVIDER_PRESETS: ConfigFormProvider[] = [
     api_key_env: "DEEPSEEK_API_KEY",
     model: "deepseek-v4-flash",
     json_mode: true,
+    context_window: null,
+    max_output_tokens: null,
     api_key_configured: false,
   },
   {
@@ -25,23 +27,29 @@ const PROVIDER_PRESETS: ConfigFormProvider[] = [
     api_key_env: "OPENAI_API_KEY",
     model: "gpt-4.1",
     json_mode: true,
+    context_window: null,
+    max_output_tokens: null,
     api_key_configured: false,
   },
   {
     name: "vllm",
-    base_url: "http://localhost:8000/v1",
-    api_key_env: "VLLM_API_KEY",
+    base_url: "http://localhost:8001/v1",
+    api_key_env: "",
     model: "local-model",
     json_mode: true,
-    api_key_configured: false,
+    context_window: 32768,
+    max_output_tokens: 8000,
+    api_key_configured: true,
   },
   {
     name: "ollama",
     base_url: "http://localhost:11434/v1",
-    api_key_env: "OLLAMA_API_KEY",
+    api_key_env: "",
     model: "qwen2.5:14b",
-    json_mode: true,
-    api_key_configured: false,
+    json_mode: false,
+    context_window: 32768,
+    max_output_tokens: 8000,
+    api_key_configured: true,
   },
 ];
 
@@ -436,6 +444,8 @@ export function ConfigModelProvidersSection({
       api_key_env: "",
       model: "",
       json_mode: true,
+      context_window: null,
+      max_output_tokens: null,
       api_key_configured: false,
     };
     const existingNames = new Set(form.providers.map((provider) => provider.name));
@@ -464,7 +474,7 @@ export function ConfigModelProvidersSection({
   const active = form.providers[activeProvider];
   return (
     <>
-      <div className="section-divider" id="settings-models">
+      <div className="settings-inline-action model-provider-toolbar" id="settings-models">
         <div>
           <h2>{t("modelProviders")}</h2>
           <p className="panel-copy">{t("modelProvidersCopy")}</p>
@@ -516,6 +526,8 @@ export function ConfigModelProvidersSection({
               <PathField label={t("model")} value={active.model} onChange={(value) => updateProvider(activeProvider, { model: value })} />
               <PathField label={t("baseUrl")} value={active.base_url} onChange={(value) => updateProvider(activeProvider, { base_url: value })} />
               <PathField label={t("apiKeyEnv")} value={active.api_key_env} onChange={(value) => updateProvider(activeProvider, { api_key_env: value })} />
+              <NumberField label={t("contextWindow")} value={active.context_window ?? null} onChange={(value) => updateProvider(activeProvider, { context_window: value })} />
+              <NumberField label={t("maxOutputTokens")} value={active.max_output_tokens ?? null} onChange={(value) => updateProvider(activeProvider, { max_output_tokens: value })} />
             </div>
             <label className="checkbox-field">
               <input type="checkbox" checked={active.json_mode} onChange={(event) => updateProvider(activeProvider, { json_mode: event.target.checked })} />
@@ -564,6 +576,28 @@ function PathField({
     <label className={`field ${className}`}>
       {label && <span>{label}</span>}
       <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-label={ariaLabel || label} />
+    </label>
+  );
+}
+
+function NumberField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number | null;
+  onChange: (value: number | null) => void;
+}) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <input
+        type="number"
+        min={1}
+        value={value ?? ""}
+        onChange={(event) => onChange(event.target.value ? Number(event.target.value) : null)}
+      />
     </label>
   );
 }

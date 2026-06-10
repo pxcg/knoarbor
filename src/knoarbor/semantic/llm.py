@@ -109,6 +109,8 @@ class OpenAICompatibleChatClient:
     model: str
     timeout_seconds: float = 60.0
     json_mode: bool = True
+    configured_context_window: int | None = None
+    configured_max_output_tokens: int | None = None
 
     @classmethod
     def from_config(
@@ -132,6 +134,8 @@ class OpenAICompatibleChatClient:
             model=model,
             timeout_seconds=timeout_seconds,
             json_mode=config.json_mode,
+            configured_context_window=config.context_window,
+            configured_max_output_tokens=config.max_output_tokens,
         )
 
     def complete(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
@@ -215,6 +219,10 @@ class OpenAICompatibleChatClient:
             )
 
         model_details = _extract_model_list_details(body, self.model)
+        detected_context_window = _detected_context_window_from_model_details(model_details)
+        ollama_details = self._detect_ollama_model_details() if detected_context_window is None else {}
+        if detected_context_window is None:
+            detected_context_window = _int_or_none(ollama_details.get("detected_context_window"))
         return ProviderHealthCheck(
             available=200 <= int(status_code) < 300,
             structured_output=self.json_mode,
@@ -223,6 +231,12 @@ class OpenAICompatibleChatClient:
                 "status_code": int(status_code),
                 "body_preview": body[:500],
                 "elapsed_seconds": round(time.perf_counter() - started, 3),
+                "configured_context_window": self.configured_context_window,
+                "configured_max_output_tokens": self.configured_max_output_tokens,
+                "detected_context_window": detected_context_window,
+                "effective_context_window": detected_context_window or self.configured_context_window,
+                "context_window_source": "runtime" if detected_context_window else "config" if self.configured_context_window else "unknown",
+                **ollama_details,
                 **model_details,
             },
         )
@@ -234,6 +248,40 @@ class OpenAICompatibleChatClient:
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         return headers
+
+    def _detect_ollama_model_details(self) -> dict[str, object]:
+        if not _is_probably_ollama_endpoint(self.provider, self.base_url):
+            return {}
+        api_base = _ollama_api_base_url(self.base_url)
+        request = urllib.request.Request(
+            f"{api_base}/api/show",
+            data=json.dumps({"model": self.model}, ensure_ascii=False).encode("utf-8"),
+            headers=self._headers(content_type=True),
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=min(self.timeout_seconds, 5.0), context=_ssl_context()) as response:  # noqa: S310
+                body = response.read().decode("utf-8", errors="replace")
+                status_code = getattr(response, "status", 200)
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            return {
+                "ollama_show_available": False,
+                "ollama_show_status_code": exc.code,
+                "ollama_show_error": body[:300],
+            }
+        except urllib.error.URLError as exc:
+            return {"ollama_show_available": False, "ollama_show_error": str(exc.reason)}
+        except (http.client.IncompleteRead, TimeoutError, socket.timeout) as exc:
+            return {"ollama_show_available": False, "ollama_show_error": str(exc)}
+
+        context_window = _extract_ollama_context_window(body)
+        return {
+            "ollama_show_available": 200 <= int(status_code) < 300,
+            "ollama_show_status_code": int(status_code),
+            "detected_context_window": context_window,
+            "ollama_show_body_preview": body[:500],
+        }
 
 
 def _ssl_context() -> ssl.SSLContext:
@@ -312,17 +360,138 @@ def _extract_model_list_details(body: str, configured_model: str) -> dict[str, o
     data = payload.get("data")
     if not isinstance(data, list):
         return {"models_list_valid": False, "model_ids": [], "configured_model_found": False}
+    model_items = [item for item in data if isinstance(item, dict)]
     model_ids = [
         item.get("id")
-        for item in data
-        if isinstance(item, dict) and isinstance(item.get("id"), str) and item.get("id")
+        for item in model_items
+        if isinstance(item.get("id"), str) and item.get("id")
     ]
+    configured_item = next((item for item in model_items if item.get("id") == configured_model), None)
+    detected_context_window = _extract_context_window_from_model_item(configured_item) if configured_item else None
     return {
         "models_list_valid": True,
         "model_ids": model_ids[:100],
         "model_count": len(model_ids),
         "configured_model_found": configured_model in model_ids,
+        "configured_model_max_model_len": detected_context_window,
     }
+
+
+def _detected_context_window_from_model_details(details: dict[str, object]) -> int | None:
+    return _int_or_none(details.get("configured_model_max_model_len"))
+
+
+def _extract_context_window_from_model_item(item: dict[str, object] | None) -> int | None:
+    if not item:
+        return None
+    direct_keys = (
+        "max_model_len",
+        "max_sequence_length",
+        "max_seq_len",
+        "context_length",
+        "context_window",
+        "n_ctx",
+    )
+    for key in direct_keys:
+        value = _int_or_none(item.get(key))
+        if value:
+            return value
+    for container_key in ("metadata", "config", "model_info"):
+        nested = item.get(container_key)
+        if isinstance(nested, dict):
+            value = _extract_context_window_from_model_info(nested)
+            if value:
+                return value
+    return None
+
+
+def _extract_ollama_context_window(body: str) -> int | None:
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    for key in ("model_info", "details", "info"):
+        nested = payload.get(key)
+        if isinstance(nested, dict):
+            value = _extract_context_window_from_model_info(nested)
+            if value:
+                return value
+    options = payload.get("options")
+    if isinstance(options, dict):
+        value = _int_or_none(options.get("num_ctx"))
+        if value:
+            return value
+    parameters = payload.get("parameters")
+    if isinstance(parameters, str):
+        value = _extract_num_ctx_from_parameters(parameters)
+        if value:
+            return value
+    return None
+
+
+def _extract_context_window_from_model_info(model_info: dict[object, object]) -> int | None:
+    preferred_suffixes = (
+        "context_length",
+        "max_position_embeddings",
+        "max_sequence_length",
+        "max_seq_len",
+        "max_model_len",
+        "n_ctx",
+        "num_ctx",
+    )
+    for key, value in model_info.items():
+        if not isinstance(key, str):
+            continue
+        normalized = key.lower().replace("-", "_")
+        if normalized in preferred_suffixes or any(normalized.endswith(f".{suffix}") for suffix in preferred_suffixes):
+            parsed = _int_or_none(value)
+            if parsed:
+                return parsed
+    return None
+
+
+def _extract_num_ctx_from_parameters(parameters: str) -> int | None:
+    for line in parameters.splitlines():
+        parts = line.strip().split()
+        if len(parts) >= 2 and parts[0] == "num_ctx":
+            value = _int_or_none(parts[1])
+            if value:
+                return value
+    return None
+
+
+def _is_probably_ollama_endpoint(provider: str, base_url: str) -> bool:
+    if "ollama" in provider.lower():
+        return True
+    parsed = urllib.parse.urlparse(base_url)
+    return parsed.port == 11434
+
+
+def _ollama_api_base_url(base_url: str) -> str:
+    parsed = urllib.parse.urlparse(base_url)
+    path = parsed.path.rstrip("/")
+    if path == "/v1":
+        path = ""
+    return urllib.parse.urlunparse((parsed.scheme, parsed.netloc, path, "", "", "")).rstrip("/")
+
+
+def _int_or_none(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value > 0 else None
+    if isinstance(value, float) and value.is_integer():
+        parsed = int(value)
+        return parsed if parsed > 0 else None
+    if isinstance(value, str):
+        try:
+            parsed = int(value.strip())
+        except ValueError:
+            return None
+        return parsed if parsed > 0 else None
+    return None
 
 
 def _tokens_per_second(usage: dict[str, int], elapsed_seconds: float) -> float | None:

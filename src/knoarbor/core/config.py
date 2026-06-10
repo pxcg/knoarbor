@@ -68,6 +68,8 @@ class ModelProviderConfig(BaseModel):
     api_key_env: str | None = None
     model: str | None = None
     json_mode: bool = True
+    context_window: int | None = Field(default=None, ge=1)
+    max_output_tokens: int | None = Field(default=None, ge=1)
 
     def api_key(self, env: Mapping[str, str] | None = None) -> str | None:
         if not self.api_key_env:
@@ -91,6 +93,15 @@ class ModelsConfig(BaseModel):
     default_max_tokens: int | None = Field(default=30000, ge=1)
     request_timeout_seconds: float = Field(default=600.0, ge=1)
     retry: ModelRetryConfig = Field(default_factory=ModelRetryConfig)
+
+    def resolve_max_tokens(self, provider_name: str | None = None, requested: int | None = None) -> int | None:
+        if requested is not None:
+            return requested
+        selected = provider_name or self.default_provider
+        provider = self.providers.get(selected) if selected else None
+        if provider and provider.max_output_tokens is not None:
+            return provider.max_output_tokens
+        return self.default_max_tokens
 
 
 class ConnectorConfig(BaseModel):

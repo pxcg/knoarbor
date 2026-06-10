@@ -91,7 +91,9 @@ models:
 
 Local providers such as Ollama or vLLM may use `api_key_env: null`. Run
 `uv run knoar doctor --json` after starting a local model endpoint to confirm
-that the configured model is visible.
+that the configured model is visible. For local models, set provider-level
+`context_window` and `max_output_tokens` to match the model runtime, for example
+`context_window: 32768` and `max_output_tokens: 8000`.
 
 ## Rich Document Processing
 

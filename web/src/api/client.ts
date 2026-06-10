@@ -98,6 +98,8 @@ export type ConfigFormProvider = {
   api_key_env: string;
   model: string;
   json_mode: boolean;
+  context_window?: number | null;
+  max_output_tokens?: number | null;
   api_key_configured: boolean;
 };
 

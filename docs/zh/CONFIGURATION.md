@@ -49,11 +49,15 @@ models:
       api_key_env: DEEPSEEK_API_KEY
       model: deepseek-v4-flash
       json_mode: true
+      context_window:
+      max_output_tokens:
 ```
 
 推荐默认只配置一个模型供应商。需要备用模型、本地模型或特殊端点时，再添加新的 provider。
 所有模型供应商都通过 `ModelGateway` 进入 OpenAI 兼容 Chat Completions 接口；不需要配置 provider `type`。托管供应商通常需要 `api_key_env`，本地或内网端点（如 Ollama、vLLM）可以设置为 `api_key_env: null`。
-本地供应商启动后，运行 `uv run knoar doctor --json` 可以检查 `/models` 是否可达，以及配置的模型是否已经由端点暴露。Ollama、vLLM 等本地模型建议先使用 `json_mode: false`，待该模型通过 KnoArbor 结构化流程验证后再开启 JSON mode。
+本地供应商启动后，运行 `uv run knoar doctor --json` 可以检查 `/models` 是否可达，以及配置的模型是否已经由端点暴露。Ollama、vLLM 等本地模型建议显式配置 `context_window` 和 `max_output_tokens`，例如 32K 上下文模型可以先设置为 `context_window: 32768`、`max_output_tokens: 8000`。运行时诊断会尝试从 vLLM `/v1/models` 元数据和 Ollama `/api/show` 自动探测上下文长度；探测不到时回退到配置中的 `context_window`。
+单次 CLI/API 请求传入的 `max_tokens` 优先级最高；未传入时使用选中 provider 的 `max_output_tokens`；provider 未配置时再使用 `models.default_max_tokens`。
+Ollama、vLLM 等本地模型建议先使用 `json_mode: false`，待该模型通过 KnoArbor 结构化流程验证后再开启 JSON mode。
 Prompt caching 由模型供应商实现，不需要在 KnoArbor 中单独开启。KnoArbor 只保证语义契约 prompt 的稳定前缀，并在供应商返回缓存命中指标时写入运行指标和报告；未返回缓存字段的供应商会显示为未提供该遥测，而不是配置错误。
 
 ## 输入来源
