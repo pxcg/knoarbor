@@ -90,6 +90,20 @@ uv run knoar status --vault ./wiki
 uv run knoar status --vault-id personal
 ```
 
+### `vaults`
+
+List configured knowledge-base vaults. Use this before choosing a `--vault-id`
+for ingest, lint, query, reports, pages, or run inspection.
+
+```bash
+uv run knoar vaults
+uv run knoar vaults list
+uv run knoar vaults --json
+```
+
+The output marks the active default vault with `*` and reports whether each
+configured path is available.
+
 ### `doctor`
 
 Run read-only first-run diagnostics. This checks config loading, vault

@@ -11,6 +11,7 @@ from knoarbor.entrypoints.routers.runtime import create_runtime_router
 from knoarbor.entrypoints.routers.runs import create_runs_router
 from knoarbor.entrypoints.routers.sources import create_sources_router
 from knoarbor.entrypoints.routers.ui import create_ui_router
+from knoarbor.entrypoints.routers.vaults import create_vaults_router
 from knoarbor.entrypoints.routers.wiki import create_wiki_router
 
 __all__ = [
@@ -25,5 +26,6 @@ __all__ = [
     "create_runs_router",
     "create_sources_router",
     "create_ui_router",
+    "create_vaults_router",
     "create_wiki_router",
 ]

@@ -28,6 +28,7 @@ Public endpoints are organized by product capability, not by internal workflow s
 | --- | --- | --- |
 | Service status | `GET /health` | Lightweight service heartbeat |
 | Runtime context | `GET /runtime` | Discover the active local API URL, config path, vault path, and endpoint file |
+| Vault registry | `GET /vaults` | List configured knowledge-base vaults with IDs, names, paths, and availability |
 | Diagnostics | `GET /doctor` | Read-only setup checks |
 | Sources | `GET /sources` | Read source connector capability catalog |
 | Models | `GET /models/providers`, `POST /models/discover`, `POST /models/probe`, `POST /models/apply-capabilities` | List configured providers, discover runtime model metadata, run bounded model probes, and explicitly apply detected limits |
@@ -73,11 +74,22 @@ results directly.
 
 ## Vault Selection
 
-Read APIs accept either an explicit `vault_path` or a configured `vault_id`.
-Use `vault_id` when integrating with a shared `config.yaml`; use `vault_path`
-for one-off automation. `POST /query` also supports multi-vault retrieval with
-`all_vaults: true` or `vault_ids: [...]`; each result is annotated with
-`vault_id`, `vault_name`, and `vault_path`.
+Vaults are first-class knowledge-base spaces. Public integrations should prefer
+`config_path + vault_id` because the ID is stable when local paths move. Use
+`vault_path` for one-off automation or temporary vaults.
+
+Read the registry before selecting a vault:
+
+```http
+GET /vaults?config_path=/path/to/config.yaml
+```
+
+The response returns the configured default vault and each profile's `id`,
+display `name`, resolved `path`, active state, and availability.
+
+`POST /query` also supports multi-vault retrieval with `all_vaults: true` or
+`vault_ids: [...]`; each result is annotated with `vault_id`, `vault_name`, and
+`vault_path`.
 
 ```http
 POST /query
@@ -151,6 +163,37 @@ current vault path. If the service auto-selects a different port, `knoar serve`
 also writes the same runtime address to the user-level
 `.knoarbor/endpoint.json` and to the project-local `.knoarbor/endpoint.json`
 next to `config.yaml`.
+
+## Vault Registry
+
+```http
+GET /vaults
+GET /vaults?config_path=/path/to/config.yaml
+```
+
+Returns configured knowledge-base profiles:
+
+```json
+{
+  "schema_version": "vaults.v1",
+  "config_path": "/path/to/config.yaml",
+  "default_vault_id": "personal",
+  "vaults": [
+    {
+      "id": "personal",
+      "name": "Personal Knowledge Base",
+      "path": "/path/to/wiki",
+      "active": true,
+      "exists": true
+    }
+  ]
+}
+```
+
+Use this endpoint when an integration needs a stable `vault_id` before calling
+query, page, report, run, ingest, or lint APIs. `path` is still returned for
+local inspection and one-off automation, but public clients should prefer
+`vault_id` where available.
 
 ## Reports
 

@@ -133,6 +133,71 @@ class ApiSurfaceTests(unittest.TestCase):
         self.assertIn("user_endpoint_path", payload)
         self.assertIn("errors", payload)
 
+    def test_vaults_endpoint_lists_configured_profiles(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            personal = root / "personal"
+            team = root / "team"
+            personal.mkdir()
+            team.mkdir()
+            config = root / "config.yaml"
+            config.write_text(
+                f"""
+vaults:
+  default: personal
+  profiles:
+    personal:
+      name: Personal
+      path: {personal}
+    team:
+      name: Team
+      path: {team}
+""",
+                encoding="utf-8",
+            )
+            client = TestClient(create_app())
+
+            response = client.get("/vaults", params={"config_path": str(config)})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["schema_version"], "vaults.v1")
+        self.assertEqual(payload["default_vault_id"], "personal")
+        self.assertEqual([item["id"] for item in payload["vaults"]], ["personal", "team"])
+        self.assertTrue(payload["vaults"][0]["active"])
+        self.assertTrue(payload["vaults"][0]["exists"])
+
+    def test_vaults_endpoint_materializes_single_vault_config(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "wiki"
+            vault.mkdir()
+            config = root / "config.yaml"
+            config.write_text(
+                f"""
+project:
+  name: Local Wiki
+vault:
+  path: {vault}
+""",
+                encoding="utf-8",
+            )
+            client = TestClient(create_app())
+
+            response = client.get("/vaults", params={"config_path": str(config)})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["default_vault_id"], "default")
+        self.assertEqual(payload["vaults"][0]["id"], "default")
+        self.assertEqual(payload["vaults"][0]["name"], "Local Wiki")
+        self.assertTrue(payload["vaults"][0]["active"])
+        self.assertTrue(payload["vaults"][0]["exists"])
+
     def test_sources_endpoint_returns_connector_catalog(self) -> None:
         client = TestClient(create_app())
 

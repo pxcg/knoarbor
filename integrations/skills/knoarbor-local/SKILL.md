@@ -20,6 +20,7 @@ Use the smallest operation that satisfies the user request:
 
 - Knowledge question -> `query`.
 - Page discovery -> `page list`.
+- Vault discovery -> `vaults list`.
 - Expand/read a known result page -> `page read` with the returned page path.
 - Inspect page relationships -> `page links`.
 - Compile a specific file -> `ingest file`.
@@ -49,6 +50,8 @@ Map natural user requests to operations before choosing a command:
   `page links`.
 - "What pages do I have about X?", "list concept pages", "find pages named X" ->
   `page list`.
+- "Which knowledge bases do I have?", "what vaults are available", "我有哪些知识库" ->
+  `vaults list`.
 - "Compile this file/folder", "add this note/PDF/folder to my wiki", "ingest
   these materials" -> `ingest file` or `ingest folder`.
 - "Update from Codex/Hermes/Claude/OpenClaw history", "sync my configured
@@ -78,6 +81,7 @@ python3 scripts/knoarbor.py page list --contains "agent loop"
 python3 scripts/knoarbor.py page read concepts/Agent-Loop-and-Control-Patterns.md
 python3 scripts/knoarbor.py --vault-id personal page read concepts/Agent-Loop-and-Control-Patterns.md
 python3 scripts/knoarbor.py page links concepts/Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py vaults list
 python3 scripts/knoarbor.py sources catalog
 python3 scripts/knoarbor.py sources catalog --connector codex
 python3 scripts/knoarbor.py ingest file /absolute/path/to/file.md

@@ -35,6 +35,7 @@ tests, and release notes.
 | 1.6.x | [Productized Console](1.6-productized-console/requirements.md) | UI information architecture, loading strategy, report readability, component reuse. |
 | 1.7.x | [CLI/API/Skill Closure](1.7-cli-api-skill-closure/requirements.md) | Public surface parity, response envelopes, skill operation maturity before 2.0. |
 | 1.8.x | [Model Capability Probe](1.8-model-capability-probe/requirements.md) | Provider discovery, bounded probes, local-model capability detection, explicit config writes. |
+| 1.9.x | [Vault Workspaces](1.9-vault-workspaces/requirements.md) | Vault registry, vault ID selection, multi-vault UX, workspace identity. |
 
 ## Spec Lifecycle
 

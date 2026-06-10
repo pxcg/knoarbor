@@ -59,6 +59,7 @@ class CliTests(unittest.TestCase):
             "serve",
             "sources",
             "status",
+            "vaults",
         }
 
         self.assertEqual(commands, expected_commands)
@@ -142,6 +143,42 @@ connectors: {{}}
         self.assertIn("Team Agent", output.getvalue())
         self.assertIn("concepts/Team-Agent.md", output.getvalue())
         self.assertNotIn("Personal.md", output.getvalue())
+
+    def test_vaults_command_lists_configured_vaults(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            personal = root / "personal"
+            team = root / "team"
+            personal.mkdir()
+            team.mkdir()
+            config = root / "config.yaml"
+            config.write_text(
+                f"""
+vaults:
+  default: personal
+  profiles:
+    personal:
+      name: Personal
+      path: {personal}
+    team:
+      name: Team
+      path: {team}
+models:
+  providers: {{}}
+connectors: {{}}
+""",
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                exit_code = main(["--config", str(config), "vaults"])
+
+        self.assertEqual(exit_code, 0)
+        text = output.getvalue()
+        self.assertIn("vaults: 2", text)
+        self.assertIn("* personal  Personal  available", text)
+        self.assertIn("- team  Team  available", text)
 
     def test_query_command_can_write_query_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

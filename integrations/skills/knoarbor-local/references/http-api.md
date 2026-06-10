@@ -45,6 +45,18 @@ curl -sS "$KNOARBOR_BASE_URL/health"
 curl -sS --get "$KNOARBOR_BASE_URL/doctor"
 ```
 
+## Vault Registry
+
+```bash
+curl -sS --get "$KNOARBOR_BASE_URL/vaults" \
+  --data-urlencode "config_path=$KNOARBOR_CONFIG_PATH"
+```
+
+Use this before a user-facing multi-vault operation, or when the user asks
+which knowledge bases are available. Prefer the returned `id` as `vault_id` in
+later page, report, run, ingest, and lint calls. Query can use one `vault_id`,
+several `vault_ids`, or `all_vaults=true`.
+
 ## Source Catalog
 
 ```bash

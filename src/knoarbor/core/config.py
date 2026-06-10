@@ -402,7 +402,8 @@ def resolve_config_data_paths(data: dict[str, Any], base_dir: Path) -> dict[str,
     copied = dict(data)
     if isinstance(copied.get("project"), dict):
         project = dict(copied["project"])
-        project["host_project_root"] = _resolve_path_value(project.get("host_project_root"), base_dir)
+        if "host_project_root" in project:
+            project["host_project_root"] = _resolve_path_value(project.get("host_project_root"), base_dir)
         copied["project"] = project
     if isinstance(copied.get("vault"), dict):
         vault = dict(copied["vault"])

@@ -7,6 +7,7 @@ from knoarbor.services.ingest import IngestService
 from knoarbor.services.model_probe import ModelProbeService
 from knoarbor.services.run_manager import RunManager
 from knoarbor.services.source_catalog import SourceCatalogService
+from knoarbor.services.vault_registry import VaultRegistryService
 from knoarbor.services.wiki_linter import WikiLinterService
 from knoarbor.services.wiki_search import WikiSearchService
 
@@ -20,3 +21,4 @@ class ApplicationServices:
     runs: RunManager = field(default_factory=RunManager)
     source_catalog: SourceCatalogService = field(default_factory=SourceCatalogService)
     model_probe: ModelProbeService = field(default_factory=ModelProbeService)
+    vaults: VaultRegistryService = field(default_factory=VaultRegistryService)

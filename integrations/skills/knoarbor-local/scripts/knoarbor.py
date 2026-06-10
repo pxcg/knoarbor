@@ -31,6 +31,7 @@ def main() -> int:
     _add_doctor(subparsers)
     _add_query(subparsers)
     _add_page(subparsers)
+    _add_vaults(subparsers)
     _add_sources(subparsers)
     _add_ingest(subparsers)
     _add_lint(subparsers)
@@ -49,6 +50,8 @@ def main() -> int:
             return _cmd_query(args, runtime)
         if args.command == "page":
             return _cmd_page(args, runtime)
+        if args.command == "vaults":
+            return _cmd_vaults(args, runtime)
         if args.command == "sources":
             return _cmd_sources(args, runtime)
         if args.command == "ingest":
@@ -171,6 +174,12 @@ def _add_page(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -
     read_parser.add_argument("path")
     links_parser = page_sub.add_parser("links", help="Read outbound links and backlinks for one page.")
     links_parser.add_argument("path")
+
+
+def _add_vaults(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    parser = subparsers.add_parser("vaults", help="List configured knowledge bases.")
+    vaults_sub = parser.add_subparsers(dest="vaults_command")
+    vaults_sub.add_parser("list", help="List configured knowledge bases.")
 
 
 def _add_sources(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -319,6 +328,14 @@ def _cmd_page(args: argparse.Namespace, runtime: Runtime) -> int:
         response = _get_json(_url(runtime.base_url, "/wiki/pages/links", _vault_query(runtime, {"vault_path": vault_path, "path": args.path})), timeout=runtime.timeout)
         return _print_or_format(response, runtime, formatter=_format_page_links)
     return 2
+
+
+def _cmd_vaults(args: argparse.Namespace, runtime: Runtime) -> int:
+    query: dict[str, Any] = {}
+    if runtime.config_path:
+        query["config_path"] = str(runtime.config_path)
+    response = _get_json(_url(runtime.base_url, "/vaults", query), timeout=runtime.timeout)
+    return _print_or_format(response, runtime, formatter=_format_vaults)
 
 
 def _cmd_sources(args: argparse.Namespace, runtime: Runtime) -> int:
@@ -883,6 +900,16 @@ def _format_page_links(response: dict[str, Any]) -> str:
     lines.append("Backlinks:")
     for link in response.get("backlinks", []):
         lines.append(f"- {link.get('source')}")
+    return "\n".join(lines)
+
+
+def _format_vaults(response: dict[str, Any]) -> str:
+    vaults = response.get("vaults", [])
+    lines = [f"Vaults: {len(vaults)}", f"Default: {response.get('default_vault_id') or '-'}"]
+    for vault in vaults:
+        marker = "*" if vault.get("active") else "-"
+        status = "available" if vault.get("exists") else "missing"
+        lines.append(f"{marker} {vault.get('id')} · {vault.get('name')} · {status} · {vault.get('path')}")
     return "\n".join(lines)
 
 

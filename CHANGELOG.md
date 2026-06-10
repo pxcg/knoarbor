@@ -8,10 +8,14 @@ This project follows a simple release-note format for public releases.
 
 ### Added
 
+- Added a first-class vault registry API and CLI surface: `GET /vaults` and
+  `knoar vaults list`.
 - Added read-only CLI drilldown commands for maintained wiki pages and workflow reports: `knoar pages ...` and `knoar reports ...`.
 
 ### Changed
 
+- Updated the bundled host-AI skill to discover configured vaults through the
+  public vault registry before selecting a knowledge base.
 - Moved the bundled host-AI skill package to `integrations/skills/knoarbor-local` and expanded its runtime discovery, multi-vault, page-read, report, ingest, and lint operation guidance.
 - Added `schema_version: "workflow_response.v1"` to the stable `/ingest` and `/lint` workflow response envelope.
 - Clarified that `/query` remains a direct retrieval endpoint returning `wiki_query.v1`, while `/ingest` and `/lint` use the workflow envelope.

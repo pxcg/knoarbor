@@ -482,6 +482,35 @@ class SkillQueryHelperTests(unittest.TestCase):
         self.assertIn("config_path=%2Ftmp%2Fconfig.yaml", url)
         self.assertIn("path=concepts%2FAgent-Loop.md", url)
 
+    def test_vaults_command_uses_public_vaults_endpoint(self) -> None:
+        helper = load_query_helper()
+        runtime = helper.Runtime(
+            base_url="http://127.0.0.1:8123",
+            vault_path="/tmp/personal",
+            config_path=Path("/tmp/config.yaml"),
+            timeout=1,
+            output_format="text",
+            vault_id="personal",
+            vault_name="Personal",
+        )
+        args = argparse.Namespace(vaults_command="list")
+
+        with patch.object(
+            helper,
+            "_get_json",
+            return_value={
+                "schema_version": "vaults.v1",
+                "default_vault_id": "personal",
+                "vaults": [{"id": "personal", "name": "Personal", "path": "/tmp/personal", "active": True, "exists": True}],
+            },
+        ) as get_json, redirect_stdout(io.StringIO()) as stdout:
+            exit_code = helper._cmd_vaults(args, runtime)
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("/vaults", get_json.call_args.args[0])
+        self.assertIn("config_path=%2Ftmp%2Fconfig.yaml", get_json.call_args.args[0])
+        self.assertIn("* personal · Personal · available", stdout.getvalue())
+
     def test_page_links_uses_resolved_vault_path_from_requested_vault_id(self) -> None:
         helper = load_query_helper()
         runtime = helper.Runtime(

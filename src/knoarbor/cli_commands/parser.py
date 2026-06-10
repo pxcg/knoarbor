@@ -23,6 +23,7 @@ from knoarbor.cli_commands.handlers import (
     run_serve,
     run_sources,
     run_status,
+    run_vaults,
 )
 
 def build_parser() -> argparse.ArgumentParser:
@@ -57,6 +58,14 @@ def build_parser() -> argparse.ArgumentParser:
     add_vault_argument(status_parser)
     status_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
     status_parser.set_defaults(handler=run_status)
+
+    vaults_parser = subparsers.add_parser("vaults", help="List configured KnoArbor knowledge bases.")
+    vaults_subparsers = vaults_parser.add_subparsers(dest="vaults_command")
+    vaults_list_parser = vaults_subparsers.add_parser("list", help="List configured vault profiles.")
+    vaults_list_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
+    vaults_list_parser.set_defaults(handler=run_vaults)
+    vaults_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
+    vaults_parser.set_defaults(handler=run_vaults)
 
     doctor_parser = subparsers.add_parser("doctor", help="Check local setup readiness without running semantic workflows.")
     doctor_parser.add_argument(

@@ -19,6 +19,7 @@ from knoarbor.services.wiki_search import WikiSearchService
 from knoarbor.services.ingest import IngestService
 from knoarbor.services.run_manager import RunManager
 from knoarbor.services.source_catalog import SourceCatalogService
+from knoarbor.services.vault_registry import VaultRegistryService
 from knoarbor.services.wiki_linter import WikiLinterService
 from knoarbor.services.wiki_pages import WikiPageService
 from knoarbor.services.wiki_reports import WikiReportService
@@ -245,6 +246,21 @@ def run_status(args: argparse.Namespace) -> int:
     print(f"raw_sources: {status['raw_sources']}")
     print(f"issues: {status['issues']} ({status['errors']} errors, {status['warnings']} warnings, {status['info']} info)")
     print(f"schema/index/log/ignore: {status['has_schema']}/{status['has_index']}/{status['has_log']}/{status['has_ignore']}")
+    return 0
+
+
+def run_vaults(args: argparse.Namespace) -> int:
+    response = VaultRegistryService().list_vaults(config_path=args.config)
+    if args.json:
+        print_json(response.model_dump())
+        return 0
+
+    print(f"vaults: {len(response.vaults)}")
+    print(f"default: {response.default_vault_id or '-'}")
+    for vault in response.vaults:
+        marker = "*" if vault.active else "-"
+        status = "available" if vault.exists else "missing"
+        print(f"{marker} {vault.id}  {vault.name}  {status}  {vault.path}")
     return 0
 
 

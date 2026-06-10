@@ -25,6 +25,7 @@ from knoarbor.entrypoints.routers import (
     create_runs_router,
     create_sources_router,
     create_ui_router,
+    create_vaults_router,
     create_wiki_router,
 )
 from knoarbor.services import ApplicationServices
@@ -49,6 +50,7 @@ def create_app(services: ApplicationServices | None = None) -> FastAPI:
     app.include_router(create_runtime_router())
     app.include_router(create_runs_router(services))
     app.include_router(create_sources_router(services))
+    app.include_router(create_vaults_router(services))
     app.include_router(create_wiki_router())
     app.include_router(create_ui_router())
     return app

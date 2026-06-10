@@ -23,6 +23,7 @@ PUBLIC_STABLE_ROUTES: tuple[str, ...] = (
     "/reports/content",
     "/runtime",
     "/sources",
+    "/vaults",
     "/runs",
     "/runs/{run_id}",
     "/runs/{run_id}/events",

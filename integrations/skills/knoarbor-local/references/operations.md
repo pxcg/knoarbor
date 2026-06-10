@@ -31,7 +31,7 @@ Use these examples to map user phrasing to the smallest useful operation:
 | "在所有知识库里查 iOS 音频检测" | `python3 scripts/knoarbor.py query "iOS 音频检测" --all-vaults` |
 | "只查学习知识库和工程知识库" | `python3 scripts/knoarbor.py query "主题" --query-vault-id rag-llm-learning --query-vault-id agent-engineering` |
 | "刚才查到的 team 知识库页面展开一下" | `python3 scripts/knoarbor.py --vault-id team page read <result.path>` |
-| "我有哪些知识库可以查？" | `python3 scripts/knoarbor.py check` |
+| "我有哪些知识库可以查？" | `python3 scripts/knoarbor.py vaults list` |
 | "把这个 Markdown 文件加入知识库" | `python3 scripts/knoarbor.py ingest file /absolute/path/to/file.md` |
 | "编译这个资料文件夹" | `python3 scripts/knoarbor.py ingest folder /absolute/path/to/folder` |
 | "同步 Codex/Claude 聊天记录" | `python3 scripts/knoarbor.py ingest connector codex claude_code` |
@@ -113,6 +113,18 @@ Use `page read` after query when the user asks to expand a specific result. Do
 not rerun query just to read a known page path. For multi-vault query results,
 reuse the result's `vault_id` with `--vault-id` so the selected page is read
 from the same knowledge base.
+
+## Vaults
+
+```bash
+python3 scripts/knoarbor.py vaults list
+python3 scripts/knoarbor.py --format json vaults list
+```
+
+Use `vaults list` when the user asks which knowledge bases are available, or
+when a follow-up question names a knowledge base that has not yet been
+resolved. Prefer the returned `vault_id` for later `query`, `page`, `runs`,
+`reports`, `ingest`, and `lint` commands.
 
 ## Ingest
 

@@ -65,6 +65,18 @@ uv run knoar doctor --connector markdown
 uv run knoar doctor --json
 ```
 
+## 知识库列表
+
+列出已配置的知识库 profile。选择 `--vault-id` 前可以先查看这里的 ID、名称和路径状态。
+
+```bash
+uv run knoar vaults
+uv run knoar vaults list
+uv run knoar vaults --json
+```
+
+输出中 `*` 表示当前默认知识库。
+
 ## 资料预检
 
 语义知识编译前，可以先检查配置的来源连接器：

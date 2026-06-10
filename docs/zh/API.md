@@ -28,6 +28,7 @@ http://127.0.0.1:8000
 | --- | --- | --- |
 | 服务状态 | `GET /health` | 轻量服务心跳 |
 | 运行上下文 | `GET /runtime` | 发现当前本地 API 地址、配置路径、知识库路径和 endpoint 文件 |
+| 知识库注册表 | `GET /vaults` | 列出已配置知识库的 ID、名称、路径和可用状态 |
 | 诊断 | `GET /doctor` | 只读运行前检查 |
 | 资料来源 | `GET /sources` | 读取资料来源连接器能力清单 |
 | 模型供应商 | `GET /models/providers`, `POST /models/discover`, `POST /models/probe`, `POST /models/apply-capabilities` | 列出模型供应商、发现运行时模型信息、执行小型模型探测，并显式写回能力配置 |
@@ -72,11 +73,20 @@ http://127.0.0.1:8000
 
 ## 知识库选择
 
-只读 API 支持显式传入 `vault_path`，也支持传入配置中的 `vault_id`。集成到
-共享 `config.yaml` 时优先使用 `vault_id`；临时自动化脚本可以直接传
-`vault_path`。`POST /query` 还支持跨知识库检索：传入 `all_vaults: true`
-查询全部已配置知识库，或传入 `vault_ids: [...]` 查询指定知识库。返回结果会标注
-`vault_id`、`vault_name` 和 `vault_path`。
+知识库是 KnoArbor 的一等知识空间。公开集成应优先使用
+`config_path + vault_id`，因为 ID 在本地路径变化时更稳定；`vault_path`
+主要用于一次性自动化或临时知识库。
+
+选择知识库前可以先读取注册表：
+
+```http
+GET /vaults?config_path=/path/to/config.yaml
+```
+
+响应会返回默认知识库，以及每个 profile 的 `id`、显示名称、解析后的路径、
+是否为当前默认知识库和路径是否可用。`POST /query` 还支持跨知识库检索：
+传入 `all_vaults: true` 查询全部已配置知识库，或传入 `vault_ids: [...]`
+查询指定知识库。返回结果会标注 `vault_id`、`vault_name` 和 `vault_path`。
 
 ```http
 POST /query
@@ -147,6 +157,36 @@ GET /runtime
 `/ui/api/*`。如果服务启动时自动切换端口，`knoar serve` 也会把实际
 运行地址写入用户级 `.knoarbor/endpoint.json`，并同步写入
 `config.yaml` 同级的项目级 `.knoarbor/endpoint.json`。
+
+## 知识库注册表
+
+```http
+GET /vaults
+GET /vaults?config_path=/path/to/config.yaml
+```
+
+返回已配置的知识库 profile：
+
+```json
+{
+  "schema_version": "vaults.v1",
+  "config_path": "/path/to/config.yaml",
+  "default_vault_id": "personal",
+  "vaults": [
+    {
+      "id": "personal",
+      "name": "个人知识库",
+      "path": "/path/to/wiki",
+      "active": true,
+      "exists": true
+    }
+  ]
+}
+```
+
+当集成工具需要先确定可用知识库，或把用户提到的知识库名称转换为稳定
+`vault_id` 时使用该接口。`path` 仍然返回给本地检查和一次性自动化使用，
+但公开客户端在条件允许时应优先使用 `vault_id`。
 
 ## 运行报告
 
