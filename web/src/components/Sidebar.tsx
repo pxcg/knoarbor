@@ -13,7 +13,6 @@ const navItems: ViewName[] = [
   "graph",
   "reports",
   "tokens",
-  "settings",
   "docs",
 ];
 
@@ -22,7 +21,7 @@ const navGroups: Array<{ labelKey: string; items: ViewName[] }> = [
   { labelKey: "navGroupKnowledge", items: ["sources", "wiki", "graph"] },
   { labelKey: "navGroupPipelines", items: ["ingest", "lint", "query"] },
   { labelKey: "navGroupInsights", items: ["reports", "tokens"] },
-  { labelKey: "navGroupSystem", items: ["settings", "docs"] },
+  { labelKey: "navGroupSystem", items: ["docs"] },
 ];
 
 type SidebarProps = {
@@ -34,9 +33,10 @@ type SidebarProps = {
   onChangeView: (view: ViewName) => void;
   onPreloadView?: (view: ViewName) => void;
   onToggleCollapsed: () => void;
+  onOpenWorkspaceSettings: () => void;
 };
 
-export function Sidebar({ activeView, collapsed, serviceOnline, language, t, onChangeView, onPreloadView, onToggleCollapsed }: SidebarProps) {
+export function Sidebar({ activeView, collapsed, serviceOnline, language, t, onChangeView, onPreloadView, onToggleCollapsed, onOpenWorkspaceSettings }: SidebarProps) {
   const logoUrl = `${import.meta.env.BASE_URL}knoarbor-logo.svg`;
 
   return (
@@ -79,8 +79,19 @@ export function Sidebar({ activeView, collapsed, serviceOnline, language, t, onC
         ))}
       </nav>
       <div className="sidebar-footer">
-        <span className={`status-dot ${serviceOnline === true ? "online" : serviceOnline === false ? "offline" : ""}`} />
-        <span className="sidebar-footer-text">{serviceOnline === true ? t("serviceOnline") : serviceOnline === false ? t("serviceOffline") : t("serviceChecking")}</span>
+        <button
+          className="workspace-settings-trigger"
+          type="button"
+          onClick={onOpenWorkspaceSettings}
+          title={t("workspaceSettings")}
+          aria-label={t("workspaceSettings")}
+        >
+          <span className={`status-dot ${serviceOnline === true ? "online" : serviceOnline === false ? "offline" : ""}`} />
+          <span className="sidebar-footer-text">{t("workspaceSettings")}</span>
+          <span className="sidebar-footer-icon" aria-hidden="true">
+            <LineIcon name="settings" />
+          </span>
+        </button>
       </div>
     </aside>
   );

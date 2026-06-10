@@ -30,6 +30,7 @@ http://127.0.0.1:8000
 | 运行上下文 | `GET /runtime` | 发现当前本地 API 地址、配置路径、知识库路径和 endpoint 文件 |
 | 诊断 | `GET /doctor` | 只读运行前检查 |
 | 资料来源 | `GET /sources` | 读取资料来源连接器能力清单 |
+| 模型供应商 | `GET /models/providers`, `POST /models/discover`, `POST /models/probe`, `POST /models/apply-capabilities` | 列出模型供应商、发现运行时模型信息、执行小型模型探测，并显式写回能力配置 |
 | 知识编译 | `POST /ingest` | 编译配置来源、标准文档、单个文件或文件夹，或恢复失败编译 |
 | 校验维护 | `POST /lint` | 执行确定性、结构、质量或完整维护 |
 | 知识查询 | `POST /query` | 为宿主 AI 检索 Wiki 上下文 |
@@ -54,6 +55,7 @@ http://127.0.0.1:8000
 
 ```json
 {
+  "schema_version": "workflow_response.v1",
   "flow": "ingest",
   "execution": "queued",
   "status": "queued",
@@ -62,6 +64,11 @@ http://127.0.0.1:8000
   "result": null
 }
 ```
+
+`schema_version` 是工作流响应的兼容性标记。客户端只需要根据
+`execution` 判断读取 `run_id`/`run` 还是 `result`；两种模式的顶层字段
+保持一致。`/query` 不使用工作流 envelope，它直接返回
+`schema_version: "wiki_query.v1"` 的检索结果。
 
 ## 知识库选择
 
@@ -178,6 +185,7 @@ GET /sources?config_path=/path/to/config.yaml&connector=markdown
 
 返回资料来源连接器能力清单，但不会扫描本地文件。外部工具可以用它了解
 KnoArbor 支持哪些来源、每个连接器会产生哪些 `source_type`，以及是否支持断点和分段提示。
+
 每个连接器也会返回轻量 `settings_schema`，描述支持的配置字段，例如
 `roots`、`sessions_dir`、`session_files`、`pattern` 和 `recursive`。
 
@@ -187,6 +195,50 @@ KnoArbor 支持哪些来源、每个连接器会产生哪些 `source_type`，以
 - `enabled`：该连接器是否在配置文件中启用。
 
 实际文件发现仍由 `GET /doctor` 的运行时检查和 `knoar sources` 预检命令负责。
+
+## 模型供应商
+
+```http
+GET /models/providers
+POST /models/discover
+POST /models/probe
+POST /models/apply-capabilities
+```
+
+模型接口用于在长流程运行前检查供应商配置和模型能力，可由 Swagger、Apifox、脚本或本地前端调用。
+
+`GET /models/providers` 只读取当前模型配置，不访问模型运行时。返回内容会隐藏 API Key，只标注环境变量是否已配置。
+
+`POST /models/discover` 调用供应商的模型列表接口，例如 OpenAI 兼容的 `/models`。对于 Ollama 风格端点，KnoArbor 还会尝试 `/api/show` 探测上下文长度。该接口不触发模型生成，因此不消耗生成 token。
+
+```json
+{
+  "config_path": "/path/to/config.yaml",
+  "provider": "vllm"
+}
+```
+
+`POST /models/probe` 会发起一个很小的生成请求。`level: "minimal"` 用于验证 Chat Completions 连通性；`level: "structured"` 用于验证模型是否能满足 KnoArbor agent 需要的结构化 JSON 契约。
+
+```json
+{
+  "config_path": "/path/to/config.yaml",
+  "provider": "deepseek",
+  "level": "structured"
+}
+```
+
+`POST /models/apply-capabilities` 是唯一会写配置的模型接口。它显式保存 `context_window`、`max_output_tokens` 和 `json_mode` 等字段；发现和探测接口只返回建议值，不自动修改 `config.yaml`。
+
+```json
+{
+  "config_path": "/path/to/config.yaml",
+  "provider": "vllm",
+  "context_window": 32768,
+  "max_output_tokens": 8000,
+  "json_mode": false
+}
+```
 
 ## 知识编译
 

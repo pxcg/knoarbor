@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getPage, getReport, getSourceCatalog, runIngest, runIngestFile, runLint, type ReportDetail } from "../api/client";
 import type { AppContext } from "../App";
 import { localizeReportKind, localizeReportTitle } from "../components/reportLabels";
+import { ReportSummaryCard } from "../components/report/ReportSummaryCard";
 import { RunFlowGuide } from "../components/runs/RunPanels";
 import { runStatusLabel } from "../components/runStatus";
 import { queryKeys } from "../queryKeys";
@@ -35,6 +36,7 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
   const sourceCatalogQuery = useQuery({
     queryKey: queryKeys.sourceCatalog(context.configPath),
     queryFn: () => getSourceCatalog(context.configPath),
+    enabled: mode !== "lint",
     staleTime: 60_000,
   });
   const connectorOptions = sortSourceConnectors(sourceCatalogQuery.data?.connectors || []);
@@ -300,10 +302,10 @@ function LatestWorkflowReport({ context, mode }: { context: AppContext; mode: "b
           {context.t("openReport")}
         </button>
       </div>
-      <div className="report-summary-card">
-        <strong>{localizeReportTitle(detail.summary.title || detail.path, detail.summary.kind, context.t)}</strong>
-        <span>{localizeReportKind(detail.summary.kind, context.t)} · {detail.summary.path}</span>
-      </div>
+      <ReportSummaryCard
+        title={localizeReportTitle(detail.summary.title || detail.path, detail.summary.kind, context.t)}
+        subtitle={`${localizeReportKind(detail.summary.kind, context.t)} · ${detail.summary.path}`}
+      />
       <Suspense fallback={<p className="panel-copy">{context.t("loading")}</p>}>
         <ReportReadableView
           content={detail.content}

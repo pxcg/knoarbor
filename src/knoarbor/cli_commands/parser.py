@@ -12,8 +12,10 @@ from knoarbor.cli_commands.handlers import (
     run_init,
     run_lint_plan,
     run_lint_run,
+    run_pages,
     run_query,
     run_query_feedback,
+    run_reports,
     run_run_cancel,
     run_run_events,
     run_runs,
@@ -96,6 +98,44 @@ def build_parser() -> argparse.ArgumentParser:
     run_cancel_parser.add_argument("run_id")
     run_cancel_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
     run_cancel_parser.set_defaults(handler=run_run_cancel)
+
+    pages_parser = subparsers.add_parser("pages", help="List, read, or inspect generated wiki pages.")
+    add_vault_argument(pages_parser)
+    pages_subparsers = pages_parser.add_subparsers(dest="pages_command", required=True)
+    pages_list_parser = pages_subparsers.add_parser("list", help="List wiki pages.")
+    pages_list_parser.add_argument("--vault", default=argparse.SUPPRESS, help="Path to the Obsidian wiki vault. Overrides config.yaml.")
+    pages_list_parser.add_argument("--vault-id", default=argparse.SUPPRESS, help="Configured vault profile ID. Ignored when --vault is provided.")
+    pages_list_parser.add_argument("--dir", dest="page_dir", default=None, help="Limit to one wiki directory such as concepts or entities.")
+    pages_list_parser.add_argument("--contains", default=None, help="Filter by title or path substring.")
+    pages_list_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
+    pages_list_parser.set_defaults(handler=run_pages)
+    pages_read_parser = pages_subparsers.add_parser("read", help="Read one wiki page by path.")
+    pages_read_parser.add_argument("--vault", default=argparse.SUPPRESS, help="Path to the Obsidian wiki vault. Overrides config.yaml.")
+    pages_read_parser.add_argument("--vault-id", default=argparse.SUPPRESS, help="Configured vault profile ID. Ignored when --vault is provided.")
+    pages_read_parser.add_argument("path")
+    pages_read_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
+    pages_read_parser.set_defaults(handler=run_pages)
+    pages_links_parser = pages_subparsers.add_parser("links", help="Read outbound links and backlinks for one page.")
+    pages_links_parser.add_argument("--vault", default=argparse.SUPPRESS, help="Path to the Obsidian wiki vault. Overrides config.yaml.")
+    pages_links_parser.add_argument("--vault-id", default=argparse.SUPPRESS, help="Configured vault profile ID. Ignored when --vault is provided.")
+    pages_links_parser.add_argument("path")
+    pages_links_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
+    pages_links_parser.set_defaults(handler=run_pages)
+
+    reports_parser = subparsers.add_parser("reports", help="List or read workflow reports.")
+    add_vault_argument(reports_parser)
+    reports_subparsers = reports_parser.add_subparsers(dest="reports_command", required=True)
+    reports_list_parser = reports_subparsers.add_parser("list", help="List reports from the selected vault.")
+    reports_list_parser.add_argument("--vault", default=argparse.SUPPRESS, help="Path to the Obsidian wiki vault. Overrides config.yaml.")
+    reports_list_parser.add_argument("--vault-id", default=argparse.SUPPRESS, help="Configured vault profile ID. Ignored when --vault is provided.")
+    reports_list_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
+    reports_list_parser.set_defaults(handler=run_reports)
+    reports_read_parser = reports_subparsers.add_parser("read", help="Read one report by maintenance path.")
+    reports_read_parser.add_argument("--vault", default=argparse.SUPPRESS, help="Path to the Obsidian wiki vault. Overrides config.yaml.")
+    reports_read_parser.add_argument("--vault-id", default=argparse.SUPPRESS, help="Configured vault profile ID. Ignored when --vault is provided.")
+    reports_read_parser.add_argument("path")
+    reports_read_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
+    reports_read_parser.set_defaults(handler=run_reports)
 
     query_parser = subparsers.add_parser("query", help="Retrieve relevant wiki context for a question.")
     add_vault_argument(query_parser)

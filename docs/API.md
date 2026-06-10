@@ -30,6 +30,7 @@ Public endpoints are organized by product capability, not by internal workflow s
 | Runtime context | `GET /runtime` | Discover the active local API URL, config path, vault path, and endpoint file |
 | Diagnostics | `GET /doctor` | Read-only setup checks |
 | Sources | `GET /sources` | Read source connector capability catalog |
+| Models | `GET /models/providers`, `POST /models/discover`, `POST /models/probe`, `POST /models/apply-capabilities` | List configured providers, discover runtime model metadata, run bounded model probes, and explicitly apply detected limits |
 | Ingest | `POST /ingest` | Compile configured sources, one normalized document, one file or folder, or recover a failed ingest |
 | Lint | `POST /lint` | Run deterministic, structural, quality, or full maintenance |
 | Query | `POST /query` | Retrieve wiki context for a host AI |
@@ -54,6 +55,7 @@ Both endpoints always return the same workflow envelope:
 
 ```json
 {
+  "schema_version": "workflow_response.v1",
   "flow": "ingest",
   "execution": "queued",
   "status": "queued",
@@ -62,6 +64,12 @@ Both endpoints always return the same workflow envelope:
   "result": null
 }
 ```
+
+`schema_version` is the compatibility marker for workflow responses. Clients
+should branch on `execution` only to decide whether to inspect `run_id`/`run`
+or `result`; the top-level fields stay present in both modes. `/query` is not a
+workflow response: it returns `schema_version: "wiki_query.v1"` with retrieval
+results directly.
 
 ## Vault Selection
 
@@ -194,6 +202,62 @@ When `config_path` is provided, each catalog item is annotated with:
 
 Source file discovery remains part of `GET /doctor` runtime checks and the
 `knoar sources` CLI preflight command.
+
+## Models
+
+```http
+GET /models/providers
+POST /models/discover
+POST /models/probe
+POST /models/apply-capabilities
+```
+
+Model endpoints expose the configured model registry and the runtime checks
+needed before long semantic workflows. They are safe to call from Swagger,
+Apifox, scripts, and the local UI.
+
+`GET /models/providers` reads the current provider registry without calling a
+model endpoint. It hides API keys and reports only whether the configured key
+environment variable is available.
+
+`POST /models/discover` calls the provider model-list endpoint, such as
+OpenAI-compatible `/models`. For Ollama-style endpoints, KnoArbor also attempts
+`/api/show` to detect context length. Discovery does not generate model tokens.
+
+```json
+{
+  "config_path": "/path/to/config.yaml",
+  "provider": "vllm"
+}
+```
+
+`POST /models/probe` performs a bounded generation request. `level:
+"minimal"` verifies chat completion connectivity with a tiny `OK` response.
+`level: "structured"` verifies whether the selected model can satisfy the
+structured JSON contract used by KnoArbor agents.
+
+```json
+{
+  "config_path": "/path/to/config.yaml",
+  "provider": "deepseek",
+  "level": "structured"
+}
+```
+
+`POST /models/apply-capabilities` is the only model endpoint that writes
+configuration. It explicitly stores detected or user-selected fields such as
+`context_window`, `max_output_tokens`, and `json_mode`; discovery and probe
+responses only suggest values.
+
+```json
+{
+  "config_path": "/path/to/config.yaml",
+  "provider": "vllm",
+  "context_window": 32768,
+  "max_output_tokens": 8000,
+  "json_mode": false
+}
+```
 
 ## Ingest
 

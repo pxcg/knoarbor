@@ -34,6 +34,7 @@ tests, and release notes.
 | 1.5.x | [Knowledge Governance](1.5-knowledge-governance/requirements.md) | Lint operation taxonomy, autonomous repair, review evidence, reports and diffs. |
 | 1.6.x | [Productized Console](1.6-productized-console/requirements.md) | UI information architecture, loading strategy, report readability, component reuse. |
 | 1.7.x | [CLI/API/Skill Closure](1.7-cli-api-skill-closure/requirements.md) | Public surface parity, response envelopes, skill operation maturity before 2.0. |
+| 1.8.x | [Model Capability Probe](1.8-model-capability-probe/requirements.md) | Provider discovery, bounded probes, local-model capability detection, explicit config writes. |
 
 ## Spec Lifecycle
 

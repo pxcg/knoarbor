@@ -52,11 +52,20 @@ class ProviderHealthCheck(BaseModel):
     details: dict[str, object] = Field(default_factory=dict)
 
 
+class ProviderModelDiscovery(BaseModel):
+    available: bool
+    message: str
+    details: dict[str, object] = Field(default_factory=dict)
+
+
 class ProviderAdapter(ChatClient, Protocol):
     provider: str
     model: str
 
     def check(self) -> ProviderHealthCheck:
+        ...
+
+    def discover_models(self) -> ProviderModelDiscovery:
         ...
 
 
@@ -99,6 +108,9 @@ class ModelGateway:
 
     def check(self) -> ProviderHealthCheck:
         return self.adapter.check()
+
+    def discover_models(self) -> ProviderModelDiscovery:
+        return self.adapter.discover_models()
 
 
 @dataclass(frozen=True)
@@ -185,6 +197,15 @@ class OpenAICompatibleChatClient:
         )
 
     def check(self) -> ProviderHealthCheck:
+        discovery = self.discover_models()
+        return ProviderHealthCheck(
+            available=discovery.available,
+            structured_output=self.json_mode,
+            message=discovery.message,
+            details=discovery.details,
+        )
+
+    def discover_models(self) -> ProviderModelDiscovery:
         started = time.perf_counter()
         request = urllib.request.Request(
             f"{self.base_url}/models",
@@ -197,23 +218,20 @@ class OpenAICompatibleChatClient:
                 status_code = getattr(response, "status", 200)
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
-            return ProviderHealthCheck(
+            return ProviderModelDiscovery(
                 available=False,
-                structured_output=self.json_mode,
                 message=f"Provider endpoint returned HTTP {exc.code} for /models.",
                 details={"status_code": exc.code, "body_preview": body[:500], "elapsed_seconds": round(time.perf_counter() - started, 3)},
             )
         except urllib.error.URLError as exc:
-            return ProviderHealthCheck(
+            return ProviderModelDiscovery(
                 available=False,
-                structured_output=self.json_mode,
                 message=f"Provider endpoint request failed: {exc.reason}",
                 details={"elapsed_seconds": round(time.perf_counter() - started, 3)},
             )
         except (http.client.IncompleteRead, TimeoutError, socket.timeout) as exc:
-            return ProviderHealthCheck(
+            return ProviderModelDiscovery(
                 available=False,
-                structured_output=self.json_mode,
                 message=f"Provider endpoint check was interrupted: {exc}",
                 details={"elapsed_seconds": round(time.perf_counter() - started, 3)},
             )
@@ -223,9 +241,8 @@ class OpenAICompatibleChatClient:
         ollama_details = self._detect_ollama_model_details() if detected_context_window is None else {}
         if detected_context_window is None:
             detected_context_window = _int_or_none(ollama_details.get("detected_context_window"))
-        return ProviderHealthCheck(
+        return ProviderModelDiscovery(
             available=200 <= int(status_code) < 300,
-            structured_output=self.json_mode,
             message="Provider endpoint responded to /models.",
             details={
                 "status_code": int(status_code),

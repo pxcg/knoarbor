@@ -9,10 +9,12 @@ test("management console renders core navigation", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Update Settings|更新设置/ })).toBeVisible();
   await expect(page.getByRole("link", { name: "GitHub" })).toBeVisible();
 
-  await page.getByRole("button", { name: /^(Settings Runtime config|设置 配置运行环境)$/ }).click();
-  await expect(page.locator("main").getByText(/Settings|设置/).first()).toBeVisible();
+  await page.getByRole("button", { name: /^(Workspace Settings|工作区设置)$/ }).click();
+  await expect(page.getByRole("dialog").getByText(/Workspace Settings|工作区设置/).first()).toBeVisible();
   await expect(page.getByRole("button", { name: /Save Settings|保存设置/ })).toBeVisible();
-  await expect(page.locator("h2").filter({ hasText: /Knowledge base|知识库/ }).first()).toBeVisible();
+  await expect(page.getByRole("dialog").locator("h2").filter({ hasText: /Vault|知识库/ }).first()).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toBeHidden();
 
   await page.getByRole("button", { name: /^(Graph Explore links|知识图谱 查看页面关系)$/ }).click();
   await expect(page.locator("main").getByText(/Graph|知识图谱/).first()).toBeVisible();

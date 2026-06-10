@@ -33,6 +33,7 @@ import {
 } from "./api/client";
 import { AppShell } from "./components/AppShell";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
+import { WorkspaceSettingsModal } from "./components/WorkspaceSettingsModal";
 import { detectLanguage, translate } from "./i18n";
 import { queryKeys } from "./queryKeys";
 import type { Language, ViewName } from "./types";
@@ -113,13 +114,19 @@ export function App() {
   const [focusedPageId, setFocusedPageId] = useState<string | null>(null);
   const [focusedWikiPath, setFocusedWikiPath] = useState<string | null>(null);
   const [focusedReportPath, setFocusedReportPath] = useState<string | null>(null);
+  const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("knoarbor.sidebarCollapsed") === "true");
   const [selectedVaultId, setSelectedVaultId] = useState(() => localStorage.getItem("knoarbor.activeVaultId") || "");
   const previousActiveRunCountRef = useRef(0);
   const queryClient = useQueryClient();
 
   const t = useCallback((key: string) => translate(language, key), [language]);
-  const shouldPollRuns = activeView === "overview" || activeView === "runs" || activeView === "ingest" || activeView === "lint";
+  const isRunView = activeView === "runs" || activeView === "ingest" || activeView === "lint";
+  const needsVaultStatus = activeView === "overview" || activeView === "sources";
+  const needsReports = activeView === "overview" || activeView === "runs" || activeView === "reports";
+  const needsRecentRuns = activeView === "overview" || isRunView;
+  const needsVaultOverview = activeView === "overview" || activeView === "runs" || activeView === "reports";
+  const shouldPollRuns = activeView === "overview" || isRunView;
 
   const healthQuery = useQuery({
     queryKey: queryKeys.health,
@@ -145,7 +152,7 @@ export function App() {
   const doctorQuery = useQuery({
     queryKey: queryKeys.doctor(effectiveConfigPath),
     queryFn: () => getDoctor(effectiveConfigPath, { checkModelRuntime: false, checkConnectorRuntime: false }),
-    enabled: configQuery.isSuccess,
+    enabled: configQuery.isSuccess && activeView === "overview",
     staleTime: 60_000,
     placeholderData: keepPreviousData,
   });
@@ -153,7 +160,7 @@ export function App() {
   const statusQuery = useQuery({
     queryKey: queryKeys.status(activeVaultId),
     queryFn: () => getStatus(vaultPath),
-    enabled: configQuery.isSuccess && Boolean(vaultPath),
+    enabled: configQuery.isSuccess && Boolean(vaultPath) && needsVaultStatus,
     staleTime: 20_000,
     placeholderData: keepPreviousData,
   });
@@ -161,7 +168,7 @@ export function App() {
   const reportsQuery = useQuery({
     queryKey: queryKeys.reports(activeVaultId),
     queryFn: () => getReports(vaultPath),
-    enabled: configQuery.isSuccess && Boolean(vaultPath),
+    enabled: configQuery.isSuccess && Boolean(vaultPath) && needsReports,
     staleTime: 30_000,
     placeholderData: keepPreviousData,
   });
@@ -181,7 +188,7 @@ export function App() {
   const recentRunsQuery = useQuery({
     queryKey: queryKeys.recentRuns(activeVaultId),
     queryFn: () => getRuns(vaultPath, false, 12),
-    enabled: configQuery.isSuccess && (activeView === "runs" || activeView === "overview"),
+    enabled: configQuery.isSuccess && Boolean(vaultPath) && needsRecentRuns,
     staleTime: 20_000,
     placeholderData: keepPreviousData,
   });
@@ -214,7 +221,7 @@ export function App() {
     queries: vaultOptions.map((vault) => ({
       queryKey: queryKeys.overview(vault.id),
       queryFn: () => fetchVaultOverview(vault),
-      enabled: configQuery.isSuccess && vaultOptions.length > 1,
+      enabled: configQuery.isSuccess && vaultOptions.length > 1 && needsVaultOverview,
       staleTime: 20_000,
       placeholderData: keepPreviousData,
     })),
@@ -270,24 +277,22 @@ export function App() {
     setFocusedReportPath(null);
   }, []);
 
-  const loadVaultState = useCallback(async (vault: VaultOption = activeVault) => {
-    const [statusResult, reportsResult, activeRunsResult, recentRunsResult] = await Promise.allSettled([
-      queryClient.refetchQueries({ queryKey: queryKeys.status(vault.id) }),
-      queryClient.refetchQueries({ queryKey: queryKeys.reports(vault.id) }),
-      queryClient.refetchQueries({ queryKey: queryKeys.activeRuns(vault.id) }),
-      queryClient.refetchQueries({ queryKey: queryKeys.recentRuns(vault.id) }),
-    ]);
-    if (statusResult.status === "rejected" || reportsResult.status === "rejected" || activeRunsResult.status === "rejected" || recentRunsResult.status === "rejected") {
-      const reason =
-        statusResult.status === "rejected"
-          ? statusResult.reason
-          : reportsResult.status === "rejected"
-            ? reportsResult.reason
-            : activeRunsResult.status === "rejected"
-              ? activeRunsResult.reason
-              : recentRunsResult.status === "rejected"
-                ? recentRunsResult.reason
-                : t("vaultRefreshFailed");
+  const loadVaultState = useCallback(async (vault: VaultOption = activeVault, scope: VaultRefreshScope = {}) => {
+    const normalizedScope = {
+      status: scope.status ?? true,
+      reports: scope.reports ?? true,
+      activeRuns: scope.activeRuns ?? true,
+      recentRuns: scope.recentRuns ?? true,
+    };
+    const tasks: Promise<unknown>[] = [];
+    if (normalizedScope.status) tasks.push(queryClient.fetchQuery({ queryKey: queryKeys.status(vault.id), queryFn: () => getStatus(vault.path), staleTime: 0 }));
+    if (normalizedScope.reports) tasks.push(queryClient.fetchQuery({ queryKey: queryKeys.reports(vault.id), queryFn: () => getReports(vault.path), staleTime: 0 }));
+    if (normalizedScope.activeRuns) tasks.push(queryClient.fetchQuery({ queryKey: queryKeys.activeRuns(vault.id), queryFn: () => getActiveRuns(vault.path), staleTime: 0 }));
+    if (normalizedScope.recentRuns) tasks.push(queryClient.fetchQuery({ queryKey: queryKeys.recentRuns(vault.id), queryFn: () => getRuns(vault.path, false, 12), staleTime: 0 }));
+    const results = await Promise.allSettled(tasks);
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure?.status === "rejected") {
+      const reason = failure.reason || t("vaultRefreshFailed");
       setNotice({ message: reason instanceof Error ? reason.message : String(reason), error: true });
     }
   }, [activeVault, queryClient, t]);
@@ -301,6 +306,15 @@ export function App() {
     const timer = window.setTimeout(preloadCommonRoutes, 1200);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (!workspaceSettingsOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setWorkspaceSettingsOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [workspaceSettingsOpen]);
 
   useEffect(() => {
     if (healthQuery.isSuccess) {
@@ -340,18 +354,40 @@ export function App() {
       const configResult = await queryClient.fetchQuery({ queryKey: queryKeys.config, queryFn: getConfig });
       const nextVaultOptions = buildVaultOptions(configResult.summary || {});
       const nextVault = resolveActiveVault(nextVaultOptions, selectedVaultId, configResult.summary || {});
-      const path = nextVault.path;
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: queryKeys.health }),
-        queryClient.refetchQueries({ queryKey: queryKeys.doctor(configResult.config_path) }),
-        loadVaultState(nextVault),
-      ]);
+      const refreshTasks: Promise<unknown>[] = [
+        queryClient.fetchQuery({ queryKey: queryKeys.health, queryFn: getHealth, staleTime: 0 }),
+      ];
+      if (activeView === "overview") {
+        refreshTasks.push(queryClient.fetchQuery({
+          queryKey: queryKeys.doctor(configResult.config_path),
+          queryFn: () => getDoctor(configResult.config_path, { checkModelRuntime: false, checkConnectorRuntime: false }),
+          staleTime: 0,
+        }));
+      }
+      if (needsVaultStatus || needsReports || needsRecentRuns || shouldPollRuns) {
+        refreshTasks.push(loadVaultState(nextVault, {
+          status: needsVaultStatus,
+          reports: needsReports,
+          activeRuns: shouldPollRuns,
+          recentRuns: needsRecentRuns,
+        }));
+      }
+      if (activeView === "graph") {
+        refreshTasks.push(queryClient.fetchQuery({ queryKey: queryKeys.graph(nextVault.id), queryFn: () => getGraph(nextVault.path), staleTime: 0 }));
+      }
+      if (activeView === "wiki") {
+        refreshTasks.push(queryClient.fetchQuery({ queryKey: queryKeys.pages(nextVault.id), queryFn: () => getPages(nextVault.path), staleTime: 0 }));
+      }
+      if (activeView === "query") {
+        refreshTasks.push(queryClient.fetchQuery({ queryKey: queryKeys.queryTrends(nextVault.id), queryFn: () => getQueryTrends(nextVault.path), staleTime: 0 }));
+      }
+      await Promise.all(refreshTasks);
       return true;
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
       return false;
     }
-  }, [loadVaultState, queryClient, selectedVaultId]);
+  }, [activeView, loadVaultState, needsRecentRuns, needsReports, needsVaultStatus, queryClient, selectedVaultId, shouldPollRuns]);
 
   const refreshManually = useCallback(async () => {
     setIsRefreshing(true);
@@ -475,6 +511,7 @@ export function App() {
       openPageInGraph,
       openWikiPage,
       openReport,
+      openSettings: () => setWorkspaceSettingsOpen(true),
       status,
       summary: effectiveSummary,
       activeVaultId,
@@ -546,6 +583,7 @@ export function App() {
       onRefresh={refreshManually}
       onSetLanguage={setLanguage}
       onToggleSidebar={toggleSidebar}
+      onOpenWorkspaceSettings={() => setWorkspaceSettingsOpen(true)}
       vaultOptions={vaultOptions}
       activeVaultId={activeVaultId}
       onSetActiveVault={setActiveVaultId}
@@ -582,6 +620,11 @@ export function App() {
             {activeView === "docs" && <DocsPage context={context} />}
           </Suspense>
         </RouteErrorBoundary>
+        <WorkspaceSettingsModal isOpen={workspaceSettingsOpen} t={t} onClose={() => setWorkspaceSettingsOpen(false)}>
+          <Suspense fallback={<section className="panel page-loading">{t("loading")}</section>}>
+            <ConfigPage context={context} embedded />
+          </Suspense>
+        </WorkspaceSettingsModal>
     </AppShell>
   );
 }
@@ -622,6 +665,7 @@ export type AppContext = {
   openPageInGraph: (pageId: string) => void;
   openWikiPage: (path: string) => void;
   openReport: (path: string) => void;
+  openSettings: () => void;
   status: UiStatusResponse | null;
   summary: ConfigSummary;
   activeVaultId: string;
@@ -630,10 +674,17 @@ export type AppContext = {
   setActiveVaultId: (vaultId: string) => void;
   vaultPath: string;
   refreshAll: () => Promise<boolean>;
-  loadVaultState: (vault?: VaultOption) => Promise<void>;
+  loadVaultState: (vault?: VaultOption, scope?: VaultRefreshScope) => Promise<void>;
   language: Language;
   setLanguage: (language: Language) => void;
   t: (key: string) => string;
+};
+
+export type VaultRefreshScope = {
+  status?: boolean;
+  reports?: boolean;
+  activeRuns?: boolean;
+  recentRuns?: boolean;
 };
 
 async function fetchVaultOverview(vault: VaultOption): Promise<VaultOverview> {

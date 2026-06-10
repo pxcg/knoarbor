@@ -18,7 +18,6 @@ SCRIPT_PATH = (
     Path(__file__).resolve().parents[1]
     / "integrations"
     / "skills"
-    / "query"
     / "knoarbor-local"
     / "scripts"
     / "knoarbor.py"
@@ -249,6 +248,77 @@ class SkillQueryHelperTests(unittest.TestCase):
         self.assertEqual(runtime.vault_path, "/tmp/knoarbor/wiki")
         self.assertEqual(runtime.config_path, Path("/tmp/knoarbor/config.yaml"))
         get_json.assert_not_called()
+
+    def test_runtime_resolves_requested_vault_id_from_user_endpoint_profiles(self) -> None:
+        helper = load_query_helper()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            runtime_dir = root / "runtime"
+            runtime_dir.mkdir()
+            (runtime_dir / "endpoint.json").write_text(
+                json.dumps(
+                    {
+                        "base_url": "http://127.0.0.1:8124",
+                        "config_path": "/tmp/knoarbor/config.yaml",
+                        "vault_id": "personal",
+                        "vault_name": "Personal",
+                        "vault_path": "/tmp/knoarbor/personal",
+                        "vaults": [
+                            {"id": "personal", "name": "Personal", "path": "/tmp/knoarbor/personal"},
+                            {"id": "team", "name": "Team", "path": "/tmp/knoarbor/team"},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"KNOARBOR_RUNTIME_DIR": str(runtime_dir)}), patch.object(helper, "_get_json") as get_json:
+                    runtime = helper._runtime(
+                        argparse.Namespace(
+                            base_url=None,
+                            vault=None,
+                            vault_id="team",
+                            config=None,
+                            timeout=1,
+                            format="json",
+                        )
+                    )
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(runtime.base_url, "http://127.0.0.1:8124")
+        self.assertEqual(runtime.vault_id, "team")
+        self.assertEqual(runtime.vault_name, "Team")
+        self.assertEqual(runtime.vault_path, "/tmp/knoarbor/team")
+        self.assertEqual(runtime.config_path, Path("/tmp/knoarbor/config.yaml"))
+        self.assertEqual(len(runtime.vaults), 2)
+        get_json.assert_not_called()
+
+    def test_missing_requested_vault_error_lists_available_vaults(self) -> None:
+        helper = load_query_helper()
+        runtime = helper.Runtime(
+            base_url="http://127.0.0.1:8123",
+            vault_path=None,
+            config_path=Path("/tmp/config.yaml"),
+            timeout=1,
+            output_format="text",
+            vault_id="missing",
+            vaults=[
+                {"id": "personal", "name": "Personal", "path": "/tmp/personal"},
+                {"id": "team", "name": "Team", "path": "/tmp/team"},
+            ],
+        )
+
+        with self.assertRaises(SystemExit) as raised, redirect_stderr(io.StringIO()) as stderr:
+            helper._require_vault(runtime)
+
+        self.assertEqual(raised.exception.code, 2)
+        message = stderr.getvalue()
+        self.assertIn("Requested vault ID: missing", message)
+        self.assertIn("Available vault IDs: personal (Personal), team (Team)", message)
 
     def test_formats_knoarbor_error_envelope(self) -> None:
         helper = load_query_helper()

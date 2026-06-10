@@ -210,7 +210,7 @@ export function QueryPage({ context, embedded = false }: Props) {
                 <button type="button" onClick={() => context.navigate("ingest")}>
                   {context.t("queryEmptyHintIngest")}
                 </button>
-                <button type="button" onClick={() => context.navigate("settings")}>
+                <button type="button" onClick={context.openSettings}>
                   {context.t("queryEmptyHintDirs")}
                 </button>
                 <span>{context.t("queryEmptyHintBody")}</span>

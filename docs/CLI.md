@@ -243,6 +243,35 @@ uv run knoar query-feedback "Agent Loop 是什么？" --useful --selected-path c
 uv run knoar query-feedback "Agent Loop 是什么？" --no-useful --rejected-path concepts/Old-Page.md
 ```
 
+### `pages`
+
+List, read, or inspect generated wiki pages.
+
+```bash
+uv run knoar pages list
+uv run knoar pages list --dir concepts
+uv run knoar pages list --contains "Agent Loop"
+uv run knoar pages read concepts/Agent-Loop-and-Control-Patterns.md
+uv run knoar pages links concepts/Agent-Loop-and-Control-Patterns.md
+uv run knoar pages read --vault-id personal concepts/Agent-Loop-and-Control-Patterns.md
+```
+
+Use `pages read` after query when you need the full maintained page body. Use
+`pages links` to inspect outbound links and backlinks without opening the UI.
+
+### `reports`
+
+List or read workflow reports from the selected vault.
+
+```bash
+uv run knoar reports list
+uv run knoar reports read maintenance/ingest_report_YYYYMMDD_HHMMSS.md
+uv run knoar reports list --vault-id personal
+```
+
+Use reports after ingest, lint, or query runs to inspect written pages, applied
+maintenance operations, failures, token usage, and run metrics.
+
 ### `runs`
 
 List recent or active workflow runs from the local run monitor.

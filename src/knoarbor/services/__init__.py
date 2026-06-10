@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from knoarbor.services.doctor import DoctorService
 from knoarbor.services.ingest import IngestService
+from knoarbor.services.model_probe import ModelProbeService
 from knoarbor.services.run_manager import RunManager
 from knoarbor.services.source_catalog import SourceCatalogService
 from knoarbor.services.wiki_linter import WikiLinterService
@@ -18,3 +19,4 @@ class ApplicationServices:
     ingest: IngestService = field(default_factory=IngestService)
     runs: RunManager = field(default_factory=RunManager)
     source_catalog: SourceCatalogService = field(default_factory=SourceCatalogService)
+    model_probe: ModelProbeService = field(default_factory=ModelProbeService)

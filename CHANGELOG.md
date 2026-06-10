@@ -6,7 +6,22 @@ This project follows a simple release-note format for public releases.
 
 ## Unreleased
 
-No public changes yet.
+### Added
+
+- Added read-only CLI drilldown commands for maintained wiki pages and workflow reports: `knoar pages ...` and `knoar reports ...`.
+
+### Changed
+
+- Moved the bundled host-AI skill package to `integrations/skills/knoarbor-local` and expanded its runtime discovery, multi-vault, page-read, report, ingest, and lint operation guidance.
+- Added `schema_version: "workflow_response.v1"` to the stable `/ingest` and `/lint` workflow response envelope.
+- Clarified that `/query` remains a direct retrieval endpoint returning `wiki_query.v1`, while `/ingest` and `/lint` use the workflow envelope.
+- Updated CLI and API documentation for page/report read commands and workflow response contracts.
+- Synchronized the Python package runtime version with `pyproject.toml`.
+
+### Validation
+
+- Focused API, CLI, and skill tests pass.
+- Ruff checks pass for modified Python modules and the bundled skill helper.
 
 ## 1.2.1 - 2026-06-10
 

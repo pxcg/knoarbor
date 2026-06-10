@@ -17,6 +17,7 @@ type AppShellProps = {
   onRefresh: () => void;
   onSetLanguage: (language: Language) => void;
   onToggleSidebar: () => void;
+  onOpenWorkspaceSettings: () => void;
   vaultOptions: Array<{ id: string; name: string; path: string }>;
   activeVaultId: string;
   onSetActiveVault: (vaultId: string) => void;
@@ -35,6 +36,7 @@ export function AppShell({
   onRefresh,
   onSetLanguage,
   onToggleSidebar,
+  onOpenWorkspaceSettings,
   vaultOptions,
   activeVaultId,
   onSetActiveVault,
@@ -50,6 +52,7 @@ export function AppShell({
         onChangeView={onChangeView}
         onPreloadView={onPreloadView}
         onToggleCollapsed={onToggleSidebar}
+        onOpenWorkspaceSettings={onOpenWorkspaceSettings}
       />
       <main className="main">
         <header className="topbar">

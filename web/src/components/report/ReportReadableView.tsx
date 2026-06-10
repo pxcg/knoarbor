@@ -2,11 +2,12 @@ import { useState } from "react";
 
 import type { PageDetail } from "../../api/client";
 import { AsyncMarkdownPreview } from "../AsyncMarkdownPreview";
+import { PagePathLinks } from "../PagePathLinks";
 import { localizeReportLabel, localizeReportSection, localizeReportValue } from "../reportLabels";
 import {
-  buildPageArtifacts,
   extractWikiPagePaths,
   getReportMetricNumber,
+  type PageArtifact,
   pageName,
   parseReport,
   parseReportArtifacts,
@@ -23,9 +24,9 @@ type ReportReadableViewProps = {
 export function ReportReadableView({ content, t, onOpenPage, loadPage, inlinePagePreview = false }: ReportReadableViewProps) {
   const report = parseReport(content);
   const artifacts = parseReportArtifacts(content);
-  const pageArtifacts = buildPageArtifacts(artifacts.pages, artifacts.changes);
+  const pageArtifacts = [...artifacts.changedPages, ...artifacts.writtenPages, ...artifacts.relatedPages];
   const legacyChangeCount = getReportMetricNumber(content, "applied_operations");
-  const hasLegacyChangesWithoutDiff = legacyChangeCount > 0 && artifacts.changes.length === 0 && !content.includes("## Page Changes");
+  const hasLegacyChangesWithoutDiff = legacyChangeCount > 0 && artifacts.changedPages.length === 0 && !content.includes("## Page Changes");
   const [preview, setPreview] = useState<PageDetail | null>(null);
   const [previewPath, setPreviewPath] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -57,53 +58,59 @@ export function ReportReadableView({ content, t, onOpenPage, loadPage, inlinePag
       {!!pageArtifacts.length && (
         <section className="report-artifact-section">
           <h3>{t("reportArtifacts")}</h3>
-          <div className="report-artifact-grid">
-            {pageArtifacts.map((artifact) => (
-              <article className={`report-page-card ${previewPath === artifact.path ? "active" : ""}`} key={artifact.path}>
-                <div className="report-page-card-header">
-                  <button
-                    className="report-page-main"
-                    type="button"
-                    onClick={() => (inlinePagePreview && loadPage ? void previewPage(artifact.path) : onOpenPage(artifact.path))}
-                  >
-                    <strong>{pageName(artifact.path)}</strong>
-                    <span>{artifact.path}</span>
-                  </button>
-                  <div className="report-page-actions">
-                    {!!artifact.changes.length && <span className="pill">{t("reportPageChanges")}</span>}
-                    {inlinePagePreview && loadPage && (
-                      <button className="button secondary small-button" type="button" onClick={() => void previewPage(artifact.path)}>
-                        {previewPath === artifact.path && preview ? t("collapseContent") : t("expandContent")}
-                      </button>
-                    )}
-                    <button className="button secondary small-button" type="button" onClick={() => onOpenPage(artifact.path)}>
-                      {t("viewInKnowledgeBase")}
-                    </button>
-                  </div>
+          <ReportArtifactGroup
+            title={t("reportChangedPages")}
+            artifacts={artifacts.changedPages}
+            previewPath={previewPath}
+            preview={preview}
+            previewLoading={previewLoading}
+            previewError={previewError}
+            inlinePagePreview={inlinePagePreview}
+            loadPage={loadPage}
+            t={t}
+            onOpenPage={onOpenPage}
+            onPreviewPage={previewPage}
+          />
+          <ReportArtifactGroup
+            title={t("reportWrittenPages")}
+            artifacts={artifacts.writtenPages}
+            previewPath={previewPath}
+            preview={preview}
+            previewLoading={previewLoading}
+            previewError={previewError}
+            inlinePagePreview={inlinePagePreview}
+            loadPage={loadPage}
+            t={t}
+            onOpenPage={onOpenPage}
+            onPreviewPage={previewPage}
+          />
+          <ReportArtifactGroup
+            title={t("reportRelatedPages")}
+            artifacts={artifacts.relatedPages}
+            previewPath={previewPath}
+            preview={preview}
+            previewLoading={previewLoading}
+            previewError={previewError}
+            inlinePagePreview={inlinePagePreview}
+            loadPage={loadPage}
+            t={t}
+            onOpenPage={onOpenPage}
+            onPreviewPage={previewPage}
+          />
+        </section>
+      )}
+      {!!artifacts.failures.length && (
+        <section className="report-artifact-section">
+          <h3>{t("reportFailures")}</h3>
+          <div className="report-failure-list">
+            {artifacts.failures.map((failure, index) => (
+              <article className="report-failure-card" key={`${failure.source || "failure"}:${index}`}>
+                {failure.source && <strong>{failure.source}</strong>}
+                <p>{failure.message}</p>
+                <div>
+                  {failure.stage && <span className="pill">{failure.stage}</span>}
+                  {failure.code && <span className="pill danger">{failure.code}</span>}
                 </div>
-                {!!artifact.changes.length && (
-                  <div className="report-page-change-list">
-                    {artifact.changes.map((change, index) => (
-                      <div className="report-page-change" key={`${change.page}:${index}`}>
-                        <div className="report-page-change-meta">
-                          {change.action && <span className="pill">{localizeOperationAction(change.action, t)}</span>}
-                          {change.summary && <span>{change.summary}</span>}
-                        </div>
-                        {!!change.diff.length && <DiffBlock lines={change.diff} />}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {inlinePagePreview && previewPath === artifact.path && (
-                  <ReportInlinePreview
-                    loading={previewLoading}
-                    preview={preview}
-                    previewError={previewError}
-                    previewPath={previewPath}
-                    t={t}
-                    onOpenPage={onOpenPage}
-                  />
-                )}
               </article>
             ))}
           </div>
@@ -165,6 +172,89 @@ export function ReportReadableView({ content, t, onOpenPage, loadPage, inlinePag
   );
 }
 
+function ReportArtifactGroup({
+  title,
+  artifacts,
+  previewPath,
+  preview,
+  previewLoading,
+  previewError,
+  inlinePagePreview,
+  loadPage,
+  t,
+  onOpenPage,
+  onPreviewPage,
+}: {
+  title: string;
+  artifacts: PageArtifact[];
+  previewPath: string | null;
+  preview: PageDetail | null;
+  previewLoading: boolean;
+  previewError: string | null;
+  inlinePagePreview: boolean;
+  loadPage?: (path: string) => Promise<PageDetail>;
+  t: (key: string) => string;
+  onOpenPage: (path: string) => void;
+  onPreviewPage: (path: string) => Promise<void>;
+}) {
+  if (!artifacts.length) return null;
+  return (
+    <div className="report-artifact-group">
+      <h4>{title}</h4>
+      <div className="report-artifact-grid">
+        {artifacts.map((artifact) => (
+          <article className={`report-page-card ${previewPath === artifact.path ? "active" : ""}`} key={`${artifact.kind}:${artifact.path}`}>
+            <div className="report-page-card-header">
+              <button
+                className="report-page-main"
+                type="button"
+                onClick={() => (inlinePagePreview && loadPage ? void onPreviewPage(artifact.path) : onOpenPage(artifact.path))}
+              >
+                <strong>{pageName(artifact.path)}</strong>
+                <span>{artifact.path}</span>
+              </button>
+              <div className="report-page-actions">
+                {!!artifact.changes.length && <span className="pill">{t("reportPageChanges")}</span>}
+                {inlinePagePreview && loadPage && (
+                  <button className="button secondary small-button" type="button" onClick={() => void onPreviewPage(artifact.path)}>
+                    {previewPath === artifact.path && preview ? t("collapseContent") : t("expandContent")}
+                  </button>
+                )}
+                <button className="button secondary small-button" type="button" onClick={() => onOpenPage(artifact.path)}>
+                  {t("viewInKnowledgeBase")}
+                </button>
+              </div>
+            </div>
+            {!!artifact.changes.length && (
+              <div className="report-page-change-list">
+                {artifact.changes.map((change, index) => (
+                  <div className="report-page-change" key={`${change.page}:${index}`}>
+                    <div className="report-page-change-meta">
+                      {change.action && <span className="pill">{localizeOperationAction(change.action, t)}</span>}
+                      {change.summary && <span>{change.summary}</span>}
+                    </div>
+                    {!!change.diff.length && <DiffBlock lines={change.diff} />}
+                  </div>
+                ))}
+              </div>
+            )}
+            {inlinePagePreview && previewPath === artifact.path && (
+              <ReportInlinePreview
+                loading={previewLoading}
+                preview={preview}
+                previewError={previewError}
+                previewPath={previewPath}
+                t={t}
+                onOpenPage={onOpenPage}
+              />
+            )}
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ReportInlinePreview({
   loading,
   preview,
@@ -211,7 +301,7 @@ function ReportValue({ value, t, onOpenPage }: { value: string; t: (key: string)
   return (
     <>
       {localized}
-      <PagePathLinks paths={paths} onOpenPage={onOpenPage} />
+      <PagePathLinks links={paths.map((path) => ({ path }))} inline onOpenPage={onOpenPage} />
     </>
   );
 }
@@ -275,18 +365,6 @@ function structuredReportValue(value: string, t: (key: string) => string, onOpen
   }
 
   return null;
-}
-
-function PagePathLinks({ paths, onOpenPage }: { paths: string[]; onOpenPage: (path: string) => void }) {
-  return (
-    <span className="page-path-links inline-links">
-      {paths.map((path) => (
-        <button key={path} type="button" onClick={() => onOpenPage(path)}>
-          {path}
-        </button>
-      ))}
-    </span>
-  );
 }
 
 function DiffBlock({ lines }: { lines: string[] }) {

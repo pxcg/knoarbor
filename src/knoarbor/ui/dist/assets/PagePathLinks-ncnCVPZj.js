@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BX1tsrJU.js";var t=e();function n({links:e,inline:n=!1,onOpenPage:r}){return e.length?(0,t.jsx)(`span`,{className:`page-path-links${n?` inline-links`:``}`,children:e.map(e=>(0,t.jsx)(`button`,{type:`button`,onClick:()=>r(e.path),children:e.label||e.path},e.path))}):null}export{n as t};

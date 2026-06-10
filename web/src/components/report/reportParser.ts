@@ -18,6 +18,21 @@ export type ReportChange = {
 export type PageArtifact = {
   path: string;
   changes: ReportChange[];
+  kind: "changed" | "written" | "related";
+};
+
+export type ReportFailure = {
+  source?: string;
+  stage?: string;
+  code?: string;
+  message: string;
+};
+
+export type ReportArtifacts = {
+  changedPages: PageArtifact[];
+  writtenPages: PageArtifact[];
+  relatedPages: PageArtifact[];
+  failures: ReportFailure[];
 };
 
 export function parseReportRunId(content: string): string | null {
@@ -69,25 +84,43 @@ export function parseReport(content: string): { metrics: ReportMetric[]; section
   };
 }
 
-export function parseReportArtifacts(content: string): { pages: string[]; changes: ReportChange[] } {
+export function parseReportArtifacts(content: string): ReportArtifacts {
   const lines = content.split(/\r?\n/);
-  const pages = new Set<string>();
+  const writtenPages = new Set<string>();
+  const relatedPages = new Set<string>();
   const changes: ReportChange[] = [];
+  const failures: ReportFailure[] = [];
   let activeChange: ReportChange | null = null;
   let inDiff = false;
-  let collectGeneratedPages = false;
+  let collectPages: "written" | "related" | null = null;
+  let currentSection = "";
+  let currentSource = "";
+  let currentFailure: ReportFailure | null = null;
 
   for (const line of lines) {
     const heading = line.match(/^##\s+(.+)$/);
     if (heading) {
-      collectGeneratedPages = false;
-    }
-    if (/^Generated pages:\s*$/.test(line) || /^##\s+(Generated pages|Written pages|Page Changes)\s*$/i.test(line)) {
-      collectGeneratedPages = true;
+      currentSection = heading[1].trim();
+      collectPages = null;
+      currentSource = "";
+      currentFailure = null;
       continue;
     }
-    if (collectGeneratedPages && /^[A-Z][A-Za-z\s]+:\s*$/.test(line) && !/^Generated pages:\s*$/.test(line)) {
-      collectGeneratedPages = false;
+    const sourceHeading = line.match(/^###\s+(.+)$/);
+    if (sourceHeading) {
+      currentSource = sourceHeading[1].trim();
+      currentFailure = null;
+    }
+    if (/^Generated pages:\s*$/.test(line) || /^##\s+(Generated pages|Written pages)\s*$/i.test(line)) {
+      collectPages = "written";
+      continue;
+    }
+    if (/^Scoped lint pages:\s*$/.test(line)) {
+      collectPages = "related";
+      continue;
+    }
+    if (collectPages && /^[A-Z][A-Za-z\s]+:\s*$/.test(line) && !/^Generated pages:\s*$/.test(line)) {
+      collectPages = null;
     }
     const change = line.match(/page_change:\s+`([^`]+)`\s+action=([^\s]+)(?:\s+sections=(.+))?/);
     const lintChange = line.match(/^-\s+`?((?:sources|entities|concepts|comparisons|queries|workflows)\/[^`\s]+?\.md)`?\s+action=([^\s]+)(?:\s+sections=(.+))?/);
@@ -96,11 +129,36 @@ export function parseReportArtifacts(content: string): { pages: string[]; change
       const summary = matchedChange[3]?.trim();
       activeChange = { page: matchedChange[1], action: matchedChange[2], summary: summary && summary !== "none" ? summary : undefined, diff: [] };
       changes.push(activeChange);
-      pages.add(matchedChange[1]);
+      writtenPages.delete(matchedChange[1]);
+      relatedPages.delete(matchedChange[1]);
       continue;
     }
-    if (collectGeneratedPages) {
-      for (const path of extractWikiPagePaths(line)) pages.add(path);
+    if (collectPages) {
+      for (const path of extractWikiPagePaths(line)) {
+        if (collectPages === "written") writtenPages.add(path);
+        else relatedPages.add(path);
+      }
+    }
+    const wrotePage = line.match(/^-\s+wrote\s+`([^`]+)`/);
+    if (wrotePage) writtenPages.add(wrotePage[1]);
+    const status = line.match(/^-\s+status:\s*(.+)$/);
+    if (status && status[1].trim().toLowerCase() === "failed") {
+      currentFailure = { source: currentSource || undefined, message: "failed" };
+      failures.push(currentFailure);
+    }
+    const failureField = line.match(/^-\s+(error_stage|error_code|error_type|error_message):\s*(.+)$/);
+    if (failureField) {
+      if (!currentFailure) {
+        currentFailure = { source: currentSource || undefined, message: "" };
+        failures.push(currentFailure);
+      }
+      if (failureField[1] === "error_stage" || failureField[1] === "error_type") currentFailure.stage = failureField[2].trim();
+      if (failureField[1] === "error_code") currentFailure.code = failureField[2].trim();
+      if (failureField[1] === "error_message") currentFailure.message = failureField[2].trim();
+    }
+    if (currentSection === "Recovery Candidates") {
+      const recovery = line.match(/^-\s+`([^`]+)`.*?:\s*(.+)$/);
+      if (recovery) failures.push({ source: recovery[1], message: recovery[2].trim() });
     }
     if (line.startsWith("```diff")) {
       inDiff = true;
@@ -114,10 +172,20 @@ export function parseReportArtifacts(content: string): { pages: string[]; change
     if (inDiff && activeChange) activeChange.diff.push(line);
   }
 
-  return { pages: [...pages], changes };
+  const changedPageArtifacts = buildPageArtifacts(
+    [...new Set(changes.map((change) => change.page))],
+    changes,
+    "changed",
+  );
+  return {
+    changedPages: changedPageArtifacts,
+    writtenPages: buildPageArtifacts([...writtenPages].filter((path) => !changes.some((change) => change.page === path)), changes, "written"),
+    relatedPages: buildPageArtifacts([...relatedPages].filter((path) => !writtenPages.has(path) && !changes.some((change) => change.page === path)), changes, "related"),
+    failures: failures.filter((failure) => failure.message && failure.message !== "None."),
+  };
 }
 
-export function buildPageArtifacts(pages: string[], changes: ReportChange[]): PageArtifact[] {
+export function buildPageArtifacts(pages: string[], changes: ReportChange[], kind: PageArtifact["kind"] = "related"): PageArtifact[] {
   const byPath = new Map<string, ReportChange[]>();
   for (const path of pages) byPath.set(path, []);
   for (const change of changes) {
@@ -125,7 +193,7 @@ export function buildPageArtifacts(pages: string[], changes: ReportChange[]): Pa
     existing.push(change);
     byPath.set(change.page, existing);
   }
-  return [...byPath.entries()].map(([path, pageChanges]) => ({ path, changes: pageChanges }));
+  return [...byPath.entries()].map(([path, pageChanges]) => ({ path, changes: pageChanges, kind: pageChanges.length ? "changed" : kind }));
 }
 
 export function getReportMetricNumber(content: string, key: string): number {

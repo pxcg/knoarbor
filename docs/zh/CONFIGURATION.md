@@ -60,6 +60,15 @@ models:
 Ollama、vLLM 等本地模型建议先使用 `json_mode: false`，待该模型通过 KnoArbor 结构化流程验证后再开启 JSON mode。
 Prompt caching 由模型供应商实现，不需要在 KnoArbor 中单独开启。KnoArbor 只保证语义契约 prompt 的稳定前缀，并在供应商返回缓存命中指标时写入运行指标和报告；未返回缓存字段的供应商会显示为未提供该遥测，而不是配置错误。
 
+模型能力检查也可以通过稳定 API 执行：
+
+- `GET /models/providers`：列出已配置的供应商，不访问模型运行时。
+- `POST /models/discover`：读取模型端点元数据，并尽量探测上下文长度，不触发生成。
+- `POST /models/probe`：执行小型生成探测；`minimal` 检查连通性，`structured` 检查 JSON 契约能力。
+- `POST /models/apply-capabilities`：显式把 `context_window`、`max_output_tokens` 和 `json_mode` 写回 `config.yaml`。
+
+发现和探测不会自动修改配置。建议先查看探测结果，再在确认模型能力后写回配置。
+
 ## 输入来源
 
 当前稳定入口以 Markdown 和标准化 source document 为主。默认启用 `markdown`，可选启用 `hermes`、`codex`、`openclaw`、`claude_code` 和 `generic_chat`。聊天记录和个人文件都属于一等来源，是否重要由内容决定，不由来源类型决定。

@@ -10,6 +10,7 @@ from knoarbor.semantic.llm import (
     OpenAICompatibleChatClient,
     ProviderAdapter,
     ProviderHealthCheck,
+    ProviderModelDiscovery,
 )
 from knoarbor.semantic.ingest_workflow import IngestSemanticWorkflow, IngestSemanticWorkflowResult
 from knoarbor.semantic.lint_workflow import LintSemanticWorkflow
@@ -36,6 +37,7 @@ __all__ = [
     "OpenAICompatibleChatClient",
     "ProviderAdapter",
     "ProviderHealthCheck",
+    "ProviderModelDiscovery",
     "SemanticContract",
     "SemanticPromptPackage",
     "SemanticRetryPolicy",

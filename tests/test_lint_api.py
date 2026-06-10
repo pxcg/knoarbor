@@ -35,6 +35,7 @@ class LintApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
+        self.assertEqual(payload["schema_version"], "workflow_response.v1")
         self.assertEqual(payload["flow"], "lint")
         self.assertEqual(payload["execution"], "direct")
         self.assertEqual(payload["status"], "completed")
@@ -61,6 +62,7 @@ class LintApiTests(unittest.TestCase):
             )
             self.assertEqual(response.status_code, 200)
             response_payload = response.json()
+            self.assertEqual(response_payload["schema_version"], "workflow_response.v1")
             self.assertEqual(response_payload["flow"], "lint")
             self.assertEqual(response_payload["execution"], "queued")
             run_id = response_payload["run_id"]

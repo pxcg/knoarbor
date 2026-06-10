@@ -4,6 +4,7 @@ import { getPage, type PageDetail, type PageLink, type PageSummary } from "../ap
 import type { AppContext } from "../App";
 import { AsyncMarkdownPreview } from "../components/AsyncMarkdownPreview";
 import { DelayedTooltip } from "../components/DelayedTooltip";
+import { PagePathLinks } from "../components/PagePathLinks";
 
 type Props = {
   context: AppContext;
@@ -200,18 +201,15 @@ function LinkSection({
       label: direction === "backlinks" ? link.source : (link.target_path || link.target),
       path: direction === "backlinks" ? link.source : link.target_path,
     }))
-    .filter((link) => link.path);
+    .filter((link): link is { label: string; path: string } => Boolean(link.path));
   return (
     <section className="wiki-link-section">
       <h3>{title}</h3>
       {resolved.length ? (
-        <div className="page-path-links">
-          {resolved.map((link) => (
-            <button key={`${direction}:${link.path}`} onClick={() => link.path && onOpen(link.path)} type="button">
-              {link.label}
-            </button>
-          ))}
-        </div>
+        <PagePathLinks
+          links={resolved}
+          onOpenPage={onOpen}
+        />
       ) : (
         <p className="panel-copy">{emptyText}</p>
       )}

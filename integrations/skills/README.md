@@ -8,7 +8,7 @@ Copy the local skill into Codex's local skills directory:
 
 ```bash
 mkdir -p ~/.codex/skills/knoarbor-local
-rsync -a --delete integrations/skills/query/knoarbor-local/ ~/.codex/skills/knoarbor-local/
+rsync -a --delete integrations/skills/knoarbor-local/ ~/.codex/skills/knoarbor-local/
 ```
 
 Restart Codex so the skill list is reloaded.

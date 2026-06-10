@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import unittest
 import os
+import tomllib
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -83,6 +84,11 @@ REMOVED_PROTOTYPE_ROUTES = {
 
 
 class ApiSurfaceTests(unittest.TestCase):
+    def test_package_version_metadata_is_synchronized(self) -> None:
+        pyproject = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8"))
+
+        self.assertEqual(pyproject["project"]["version"], __version__)
+
     def test_openapi_version_matches_package_version(self) -> None:
         client = TestClient(create_app())
 

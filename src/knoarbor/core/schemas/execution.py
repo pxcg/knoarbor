@@ -13,6 +13,7 @@ WorkflowFlow = Literal["ingest", "lint"]
 class WorkflowResponse(BaseModel):
     """Stable response envelope for direct and queued workflow APIs."""
 
+    schema_version: Literal["workflow_response.v1"] = "workflow_response.v1"
     flow: WorkflowFlow
     execution: WorkflowExecutionMode
     status: RunStatus

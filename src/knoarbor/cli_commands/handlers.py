@@ -20,6 +20,8 @@ from knoarbor.services.ingest import IngestService
 from knoarbor.services.run_manager import RunManager
 from knoarbor.services.source_catalog import SourceCatalogService
 from knoarbor.services.wiki_linter import WikiLinterService
+from knoarbor.services.wiki_pages import WikiPageService
+from knoarbor.services.wiki_reports import WikiReportService
 from knoarbor.pipelines.lint import WikiLintPipeline, normalize_lint_run_mode
 from knoarbor.runtime.run_monitor import list_runs, read_run, read_run_events, request_cancel
 from knoarbor.runtime.endpoint import find_available_port, write_runtime_endpoint
@@ -306,6 +308,85 @@ def run_run_cancel(args: argparse.Namespace) -> int:
         return 0
     print(f"cancel_requested: {record.run_id} status={record.status}")
     return 0
+
+
+def run_pages(args: argparse.Namespace) -> int:
+    config = resolve_config(args)
+    vault_path = resolve_vault_path(args, config)
+    config = select_config_vault(config, vault_path=str(vault_path), vault_id=args.vault_id)
+    service = WikiPageService()
+    vault_id = config.active_vault_id()
+    vault_name = config.active_vault_name()
+
+    if args.pages_command == "list":
+        response = service.list_pages(vault_path, vault_id=vault_id, vault_name=vault_name)
+        pages = response.pages
+        if args.page_dir:
+            pages = [page for page in pages if page.directory == args.page_dir]
+        if args.contains:
+            needle = args.contains.lower()
+            pages = [page for page in pages if needle in f"{page.title} {page.path}".lower()]
+        response = response.model_copy(update={"pages": pages})
+        if args.json:
+            print_json(response.model_dump())
+            return 0
+        print(f"pages: {len(response.pages)}")
+        for page in response.pages[:80]:
+            print(f"- {page.title} ({page.path}) [{page.directory}]")
+        return 0
+
+    if args.pages_command == "read":
+        response = service.read_page(vault_path, args.path, vault_id=vault_id, vault_name=vault_name)
+        if args.json:
+            print_json(response.model_dump())
+            return 0
+        print(response.content)
+        return 0
+
+    if args.pages_command == "links":
+        response = service.page_links(vault_path, args.path, vault_id=vault_id, vault_name=vault_name)
+        if args.json:
+            print_json(response.model_dump())
+            return 0
+        print(f"page: {response.path}")
+        print("outbound_links:")
+        for link in response.outbound_links:
+            print(f"- {link.target_path or link.target} ({'resolved' if link.resolved else 'unresolved'})")
+        print("backlinks:")
+        for link in response.backlinks:
+            print(f"- {link.source}")
+        return 0
+
+    return 2
+
+
+def run_reports(args: argparse.Namespace) -> int:
+    config = resolve_config(args)
+    vault_path = resolve_vault_path(args, config)
+    config = select_config_vault(config, vault_path=str(vault_path), vault_id=args.vault_id)
+    service = WikiReportService()
+    vault_id = config.active_vault_id()
+    vault_name = config.active_vault_name()
+
+    if args.reports_command == "list":
+        response = service.list_reports(vault_path, vault_id=vault_id, vault_name=vault_name)
+        if args.json:
+            print_json(response.model_dump())
+            return 0
+        print(f"reports: {len(response.reports)}")
+        for report in response.reports[:80]:
+            print(f"- {report.kind} {report.title} {report.updated} {report.path}")
+        return 0
+
+    if args.reports_command == "read":
+        response = service.read_report(vault_path, args.path, vault_id=vault_id, vault_name=vault_name)
+        if args.json:
+            print_json(response.model_dump())
+            return 0
+        print(response.content)
+        return 0
+
+    return 2
 
 
 def run_query(args: argparse.Namespace) -> int:

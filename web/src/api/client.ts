@@ -103,6 +103,59 @@ export type ConfigFormProvider = {
   api_key_configured: boolean;
 };
 
+export type ModelCapabilitySuggestion = {
+  context_window?: number | null;
+  max_output_tokens?: number | null;
+  json_mode?: boolean | null;
+};
+
+export type ModelDiscoveryResponse = {
+  schema_version: "model_discovery.v1";
+  provider: string;
+  model: string;
+  status: "ok" | "warning" | "error";
+  available: boolean;
+  message: string;
+  model_ids: string[];
+  model_count: number;
+  configured_model_found?: boolean | null;
+  detected_context_window?: number | null;
+  configured_context_window?: number | null;
+  effective_context_window?: number | null;
+  context_window_source: string;
+  configured_max_output_tokens?: number | null;
+  suggested_config: ModelCapabilitySuggestion;
+  details: Record<string, unknown>;
+};
+
+export type ModelProbeResponse = {
+  schema_version: "model_probe.v1";
+  provider: string;
+  model: string;
+  level: "minimal" | "structured";
+  status: "ok" | "warning" | "error";
+  available: boolean;
+  message: string;
+  latency_ms?: number | null;
+  output_valid?: boolean | null;
+  structured_output?: boolean | null;
+  detected_context_window?: number | null;
+  configured_context_window?: number | null;
+  effective_context_window?: number | null;
+  configured_max_output_tokens?: number | null;
+  suggested_config: ModelCapabilitySuggestion;
+  usage: Record<string, number>;
+  details: Record<string, unknown>;
+};
+
+export type ModelApplyCapabilitiesResponse = {
+  schema_version: "model_apply_capabilities.v1";
+  provider: string;
+  config_path: string;
+  saved: boolean;
+  applied: Record<string, unknown>;
+};
+
 export type ConfigVaultProfile = {
   id: string;
   name: string;
@@ -421,6 +474,37 @@ export async function saveConfigForm(configPath: string | null, form: ConfigForm
   return requestJson("/ui/api/config/form", {
     method: "PUT",
     body: { ...payload, config_path: configPath },
+  });
+}
+
+export async function discoverModelProvider(configPath: string | null, provider: string): Promise<ModelDiscoveryResponse> {
+  return requestJson("/models/discover", {
+    method: "POST",
+    body: { config_path: configPath, provider },
+  });
+}
+
+export async function probeModelProvider(configPath: string | null, provider: string, level: "minimal" | "structured"): Promise<ModelProbeResponse> {
+  return requestJson("/models/probe", {
+    method: "POST",
+    body: { config_path: configPath, provider, level },
+  });
+}
+
+export async function applyModelCapabilities(
+  configPath: string | null,
+  provider: string,
+  values: ModelCapabilitySuggestion,
+): Promise<ModelApplyCapabilitiesResponse> {
+  return requestJson("/models/apply-capabilities", {
+    method: "POST",
+    body: {
+      config_path: configPath,
+      provider,
+      context_window: values.context_window ?? null,
+      max_output_tokens: values.max_output_tokens ?? null,
+      json_mode: values.json_mode ?? null,
+    },
   });
 }
 

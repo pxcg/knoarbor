@@ -28,7 +28,30 @@ Public capability families:
 Each entry point should map to these families rather than inventing a different
 workflow vocabulary.
 
+## CLI Boundary
+
+The CLI exposes stable human and JSON operations for:
+
+- setup and diagnostics: `first-run`, `init`, `serve`, `status`, `doctor`;
+- source preflight: `sources`;
+- write workflows: `ingest`, `lint`;
+- retrieval and feedback: `query`, `query-feedback`;
+- maintained artifacts: `pages`, `reports`;
+- run lifecycle: `runs`.
+
+`pages` and `reports` are read-only mirrors of the public `/wiki/pages*` and
+`/reports*` APIs. They give terminal users the same drilldown path that host-AI
+skills use after query, ingest, or lint runs.
+
+Model provider discovery and capability writeback remain API/UI-oriented for
+now. They are configuration tasks with form-like state, and adding equivalent
+CLI commands is deferred until command shape is worth freezing.
+
 ## Skill Boundary
+
+The bundled host-AI skill lives at `integrations/skills/knoarbor-local`.
+Category folders are intentionally avoided because the package spans query,
+page reading, reports, run inspection, ingest, and lint operations.
 
 The skill should:
 
@@ -50,6 +73,7 @@ Workflow APIs should preserve envelope shape:
 
 ```json
 {
+  "schema_version": "workflow_response.v1",
   "flow": "ingest",
   "execution": "queued",
   "status": "queued",
@@ -61,6 +85,9 @@ Workflow APIs should preserve envelope shape:
 
 CLI `--json` should expose the same concepts. Human output can summarize but
 should not hide report paths, run IDs, or error codes.
+
+`/query` keeps its own retrieval schema (`wiki_query.v1`) because it is a
+read-only evidence endpoint, not a workflow run envelope.
 
 ## Rejected Alternatives
 

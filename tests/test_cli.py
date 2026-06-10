@@ -49,8 +49,10 @@ class CliTests(unittest.TestCase):
             "init",
             "lint",
             "lint-plan",
+            "pages",
             "query",
             "query-feedback",
+            "reports",
             "run-contract",
             "runs",
             "scan",
@@ -439,6 +441,13 @@ connectors:
         run_cancel_args = parser.parse_args(["runs", "cancel", "run-1"])
         lint_primary_args = parser.parse_args(["lint"])
         lint_args = parser.parse_args(["lint-plan"])
+        pages_list_args = parser.parse_args(["pages", "list"])
+        pages_read_args = parser.parse_args(["pages", "read", "concepts/Agent-Loop.md"])
+        pages_read_late_vault_args = parser.parse_args(["pages", "read", "--vault-id", "personal", "concepts/Agent-Loop.md"])
+        pages_links_args = parser.parse_args(["pages", "links", "concepts/Agent-Loop.md"])
+        reports_list_args = parser.parse_args(["reports", "list"])
+        reports_list_late_vault_args = parser.parse_args(["reports", "list", "--vault-id", "personal"])
+        reports_read_args = parser.parse_args(["reports", "read", "maintenance/ingest_report.md"])
 
         self.assertEqual(init_args.command, "init")
         self.assertEqual(status_args.command, "status")
@@ -460,6 +469,75 @@ connectors:
         self.assertEqual(lint_primary_args.command, "lint")
         self.assertEqual(lint_primary_args.mode, "structural")
         self.assertEqual(lint_args.command, "lint-plan")
+        self.assertEqual(pages_list_args.pages_command, "list")
+        self.assertEqual(pages_read_args.pages_command, "read")
+        self.assertEqual(pages_read_late_vault_args.vault_id, "personal")
+        self.assertEqual(pages_links_args.pages_command, "links")
+        self.assertEqual(reports_list_args.reports_command, "list")
+        self.assertEqual(reports_list_late_vault_args.vault_id, "personal")
+        self.assertEqual(reports_read_args.reports_command, "read")
+
+    def test_pages_command_lists_reads_and_links_pages(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "wiki"
+            concepts = vault / "concepts"
+            concepts.mkdir(parents=True)
+            config = root / "config.yaml"
+            config.write_text(f"vault:\n  path: {vault}\n", encoding="utf-8")
+            (concepts / "Agent-Loop.md").write_text(
+                "# Agent Loop\n\n## Summary\n\nAgent loop note.\n\nRelated: [[concepts/Tool-Use|Tool Use]]\n",
+                encoding="utf-8",
+            )
+            (concepts / "Tool-Use.md").write_text(
+                "# Tool Use\n\n## Summary\n\nTool use note.\n\nBack to [[concepts/Agent-Loop|Agent Loop]].\n",
+                encoding="utf-8",
+            )
+
+            list_output = io.StringIO()
+            with redirect_stdout(list_output):
+                list_code = main(["--config", str(config), "pages", "list", "--contains", "agent"])
+
+            read_output = io.StringIO()
+            with redirect_stdout(read_output):
+                read_code = main(["--config", str(config), "pages", "read", "concepts/Agent-Loop.md"])
+
+            links_output = io.StringIO()
+            with redirect_stdout(links_output):
+                links_code = main(["--config", str(config), "pages", "links", "concepts/Agent-Loop.md"])
+
+        self.assertEqual(list_code, 0)
+        self.assertIn("Agent Loop", list_output.getvalue())
+        self.assertEqual(read_code, 0)
+        self.assertIn("# Agent Loop", read_output.getvalue())
+        self.assertEqual(links_code, 0)
+        self.assertIn("outbound_links:", links_output.getvalue())
+        self.assertIn("concepts/Tool-Use.md", links_output.getvalue())
+
+    def test_reports_command_lists_and_reads_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "wiki"
+            maintenance = vault / "maintenance"
+            maintenance.mkdir(parents=True)
+            config = root / "config.yaml"
+            config.write_text(f"vault:\n  path: {vault}\n", encoding="utf-8")
+            report = maintenance / "ingest_report_20260610_120000.md"
+            report.write_text("# Ingest Report\n\n- written_pages: 2\n", encoding="utf-8")
+
+            list_output = io.StringIO()
+            with redirect_stdout(list_output):
+                list_code = main(["--config", str(config), "reports", "list"])
+
+            read_output = io.StringIO()
+            with redirect_stdout(read_output):
+                read_code = main(["--config", str(config), "reports", "read", "maintenance/ingest_report_20260610_120000.md"])
+
+        self.assertEqual(list_code, 0)
+        self.assertIn("reports: 1", list_output.getvalue())
+        self.assertIn("maintenance/ingest_report_20260610_120000.md", list_output.getvalue())
+        self.assertEqual(read_code, 0)
+        self.assertIn("# Ingest Report", read_output.getvalue())
 
     def test_lint_command_prints_unified_maintenance_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

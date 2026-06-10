@@ -67,7 +67,7 @@ export function SourcesPage({ context }: Props) {
             <h2>{context.t("sourceFlowTitle")}</h2>
             <p className="panel-copy">{context.t("sourceFlowCopy")}</p>
           </div>
-          <button className="button secondary" type="button" onClick={() => context.navigate("settings")}>
+          <button className="button secondary" type="button" onClick={context.openSettings}>
             {context.t("openSettings")}
           </button>
         </div>

@@ -46,7 +46,7 @@ export function OverviewPage({ context, onNavigate }: Props) {
         </div>
         <div className="next-step-grid">
           {nextSteps.map((step) => (
-            <button className="next-step-card" key={step.view} onClick={() => onNavigate(step.view)} type="button">
+            <button className="next-step-card" key={step.view} onClick={() => (step.view === "settings" ? context.openSettings() : onNavigate(step.view))} type="button">
               <span className={`next-step-icon tone-${step.tone}`} aria-hidden="true">
                 <LineIcon name={step.icon} />
               </span>

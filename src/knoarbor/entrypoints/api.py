@@ -18,6 +18,7 @@ from knoarbor.entrypoints.routers import (
     create_health_router,
     create_ingest_router,
     create_lint_router,
+    create_models_router,
     create_query_router,
     create_reports_router,
     create_runtime_router,
@@ -42,6 +43,7 @@ def create_app(services: ApplicationServices | None = None) -> FastAPI:
     app.include_router(create_health_router())
     app.include_router(create_ingest_router(services))
     app.include_router(create_lint_router(services))
+    app.include_router(create_models_router(services))
     app.include_router(create_query_router(services))
     app.include_router(create_reports_router())
     app.include_router(create_runtime_router())

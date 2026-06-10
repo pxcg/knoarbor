@@ -145,6 +145,17 @@ is exposed by the endpoint. Keep `json_mode: false` until the local model has
 been verified with structured KnoArbor workflows; hosted providers with stable
 JSON object output can keep `json_mode: true`.
 
+Model capability checks are also available through the stable API:
+
+- `GET /models/providers` lists configured providers without contacting the model runtime.
+- `POST /models/discover` reads provider model metadata and tries to detect context length without generating tokens.
+- `POST /models/probe` runs a bounded generation check; use `minimal` for connectivity and `structured` for JSON contract support.
+- `POST /models/apply-capabilities` explicitly writes detected or selected `context_window`, `max_output_tokens`, and `json_mode` back to `config.yaml`.
+
+Discovery and probes never mutate configuration by themselves. This keeps local
+model experiments reversible: inspect the result first, then apply capabilities
+only when the detected values match the model you intend to use.
+
 Temporary CLI override:
 
 ```bash

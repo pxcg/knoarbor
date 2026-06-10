@@ -171,6 +171,34 @@ uv run knoar query --vault-id personal "Agent Loop 是什么？"
 uv run knoar query-feedback "Agent Loop 是什么？" --useful --selected-path concepts/Agent-Loop.md
 ```
 
+## 页面读取
+
+列出、读取或检查已生成的 Wiki 页面。
+
+```bash
+uv run knoar pages list
+uv run knoar pages list --dir concepts
+uv run knoar pages list --contains "Agent Loop"
+uv run knoar pages read concepts/Agent-Loop-and-Control-Patterns.md
+uv run knoar pages links concepts/Agent-Loop-and-Control-Patterns.md
+uv run knoar pages read --vault-id personal concepts/Agent-Loop-and-Control-Patterns.md
+```
+
+当查询结果需要展开时，使用 `pages read` 读取完整页面正文。使用
+`pages links` 可以查看出站链接和反向链接。
+
+## 运行报告
+
+列出或读取选中知识库中的运行报告。
+
+```bash
+uv run knoar reports list
+uv run knoar reports read maintenance/ingest_report_YYYYMMDD_HHMMSS.md
+uv run knoar reports list --vault-id personal
+```
+
+报告用于查看知识编译、校验维护和查询运行写入了哪些页面、执行了哪些维护操作、是否失败以及 token 和耗时指标。
+
 ## 运行监控
 
 长任务可以通过 run 命令查看进度、事件和取消状态。

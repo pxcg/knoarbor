@@ -1,7 +1,19 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { getConfigDiagnostics, getConfigForm, getDoctor, saveConfig, saveConfigForm, type ConfigForm } from "../api/client";
+import {
+  applyModelCapabilities,
+  discoverModelProvider,
+  getConfigDiagnostics,
+  getConfigForm,
+  probeModelProvider,
+  saveConfig,
+  saveConfigForm,
+  type ConfigForm,
+  type ModelCapabilitySuggestion,
+  type ModelDiscoveryResponse,
+  type ModelProbeResponse,
+} from "../api/client";
 import type { AppContext } from "../App";
 import { ConfigDiagnosticsPanel } from "../components/config/ConfigDiagnosticsPanel";
 import {
@@ -14,13 +26,14 @@ import {
 
 type Props = {
   context: AppContext;
+  embedded?: boolean;
 };
 
-export function ConfigPage({ context }: Props) {
+export function ConfigPage({ context, embedded = false }: Props) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<ConfigForm | null>(null);
   const [activeSection, setActiveSection] = useState<ConfigSectionId>("basic");
-  const [modelTestSummary, setModelTestSummary] = useState<string | null>(null);
+  const [modelProbeResults, setModelProbeResults] = useState<Record<string, ModelProviderProbeState>>({});
 
   const formQuery = useQuery({
     queryKey: ["config-form", context.configPath],
@@ -85,21 +98,62 @@ export function ConfigPage({ context }: Props) {
 
   const saving = structuredSave.isPending || yamlSave.isPending;
 
-  const modelTest = useMutation({
-    mutationFn: () => getDoctor(context.configPath, { checkModelRuntime: true, checkConnectorRuntime: false }),
-    onSuccess: async (report) => {
-      context.setDoctorReport(report);
-      await queryClient.invalidateQueries({ queryKey: ["config-diagnostics"] });
-      const summary = `${context.t("modelConnectivityTested")} ${context.t("status")}: ${context.t(`doctorStatus.${report.status}`)}`;
-      setModelTestSummary(summary);
-      context.setNotice({ message: summary, error: report.status === "error" });
+  async function saveCurrentFormForModelAction(): Promise<string | null> {
+    if (!form) throw new Error("Configuration form is not loaded.");
+    const response = await saveConfigForm(context.configPath, form);
+    context.setConfigPath(response.config_path);
+    context.setConfigExists(true);
+    context.setSummary(response.summary || {});
+    await queryClient.invalidateQueries({ queryKey: ["config-form"] });
+    await queryClient.invalidateQueries({ queryKey: ["config-diagnostics"] });
+    return response.config_path;
+  }
+
+  const discoverMutation = useMutation({
+    mutationFn: async (provider: string) => {
+      const configPath = await saveCurrentFormForModelAction();
+      return discoverModelProvider(configPath, provider);
+    },
+    onSuccess: (result) => {
+      setModelProbeResults((current) => ({
+        ...current,
+        [result.provider]: { ...(current[result.provider] || {}), discovery: result, lastAction: "discover" },
+      }));
+      context.setNotice({ message: result.message, error: !result.available });
+    },
+    onError: (error) => context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true }),
+  });
+
+  const probeMutation = useMutation({
+    mutationFn: async ({ provider, level }: { provider: string; level: "minimal" | "structured" }) => {
+      const configPath = await saveCurrentFormForModelAction();
+      return probeModelProvider(configPath, provider, level);
+    },
+    onSuccess: (result) => {
+      setModelProbeResults((current) => ({
+        ...current,
+        [result.provider]: { ...(current[result.provider] || {}), probe: result, lastAction: result.level },
+      }));
+      context.setNotice({ message: result.message, error: result.status === "error" });
+    },
+    onError: (error) => context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true }),
+  });
+
+  const applyCapabilitiesMutation = useMutation({
+    mutationFn: async ({ provider, values }: { provider: string; values: ModelCapabilitySuggestion }) => {
+      const configPath = await saveCurrentFormForModelAction();
+      return applyModelCapabilities(configPath, provider, values);
+    },
+    onSuccess: async (result) => {
+      await updateSettingsFromDisk();
+      context.setNotice({ message: `${context.t("modelCapabilitiesApplied")} ${Object.keys(result.applied).join(", ")}` });
     },
     onError: (error) => context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true }),
   });
 
   return (
-    <section className="view active">
-      <article className="panel">
+    <section className={embedded ? "settings-embedded" : "view active"}>
+      <article className={embedded ? "settings-embedded-panel" : "panel"}>
         <div className="panel-header">
           <div>
             <h2>{context.t("configuration")}</h2>
@@ -122,8 +176,6 @@ export function ConfigPage({ context }: Props) {
           </div>
         </div>
 
-        <SettingsDoctorGuidance context={context} />
-
         {formQuery.isLoading && <SettingsLoadingState t={context.t} />}
 
         {form && (
@@ -141,9 +193,11 @@ export function ConfigPage({ context }: Props) {
                   form={form}
                   setForm={setForm}
                   t={context.t}
-                  modelTestSummary={modelTestSummary}
-                  testingModels={modelTest.isPending}
-                  onTestModels={() => modelTest.mutate()}
+                  probeResults={modelProbeResults}
+                  pendingAction={modelActionKey(discoverMutation.variables, "discover", discoverMutation.isPending) || modelActionKey(probeMutation.variables, undefined, probeMutation.isPending) || modelActionKey(applyCapabilitiesMutation.variables, "apply", applyCapabilitiesMutation.isPending)}
+                  onDiscover={(provider) => discoverMutation.mutate(provider)}
+                  onProbe={(provider, level) => probeMutation.mutate({ provider, level })}
+                  onApplyCapabilities={(provider, values) => applyCapabilitiesMutation.mutate({ provider, values })}
                 />
               )}
               {activeSection === "diagnostics" && <ConfigDiagnosticsPanel diagnostics={diagnosticsQuery.data} loading={diagnosticsQuery.isFetching} t={context.t} />}
@@ -163,43 +217,29 @@ export function ConfigPage({ context }: Props) {
   );
 }
 
-function SettingsDoctorGuidance({ context }: { context: AppContext }) {
-  const report = context.doctorReport;
-  if (!report) return null;
-  const blockingChecks = report.checks.filter((check) => check.status === "error");
-  const warningChecks = report.checks.filter((check) => check.status === "warning");
-  const checksToShow = blockingChecks.length ? blockingChecks : warningChecks;
-  if (!checksToShow.length && !report.next_steps.length) return null;
-  return (
-    <div className="settings-doctor-guidance">
-      <div className="settings-guidance-header">
-        <h3>{context.t("doctorNextSteps")}</h3>
-        <span className={`pill ${report.status === "ok" ? "success" : report.status === "error" ? "danger" : ""}`}>
-          {context.t(`doctorStatus.${report.status}`)}
-        </span>
-      </div>
-      {!!checksToShow.length && (
-        <ul className={`preflight-list ${blockingChecks.length ? "error" : ""}`}>
-          {checksToShow.slice(0, 4).map((check) => (
-            <li key={check.name}>
-              <strong>{check.name}</strong>
-              <span>{check.message}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {!!report.next_steps.length && (
-        <ul className="settings-next-steps">
-          {report.next_steps.slice(0, 5).map((step) => (
-            <li key={step}>{step}</li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 type ConfigSectionId = "basic" | "inputs" | "preprocessing" | "runtime" | "models" | "diagnostics" | "advanced";
+
+export type ModelProviderProbeState = {
+  discovery?: ModelDiscoveryResponse;
+  probe?: ModelProbeResponse;
+  lastAction?: "discover" | "minimal" | "structured";
+};
+
+function modelActionKey(
+  variables: unknown,
+  forcedAction: "discover" | "minimal" | "structured" | "apply" | undefined,
+  pending: boolean,
+): string | null {
+  if (!pending) return null;
+  if (typeof variables === "string") return `${variables}:${forcedAction || "discover"}`;
+  if (variables && typeof variables === "object" && "provider" in variables) {
+    const record = variables as { provider?: unknown; level?: unknown };
+    const provider = typeof record.provider === "string" ? record.provider : "";
+    const action = forcedAction || (typeof record.level === "string" ? record.level : "probe");
+    return provider ? `${provider}:${action}` : null;
+  }
+  return null;
+}
 
 const CONFIG_SECTIONS: Array<{ id: ConfigSectionId; titleKey: string; copyKey: string }> = [
   { id: "basic", titleKey: "settingsSectionBasic", copyKey: "settingsSectionBasicCopy" },

@@ -1,7 +1,8 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { useState } from "react";
 
-import type { ConfigForm, ConfigFormProvider, ConfigVaultProfile } from "../../api/client";
+import type { ConfigForm, ConfigFormProvider, ConfigVaultProfile, ModelCapabilitySuggestion } from "../../api/client";
+import type { ModelProviderProbeState } from "../../pages/ConfigPage";
 import { BrandIcon, type BrandIconName } from "../BrandIcon";
 
 type SectionProps = {
@@ -418,13 +419,17 @@ export function ConfigModelProvidersSection({
   form,
   setForm,
   t,
-  modelTestSummary,
-  testingModels,
-  onTestModels,
+  probeResults,
+  pendingAction,
+  onDiscover,
+  onProbe,
+  onApplyCapabilities,
 }: SectionProps & {
-  modelTestSummary: string | null;
-  testingModels: boolean;
-  onTestModels: () => void;
+  probeResults: Record<string, ModelProviderProbeState>;
+  pendingAction: string | null;
+  onDiscover: (provider: string) => void;
+  onProbe: (provider: string, level: "minimal" | "structured") => void;
+  onApplyCapabilities: (provider: string, values: ModelCapabilitySuggestion) => void;
 }) {
   const [activeProvider, setActiveProvider] = useState(0);
   const [providerPreset, setProviderPreset] = useState(PROVIDER_PRESETS[0].name);
@@ -491,12 +496,8 @@ export function ConfigModelProvidersSection({
           <button className="button secondary" onClick={addProvider}>
             {t("addProvider")}
           </button>
-          <button className="button secondary" onClick={onTestModels} disabled={testingModels}>
-            {testingModels ? t("testingModels") : t("testModelConnectivity")}
-          </button>
         </div>
       </div>
-      {modelTestSummary && <p className="settings-action-note">{modelTestSummary}</p>}
       <div className="provider-workspace">
         <div className="provider-list">
           {form.providers.map((provider, index) => (
@@ -534,15 +535,98 @@ export function ConfigModelProvidersSection({
               <span>{t("jsonMode")}</span>
             </label>
             <div className="provider-actions">
+              <button className="button secondary" onClick={() => onDiscover(active.name)} disabled={!active.name || pendingAction === `${active.name}:discover`}>
+                {pendingAction === `${active.name}:discover` ? t("discoveringModel") : t("discoverModels")}
+              </button>
+              <button className="button secondary" onClick={() => onProbe(active.name, "minimal")} disabled={!active.name || pendingAction === `${active.name}:minimal`}>
+                {pendingAction === `${active.name}:minimal` ? t("testingModels") : t("minimalProbe")}
+              </button>
+              <button className="button secondary" onClick={() => onProbe(active.name, "structured")} disabled={!active.name || pendingAction === `${active.name}:structured`}>
+                {pendingAction === `${active.name}:structured` ? t("testingModels") : t("structuredProbe")}
+              </button>
+              {hasSuggestedConfig(probeResults[active.name]) && (
+                <button
+                  className="button primary"
+                  onClick={() => onApplyCapabilities(active.name, suggestedConfigFor(probeResults[active.name]))}
+                  disabled={!active.name || pendingAction === `${active.name}:apply`}
+                >
+                  {pendingAction === `${active.name}:apply` ? t("running") : t("applyModelCapabilities")}
+                </button>
+              )}
               <button className="button secondary" onClick={() => removeProvider(activeProvider)}>
                 {t("removeProvider")}
               </button>
             </div>
+            <ModelProbeResultPanel result={probeResults[active.name]} t={t} />
           </div>
         )}
       </div>
     </>
   );
+}
+
+function ModelProbeResultPanel({ result, t }: { result?: ModelProviderProbeState; t: (key: string) => string }) {
+  if (!result?.discovery && !result?.probe) {
+    return <p className="settings-action-note">{t("modelProbeEmpty")}</p>;
+  }
+  const discovery = result.discovery;
+  const probe = result.probe;
+  const suggested = suggestedConfigFor(result);
+  return (
+    <section className="model-probe-panel">
+      <div className="model-probe-header">
+        <h3>{t("modelProbeResult")}</h3>
+        <span className={`pill ${probe?.status === "ok" || discovery?.status === "ok" ? "success" : probe?.status === "error" || discovery?.status === "error" ? "danger" : ""}`}>
+          {probe?.status || discovery?.status || t("unknown")}
+        </span>
+      </div>
+      <p className="panel-copy">{probe?.message || discovery?.message}</p>
+      <dl className="model-probe-grid">
+        <div>
+          <dt>{t("detectedContextWindow")}</dt>
+          <dd>{formatMaybeNumber(probe?.detected_context_window ?? discovery?.detected_context_window)}</dd>
+        </div>
+        <div>
+          <dt>{t("effectiveContextWindow")}</dt>
+          <dd>{formatMaybeNumber(probe?.effective_context_window ?? discovery?.effective_context_window)}</dd>
+        </div>
+        <div>
+          <dt>{t("modelCount")}</dt>
+          <dd>{formatMaybeNumber(discovery?.model_count)}</dd>
+        </div>
+        <div>
+          <dt>{t("latency")}</dt>
+          <dd>{probe?.latency_ms ? `${probe.latency_ms} ms` : t("notAvailable")}</dd>
+        </div>
+        <div>
+          <dt>{t("structuredOutput")}</dt>
+          <dd>{probe?.structured_output === undefined || probe?.structured_output === null ? t("notAvailable") : probe.structured_output ? t("yes") : t("no")}</dd>
+        </div>
+        <div>
+          <dt>{t("suggestedMaxOutput")}</dt>
+          <dd>{formatMaybeNumber(suggested.max_output_tokens)}</dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
+function hasSuggestedConfig(result?: ModelProviderProbeState): boolean {
+  const suggested = suggestedConfigFor(result);
+  return suggested.context_window !== undefined || suggested.max_output_tokens !== undefined || suggested.json_mode !== undefined;
+}
+
+function suggestedConfigFor(result?: ModelProviderProbeState): ModelCapabilitySuggestion {
+  const suggested = result?.probe?.suggested_config || result?.discovery?.suggested_config || {};
+  const values: ModelCapabilitySuggestion = {};
+  if (suggested.context_window !== undefined && suggested.context_window !== null) values.context_window = suggested.context_window;
+  if (suggested.max_output_tokens !== undefined && suggested.max_output_tokens !== null) values.max_output_tokens = suggested.max_output_tokens;
+  if (suggested.json_mode !== undefined && suggested.json_mode !== null) values.json_mode = suggested.json_mode;
+  return values;
+}
+
+function formatMaybeNumber(value: number | null | undefined): string {
+  return typeof value === "number" ? value.toLocaleString() : "n/a";
 }
 
 function ConnectorCard({ title, checked, onChange, children }: { title: string; checked: boolean; onChange: (checked: boolean) => void; children: ReactNode }) {

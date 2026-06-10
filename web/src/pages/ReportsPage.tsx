@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getPage, getReport, getRunEvents, type ReportDetail, type ReportSummary } from "../api/client";
 import type { AppContext } from "../App";
 import { ReportReadableView } from "../components/report/ReportReadableView";
+import { ReportSummaryCard } from "../components/report/ReportSummaryCard";
 import { parseReportRunId } from "../components/report/reportParser";
 import { localizeReportKind, localizeReportLabel, localizeReportTitle } from "../components/reportLabels";
 import { runStatusLabel } from "../components/runStatus";
@@ -17,11 +18,20 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
   const [selected, setSelected] = useState<ReportDetail | null>(null);
   const [selectedRunEvents, setSelectedRunEvents] = useState<RunEvent[]>([]);
   const [activeKind, setActiveKind] = useState<"ingest" | "lint" | "query">("lint");
+  const [activeVaultFilter, setActiveVaultFilter] = useState("all");
   const allReports = useMemo(() => {
     const reports = context.vaultOverviews.length > 1 ? context.vaultOverviews.flatMap((item) => item.reports) : context.reports;
     return [...reports].sort((left, right) => String(right.updated || "").localeCompare(String(left.updated || "")));
   }, [context.reports, context.vaultOverviews]);
-  const filteredReports = useMemo(() => allReports.filter((report) => reportBucket(report.kind) === activeKind), [activeKind, allReports]);
+  const filteredReports = useMemo(
+    () =>
+      allReports.filter((report) => {
+        if (reportBucket(report.kind) !== activeKind) return false;
+        if (activeVaultFilter === "all") return true;
+        return (report.vault_id || report.vault_path || "") === activeVaultFilter;
+      }),
+    [activeKind, activeVaultFilter, allReports],
+  );
   const groupedReports = useMemo(() => groupReportsByVault(filteredReports, context), [context, filteredReports]);
   const reportOverview = useMemo(
     () =>
@@ -114,6 +124,19 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
               </button>
             ))}
           </div>
+          {context.vaultOptions.length > 1 && (
+            <label className="field compact-field report-vault-filter">
+              <span>{context.t("activeVault")}</span>
+              <select value={activeVaultFilter} onChange={(event) => setActiveVaultFilter(event.target.value)}>
+                <option value="all">{context.t("allVaults")}</option>
+                {context.vaultOptions.map((vault) => (
+                  <option key={vault.id} value={vault.id || vault.path}>
+                    {vault.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <div className="page-list">
             {filteredReports.length ? (
               groupedReports.map((group) => (
@@ -151,11 +174,11 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
           </div>
           {selected ? (
             <>
-              <div className="report-summary-card">
-                <strong>{localizeReportTitle(selected.summary.title || selected.path, selected.summary.kind, context.t)}</strong>
-                <span>{selected.summary.path}</span>
-                <p>{context.t("reportReadableHint")}</p>
-              </div>
+              <ReportSummaryCard
+                title={localizeReportTitle(selected.summary.title || selected.path, selected.summary.kind, context.t)}
+                subtitle={selected.summary.path}
+                copy={context.t("reportReadableHint")}
+              />
               <ReportReadableView
                 content={selected.content}
                 t={context.t}

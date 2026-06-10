@@ -12,6 +12,10 @@ PUBLIC_STABLE_ROUTES: tuple[str, ...] = (
     "/doctor",
     "/ingest",
     "/lint",
+    "/models/providers",
+    "/models/discover",
+    "/models/probe",
+    "/models/apply-capabilities",
     "/query",
     "/query/feedback",
     "/query/trends",
@@ -37,6 +41,7 @@ UI_PUBLIC_ROUTES: tuple[str, ...] = (
     "/ui/api/config/diagnostics",
     "/ui/api/status",
     "/ui/api/graph",
+    "/ui/api/tokens",
     "/ui/api/docs/{doc_path}",
     "/ui/{asset_path}",
 )
