@@ -7,5 +7,5 @@
 - [x] Add portable skill helper support for `vaults list`.
 - [x] Document `vault_id` as the preferred selector.
 - [x] Cover API, CLI, and skill helper behavior with tests.
-- [ ] Continue UI consolidation so every page uses the selected vault ID as the
+- [x] Continue UI consolidation so every page uses the selected vault ID as the
       primary workspace selector.

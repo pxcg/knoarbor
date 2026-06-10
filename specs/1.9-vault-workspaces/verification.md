@@ -10,6 +10,7 @@ uv run --offline python -m unittest \
 
 uv run --offline ruff check src tests integrations/skills/knoarbor-local/scripts/knoarbor.py
 uv run --offline python scripts/check-doc-links.py
+cd web && npm run build
 ```
 
 ## Manual

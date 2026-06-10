@@ -105,6 +105,7 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
                   inputScope === "file"
                     ? runIngestFile({
                         config_path: context.configPath,
+                        vault_id: context.activeVaultId,
                         input_path: inputFilePath,
                         write: ingestWrite,
                         write_report: ingestReport,
@@ -112,6 +113,7 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
                       })
                     : runIngest({
                         config_path: context.configPath,
+                        vault_id: context.activeVaultId,
                         connector_names: connectorNames(inputScope, connectors),
                         write: ingestWrite,
                         write_report: ingestReport,
@@ -179,8 +181,8 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
               onClick={() =>
                 runOperation(() =>
                   runLint({
-                    vault_path: context.vaultPath,
                     config_path: context.configPath,
+                    vault_id: context.activeVaultId,
                     mode: lintMode,
                     apply_safe_fixes: lintApplySafe,
                     auto_apply_reviewed_changes: lintApplyReviewed,
@@ -278,7 +280,7 @@ function LatestWorkflowReport({ context, mode }: { context: AppContext; mode: "b
       setDetail(null);
       return;
     }
-    getReport(context.vaultPath, latest.path)
+    getReport(context.activeVaultSelector, latest.path)
       .then((report) => {
         if (!cancelled) setDetail(report);
       })
@@ -288,7 +290,7 @@ function LatestWorkflowReport({ context, mode }: { context: AppContext; mode: "b
     return () => {
       cancelled = true;
     };
-  }, [context.vaultPath, latest]);
+  }, [context.activeVaultSelector, latest]);
 
   if (!detail) return null;
   return (
@@ -311,7 +313,7 @@ function LatestWorkflowReport({ context, mode }: { context: AppContext; mode: "b
           content={detail.content}
           t={context.t}
           onOpenPage={context.openWikiPage}
-          loadPage={(path) => getPage(context.vaultPath, path)}
+          loadPage={(path) => getPage(context.activeVaultSelector, path)}
           inlinePagePreview
         />
       </Suspense>

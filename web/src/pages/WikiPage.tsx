@@ -44,7 +44,7 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
   useEffect(() => {
     setSelectedDetail(null);
     if (!focusedPagePath) setSelectedPath(null);
-  }, [context.vaultPath, focusedPagePath]);
+  }, [context.activeVaultId, focusedPagePath]);
 
   useEffect(() => {
     if (selectedPath && filteredPages.some((page) => page.path === selectedPath)) return;
@@ -62,7 +62,7 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
     }
     let cancelled = false;
     setLoading(true);
-    getPage(context.vaultPath, selectedPath)
+    getPage(context.activeVaultSelector, selectedPath)
       .then((detail) => {
         if (!cancelled) setSelectedDetail(detail);
       })
@@ -75,7 +75,7 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [context.setNotice, context.vaultPath, selectedPath]);
+  }, [context.activeVaultSelector, context.setNotice, selectedPath]);
 
   return (
     <section className="view active">

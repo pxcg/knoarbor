@@ -17,6 +17,7 @@ import {
   getPages,
   getGraph,
   getHealth,
+  getVaults,
   getQueryTrends,
   getActiveRuns,
   getRuns,
@@ -30,6 +31,7 @@ import {
   type QueryResult,
   type ReportSummary,
   type UiStatusResponse,
+  type VaultSelector,
 } from "./api/client";
 import { AppShell } from "./components/AppShell";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
@@ -38,7 +40,7 @@ import { detectLanguage, translate } from "./i18n";
 import { queryKeys } from "./queryKeys";
 import type { Language, ViewName } from "./types";
 import type { RunRecord } from "./types";
-import { buildVaultOptions, nextValidVaultId, resolveActiveVault, type VaultOption, type VaultOverview } from "./vaultRuntime";
+import { buildVaultOptions, buildVaultSelector, nextValidVaultId, resolveActiveVault, type VaultOption, type VaultOverview } from "./vaultRuntime";
 
 const loadOverviewPage = () => import("./pages/OverviewPage").then((module) => ({ default: module.OverviewPage }));
 const loadRunsPage = () => import("./pages/RunsPage").then((module) => ({ default: module.RunsPage }));
@@ -144,10 +146,18 @@ export function App() {
 
   const effectiveConfigPath = configQuery.data?.config_path ?? configPath;
   const effectiveSummary = configQuery.data?.summary || summary;
-  const vaultOptions = useMemo(() => buildVaultOptions(effectiveSummary), [effectiveSummary]);
+  const vaultsQuery = useQuery({
+    queryKey: queryKeys.vaults(effectiveConfigPath),
+    queryFn: () => getVaults(effectiveConfigPath),
+    enabled: configQuery.isSuccess,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+  const vaultOptions = useMemo(() => buildVaultOptions(effectiveSummary, vaultsQuery.data), [effectiveSummary, vaultsQuery.data]);
   const activeVault = useMemo(() => resolveActiveVault(vaultOptions, selectedVaultId, effectiveSummary), [effectiveSummary, selectedVaultId, vaultOptions]);
   const vaultPath = activeVault.path;
   const activeVaultId = activeVault.id;
+  const activeVaultSelector = useMemo(() => buildVaultSelector(effectiveConfigPath, activeVault), [activeVault, effectiveConfigPath]);
 
   const doctorQuery = useQuery({
     queryKey: queryKeys.doctor(effectiveConfigPath),
@@ -167,7 +177,7 @@ export function App() {
 
   const reportsQuery = useQuery({
     queryKey: queryKeys.reports(activeVaultId),
-    queryFn: () => getReports(vaultPath),
+    queryFn: () => getReports(activeVaultSelector),
     enabled: configQuery.isSuccess && Boolean(vaultPath) && needsReports,
     staleTime: 30_000,
     placeholderData: keepPreviousData,
@@ -175,7 +185,7 @@ export function App() {
 
   const activeRunsQuery = useQuery({
     queryKey: queryKeys.activeRuns(activeVaultId),
-    queryFn: () => getActiveRuns(vaultPath),
+    queryFn: () => getActiveRuns(activeVaultSelector),
     enabled: configQuery.isSuccess && Boolean(vaultPath),
     refetchInterval: (query) => {
       const runs = query.state.data?.runs || [];
@@ -187,7 +197,7 @@ export function App() {
 
   const recentRunsQuery = useQuery({
     queryKey: queryKeys.recentRuns(activeVaultId),
-    queryFn: () => getRuns(vaultPath, false, 12),
+    queryFn: () => getRuns(activeVaultSelector, false, 12),
     enabled: configQuery.isSuccess && Boolean(vaultPath) && needsRecentRuns,
     staleTime: 20_000,
     placeholderData: keepPreviousData,
@@ -203,7 +213,7 @@ export function App() {
 
   const pagesQuery = useQuery({
     queryKey: queryKeys.pages(activeVaultId),
-    queryFn: () => getPages(vaultPath),
+    queryFn: () => getPages(activeVaultSelector),
     enabled: configQuery.isSuccess && activeView === "wiki",
     staleTime: 60_000,
     placeholderData: keepPreviousData,
@@ -211,7 +221,7 @@ export function App() {
 
   const queryTrendQuery = useQuery({
     queryKey: queryKeys.queryTrends(activeVaultId),
-    queryFn: () => getQueryTrends(vaultPath),
+    queryFn: () => getQueryTrends(activeVaultSelector),
     enabled: configQuery.isSuccess && activeView === "query",
     staleTime: 60_000,
     placeholderData: keepPreviousData,
@@ -220,7 +230,7 @@ export function App() {
   const vaultOverviewQueries = useQueries({
     queries: vaultOptions.map((vault) => ({
       queryKey: queryKeys.overview(vault.id),
-      queryFn: () => fetchVaultOverview(vault),
+      queryFn: () => fetchVaultOverview(vault, effectiveConfigPath),
       enabled: configQuery.isSuccess && vaultOptions.length > 1 && needsVaultOverview,
       staleTime: 20_000,
       placeholderData: keepPreviousData,
@@ -286,16 +296,17 @@ export function App() {
     };
     const tasks: Promise<unknown>[] = [];
     if (normalizedScope.status) tasks.push(queryClient.fetchQuery({ queryKey: queryKeys.status(vault.id), queryFn: () => getStatus(vault.path), staleTime: 0 }));
-    if (normalizedScope.reports) tasks.push(queryClient.fetchQuery({ queryKey: queryKeys.reports(vault.id), queryFn: () => getReports(vault.path), staleTime: 0 }));
-    if (normalizedScope.activeRuns) tasks.push(queryClient.fetchQuery({ queryKey: queryKeys.activeRuns(vault.id), queryFn: () => getActiveRuns(vault.path), staleTime: 0 }));
-    if (normalizedScope.recentRuns) tasks.push(queryClient.fetchQuery({ queryKey: queryKeys.recentRuns(vault.id), queryFn: () => getRuns(vault.path, false, 12), staleTime: 0 }));
+    const selector = buildVaultSelector(effectiveConfigPath, vault);
+    if (normalizedScope.reports) tasks.push(queryClient.fetchQuery({ queryKey: queryKeys.reports(vault.id), queryFn: () => getReports(selector), staleTime: 0 }));
+    if (normalizedScope.activeRuns) tasks.push(queryClient.fetchQuery({ queryKey: queryKeys.activeRuns(vault.id), queryFn: () => getActiveRuns(selector), staleTime: 0 }));
+    if (normalizedScope.recentRuns) tasks.push(queryClient.fetchQuery({ queryKey: queryKeys.recentRuns(vault.id), queryFn: () => getRuns(selector, false, 12), staleTime: 0 }));
     const results = await Promise.allSettled(tasks);
     const failure = results.find((result) => result.status === "rejected");
     if (failure?.status === "rejected") {
       const reason = failure.reason || t("vaultRefreshFailed");
       setNotice({ message: reason instanceof Error ? reason.message : String(reason), error: true });
     }
-  }, [activeVault, queryClient, t]);
+  }, [activeVault, effectiveConfigPath, queryClient, t]);
 
   useEffect(() => {
     const preloadCommonRoutes = () => {
@@ -352,8 +363,10 @@ export function App() {
     setNotice(null);
     try {
       const configResult = await queryClient.fetchQuery({ queryKey: queryKeys.config, queryFn: getConfig });
-      const nextVaultOptions = buildVaultOptions(configResult.summary || {});
+      const nextRegistry = await queryClient.fetchQuery({ queryKey: queryKeys.vaults(configResult.config_path), queryFn: () => getVaults(configResult.config_path) });
+      const nextVaultOptions = buildVaultOptions(configResult.summary || {}, nextRegistry);
       const nextVault = resolveActiveVault(nextVaultOptions, selectedVaultId, configResult.summary || {});
+      const nextSelector = buildVaultSelector(configResult.config_path, nextVault);
       const refreshTasks: Promise<unknown>[] = [
         queryClient.fetchQuery({ queryKey: queryKeys.health, queryFn: getHealth, staleTime: 0 }),
       ];
@@ -376,10 +389,10 @@ export function App() {
         refreshTasks.push(queryClient.fetchQuery({ queryKey: queryKeys.graph(nextVault.id), queryFn: () => getGraph(nextVault.path), staleTime: 0 }));
       }
       if (activeView === "wiki") {
-        refreshTasks.push(queryClient.fetchQuery({ queryKey: queryKeys.pages(nextVault.id), queryFn: () => getPages(nextVault.path), staleTime: 0 }));
+        refreshTasks.push(queryClient.fetchQuery({ queryKey: queryKeys.pages(nextVault.id), queryFn: () => getPages(nextSelector), staleTime: 0 }));
       }
       if (activeView === "query") {
-        refreshTasks.push(queryClient.fetchQuery({ queryKey: queryKeys.queryTrends(nextVault.id), queryFn: () => getQueryTrends(nextVault.path), staleTime: 0 }));
+        refreshTasks.push(queryClient.fetchQuery({ queryKey: queryKeys.queryTrends(nextVault.id), queryFn: () => getQueryTrends(nextSelector), staleTime: 0 }));
       }
       await Promise.all(refreshTasks);
       return true;
@@ -469,10 +482,10 @@ export function App() {
   const preloadView = useCallback((view: ViewName) => {
     preloadRoute(view);
     if (view === "graph") void queryClient.prefetchQuery({ queryKey: queryKeys.graph(activeVaultId), queryFn: () => getGraph(vaultPath), staleTime: 60_000 });
-    if (view === "wiki") void queryClient.prefetchQuery({ queryKey: queryKeys.pages(activeVaultId), queryFn: () => getPages(vaultPath), staleTime: 60_000 });
-    if (view === "query") void queryClient.prefetchQuery({ queryKey: queryKeys.queryTrends(activeVaultId), queryFn: () => getQueryTrends(vaultPath), staleTime: 60_000 });
-    if (view === "runs") void queryClient.prefetchQuery({ queryKey: queryKeys.recentRuns(activeVaultId), queryFn: () => getRuns(vaultPath, false, 12), staleTime: 20_000 });
-  }, [activeVaultId, queryClient, vaultPath]);
+    if (view === "wiki") void queryClient.prefetchQuery({ queryKey: queryKeys.pages(activeVaultId), queryFn: () => getPages(activeVaultSelector), staleTime: 60_000 });
+    if (view === "query") void queryClient.prefetchQuery({ queryKey: queryKeys.queryTrends(activeVaultId), queryFn: () => getQueryTrends(activeVaultSelector), staleTime: 60_000 });
+    if (view === "runs") void queryClient.prefetchQuery({ queryKey: queryKeys.recentRuns(activeVaultId), queryFn: () => getRuns(activeVaultSelector, false, 12), staleTime: 20_000 });
+  }, [activeVaultId, activeVaultSelector, queryClient, vaultPath]);
 
   const context: AppContext = useMemo(
     () => ({
@@ -515,6 +528,7 @@ export function App() {
       status,
       summary: effectiveSummary,
       activeVaultId,
+      activeVaultSelector,
       vaultOptions,
       vaultOverviews,
       setActiveVaultId,
@@ -547,6 +561,7 @@ export function App() {
       status,
       effectiveSummary,
       activeVaultId,
+      activeVaultSelector,
       vaultOptions,
       vaultOverviews,
       setActiveVaultId,
@@ -669,6 +684,7 @@ export type AppContext = {
   status: UiStatusResponse | null;
   summary: ConfigSummary;
   activeVaultId: string;
+  activeVaultSelector: VaultSelector;
   vaultOptions: VaultOption[];
   vaultOverviews: VaultOverview[];
   setActiveVaultId: (vaultId: string) => void;
@@ -687,12 +703,13 @@ export type VaultRefreshScope = {
   recentRuns?: boolean;
 };
 
-async function fetchVaultOverview(vault: VaultOption): Promise<VaultOverview> {
+async function fetchVaultOverview(vault: VaultOption, configPath: string | null): Promise<VaultOverview> {
+  const selector = buildVaultSelector(configPath, vault);
   const [statusResult, activeRunsResult, recentRunsResult, reportsResult] = await Promise.allSettled([
     getStatus(vault.path),
-    getActiveRuns(vault.path),
-    getRuns(vault.path, false, 6),
-    getReports(vault.path),
+    getActiveRuns(selector),
+    getRuns(selector, false, 6),
+    getReports(selector),
   ]);
   const error = [statusResult, activeRunsResult, recentRunsResult, reportsResult]
     .find((result) => result.status === "rejected");

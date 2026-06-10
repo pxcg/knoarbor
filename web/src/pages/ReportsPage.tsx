@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { getPage, getReport, getRunEvents, type ReportDetail, type ReportSummary } from "../api/client";
+import { getPage, getReport, getRunEvents, type ReportDetail, type ReportSummary, type VaultSelector } from "../api/client";
 import type { AppContext } from "../App";
 import { ReportReadableView } from "../components/report/ReportReadableView";
 import { ReportSummaryCard } from "../components/report/ReportSummaryCard";
@@ -56,7 +56,8 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
   const loadReport = useCallback(async (reportSummary: ReportSummary) => {
     try {
       const vault = vaultForReport(context, reportSummary);
-      const report = await getReport(vault.path, reportSummary.path);
+      const selector = selectorForReport(context, reportSummary, vault);
+      const report = await getReport(selector, reportSummary.path);
       setSelected(report);
       setSelectedRunEvents([]);
       const runId = parseReportRunId(report.content);
@@ -64,7 +65,7 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
         return;
       }
       try {
-        const events = await getRunEvents(vault.path, runId);
+        const events = await getRunEvents(selector, runId);
         setSelectedRunEvents(events.events || []);
       } catch {
         setSelectedRunEvents([]);
@@ -183,7 +184,7 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
                 content={selected.content}
                 t={context.t}
                 onOpenPage={context.openWikiPage}
-                loadPage={(path) => getPage(selected.vault_path || context.vaultPath, path)}
+                loadPage={(path) => getPage(selectorForReport(context, selected.summary, vaultForReport(context, selected.summary)), path)}
                 inlinePagePreview
               />
               <ReportRunEvents events={selectedRunEvents} t={context.t} />
@@ -211,6 +212,14 @@ function vaultForReport(context: AppContext, report: ReportSummary) {
       path: context.vaultPath,
     }
   );
+}
+
+function selectorForReport(context: AppContext, report: ReportSummary, vault = vaultForReport(context, report)): VaultSelector {
+  return {
+    config_path: context.configPath,
+    vault_id: report.vault_id || vault.id,
+    vault_path: report.vault_path || vault.path,
+  };
 }
 
 function groupReportsByVault(reports: ReportSummary[], context: AppContext) {

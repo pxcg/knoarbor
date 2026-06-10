@@ -1,6 +1,7 @@
 export const queryKeys = {
   health: ["health"] as const,
   config: ["config"] as const,
+  vaults: (configPath?: string | null) => ["vaults", configPath || "default"] as const,
   doctor: (configPath?: string | null) => ["doctor", configPath || "default", "light"] as const,
   sourceCatalog: (configPath?: string | null) => ["sources", "catalog", configPath || "default"] as const,
   status: (vaultId: string) => ["vault", vaultId, "status"] as const,

@@ -62,7 +62,7 @@ function RunMonitorItem({ context, run }: { context: AppContext; run: RunRecord 
 
   useEffect(() => {
     let cancelled = false;
-    getRunEvents(context.vaultPath, run.run_id)
+    getRunEvents(context.activeVaultSelector, run.run_id)
       .then((response) => {
         if (!cancelled) setEvents(response.events || []);
       })
@@ -72,7 +72,7 @@ function RunMonitorItem({ context, run }: { context: AppContext; run: RunRecord 
     return () => {
       cancelled = true;
     };
-  }, [context.vaultPath, run.run_id, run.updated_at]);
+  }, [context.activeVaultSelector, run.run_id, run.updated_at]);
 
   useEffect(() => {
     setSelectedNode(currentStageKey(run));
@@ -80,7 +80,7 @@ function RunMonitorItem({ context, run }: { context: AppContext; run: RunRecord 
 
   async function recoverRun() {
     try {
-      const response = await rerunFailedRun(context.vaultPath, run.run_id, {
+      const response = await rerunFailedRun(context.activeVaultSelector, run.run_id, {
         config_path: context.configPath,
       });
       context.setNotice({ message: context.t("rerunStarted") });
@@ -157,7 +157,7 @@ function RunMonitorItem({ context, run }: { context: AppContext; run: RunRecord 
               </button>
             )}
             {run.status !== "failed" && run.status !== "completed" && run.status !== "cancelled" && run.status !== "partially_failed" && (
-              <button className="button secondary" onClick={() => void cancelRun(context.vaultPath, run.run_id).then(() => context.loadVaultState())}>
+              <button className="button secondary" onClick={() => void cancelRun(context.activeVaultSelector, run.run_id).then(() => context.loadVaultState())}>
                 {context.t("cancel")}
               </button>
             )}

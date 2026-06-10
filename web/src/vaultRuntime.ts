@@ -1,4 +1,4 @@
-import type { ConfigSummary } from "./api/client";
+import type { ConfigSummary, VaultListResponse, VaultSelector } from "./api/client";
 import type { ReportSummary, UiStatusResponse } from "./api/client";
 import type { RunRecord } from "./types";
 
@@ -6,6 +6,7 @@ export type VaultOption = {
   id: string;
   name: string;
   path: string;
+  exists?: boolean;
 };
 
 export type VaultOverview = {
@@ -17,7 +18,16 @@ export type VaultOverview = {
   error?: string | null;
 };
 
-export function buildVaultOptions(summary: ConfigSummary): VaultOption[] {
+export function buildVaultOptions(summary: ConfigSummary, registry?: VaultListResponse | null): VaultOption[] {
+  const registryVaults = registry?.vaults?.filter((vault) => vault.id && vault.path) || [];
+  if (registryVaults.length) {
+    return registryVaults.map((vault) => ({
+      id: vault.id,
+      name: vault.name || vault.id,
+      path: vault.path,
+      exists: vault.exists,
+    }));
+  }
   const configured = summary.vaults?.filter((vault) => vault.id && vault.path) || [];
   if (configured.length) {
     return configured.map((vault) => ({
@@ -50,4 +60,12 @@ export function resolveActiveVault(options: VaultOption[], preferredId: string, 
 export function nextValidVaultId(options: VaultOption[], preferredId: string, summary: ConfigSummary): string {
   if (options.some((vault) => vault.id === preferredId)) return preferredId;
   return summary.vault_id || options[0]?.id || "default";
+}
+
+export function buildVaultSelector(configPath: string | null, vault: VaultOption): VaultSelector {
+  return {
+    config_path: configPath,
+    vault_id: vault.id,
+    vault_path: vault.path,
+  };
 }

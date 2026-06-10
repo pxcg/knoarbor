@@ -169,6 +169,27 @@ export type ConfigVaultSummary = {
   path: string;
 };
 
+export type VaultProfile = {
+  id: string;
+  name: string;
+  path: string;
+  active: boolean;
+  exists: boolean;
+};
+
+export type VaultListResponse = {
+  schema_version: "vaults.v1";
+  config_path?: string | null;
+  default_vault_id?: string | null;
+  vaults: VaultProfile[];
+};
+
+export type VaultSelector = {
+  config_path?: string | null;
+  vault_id?: string | null;
+  vault_path?: string | null;
+};
+
 export type ConfigForm = {
   project_name: string;
   vault_path: string;
@@ -441,6 +462,13 @@ export async function getConfig(): Promise<UiConfigResponse> {
   return requestJson("/ui/api/config");
 }
 
+export async function getVaults(configPath?: string | null): Promise<VaultListResponse> {
+  const params = new URLSearchParams();
+  if (configPath) params.set("config_path", configPath);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return requestJson(`/vaults${suffix}`);
+}
+
 export async function saveConfig(configPath: string | null, content: string): Promise<UiConfigUpdateResponse> {
   return requestJson("/ui/api/config", {
     method: "PUT",
@@ -516,16 +544,16 @@ export async function getGraph(vaultPath: string): Promise<GraphResponse> {
   return requestJson(`/ui/api/graph?vault_path=${encodeURIComponent(vaultPath)}`);
 }
 
-export async function getPages(vaultPath: string): Promise<{ vault_path: string; pages: PageSummary[] }> {
-  return requestJson(`/wiki/pages?vault_path=${encodeURIComponent(vaultPath)}`);
+export async function getPages(selector: VaultSelector): Promise<{ vault_path: string; pages: PageSummary[] }> {
+  return requestJson(`/wiki/pages?${singleVaultQuery(selector)}`);
 }
 
-export async function getPage(vaultPath: string, path: string): Promise<PageDetail> {
-  return requestJson(`/wiki/pages/content?vault_path=${encodeURIComponent(vaultPath)}&path=${encodeURIComponent(path)}`);
+export async function getPage(selector: VaultSelector, path: string): Promise<PageDetail> {
+  return requestJson(`/wiki/pages/content?${singleVaultQuery(selector)}&path=${encodeURIComponent(path)}`);
 }
 
-export async function getPageLinks(vaultPath: string, path: string): Promise<{ path: string; outbound_links: PageLink[]; backlinks: PageLink[] }> {
-  return requestJson(`/wiki/pages/links?vault_path=${encodeURIComponent(vaultPath)}&path=${encodeURIComponent(path)}`);
+export async function getPageLinks(selector: VaultSelector, path: string): Promise<{ path: string; outbound_links: PageLink[]; backlinks: PageLink[] }> {
+  return requestJson(`/wiki/pages/links?${singleVaultQuery(selector)}&path=${encodeURIComponent(path)}`);
 }
 
 export type VaultScopedListOptions = {
@@ -535,22 +563,36 @@ export type VaultScopedListOptions = {
   all_vaults?: boolean;
 };
 
-function vaultListQuery(vaultPath: string, options: VaultScopedListOptions = {}) {
+function singleVaultQuery(selector: VaultSelector) {
   const params = new URLSearchParams();
-  if (vaultPath) params.set("vault_path", vaultPath);
-  if (options.config_path) params.set("config_path", options.config_path);
-  if (options.vault_id) params.set("vault_id", options.vault_id);
+  if (selector.config_path) params.set("config_path", selector.config_path);
+  if (selector.vault_id) params.set("vault_id", selector.vault_id);
+  if (!selector.vault_id && selector.vault_path) params.set("vault_path", selector.vault_path);
+  return params.toString();
+}
+
+function vaultListQuery(selector: VaultSelector, options: VaultScopedListOptions = {}) {
+  const params = new URLSearchParams();
+  const configPath = options.config_path ?? selector.config_path;
+  if (configPath) params.set("config_path", configPath);
+  if (options.vault_id) {
+    params.set("vault_id", options.vault_id);
+  } else if (selector.vault_id && !options.all_vaults && !options.vault_ids?.length) {
+    params.set("vault_id", selector.vault_id);
+  } else if (!options.all_vaults && !options.vault_ids?.length && selector.vault_path) {
+    params.set("vault_path", selector.vault_path);
+  }
   if (options.all_vaults) params.set("all_vaults", "true");
   for (const vaultId of options.vault_ids || []) params.append("vault_ids", vaultId);
   return params.toString();
 }
 
-export async function getReports(vaultPath: string, options: VaultScopedListOptions = {}): Promise<{ vault_path: string; vault_id?: string | null; vault_name?: string | null; reports: ReportSummary[] }> {
-  return requestJson(`/reports?${vaultListQuery(vaultPath, options)}`);
+export async function getReports(selector: VaultSelector, options: VaultScopedListOptions = {}): Promise<{ vault_path: string; vault_id?: string | null; vault_name?: string | null; reports: ReportSummary[] }> {
+  return requestJson(`/reports?${vaultListQuery(selector, options)}`);
 }
 
-export async function getReport(vaultPath: string, path: string): Promise<ReportDetail> {
-  return requestJson(`/reports/content?vault_path=${encodeURIComponent(vaultPath)}&path=${encodeURIComponent(path)}`);
+export async function getReport(selector: VaultSelector, path: string): Promise<ReportDetail> {
+  return requestJson(`/reports/content?${singleVaultQuery(selector)}&path=${encodeURIComponent(path)}`);
 }
 
 export async function getTokenAnalysis(vaultPath: string, limit = 5000): Promise<TokenAnalysis> {
@@ -574,27 +616,27 @@ export async function runLint(body: Record<string, unknown>): Promise<unknown> {
   return requestJson("/lint", { method: "POST", body: { execution: "queued", ...body } });
 }
 
-export async function getRuns(vaultPath: string, activeOnly = false, limit = 50, options: VaultScopedListOptions = {}): Promise<{ runs: import("../types").RunRecord[] }> {
-  const params = vaultListQuery(vaultPath, options);
+export async function getRuns(selector: VaultSelector, activeOnly = false, limit = 50, options: VaultScopedListOptions = {}): Promise<{ runs: import("../types").RunRecord[] }> {
+  const params = vaultListQuery(selector, options);
   return requestJson(`/runs?${params}&active_only=${activeOnly ? "true" : "false"}&limit=${limit}`);
 }
 
-export async function getActiveRuns(vaultPath: string): Promise<{ runs: import("../types").RunRecord[] }> {
-  return requestJson(`/runs?vault_path=${encodeURIComponent(vaultPath)}&active_only=true`);
+export async function getActiveRuns(selector: VaultSelector): Promise<{ runs: import("../types").RunRecord[] }> {
+  return requestJson(`/runs?${singleVaultQuery(selector)}&active_only=true`);
 }
 
-export async function getRunEvents(vaultPath: string, runId: string, after = 0): Promise<{ events: import("../types").RunEvent[] }> {
-  return requestJson(`/runs/${encodeURIComponent(runId)}/events?vault_path=${encodeURIComponent(vaultPath)}&after=${after}`);
+export async function getRunEvents(selector: VaultSelector, runId: string, after = 0): Promise<{ events: import("../types").RunEvent[] }> {
+  return requestJson(`/runs/${encodeURIComponent(runId)}/events?${singleVaultQuery(selector)}&after=${after}`);
 }
 
-export async function cancelRun(vaultPath: string, runId: string): Promise<import("../types").RunRecord> {
-  return requestJson(`/runs/${encodeURIComponent(runId)}/cancel?vault_path=${encodeURIComponent(vaultPath)}`, { method: "POST" });
+export async function cancelRun(selector: VaultSelector, runId: string): Promise<import("../types").RunRecord> {
+  return requestJson(`/runs/${encodeURIComponent(runId)}/cancel?${singleVaultQuery(selector)}`, { method: "POST" });
 }
 
-export async function rerunFailedRun(vaultPath: string, runId: string, body: Record<string, unknown> = {}): Promise<unknown> {
+export async function rerunFailedRun(selector: VaultSelector, runId: string, body: Record<string, unknown> = {}): Promise<unknown> {
   return requestJson("/ingest", {
     method: "POST",
-    body: { execution: "queued", kind: "recovery", recovery_vault_path: vaultPath, recovery_of_run_id: runId, ...body },
+    body: { execution: "queued", kind: "recovery", config_path: selector.config_path, vault_id: selector.vault_id, recovery_vault_path: selector.vault_path, recovery_of_run_id: runId, ...body },
   });
 }
 
@@ -609,7 +651,7 @@ export type QuerySearchOptions = {
 };
 
 export async function searchWiki(
-  vaultPath: string,
+  selector: VaultSelector,
   query: string,
   options: QuerySearchOptions = {},
 ): Promise<{
@@ -624,7 +666,9 @@ export async function searchWiki(
   return requestJson("/query", {
     method: "POST",
     body: {
-      vault_path: vaultPath,
+      config_path: selector.config_path,
+      vault_id: selector.vault_id,
+      vault_path: selector.vault_id ? undefined : selector.vault_path,
       query,
       vault_ids: options.vault_ids || [],
       all_vaults: options.all_vaults || false,
@@ -638,7 +682,7 @@ export async function searchWiki(
 }
 
 export async function sendQueryFeedback(
-  vaultPath: string,
+  selector: VaultSelector,
   body: {
     query: string;
     useful?: boolean | null;
@@ -650,7 +694,9 @@ export async function sendQueryFeedback(
   return requestJson("/query/feedback", {
     method: "POST",
     body: {
-      vault_path: vaultPath,
+      config_path: selector.config_path,
+      vault_id: selector.vault_id,
+      vault_path: selector.vault_id ? undefined : selector.vault_path,
       query: body.query,
       useful: body.useful ?? null,
       selected_paths: body.selected_paths || [],
@@ -661,8 +707,8 @@ export async function sendQueryFeedback(
   });
 }
 
-export async function getQueryTrends(vaultPath: string, limit = 100): Promise<QueryTrendResponse> {
-  return requestJson(`/query/trends?vault_path=${encodeURIComponent(vaultPath)}&limit=${limit}`);
+export async function getQueryTrends(selector: VaultSelector, limit = 100): Promise<QueryTrendResponse> {
+  return requestJson(`/query/trends?${singleVaultQuery(selector)}&limit=${limit}`);
 }
 
 async function requestJson<T>(url: string, options: { method?: string; body?: unknown } = {}): Promise<T> {

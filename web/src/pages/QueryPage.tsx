@@ -30,7 +30,7 @@ export function QueryPage({ context, embedded = false }: Props) {
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
-      const response = await searchWiki(context.vaultPath, query.trim(), {
+      const response = await searchWiki(context.activeVaultSelector, query.trim(), {
         mode,
         context_format: contextFormat,
         page_dirs: pageDirsValue,
@@ -45,7 +45,7 @@ export function QueryPage({ context, embedded = false }: Props) {
       context.setQueryResults(nextScopedResults.map((item) => item.result));
       context.setQueryContextPack(response.context_pack || "");
       if (targetVaults.some((vault) => vault.id === context.activeVaultId)) {
-        const trend = await getQueryTrends(context.vaultPath);
+        const trend = await getQueryTrends(context.activeVaultSelector);
         context.setQueryTrend(trend);
       }
     } catch (error) {
