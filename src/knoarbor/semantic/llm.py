@@ -214,11 +214,17 @@ class OpenAICompatibleChatClient:
                 details={"elapsed_seconds": round(time.perf_counter() - started, 3)},
             )
 
+        model_details = _extract_model_list_details(body, self.model)
         return ProviderHealthCheck(
             available=200 <= int(status_code) < 300,
             structured_output=self.json_mode,
             message="Provider endpoint responded to /models.",
-            details={"status_code": int(status_code), "body_preview": body[:500], "elapsed_seconds": round(time.perf_counter() - started, 3)},
+            details={
+                "status_code": int(status_code),
+                "body_preview": body[:500],
+                "elapsed_seconds": round(time.perf_counter() - started, 3),
+                **model_details,
+            },
         )
 
     def _headers(self, *, content_type: bool) -> dict[str, str]:
@@ -294,6 +300,29 @@ def _extract_usage(data: object) -> dict[str, int]:
         if isinstance(cached_tokens, int):
             result["prompt_cached_tokens"] = cached_tokens
     return result
+
+
+def _extract_model_list_details(body: str, configured_model: str) -> dict[str, object]:
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        return {"models_list_valid": False, "model_ids": [], "configured_model_found": False}
+    if not isinstance(payload, dict):
+        return {"models_list_valid": False, "model_ids": [], "configured_model_found": False}
+    data = payload.get("data")
+    if not isinstance(data, list):
+        return {"models_list_valid": False, "model_ids": [], "configured_model_found": False}
+    model_ids = [
+        item.get("id")
+        for item in data
+        if isinstance(item, dict) and isinstance(item.get("id"), str) and item.get("id")
+    ]
+    return {
+        "models_list_valid": True,
+        "model_ids": model_ids[:100],
+        "model_count": len(model_ids),
+        "configured_model_found": configured_model in model_ids,
+    }
 
 
 def _tokens_per_second(usage: dict[str, int], elapsed_seconds: float) -> float | None:

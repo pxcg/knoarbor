@@ -410,6 +410,63 @@ class SemanticRunnerTests(unittest.TestCase):
         self.assertEqual(response.usage["prompt_cache_miss_tokens"], 36)
         self.assertEqual(response.usage["prompt_cached_tokens"], 48)
 
+    def test_openai_compatible_client_reports_models_list_details(self) -> None:
+        client = OpenAICompatibleChatClient(
+            provider="ollama",
+            base_url="http://127.0.0.1:11434/v1",
+            api_key="",
+            model="qwen3:14b",
+            json_mode=False,
+        )
+
+        class ModelsResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self) -> bytes:
+                return b'{"object":"list","data":[{"id":"qwen3:14b"},{"id":"llama3.1:8b"}]}'
+
+        with patch("urllib.request.urlopen", return_value=ModelsResponse()):
+            health = client.check()
+
+        self.assertTrue(health.available)
+        self.assertTrue(health.details["models_list_valid"])
+        self.assertEqual(health.details["model_count"], 2)
+        self.assertTrue(health.details["configured_model_found"])
+
+    def test_openai_compatible_client_reports_empty_ollama_model_list(self) -> None:
+        client = OpenAICompatibleChatClient(
+            provider="ollama",
+            base_url="http://127.0.0.1:11434/v1",
+            api_key="",
+            model="qwen3:14b",
+            json_mode=False,
+        )
+
+        class ModelsResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self) -> bytes:
+                return b'{"object":"list","data":null}'
+
+        with patch("urllib.request.urlopen", return_value=ModelsResponse()):
+            health = client.check()
+
+        self.assertTrue(health.available)
+        self.assertFalse(health.details["models_list_valid"])
+        self.assertFalse(health.details["configured_model_found"])
+
     def test_openai_compatible_client_wraps_interrupted_responses(self) -> None:
         client = OpenAICompatibleChatClient(
             provider="deepseek",

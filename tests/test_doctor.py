@@ -52,7 +52,15 @@ class DoctorServiceTests(unittest.TestCase):
                 f"        - {notes}\n",
                 encoding="utf-8",
             )
-            with patch("knoarbor.services.doctor.ModelGateway.check", return_value=ProviderHealthCheck(available=True, structured_output=True, message="ok")):
+            with patch(
+                "knoarbor.services.doctor.ModelGateway.check",
+                return_value=ProviderHealthCheck(
+                    available=True,
+                    structured_output=True,
+                    message="ok",
+                    details={"models_list_valid": True, "model_count": 1, "model_ids": ["qwen"], "configured_model_found": True},
+                ),
+            ):
                 report = DoctorService().run(config_path=config)
 
         self.assertEqual(report.status, "ok")
@@ -91,7 +99,15 @@ class DoctorServiceTests(unittest.TestCase):
                 f"        - {notes}\n",
                 encoding="utf-8",
             )
-            with patch("knoarbor.services.doctor.ModelGateway.check", return_value=ProviderHealthCheck(available=True, structured_output=True, message="ok")):
+            with patch(
+                "knoarbor.services.doctor.ModelGateway.check",
+                return_value=ProviderHealthCheck(
+                    available=True,
+                    structured_output=True,
+                    message="ok",
+                    details={"models_list_valid": True, "model_count": 1, "model_ids": ["qwen"], "configured_model_found": True},
+                ),
+            ):
                 report = DoctorService().run(config_path=config)
 
         checks = {check.name: check for check in report.checks}
@@ -130,6 +146,43 @@ class DoctorServiceTests(unittest.TestCase):
         checks = {check.name: check for check in report.checks}
         self.assertEqual(checks["connectors.enabled"].status, "ok")
         self.assertNotIn("connectors.markdown", checks)
+
+    def test_runtime_doctor_warns_when_local_provider_has_no_models(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "wiki"
+            vault.mkdir()
+            for name in ["SCHEMA.md", "index.md", "log.md", ".knoarborignore"]:
+                (vault / name).write_text("", encoding="utf-8")
+            config = root / "config.yaml"
+            config.write_text(
+                f"vault:\n  path: {vault}\n"
+                "models:\n"
+                "  default_provider: ollama\n"
+                "  providers:\n"
+                "    ollama:\n"
+                "      base_url: http://127.0.0.1:11434/v1\n"
+                "      model: qwen3:14b\n"
+                "      json_mode: false\n"
+                "connectors: {}\n",
+                encoding="utf-8",
+            )
+            with patch(
+                "knoarbor.services.doctor.ModelGateway.check",
+                return_value=ProviderHealthCheck(
+                    available=True,
+                    structured_output=False,
+                    message="Provider endpoint responded to /models.",
+                    details={"models_list_valid": True, "model_count": 0, "model_ids": [], "configured_model_found": False},
+                ),
+            ):
+                report = DoctorService().run(config_path=config)
+
+        checks = {check.name: check for check in report.checks}
+        self.assertEqual(checks["models.endpoint"].status, "ok")
+        self.assertEqual(checks["models.configured_model"].status, "warning")
+        self.assertIn("no models", checks["models.configured_model"].message)
+        self.assertTrue(any("qwen3:14b" in step for step in report.next_steps))
 
     def test_reports_all_vault_profiles(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

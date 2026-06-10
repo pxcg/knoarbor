@@ -12,7 +12,7 @@ from knoarbor.core.config import KnoArborConfig, ModelProviderConfig, default_co
 from knoarbor.core.schemas.doctor import DoctorCheck, DoctorReport, DoctorStatus
 from knoarbor.core.wiki_schema import CONTENT_PAGE_DIRS
 from knoarbor.runtime.run_monitor import list_runs
-from knoarbor.semantic.llm import ModelGateway, is_local_or_private_model_endpoint
+from knoarbor.semantic.llm import ModelGateway, ProviderHealthCheck, is_local_or_private_model_endpoint
 
 
 class DoctorService:
@@ -220,7 +220,7 @@ class DoctorService:
             return []
         gateway = ModelGateway.from_config(provider_name, provider, timeout_seconds=5)
         health = gateway.check()
-        return [
+        checks = [
             DoctorCheck(
                 name="models.endpoint",
                 status="ok" if health.available else "warning",
@@ -234,6 +234,9 @@ class DoctorService:
                 details={"provider": provider_name, "json_mode": bool(health.structured_output)},
             ),
         ]
+        if health.available:
+            checks.append(_configured_model_check(provider_name, provider, health))
+        return checks
 
     def _connector_checks(self, config: KnoArborConfig, connector_names: list[str] | None, *, check_connector_runtime: bool) -> list[DoctorCheck]:
         checks: list[DoctorCheck] = []
@@ -335,6 +338,46 @@ class DoctorService:
         ]
 
 
+def _configured_model_check(provider_name: str, provider: ModelProviderConfig, health: ProviderHealthCheck) -> DoctorCheck:
+    details: dict[str, object] = {
+        "provider": provider_name,
+        "model": provider.model,
+        "models_list_valid": health.details.get("models_list_valid"),
+        "model_count": health.details.get("model_count", 0),
+        "configured_model_found": health.details.get("configured_model_found"),
+    }
+    model_ids = health.details.get("model_ids")
+    if isinstance(model_ids, list):
+        details["model_ids_preview"] = model_ids[:20]
+    if health.details.get("models_list_valid") is not True:
+        return DoctorCheck(
+            name="models.configured_model",
+            status="warning",
+            message="Provider endpoint is reachable, but /models did not return a standard model list.",
+            details=details,
+        )
+    if int(health.details.get("model_count") or 0) == 0:
+        return DoctorCheck(
+            name="models.configured_model",
+            status="warning",
+            message="Provider endpoint is reachable, but no models are installed or exposed.",
+            details=details,
+        )
+    if health.details.get("configured_model_found") is True:
+        return DoctorCheck(
+            name="models.configured_model",
+            status="ok",
+            message="Configured model is exposed by the provider endpoint.",
+            details=details,
+        )
+    return DoctorCheck(
+        name="models.configured_model",
+        status="warning",
+        message="Configured model was not found in the provider model list.",
+        details=details,
+    )
+
+
 def _report(checks: Iterable[DoctorCheck], *, config_path: str | None) -> DoctorReport:
     items = list(checks)
     summary = {status: sum(1 for check in items if check.status == status) for status in ("ok", "warning", "error")}
@@ -378,7 +421,15 @@ def _next_steps(checks: list[DoctorCheck]) -> list[str]:
             add(f"Set `{api_key_env}` in .env, then reload the environment before running semantic workflows.")
         else:
             add("Set the configured model API key environment variable before running semantic workflows.")
-    elif status_of("models.structured_output") == "warning":
+    if status_of("models.configured_model") == "warning":
+        check = by_name["models.configured_model"]
+        model = check.details.get("model")
+        provider = check.details.get("provider")
+        if model:
+            add(f"Install or expose model `{model}` on provider `{provider}` before running semantic workflows.")
+        else:
+            add("Install or expose the configured model before running semantic workflows.")
+    if status_of("models.structured_output") == "warning":
         add("Enable JSON mode for the model provider when available to make structured agent outputs more reliable.")
 
     if status_of("connectors.enabled") == "warning":
