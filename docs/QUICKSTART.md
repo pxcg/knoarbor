@@ -8,7 +8,7 @@ Requirements:
 
 - Python 3.12
 - `uv`
-- One OpenAI-compatible model provider, such as DeepSeek, OpenAI, OpenRouter, Ollama, or LM Studio
+- One OpenAI-compatible model provider, such as DeepSeek, OpenAI, OpenRouter, Ollama, LM Studio, or vLLM
 
 Install dependencies:
 
@@ -116,7 +116,7 @@ For one prepared `source_document.v1` JSON file:
 uv run knoar ingest --source-document /path/to/source_document.json --write
 ```
 
-## 7. Run Lint
+## 6. Run Lint
 
 Structural repair:
 

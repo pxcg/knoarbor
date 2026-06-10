@@ -15,7 +15,7 @@
 
 KnoArbor 是一个 AI 原生 Wiki 引擎，将多源信息编译成可追溯、可维护的知识网络，让零散的知识像树一样生长。
 
-KnoArbor 不是另一个聊天界面。它更像一层长期知识基础设施，为 Hermes、Codex、Obsidian、本地 CLI 工作流和未来 AI 助手提供可积累、可维护、可查询的知识层。
+KnoArbor 提供一层长期知识基础设施，为 Hermes、Codex、Obsidian、本地 CLI 工作流和未来 AI 助手提供可积累、可维护、可查询的知识层。
 
 ```text
 原始资料 -> 知识编译 -> Markdown Wiki -> 校验维护 -> 查询上下文
@@ -123,6 +123,8 @@ git clone https://github.com/pxcg/knoarbor.git
 cd knoarbor
 uv sync
 ```
+
+完整本地安装部署步骤见 [安装部署](docs/zh/INSTALLATION.md)。
 
 ## 快速开始
 
@@ -269,7 +271,7 @@ Query 只负责检索上下文和证据，最终回答由宿主 AI 生成。
 
 ## 当前状态
 
-KnoArbor 正在准备第一个公开 1.0 版本。核心本地流程、CLI、稳定 HTTP API、内置控制台和宿主 AI skill 模板，目标是作为单用户本地知识引擎一起使用。
+KnoArbor 处于 1.x 本地优先版本线。核心本地流程、CLI、稳定 HTTP API、内置控制台、多知识库配置和宿主 AI skill 模板，目标是作为单用户本地知识引擎一起使用。
 
 已经实现：
 
@@ -279,6 +281,7 @@ KnoArbor 正在准备第一个公开 1.0 版本。核心本地流程、CLI、稳
 - FastAPI 服务和 CLI 入口。
 - 随 Python 包分发的本地 React 控制台。
 - 运行时 Wiki 初始化、机器索引、队列、文件锁、账本、报告和断点。
+- 多知识库配置、查询、运行/报告列表和 skill drilldown。
 
 当前本地优先版本暂不包含：
 

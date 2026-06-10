@@ -52,12 +52,12 @@ models:
     #   base_url: http://127.0.0.1:11434/v1
     #   api_key_env:
     #   model: qwen3:14b
-    #   json_mode: true
+    #   json_mode: false
     # vllm:
     #   base_url: http://127.0.0.1:8001/v1
     #   api_key_env:
     #   model: Qwen/Qwen3-32B-Instruct
-    #   json_mode: true
+    #   json_mode: false
 
 document_processing:
   mineru:

@@ -122,11 +122,19 @@ models:
       base_url: http://localhost:11434/v1
       api_key_env:
       model: qwen2.5:14b
+      json_mode: false
     vllm:
       base_url: http://localhost:8001/v1
       api_key_env:
       model: Qwen/Qwen3-32B-Instruct
+      json_mode: false
 ```
+
+For local providers, run `uv run knoar doctor --json` after starting the
+runtime. Doctor checks that `/models` is reachable and that the configured model
+is exposed by the endpoint. Keep `json_mode: false` until the local model has
+been verified with structured KnoArbor workflows; hosted providers with stable
+JSON object output can keep `json_mode: true`.
 
 Temporary CLI override:
 

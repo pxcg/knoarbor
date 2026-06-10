@@ -15,7 +15,7 @@
 
 KnoArbor is an AI-native wiki engine that compiles multi-source information into a traceable, maintainable knowledge network, helping scattered knowledge grow like a tree.
 
-KnoArbor is not another chat UI. It is a durable knowledge layer for tools such as Hermes, Codex, Obsidian, local CLI workflows, and future AI assistants.
+KnoArbor provides a durable knowledge layer for tools such as Hermes, Codex, Obsidian, local CLI workflows, and future AI assistants.
 
 ```text
 Raw sources -> Ingest -> Markdown wiki -> Lint -> Query context
@@ -123,6 +123,8 @@ git clone https://github.com/pxcg/knoarbor.git
 cd knoarbor
 uv sync
 ```
+
+For a complete local installation path, see [Installation](docs/INSTALLATION.md).
 
 ## Quick Start
 
