@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.entrypoints.api import create_app
 from knoarbor.storage.wiki_init import init_wiki_vault
+from knoarbor.storage.wiki_paths import content_root
 
 
 class UiApiTests(unittest.TestCase):
@@ -36,7 +37,7 @@ class UiApiTests(unittest.TestCase):
     def test_ui_config_can_validate_and_save_local_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             config_path = Path(tmp_dir) / "config.yaml"
-            vault_path = Path(tmp_dir) / "wiki"
+            vault_path = Path(tmp_dir) / "vaults" / "all"
             content = f"""
 vault:
   path: {vault_path.as_posix()}
@@ -63,7 +64,7 @@ models:
             config_path.write_text(
                 """
 vault:
-  path: ./wiki
+  path: ./vaults/all
 models:
   providers: {}
 """,
@@ -74,12 +75,12 @@ models:
             response = client.get("/ui/api/config", params={"config_path": str(config_path)})
 
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()["summary"]["vault_path"], str((Path(tmp_dir) / "wiki").resolve()))
+            self.assertEqual(response.json()["summary"]["vault_path"], str((Path(tmp_dir) / "vaults" / "all").resolve()))
 
     def test_ui_config_form_round_trips_provider_json_mode(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             config_path = Path(tmp_dir) / "config.yaml"
-            vault_path = Path(tmp_dir) / "wiki"
+            vault_path = Path(tmp_dir) / "vaults" / "all"
             client = TestClient(create_app())
 
             response = client.put(
@@ -129,7 +130,7 @@ models:
             config_path.write_text(
                 """
 vault:
-  path: ./wiki
+  path: ./vaults/all
 models:
   default_provider: vllm
   providers:
@@ -186,7 +187,7 @@ models:
                     "vault_path": str(root / "team-wiki"),
                     "vault_id": "team",
                     "vaults": [
-                        {"id": "personal", "name": "Personal Vault", "path": str(root / "wiki"), "active": False},
+                        {"id": "personal", "name": "Personal Vault", "path": str(root / "vaults" / "all"), "active": False},
                         {"id": "team", "name": "Team Vault", "path": str(root / "team-wiki"), "active": True},
                     ],
                     "server_host": "127.0.0.1",
@@ -214,7 +215,7 @@ models:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             config_path = root / "config.yaml"
-            vault_path = root / "wiki"
+            vault_path = root / "vaults" / "all"
             external_sessions = root.parent / f"{root.name}-external-codex"
             client = TestClient(create_app())
 
@@ -245,11 +246,11 @@ models:
 
             self.assertEqual(response.status_code, 200)
             saved = config_path.read_text(encoding="utf-8")
-            self.assertIn("path: ./wiki", saved)
-            self.assertIn("- ./wiki/raw/notes", saved)
-            self.assertIn("raw_output_dir: ./wiki/raw/chats", saved)
-            self.assertIn("input_dir: ./wiki/raw/documents/originals", saved)
-            self.assertIn("output_dir: ./wiki/raw/documents/markdown", saved)
+            self.assertIn("path: ./vaults/all", saved)
+            self.assertIn("- ./vaults/all/raw/notes", saved)
+            self.assertIn("raw_output_dir: ./vaults/all/raw/chats", saved)
+            self.assertIn("input_dir: ./vaults/all/raw/documents/originals", saved)
+            self.assertIn("output_dir: ./vaults/all/raw/documents/markdown", saved)
             self.assertIn(f"sessions_dir: {external_sessions.as_posix()}", saved)
 
     def test_ui_config_form_round_trips_mineru_advanced_options(self) -> None:
@@ -263,7 +264,7 @@ models:
                 json={
                     "config_path": str(config_path),
                     "project_name": "KnoArbor",
-                    "vault_path": str(root / "wiki"),
+                    "vault_path": str(root / "vaults" / "all"),
                     "server_host": "127.0.0.1",
                     "server_port": 8000,
                     "default_provider": "",
@@ -274,7 +275,7 @@ models:
                     "markdown_roots": [],
                     "mineru_enabled": True,
                     "mineru_endpoint": "http://127.0.0.1:18000/file_parse",
-                    "mineru_input_dir": str(root / "wiki" / "raw" / "documents" / "originals"),
+                    "mineru_input_dir": str(root / "vaults" / "all" / "raw" / "documents" / "originals"),
                     "mineru_backend": "hybrid-auto-engine",
                     "mineru_parse_method": "ocr",
                     "mineru_timeout_seconds": 900,
@@ -338,7 +339,7 @@ models:
                 json={
                     "config_path": str(config_path),
                     "project_name": "KnoArbor",
-                    "vault_path": str(root / "wiki"),
+                    "vault_path": str(root / "vaults" / "all"),
                     "server_host": "127.0.0.1",
                     "server_port": 8000,
                     "default_provider": "",
@@ -375,14 +376,14 @@ models:
             config_path.write_text(
                 f"""
 vault:
-  path: ./wiki
+  path: ./vaults/all
 connectors:
   markdown:
     enabled: true
     settings:
       roots:
         - {root.as_posix()}
-      raw_output_dir: ./wiki/raw/notes
+      raw_output_dir: ./vaults/all/raw/notes
 models:
   providers: {{}}
 """,
@@ -412,14 +413,14 @@ models:
             config_path.write_text(
                 f"""
 vault:
-  path: ./wiki
+  path: ./vaults/all
 connectors:
   markdown:
     enabled: true
     settings:
       roots:
         - {missing.as_posix()}
-      raw_output_dir: ./wiki/raw/notes
+      raw_output_dir: ./vaults/all/raw/notes
 models:
   providers: {{}}
 """,
@@ -484,7 +485,7 @@ connectors: {{}}
                 "/ui/api/config",
                 json={
                     "config_path": str(config_path),
-                    "content": "vault:\n  path: ./wiki\nmodels:\n  providers:\n    x:\n      api_key: sk-testsecret123456\n",
+                    "content": "vault:\n  path: ./vaults/all\nmodels:\n  providers:\n    x:\n      api_key: sk-testsecret123456\n",
                 },
             )
 
@@ -493,9 +494,9 @@ connectors: {{}}
 
     def test_ui_status_returns_vault_counts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            vault_path = Path(tmp_dir) / "wiki"
+            vault_path = Path(tmp_dir) / "vaults" / "all"
             init_wiki_vault(vault_path)
-            (vault_path / "concepts" / "Unit.md").write_text(
+            (content_root(vault_path) / "concepts" / "Unit.md").write_text(
                 "# Unit\n\n## Summary\n\nA unit page.\n",
                 encoding="utf-8",
             )
@@ -513,10 +514,10 @@ connectors: {{}}
 
     def test_ui_graph_returns_nodes_edges_and_stats(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            vault_path = Path(tmp_dir) / "wiki"
+            vault_path = Path(tmp_dir) / "vaults" / "all"
             init_wiki_vault(vault_path)
-            source_path = vault_path / "sources" / "Source.md"
-            concept_path = vault_path / "concepts" / "Agent-Loop.md"
+            source_path = content_root(vault_path) / "sources" / "Source.md"
+            concept_path = content_root(vault_path) / "concepts" / "Agent-Loop.md"
             source_path.write_text(
                 "# Source\n\n---\ntype: source\nsource: raw/notes/source.md\ntags: [source-digest]\n---\n\n"
                 "## Summary\n\nSource summary.\n\n## Related Pages\n\n- [[concepts/Agent-Loop|Agent Loop]]\n",

@@ -5,7 +5,46 @@ from pathlib import Path
 
 from knoarbor.core.errors import StorageConflict, VaultPathError
 from knoarbor.core.markdown import parse_frontmatter
-from knoarbor.core.wiki_schema import AI_WRITABLE_DIRS
+from knoarbor.core.wiki_schema import AI_WRITABLE_DIRS, CONTENT_PAGE_DIRS
+
+
+CONTENT_ROOT_DIR = "pages"
+
+
+def content_root(vault_path: Path) -> Path:
+    """Return the Obsidian-facing wiki page root for a vault.
+
+    New vaults use ``pages/`` so raw inputs, reports, and runtime state can live
+    beside the published wiki without polluting Obsidian. Existing vaults that
+    still keep content directories at the vault root are read in legacy layout
+    until the explicit migration command moves them.
+    """
+
+    vault = vault_path.expanduser().resolve()
+    pages = vault / CONTENT_ROOT_DIR
+    if pages.exists():
+        return pages
+    if any((vault / directory).exists() for directory in CONTENT_PAGE_DIRS) or any(
+        (vault / filename).exists() for filename in ("index.md", "log.md", "SCHEMA.md")
+    ):
+        return vault
+    return pages
+
+
+def is_pages_layout(vault_path: Path) -> bool:
+    return content_root(vault_path) == vault_path.expanduser().resolve() / CONTENT_ROOT_DIR
+
+
+def content_relative_path(vault_path: Path, path: Path) -> str:
+    return path.resolve().relative_to(content_root(vault_path).resolve()).as_posix()
+
+
+def vault_relative_path(vault_path: Path, path: Path) -> str:
+    return path.resolve().relative_to(vault_path.expanduser().resolve()).as_posix()
+
+
+def content_path(vault_path: Path, relative_path: str | Path) -> Path:
+    return content_root(vault_path) / relative_path
 
 
 def slugify_title(title: str, max_length: int = 80) -> str:
@@ -41,8 +80,9 @@ def resolve_wiki_page(vault_path: Path, raw_path: str) -> Path:
     if not relative.parts or relative.parts[0] not in AI_WRITABLE_DIRS:
         allowed = ", ".join(sorted(AI_WRITABLE_DIRS))
         raise VaultPathError(f"Wiki operation path must be in an AI writable directory ({allowed}): {raw_path}")
-    path = (vault_path / relative).resolve()
-    if not path.is_relative_to(vault_path.resolve()):
+    root = content_root(vault_path)
+    path = (root / relative).resolve()
+    if not path.is_relative_to(root.resolve()):
         raise VaultPathError(f"Wiki operation path escapes vault: {raw_path}")
     return path
 
@@ -50,11 +90,11 @@ def resolve_wiki_page(vault_path: Path, raw_path: str) -> Path:
 def resolve_existing_target(vault_path: Path, target_page: str | None) -> Path | None:
     if not target_page:
         return None
-    resolved_vault = vault_path.expanduser().resolve()
+    root = content_root(vault_path)
     try:
         raw_target = Path(target_page.strip()).expanduser()
-        target_path = raw_target.resolve() if raw_target.is_absolute() else (resolved_vault / normalize_wiki_page_path(target_page)).resolve()
-        target_path.relative_to(resolved_vault)
+        target_path = raw_target.resolve() if raw_target.is_absolute() else (root / normalize_wiki_page_path(target_page)).resolve()
+        target_path.relative_to(root)
     except ValueError:
         return None
     if target_path.exists() and target_path.is_file():
@@ -70,7 +110,7 @@ def resolve_required_target(vault_path: Path, target_page: str | None, write_act
 
 
 def resolve_existing_by_hash(vault_path: Path, page_dir: str, digest: str) -> Path | None:
-    output_dir = vault_path / page_dir
+    output_dir = content_root(vault_path) / page_dir
     if not output_dir.exists():
         return None
     for md_path in sorted(output_dir.glob("*.md")):

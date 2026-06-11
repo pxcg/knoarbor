@@ -21,10 +21,10 @@ class RunFailureAuditTests(unittest.TestCase):
     def test_ingest_file_failure_writes_failure_report_and_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
-            vault.mkdir()
+            vault = root / "vaults" / "all"
+            vault.mkdir(parents=True)
             config_path = root / "config.yaml"
-            config_path.write_text(Path("config.example.yaml").read_text().replace("./wiki", str(vault)), encoding="utf-8")
+            config_path.write_text(Path("config.example.yaml").read_text().replace("./vaults/all", str(vault)), encoding="utf-8")
             pdf_path = root / "sample.pdf"
             pdf_path.write_bytes(b"%PDF-1.4\n% test")
 
@@ -50,7 +50,7 @@ class RunFailureAuditTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
             request = LintRunRequest(
-                obsidian_vault_path=str(vault),
+                vault_path=str(vault),
                 config_path=str(vault / "missing-config.yaml"),
                 scope=MaintenanceScope(
                     scope_id="failure-test",
@@ -77,7 +77,7 @@ class RunFailureAuditTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
             request = WikiSearchRequest(
-                obsidian_vault_path=str(vault),
+                vault_path=str(vault),
                 query="agent loop",
                 record_query=True,
                 write_report=True,

@@ -25,7 +25,7 @@ class QueryGoldenTests(unittest.TestCase):
 
             response = search_query(
                 WikiSearchRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     query="agent loop workflow",
                     mode="balanced",
                     max_results=4,
@@ -69,7 +69,7 @@ class QueryGoldenTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = _agent_loop_query_vault(Path(tmp_dir))
             request = WikiSearchRequest(
-                obsidian_vault_path=str(vault),
+                vault_path=str(vault),
                 query="agent loop workflow",
                 mode="balanced",
                 max_results=3,
@@ -89,7 +89,7 @@ class QueryGoldenTests(unittest.TestCase):
 
 
 def _agent_loop_query_vault(root: Path) -> Path:
-    vault = root / "wiki"
+    vault = root / "vaults" / "all"
     (vault / "concepts").mkdir(parents=True)
     (vault / "sources").mkdir()
     (vault / "entities").mkdir()

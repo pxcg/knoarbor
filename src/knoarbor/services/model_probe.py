@@ -189,7 +189,7 @@ def _probe_completion_request(level: str) -> ChatCompletionRequest:
                 ChatMessage(role="user", content='Return exactly {"ok": true, "value": 1}.'),
             ],
             temperature=0,
-            max_tokens=64,
+            max_tokens=128,
         )
     return ChatCompletionRequest(
         messages=[
@@ -197,7 +197,7 @@ def _probe_completion_request(level: str) -> ChatCompletionRequest:
             ChatMessage(role="user", content="Reply with exactly: OK"),
         ],
         temperature=0,
-        max_tokens=16,
+        max_tokens=64,
     )
 
 

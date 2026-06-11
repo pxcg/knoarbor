@@ -22,7 +22,7 @@ class LintApiTests(unittest.TestCase):
                 "/lint",
                 json={
                     "execution": "direct",
-                    "obsidian_vault_path": tmp_dir,
+                    "vault_path": tmp_dir,
                     "scope": {
                         "scope_id": "manual:test",
                         "trigger": "manual",
@@ -50,7 +50,7 @@ class LintApiTests(unittest.TestCase):
                 "/lint",
                 json={
                     "execution": "queued",
-                    "obsidian_vault_path": tmp_dir,
+                    "vault_path": tmp_dir,
                     "scope": {
                         "scope_id": "manual:test",
                         "trigger": "manual",

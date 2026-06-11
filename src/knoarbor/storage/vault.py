@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from knoarbor.core.errors import VaultPathError
+from knoarbor.storage.wiki_paths import content_root
 
 
 @dataclass
@@ -25,9 +26,10 @@ class VaultStore:
     """
 
     def __init__(self, root: Path) -> None:
-        self.root = root.expanduser().resolve()
-        if not self.root.exists() or not self.root.is_dir():
-            raise VaultPathError(f"vault_path does not exist or is not a directory: {self.root}")
+        self.vault_root = root.expanduser().resolve()
+        if not self.vault_root.exists() or not self.vault_root.is_dir():
+            raise VaultPathError(f"vault_path does not exist or is not a directory: {self.vault_root}")
+        self.root = content_root(self.vault_root)
 
     def read_pages(self, page_paths: list[str], max_pages: int, max_chars_per_page: int) -> list[VaultPage]:
         return [

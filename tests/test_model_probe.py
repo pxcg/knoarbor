@@ -139,6 +139,36 @@ class ModelProbeApiTests(unittest.TestCase):
         self.assertTrue(payload["output_valid"])
         self.assertIsNone(payload["structured_output"])
 
+    def test_probe_requests_leave_budget_for_reasoning_models(self) -> None:
+        captured = []
+        discovery = ProviderModelDiscovery(available=True, message="ok", details={})
+
+        def complete(request):
+            captured.append(request)
+            return ChatCompletionResponse(
+                content='{"ok": true, "value": 1}' if len(captured) == 2 else "OK",
+                provider="local",
+                model="qwen-local",
+                elapsed_seconds=0.1,
+            )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config = Path(tmp_dir) / "config.yaml"
+            _write_config(config)
+            client = TestClient(create_app())
+
+            with (
+                patch("knoarbor.services.model_probe.ModelGateway.discover_models", return_value=discovery),
+                patch("knoarbor.services.model_probe.ModelGateway.complete", side_effect=complete),
+            ):
+                minimal = client.post("/models/probe", json={"config_path": str(config), "provider": "local", "level": "minimal"})
+                structured = client.post("/models/probe", json={"config_path": str(config), "provider": "local", "level": "structured"})
+
+        self.assertEqual(minimal.status_code, 200)
+        self.assertEqual(structured.status_code, 200)
+        self.assertGreaterEqual(captured[0].max_tokens or 0, 64)
+        self.assertGreaterEqual(captured[1].max_tokens or 0, 128)
+
     def test_probe_endpoint_reports_contract_warning_without_throwing(self) -> None:
         discovery = ProviderModelDiscovery(available=True, message="ok", details={})
         completion = ChatCompletionResponse(content="not json", provider="local", model="qwen-local", elapsed_seconds=0.1)

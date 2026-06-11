@@ -41,14 +41,14 @@ class SkillQueryHelperTests(unittest.TestCase):
             root = Path(tmp)
             config_path = root / "config.yaml"
             config_path.write_text(
-                "server:\n  host: 127.0.0.1\n  port: 8123\nvault:\n  path: ./wiki\n",
+                "server:\n  host: 127.0.0.1\n  port: 8123\nvault:\n  path: ./vaults/all\n",
                 encoding="utf-8",
             )
 
             config = helper._load_yaml(config_path)
 
             self.assertEqual(helper._base_url_from_config(config), "http://127.0.0.1:8123")
-            self.assertEqual(helper._vault_path_from_config(config, config_path), str((root / "wiki").resolve()))
+            self.assertEqual(helper._vault_path_from_config(config, config_path), str((root / "vaults" / "all").resolve()))
 
     def test_resolves_default_vault_profile_from_config(self) -> None:
         helper = load_query_helper()
@@ -61,12 +61,12 @@ class SkillQueryHelperTests(unittest.TestCase):
                 "  profiles:\n"
                 "    personal:\n"
                 "      name: Personal\n"
-                "      path: ./wiki\n"
+                "      path: ./vaults/all\n"
                 "    team:\n"
                 "      name: Team\n"
                 "      path: ./team-wiki\n"
                 "vault:\n"
-                "  path: ./wiki\n",
+                "  path: ./vaults/all\n",
                 encoding="utf-8",
             )
 
@@ -88,7 +88,7 @@ class SkillQueryHelperTests(unittest.TestCase):
                 "  profiles:\n"
                 "    personal:\n"
                 "      name: Personal\n"
-                "      path: ./wiki\n"
+                "      path: ./vaults/all\n"
                 "    team:\n"
                 "      name: Team\n"
                 "      path: ./team-wiki\n",
@@ -124,7 +124,7 @@ class SkillQueryHelperTests(unittest.TestCase):
                 "  profiles:\n"
                 "    personal:\n"
                 "      name: Personal\n"
-                "      path: ./wiki\n",
+                "      path: ./vaults/all\n",
                 encoding="utf-8",
             )
 
@@ -148,7 +148,7 @@ class SkillQueryHelperTests(unittest.TestCase):
             root = Path(tmp)
             config_path = root / "config.yaml"
             config_path.write_text(
-                "server:\n  host: 127.0.0.1\n  port: 8123\nvault:\n  path: ./wiki\n",
+                "server:\n  host: 127.0.0.1\n  port: 8123\nvault:\n  path: ./vaults/all\n",
                 encoding="utf-8",
             )
             endpoint_dir = root / ".knoarbor"
@@ -345,7 +345,7 @@ class SkillQueryHelperTests(unittest.TestCase):
             {
                 "query": "Agent Loop",
                 "retrieval_mode": "machine_hybrid_balanced",
-                "stats": {"vault_path": "/tmp/wiki"},
+                "stats": {"vault_path": "/tmp/vaults/all"},
                 "results": [
                     {
                         "path": "concepts/Agent-Loop.md",
@@ -361,7 +361,7 @@ class SkillQueryHelperTests(unittest.TestCase):
         )
 
         self.assertIn("Agent Loop (concepts/Agent-Loop.md) [high, direct]", text)
-        self.assertIn("Vault: /tmp/wiki", text)
+        self.assertIn("Vault: /tmp/vaults/all", text)
         self.assertIn("Context Pack:", text)
 
     def test_formats_multi_vault_retrieval_response_for_host_ai(self) -> None:
@@ -742,7 +742,7 @@ class SkillQueryHelperTests(unittest.TestCase):
                 argparse.Namespace(),
                 helper.Runtime(
                     base_url="http://127.0.0.1:8123",
-                    vault_path="/tmp/wiki",
+                    vault_path="/tmp/vaults/all",
                     config_path=Path("/tmp/config.yaml"),
                     timeout=1,
                     output_format="json",
@@ -776,7 +776,7 @@ class SkillQueryHelperTests(unittest.TestCase):
         helper = load_query_helper()
         runtime = helper.Runtime(
             base_url="http://127.0.0.1:8123",
-            vault_path="/tmp/wiki",
+            vault_path="/tmp/vaults/all",
             config_path=Path("/tmp/config.yaml"),
             timeout=1,
             output_format="text",
@@ -792,7 +792,7 @@ class SkillQueryHelperTests(unittest.TestCase):
         helper = load_query_helper()
         runtime = helper.Runtime(
             base_url="http://127.0.0.1:8123",
-            vault_path="/tmp/wiki",
+            vault_path="/tmp/vaults/all",
             config_path=Path("/tmp/config.yaml"),
             timeout=1,
             output_format="json",

@@ -8,6 +8,7 @@ from knoarbor.core.markdown import extract_heading, extract_list_items, extract_
 from knoarbor.core.wiki_schema import INDEX_EXCLUDED_DIRS, PAGE_TYPE_ORDER, is_index_excluded_file
 from knoarbor.retrieval.wiki_links import resolve_wikilink_target
 from knoarbor.storage import relative_wiki_path
+from knoarbor.storage.wiki_paths import content_root
 
 
 FIELD_WEIGHTS: dict[str, float] = {
@@ -45,12 +46,14 @@ class ScoredPage:
     matched_fields: set[str] = field(default_factory=set)
     matched_terms: dict[str, list[str]] = field(default_factory=dict)
     graph_boost: float = 0.0
+    graph_reasons: list[str] = field(default_factory=list)
 
 
 def collect_search_pages(vault_path: Path) -> list[SearchPage]:
     pages: list[SearchPage] = []
+    root = content_root(vault_path)
     for page_dir in PAGE_TYPE_ORDER:
-        directory_path = vault_path / page_dir
+        directory_path = root / page_dir
         if not directory_path.exists():
             continue
         for md_path in sorted(directory_path.glob("*.md")):
@@ -83,7 +86,7 @@ def collect_search_pages(vault_path: Path) -> list[SearchPage]:
 
 
 def should_skip_page(vault_path: Path, path: Path) -> bool:
-    parts = path.relative_to(vault_path).parts
+    parts = path.relative_to(content_root(vault_path)).parts
     return is_index_excluded_file(path.name) or any(part in INDEX_EXCLUDED_DIRS for part in parts)
 
 
@@ -156,33 +159,82 @@ def expand_related_pages(
     mode: str,
 ) -> dict[str, ScoredPage]:
     page_by_path = {page.relative_path: page for page in pages}
+    inbound_paths = build_inbound_paths(pages)
     initial = sorted(scored.values(), key=lambda item: item.score, reverse=True)
     seed_count = 3 if mode == "balanced" else 5
     max_related = 5 if mode == "balanced" else 10
     added = 0
     for item in initial[:seed_count]:
-        for related_path in item.page.related_pages:
+        candidate_paths = graph_candidate_paths(item.page, inbound_paths)
+        for related_path in candidate_paths:
             if added >= max_related:
                 return scored
             page = page_by_path.get(related_path)
             if not page:
                 continue
-            boost = min(item.score * 0.25, 3.0)
+            boost, reasons = graph_relevance_boost(item.page, page, item.score)
+            if boost <= 0:
+                continue
             if related_path in scored:
                 scored[related_path].score += boost
                 scored[related_path].graph_boost += boost
                 scored[related_path].matched_fields.add("related_graph")
                 scored[related_path].matched_terms.setdefault("related_graph", []).append(item.page.relative_path)
+                scored[related_path].matched_terms.setdefault("graph_reasons", []).extend(reasons)
+                scored[related_path].graph_reasons.extend(reason for reason in reasons if reason not in scored[related_path].graph_reasons)
             else:
                 scored[related_path] = ScoredPage(
                     page=page,
                     score=boost,
                     matched_fields={"related_graph"},
-                    matched_terms={"related_graph": [item.page.relative_path]},
+                    matched_terms={"related_graph": [item.page.relative_path], "graph_reasons": reasons},
                     graph_boost=boost,
+                    graph_reasons=reasons,
                 )
                 added += 1
     return scored
+
+
+def build_inbound_paths(pages: list[SearchPage]) -> dict[str, list[str]]:
+    inbound: dict[str, list[str]] = {}
+    for page in pages:
+        for related_path in page.related_pages:
+            inbound.setdefault(related_path, [])
+            if page.relative_path not in inbound[related_path]:
+                inbound[related_path].append(page.relative_path)
+    return inbound
+
+
+def graph_candidate_paths(seed: SearchPage, inbound_paths: dict[str, list[str]]) -> list[str]:
+    candidates: list[str] = []
+    for path in [*seed.related_pages, *inbound_paths.get(seed.relative_path, [])]:
+        if path == seed.relative_path or path in candidates:
+            continue
+        candidates.append(path)
+    return candidates
+
+
+def graph_relevance_boost(seed: SearchPage, candidate: SearchPage, seed_score: float) -> tuple[float, list[str]]:
+    reasons: list[str] = []
+    boost = 0.0
+
+    if candidate.relative_path in seed.related_pages:
+        boost += min(seed_score * 0.18, 2.4)
+        reasons.append("outbound_link")
+
+    if seed.relative_path in candidate.related_pages:
+        boost += min(seed_score * 0.14, 1.8)
+        reasons.append("backlink")
+
+    if seed.source and candidate.source and seed.source == candidate.source:
+        boost += 1.2
+        reasons.append("shared_source")
+
+    if seed.directory == candidate.directory or seed.page_type == candidate.page_type:
+        boost += 0.6
+        reasons.append("type_affinity")
+
+    return boost, reasons
 
 
 def relevance_label(score: float) -> str:

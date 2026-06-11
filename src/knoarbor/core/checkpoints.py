@@ -9,7 +9,6 @@ from typing import Any
 from pydantic import BaseModel
 
 from knoarbor.core.errors import InvalidConfig, SourceNotFound, VaultPathError
-from knoarbor.runtime import vault_write_lock
 
 
 class SessionCheckpointPlan(BaseModel):
@@ -45,7 +44,7 @@ class CheckpointStore:
         try:
             resolved.relative_to(vault_path)
         except ValueError as exc:
-            raise VaultPathError("checkpoint_path must be inside obsidian_vault_path") from exc
+            raise VaultPathError("checkpoint_path must be inside vault_path") from exc
         return resolved
 
     def read_state(self, checkpoint_path: Path) -> dict[str, Any]:
@@ -60,8 +59,7 @@ class CheckpointStore:
 
     def write_state(self, vault_path: Path, checkpoint_path: Path, state: dict[str, Any]) -> None:
         checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-        with vault_write_lock(vault_path):
-            checkpoint_path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        checkpoint_path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     def prepare_session_file(self, vault_path: Path, state: dict[str, Any], source_path: Path) -> SessionCheckpointPlan:
         if not source_path.exists() or not source_path.is_file():

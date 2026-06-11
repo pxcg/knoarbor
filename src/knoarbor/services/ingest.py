@@ -37,7 +37,7 @@ class IngestService:
     def run(self, request: IngestRunRequest) -> IngestPipelineResult:
         config: KnoArborConfig | None = None
         try:
-            config = _load_runtime_config(request.config_path, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
+            config = _load_runtime_config(request.config_path, vault_path=request.vault_path, vault_id=request.vault_id)
             pipeline = _build_ingest_pipeline(config, request.provider)
             return pipeline.run(
                 config,
@@ -54,7 +54,7 @@ class IngestService:
     def run_document(self, request: IngestDocumentRunRequest) -> IngestSourceResult:
         config: KnoArborConfig | None = None
         try:
-            config = _load_runtime_config(request.config_path, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
+            config = _load_runtime_config(request.config_path, vault_path=request.vault_path, vault_id=request.vault_id)
             vault_path = config.vault.path
             pipeline = _build_ingest_pipeline(config, request.provider)
             return pipeline.run_document(
@@ -85,7 +85,7 @@ class IngestService:
     def run_file(self, request: IngestFileRunRequest) -> IngestPipelineResult:
         config: KnoArborConfig | None = None
         try:
-            config = _load_runtime_config(request.config_path, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
+            config = _load_runtime_config(request.config_path, vault_path=request.vault_path, vault_id=request.vault_id)
             markdown_path, processing_result = DocumentProcessingPipeline().prepare_input_file(config, Path(request.input_path))
             file_config = _markdown_files_config(config, [markdown_path])
             pipeline = _build_ingest_pipeline(file_config, request.provider)
@@ -105,7 +105,7 @@ class IngestService:
     def run_folder(self, request: IngestFolderRunRequest) -> IngestPipelineResult:
         config: KnoArborConfig | None = None
         try:
-            config = _load_runtime_config(request.config_path, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
+            config = _load_runtime_config(request.config_path, vault_path=request.vault_path, vault_id=request.vault_id)
             markdown_paths, processing_result = DocumentProcessingPipeline().prepare_input_folder(
                 config,
                 Path(request.input_path),

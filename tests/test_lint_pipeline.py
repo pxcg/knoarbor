@@ -29,7 +29,7 @@ class WikiLintPipelineTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            response = WikiLintPipeline().scan(WikiScanRequest(obsidian_vault_path=str(vault)))
+            response = WikiLintPipeline().scan(WikiScanRequest(vault_path=str(vault)))
 
         self.assertEqual(len(response.pages), 1)
         self.assertEqual(response.pages[0].path, "concepts/Agent.md")
@@ -38,7 +38,7 @@ class WikiLintPipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             response = WikiLintPipeline().lint(
                 WikiLintRequest(
-                    obsidian_vault_path=tmp_dir,
+                    vault_path=tmp_dir,
                     write_report=False,
                 )
             )
@@ -60,7 +60,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             response = WikiLintPipeline().lint(
                 WikiLintRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     write_report=False,
                     apply_safe_fixes=True,
                 )
@@ -279,14 +279,14 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             scoped = WikiLintPipeline().scan(
                 WikiScanRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     scope_pages=["concepts/Agent.md"],
                     include_related=True,
                 )
             )
             strict = WikiLintPipeline().scan(
                 WikiScanRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     scope_pages=["concepts/Agent.md"],
                     include_related=False,
                 )
@@ -308,7 +308,7 @@ class WikiLintPipelineTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            response = WikiLintPipeline().scan(WikiScanRequest(obsidian_vault_path=str(vault)))
+            response = WikiLintPipeline().scan(WikiScanRequest(vault_path=str(vault)))
 
         self.assertNotIn("source_section_mismatch", {issue.code for issue in response.issues})
 
@@ -322,7 +322,7 @@ class WikiLintPipelineTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            response = WikiLintPipeline().scan(WikiScanRequest(obsidian_vault_path=str(vault)))
+            response = WikiLintPipeline().scan(WikiScanRequest(vault_path=str(vault)))
 
         issues = [issue for issue in response.issues if issue.code == "privacy_sensitive_content"]
         self.assertEqual(len(issues), 1)
@@ -342,7 +342,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             response = WikiLintPipeline().lint(
                 WikiLintRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     write_report=False,
                 )
             )
@@ -364,7 +364,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             response = WikiLintPipeline().lint(
                 WikiLintRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     write_report=False,
                 )
             )
@@ -387,7 +387,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             response = WikiLintPipeline().lint(
                 WikiLintRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     write_report=False,
                 )
             )
@@ -408,7 +408,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             response = WikiLintPipeline().lint(
                 WikiLintRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     write_report=False,
                 )
             )
@@ -441,7 +441,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             response = WikiLintPipeline().lint(
                 WikiLintRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     write_report=False,
                 )
             )
@@ -476,7 +476,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             response = WikiLintPipeline().lint(
                 WikiLintRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     write_report=False,
                 )
             )
@@ -501,7 +501,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             response = WikiLintPipeline().lint(
                 WikiLintRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     write_report=False,
                 )
             )
@@ -524,7 +524,7 @@ class WikiLintPipelineTests(unittest.TestCase):
             with run_monitor_context(monitor):
                 response = WikiLintPipeline().run_maintenance(
                     LintRunRequest(
-                        obsidian_vault_path=str(vault),
+                        vault_path=str(vault),
                         scope=MaintenanceScope(
                             scope_id="latest_ingest:test",
                             trigger="ingest",
@@ -544,7 +544,7 @@ class WikiLintPipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             response = WikiLintPipeline().run_maintenance(
                 LintRunRequest(
-                    obsidian_vault_path=tmp_dir,
+                    vault_path=tmp_dir,
                     scope=MaintenanceScope(
                         scope_id="manual:test",
                         trigger="manual",
@@ -573,7 +573,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             response = WikiLintPipeline(FakeLintSemanticWorkflow()).run_maintenance(
                 LintRunRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     scope=MaintenanceScope(
                         scope_id="manual:test",
                         trigger="manual",
@@ -596,7 +596,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             response = WikiLintPipeline(FailingLintSemanticWorkflow()).run_maintenance(
                 LintRunRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     scope=MaintenanceScope(
                         scope_id="manual:test",
                         trigger="manual",
@@ -631,7 +631,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             response = WikiLintPipeline(WikiOperationLintSemanticWorkflow()).run_maintenance(
                 LintRunRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     scope=MaintenanceScope(
                         scope_id="manual:test",
                         trigger="manual",
@@ -670,7 +670,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             response = WikiLintPipeline(MissingSectionWikiOperationWorkflow()).run_maintenance(
                 LintRunRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     scope=MaintenanceScope(
                         scope_id="manual:test",
                         trigger="manual",
@@ -709,7 +709,7 @@ class WikiLintPipelineTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "update_source_field requires source_file"):
                 WikiLintPipeline(MissingSourceFileLintSemanticWorkflow()).run_maintenance(
                     LintRunRequest(
-                        obsidian_vault_path=str(vault),
+                        vault_path=str(vault),
                         scope=MaintenanceScope(
                             scope_id="manual:test",
                             trigger="manual",
@@ -741,7 +741,7 @@ class WikiLintPipelineTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "update_source_field requires source_file"):
                 WikiLintPipeline(ListSourceFileLintSemanticWorkflow()).run_maintenance(
                     LintRunRequest(
-                        obsidian_vault_path=str(vault),
+                        vault_path=str(vault),
                         scope=MaintenanceScope(
                             scope_id="manual:test",
                             trigger="manual",
@@ -768,7 +768,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             response = WikiLintPipeline(DraftWriteLintSemanticWorkflow()).run_maintenance(
                 LintRunRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     scope=MaintenanceScope(
                         scope_id="manual:test",
                         trigger="manual",
@@ -803,7 +803,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             response = WikiLintPipeline(SeededWorkflowStepsDraftWriteLintSemanticWorkflow()).run_maintenance(
                 LintRunRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     scope=MaintenanceScope(
                         scope_id="manual:test",
                         trigger="manual",
@@ -839,7 +839,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             response = WikiLintPipeline(UnsupportedCreateSourceDigestWorkflow()).run_maintenance(
                 LintRunRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     scope=MaintenanceScope(
                         scope_id="manual:test",
                         trigger="manual",
@@ -869,7 +869,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             response = WikiLintPipeline(QueuedActionLintSemanticWorkflow()).run_maintenance(
                 LintRunRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     scope=MaintenanceScope(
                         scope_id="manual:test",
                         trigger="manual",
@@ -902,7 +902,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             response = WikiLintPipeline(RefreshRequestWorkflow()).run_maintenance(
                 LintRunRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     scope=MaintenanceScope(
                         scope_id="manual:test",
                         trigger="manual",
@@ -945,7 +945,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
             response = WikiLintPipeline(DeferredMergeRetryWorkflow()).run_maintenance(
                 LintRunRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     scope=MaintenanceScope(
                         scope_id="manual:test",
                         trigger="manual",
@@ -969,7 +969,7 @@ class WikiLintPipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             response = WikiLintPipeline().run_maintenance(
                 LintRunRequest(
-                    obsidian_vault_path=tmp_dir,
+                    vault_path=tmp_dir,
                     scope=MaintenanceScope(
                         scope_id="manual:test",
                         trigger="manual",
@@ -993,7 +993,7 @@ class WikiLintPipelineTests(unittest.TestCase):
                 encoding="utf-8",
             )
             request = LintRunRequest(
-                obsidian_vault_path=str(vault),
+                vault_path=str(vault),
                 scope=MaintenanceScope(
                     scope_id="manual:test",
                     trigger="manual",

@@ -15,7 +15,12 @@ from knoarbor.storage.wiki_index import (
     wiki_link_for_path,
 )
 from knoarbor.storage.wiki_paths import (
+    CONTENT_ROOT_DIR,
     available_title_path,
+    content_path,
+    content_relative_path,
+    content_root,
+    is_pages_layout,
     normalize_page_title,
     normalize_source_digest_title,
     normalize_wiki_page_path,
@@ -24,19 +29,25 @@ from knoarbor.storage.wiki_paths import (
     resolve_required_target,
     resolve_wiki_page,
     slugify_title,
+    vault_relative_path,
 )
 
 __all__ = [
     "VaultPage",
     "VaultStore",
+    "CONTENT_ROOT_DIR",
     "append_ingest_log",
     "append_jsonl_ledger",
     "append_operation_log",
     "append_operation_ledger",
     "available_title_path",
+    "content_path",
+    "content_relative_path",
+    "content_root",
     "ensure_machine_index",
     "index_entry",
     "is_machine_index_stale",
+    "is_pages_layout",
     "machine_index_dir",
     "normalize_page_title",
     "normalize_source_digest_title",
@@ -50,5 +61,6 @@ __all__ = [
     "slugify_title",
     "update_machine_index",
     "update_index",
+    "vault_relative_path",
     "wiki_link_for_path",
 ]

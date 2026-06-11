@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from knoarbor.core.schemas.execution import WorkflowExecutionMode
 from knoarbor.core.schemas.sources import SourceDocument
@@ -12,7 +12,7 @@ IngestRequestKind = Literal["connectors", "document", "file", "folder", "recover
 
 class IngestRunRequest(BaseModel):
     config_path: str | None = None
-    obsidian_vault_path: str | None = Field(default=None, alias="vault_path")
+    vault_path: str | None = None
     vault_id: str | None = None
     connector_names: list[str] | None = Field(default=None, min_length=1)
     provider: str | None = None
@@ -26,7 +26,7 @@ class IngestRunRequest(BaseModel):
 class IngestDocumentRunRequest(BaseModel):
     source_document: SourceDocument
     config_path: str | None = None
-    obsidian_vault_path: str | None = None
+    vault_path: str | None = None
     vault_id: str | None = None
     provider: str | None = None
     max_tokens: int | None = Field(default=None, ge=1)
@@ -42,7 +42,7 @@ class IngestFileRunRequest(BaseModel):
     input_kind: Literal["file"] = "file"
     input_path: str
     config_path: str | None = None
-    obsidian_vault_path: str | None = Field(default=None, alias="vault_path")
+    vault_path: str | None = None
     vault_id: str | None = None
     provider: str | None = None
     max_tokens: int | None = Field(default=None, ge=1)
@@ -57,7 +57,7 @@ class IngestFolderRunRequest(BaseModel):
     input_path: str
     recursive: bool = True
     config_path: str | None = None
-    obsidian_vault_path: str | None = Field(default=None, alias="vault_path")
+    vault_path: str | None = None
     vault_id: str | None = None
     provider: str | None = None
     max_tokens: int | None = Field(default=None, ge=1)
@@ -83,8 +83,6 @@ class UnifiedIngestRequest(BaseModel):
     The narrow request classes remain internal service contracts.
     """
 
-    model_config = ConfigDict(populate_by_name=True)
-
     kind: IngestRequestKind = "connectors"
     execution: WorkflowExecutionMode = "queued"
     config_path: str | None = None
@@ -92,7 +90,7 @@ class UnifiedIngestRequest(BaseModel):
     source_document: SourceDocument | None = None
     input_path: str | None = None
     recursive: bool = True
-    obsidian_vault_path: str | None = Field(default=None, alias="vault_path")
+    vault_path: str | None = None
     vault_id: str | None = None
     provider: str | None = None
     max_tokens: int | None = Field(default=None, ge=1)
@@ -112,7 +110,7 @@ class UnifiedIngestRequest(BaseModel):
                 raise ValueError("kind='recovery' requires execution='queued'.")
             if not self.recovery_of_run_id:
                 raise ValueError("recovery_of_run_id is required when kind='recovery'.")
-            if not (self.recovery_vault_path or self.obsidian_vault_path or self.vault_id):
+            if not (self.recovery_vault_path or self.vault_path or self.vault_id):
                 raise ValueError("recovery_vault_path, vault_path, or vault_id is required when kind='recovery'.")
             if self.source_document is not None or self.input_path:
                 raise ValueError("kind='recovery' cannot be combined with source_document or input_path.")
@@ -132,7 +130,7 @@ class UnifiedIngestRequest(BaseModel):
     def to_connectors_request(self) -> IngestRunRequest:
         return IngestRunRequest(
             config_path=self.config_path,
-            vault_path=self.obsidian_vault_path,
+            vault_path=self.vault_path,
             vault_id=self.vault_id,
             connector_names=self.connector_names,
             provider=self.provider,
@@ -149,7 +147,7 @@ class UnifiedIngestRequest(BaseModel):
         return IngestDocumentRunRequest(
             source_document=self.source_document,
             config_path=self.config_path,
-            obsidian_vault_path=self.obsidian_vault_path,
+            vault_path=self.vault_path,
             vault_id=self.vault_id,
             provider=self.provider,
             max_tokens=self.max_tokens,
@@ -167,7 +165,7 @@ class UnifiedIngestRequest(BaseModel):
         return IngestFileRunRequest(
             input_path=self.input_path,
             config_path=self.config_path,
-            vault_path=self.obsidian_vault_path,
+            vault_path=self.vault_path,
             vault_id=self.vault_id,
             provider=self.provider,
             max_tokens=self.max_tokens,
@@ -184,7 +182,7 @@ class UnifiedIngestRequest(BaseModel):
             input_path=self.input_path,
             recursive=self.recursive,
             config_path=self.config_path,
-            vault_path=self.obsidian_vault_path,
+            vault_path=self.vault_path,
             vault_id=self.vault_id,
             provider=self.provider,
             max_tokens=self.max_tokens,

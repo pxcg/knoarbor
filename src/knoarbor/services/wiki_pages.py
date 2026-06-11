@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from knoarbor.core.errors import UserInputError, VaultPathError, WikiPageNotFound
 from knoarbor.core.markdown import compact_inline_text, extract_heading, extract_section, extract_tags, parse_frontmatter
 from knoarbor.storage import ensure_machine_index, machine_index_dir
+from knoarbor.storage.wiki_paths import content_root
 
 
 class WikiPageSummary(BaseModel):
@@ -73,9 +74,10 @@ class WikiPageService:
         vault = _resolve_vault(vault_path)
         page_path = _resolve_vault_file(vault, relative_path)
         content = page_path.read_text(encoding="utf-8")
-        links = self.page_links(vault, page_path.relative_to(vault).as_posix(), vault_id=vault_id, vault_name=vault_name)
+        page_relative = page_path.relative_to(content_root(vault)).as_posix()
+        links = self.page_links(vault, page_relative, vault_id=vault_id, vault_name=vault_name)
         return WikiPageDetail(
-            path=page_path.relative_to(vault).as_posix(),
+            path=page_relative,
             vault_path=str(vault),
             vault_id=vault_id,
             vault_name=vault_name,
@@ -105,9 +107,10 @@ def _resolve_vault(vault_path: Path) -> Path:
 
 
 def _resolve_vault_file(vault_path: Path, relative_path: str) -> Path:
-    page_path = (vault_path / relative_path).resolve()
+    root = content_root(vault_path)
+    page_path = (root / relative_path).resolve()
     try:
-        page_path.relative_to(vault_path)
+        page_path.relative_to(root)
     except ValueError as exc:
         raise VaultPathError("Path must stay inside the configured vault") from exc
     if not page_path.exists() or not page_path.is_file():
@@ -171,7 +174,7 @@ def _summary_from_record(record: dict[str, object]) -> WikiPageSummary:
 
 def _summary_from_content(vault_path: Path, path: Path, content: str) -> WikiPageSummary:
     metadata = parse_frontmatter(content)
-    relative = path.relative_to(vault_path).as_posix()
+    relative = path.relative_to(content_root(vault_path)).as_posix()
     directory = relative.split("/", 1)[0] if "/" in relative else "root"
     return WikiPageSummary(
         path=relative,

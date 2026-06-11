@@ -39,7 +39,7 @@ class WikiPathsStorageTests(unittest.TestCase):
             matched = resolve_existing_by_hash(vault, "concepts", "abc123")
             available = available_title_path(concepts, "Agent")
 
-        self.assertEqual(matched, existing)
+        self.assertEqual(matched, existing.resolve())
         self.assertEqual(available.name, "Agent-2.md")
 
     def test_slugify_title_removes_path_unsafe_characters(self) -> None:

@@ -96,8 +96,8 @@ class IngestApiTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
-            vault.mkdir()
+            vault = root / "vaults" / "all"
+            vault.mkdir(parents=True)
             config = root / "config.yaml"
             config.write_text(f"vault:\n  path: {vault}\n", encoding="utf-8")
             response = client.post(
@@ -122,7 +122,7 @@ class IngestApiTests(unittest.TestCase):
             json={
                 "execution": "direct",
                 "kind": "recovery",
-                "recovery_vault_path": "/tmp/wiki",
+                "recovery_vault_path": "/tmp/vaults/all",
                 "recovery_of_run_id": "run-1",
             },
         )
@@ -136,8 +136,8 @@ class IngestApiTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
-            vault.mkdir()
+            vault = root / "vaults" / "all"
+            vault.mkdir(parents=True)
             config = root / "config.yaml"
             config.write_text(f"vault:\n  path: {vault}\n", encoding="utf-8")
             response = client.post(
@@ -146,7 +146,7 @@ class IngestApiTests(unittest.TestCase):
                     "execution": "queued",
                     "kind": "document",
                     "config_path": str(config),
-                    "obsidian_vault_path": str(vault),
+                    "vault_path": str(vault),
                     "source_document": {
                         "schema_version": "source_document.v1",
                         "source_id": "note:test",
@@ -180,9 +180,9 @@ class IngestApiTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             folder = root / "notes"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             folder.mkdir()
             config = root / "config.yaml"
             config.write_text(f"vault:\n  path: {vault}\n", encoding="utf-8")

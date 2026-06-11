@@ -31,7 +31,7 @@ class WikiOperationPipelineTests(unittest.TestCase):
 
             response = WikiOperationPipeline().apply(
                 WikiOperationApplyRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     operations=[
                         WikiOperationInput(
                             operation_id="op-1",
@@ -66,7 +66,7 @@ class WikiOperationPipelineTests(unittest.TestCase):
 
             response = WikiOperationPipeline().apply(
                 WikiOperationApplyRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     operations=[
                         WikiOperationInput(
                             operation_id="op-section",
@@ -100,7 +100,7 @@ class WikiOperationPipelineTests(unittest.TestCase):
 
             response = WikiOperationPipeline().apply(
                 WikiOperationApplyRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     operations=[
                         WikiOperationInput(
                             operation_id="op-heading",
@@ -134,7 +134,7 @@ class WikiOperationPipelineTests(unittest.TestCase):
 
             WikiOperationPipeline().apply(
                 WikiOperationApplyRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     operations=[
                         WikiOperationInput(
                             operation_id="op-question",
@@ -168,7 +168,7 @@ class WikiOperationPipelineTests(unittest.TestCase):
             with self.assertRaisesRegex(PolicyRejection, "single source_file string"):
                 WikiOperationPipeline().apply(
                     WikiOperationApplyRequest(
-                        obsidian_vault_path=str(vault),
+                        vault_path=str(vault),
                         operations=[
                             WikiOperationInput(
                                 operation_id="op-source",
@@ -201,7 +201,7 @@ class WikiOperationPipelineTests(unittest.TestCase):
 
             response = WikiOperationPipeline().apply(
                 WikiOperationApplyRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     operations=[
                         WikiOperationInput(
                             operation_id="op-redact",

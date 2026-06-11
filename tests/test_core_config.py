@@ -28,7 +28,7 @@ class ConfigTests(unittest.TestCase):
     def test_config_loads_from_mapping(self) -> None:
         config = KnoArborConfig.model_validate(
             {
-                "vault": {"path": "./wiki"},
+                "vault": {"path": "./vaults/all"},
                 "document_processing": {
                     "mineru": {"enabled": False, "output_dir": "./mineru-md"},
                 },
@@ -38,7 +38,7 @@ class ConfigTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(config.vault.path, Path("wiki"))
+        self.assertEqual(config.vault.path, Path("vaults/all"))
         self.assertEqual(config.document_processing.mineru.output_dir, Path("mineru-md"))
         self.assertEqual(config.enabled_connectors(), ["markdown"])
         self.assertEqual(config.config_version, 1)
@@ -46,7 +46,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.models.default_max_tokens, 30000)
         self.assertEqual(config.models.request_timeout_seconds, 600.0)
         self.assertEqual(config.active_vault_id(), "default")
-        self.assertEqual(config.vault_profiles_summary()[0]["path"], "wiki")
+        self.assertEqual(config.vault_profiles_summary()[0]["path"], "vaults/all")
 
     def test_vault_profiles_select_active_vault(self) -> None:
         config = KnoArborConfig.model_validate(
@@ -55,7 +55,7 @@ class ConfigTests(unittest.TestCase):
                 "vaults": {
                     "default": "team",
                     "profiles": {
-                        "personal": {"name": "Personal", "path": "./wiki"},
+                        "personal": {"name": "Personal", "path": "./vaults/all"},
                         "team": {"name": "Team", "path": "./team-wiki"},
                     },
                 },
@@ -70,10 +70,10 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "vaults.default"):
             KnoArborConfig.model_validate(
                 {
-                    "vault": {"path": "./wiki"},
+                    "vault": {"path": "./vaults/all"},
                     "vaults": {
                         "default": "missing",
-                        "profiles": {"personal": {"name": "Personal", "path": "./wiki"}},
+                        "profiles": {"personal": {"name": "Personal", "path": "./vaults/all"}},
                     },
                 }
             )
@@ -81,11 +81,11 @@ class ConfigTests(unittest.TestCase):
     def test_config_loads_from_yaml_file_and_resolves_relative_paths(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            (root / "wiki").mkdir()
+            (root / "vaults" / "all").mkdir(parents=True)
             path = root / "config.yaml"
             path.write_text(
                 "vault:\n"
-                "  path: ./wiki\n"
+                "  path: ./vaults/all\n"
                 "document_processing:\n"
                 "  mineru:\n"
                 "    output_dir: ./documents-md\n"
@@ -100,7 +100,7 @@ class ConfigTests(unittest.TestCase):
 
             config = load_config(path)
 
-        self.assertEqual(config.vault.path, (Path(tmp_dir) / "wiki").resolve())
+        self.assertEqual(config.vault.path, (Path(tmp_dir) / "vaults" / "all").resolve())
         self.assertEqual(config.document_processing.mineru.output_dir, (Path(tmp_dir) / "documents-md").resolve())
         self.assertEqual(config.connectors["markdown"].settings["roots"], [(Path(tmp_dir) / "notes").resolve()])
 
@@ -110,11 +110,11 @@ class ConfigTests(unittest.TestCase):
 
             prepared = prepare_config_data(
                 {
-                    "vault": {"path": "./wiki"},
+                    "vault": {"path": "./vaults/all"},
                     "connectors": {
                         "markdown": {
                             "enabled": True,
-                            "settings": {"roots": ["./notes"], "raw_output_dir": "./wiki/raw/notes"},
+                            "settings": {"roots": ["./notes"], "raw_output_dir": "./vaults/all/raw/notes"},
                         }
                     },
                 },
@@ -122,17 +122,17 @@ class ConfigTests(unittest.TestCase):
             )
 
         self.assertEqual(prepared["config_version"], 1)
-        self.assertEqual(prepared["vault"]["path"], (Path(tmp_dir) / "wiki").resolve())
+        self.assertEqual(prepared["vault"]["path"], (Path(tmp_dir) / "vaults" / "all").resolve())
         self.assertEqual(prepared["connectors"]["markdown"]["settings"]["roots"], [(Path(tmp_dir) / "notes").resolve()])
-        self.assertEqual(prepared["connectors"]["markdown"]["settings"]["raw_output_dir"], (Path(tmp_dir) / "wiki" / "raw" / "notes").resolve())
+        self.assertEqual(prepared["connectors"]["markdown"]["settings"]["raw_output_dir"], (Path(tmp_dir) / "vaults" / "all" / "raw" / "notes").resolve())
 
     def test_migrate_config_data_rejects_newer_versions(self) -> None:
         with self.assertRaisesRegex(ConfigMigrationError, "newer than this KnoArbor build"):
-            migrate_config_data({"config_version": 999, "vault": {"path": "./wiki"}})
+            migrate_config_data({"config_version": 999, "vault": {"path": "./vaults/all"}})
 
     def test_migrate_config_data_rejects_invalid_versions(self) -> None:
         with self.assertRaisesRegex(ConfigMigrationError, "Invalid config_version"):
-            migrate_config_data({"config_version": "next", "vault": {"path": "./wiki"}})
+            migrate_config_data({"config_version": "next", "vault": {"path": "./vaults/all"}})
 
     def test_load_config_reads_dotenv_next_to_config(self) -> None:
         env_name = "KNOARBOR_TEST_API_KEY"
@@ -140,12 +140,12 @@ class ConfigTests(unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as tmp_dir:
                 root = Path(tmp_dir)
-                (root / "wiki").mkdir()
+                (root / "vaults" / "all").mkdir(parents=True)
                 (root / ".env").write_text(f'{env_name}="local-secret"\n', encoding="utf-8")
                 path = root / "config.yaml"
                 path.write_text(
                     "vault:\n"
-                    "  path: ./wiki\n"
+                    "  path: ./vaults/all\n"
                     "models:\n"
                     "  providers:\n"
                     "    test:\n"
@@ -169,12 +169,12 @@ class ConfigTests(unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as tmp_dir:
                 root = Path(tmp_dir)
-                (root / "wiki").mkdir()
+                (root / "vaults" / "all").mkdir(parents=True)
                 (root / ".env").write_text(f"{env_name}=from-dotenv\n", encoding="utf-8")
                 path = root / "config.yaml"
                 path.write_text(
                     "vault:\n"
-                    "  path: ./wiki\n"
+                    "  path: ./vaults/all\n"
                     "models:\n"
                     "  providers:\n"
                     "    test:\n"
@@ -196,8 +196,8 @@ class ConfigTests(unittest.TestCase):
             root = Path(tmp_dir)
             (root / "src" / "knoarbor").mkdir(parents=True)
             (root / "pyproject.toml").write_text("[project]\nname = 'example'\n", encoding="utf-8")
-            (root / "config.example.yaml").write_text("vault:\n  path: ./wiki\n", encoding="utf-8")
-            (root / "config.yaml").write_text("vault:\n  path: ./wiki\n", encoding="utf-8")
+            (root / "config.example.yaml").write_text("vault:\n  path: ./vaults/all\n", encoding="utf-8")
+            (root / "config.yaml").write_text("vault:\n  path: ./vaults/all\n", encoding="utf-8")
 
             path = default_config_path(root / "src" / "knoarbor")
 
@@ -213,7 +213,7 @@ class ConfigTests(unittest.TestCase):
             finally:
                 os.chdir(previous)
 
-        self.assertEqual(config.vault.path, (Path(tmp_dir) / "wiki").resolve())
+        self.assertEqual(config.vault.path, (Path(tmp_dir) / "vaults" / "all").resolve())
         self.assertEqual(config.project.host_project_root, Path(tmp_dir).resolve())
 
     def test_runtime_path_validation_rejects_missing_vault(self) -> None:
@@ -225,7 +225,7 @@ class ConfigTests(unittest.TestCase):
     def test_provider_max_output_tokens_overrides_global_default(self) -> None:
         config = KnoArborConfig.model_validate(
             {
-                "vault": {"path": "./wiki"},
+                "vault": {"path": "./vaults/all"},
                 "models": {
                     "default_provider": "local",
                     "default_max_tokens": 30000,

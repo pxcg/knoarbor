@@ -241,9 +241,9 @@ connectors: {{}}
     def test_sources_command_prints_enabled_connector_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             notes = root / "notes"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             notes.mkdir()
             (notes / "note.md").write_text("# Note\n\nBody.", encoding="utf-8")
             config = root / "config.yaml"
@@ -270,9 +270,9 @@ connectors: {{}}
     def test_sources_json_is_compact_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             notes = root / "notes"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             notes.mkdir()
             (notes / "note.md").write_text("# Note\n\nLong body.", encoding="utf-8")
             config = root / "config.yaml"
@@ -313,8 +313,8 @@ connectors: {{}}
     def test_sources_catalog_json_marks_configured_connectors(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
-            vault.mkdir()
+            vault = root / "vaults" / "all"
+            vault.mkdir(parents=True)
             config = root / "config.yaml"
             config.write_text(
                 f"""
@@ -352,14 +352,14 @@ connectors:
             config = root / "config.yaml"
             self.assertEqual(exit_code, 0)
             self.assertTrue(config.exists())
-            self.assertTrue((vault / "SCHEMA.md").exists())
+            self.assertTrue((vault / "pages" / "SCHEMA.md").exists())
             self.assertIn("config:", output.getvalue())
             self.assertIn("created", output.getvalue())
 
     def test_first_run_creates_config_vault_and_prints_next_steps(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             output = io.StringIO()
 
             with _chdir(root), redirect_stdout(output):
@@ -367,7 +367,7 @@ connectors:
 
             self.assertIn(exit_code, {0, 1})
             self.assertTrue((root / "config.yaml").exists())
-            self.assertTrue((vault / "index.md").exists())
+            self.assertTrue((vault / "pages" / "index.md").exists())
             self.assertTrue((vault / "raw" / "notes" / "agent-loop.md").exists())
             self.assertIn("Next steps:", output.getvalue())
             self.assertIn("example:", output.getvalue())
@@ -375,7 +375,7 @@ connectors:
     def test_first_run_can_skip_bundled_example(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             output = io.StringIO()
 
             with _chdir(root), redirect_stdout(output):
@@ -415,9 +415,9 @@ connectors:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             runtime_dir = root / "runtime"
-            (root / "wiki").mkdir()
+            (root / "vaults" / "all").mkdir(parents=True)
             config = root / "config.yaml"
-            config.write_text("vault:\n  path: ./wiki\n", encoding="utf-8")
+            config.write_text("vault:\n  path: ./vaults/all\n", encoding="utf-8")
 
             with patch.dict(os.environ, {"KNOARBOR_RUNTIME_DIR": str(runtime_dir)}), patch("uvicorn.run") as uvicorn_run, redirect_stdout(output):
                 exit_code = main(["--config", str(config), "serve", "--host", "0.0.0.0", "--port", "8010"])
@@ -436,9 +436,9 @@ connectors:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             runtime_dir = root / "runtime"
-            (root / "wiki").mkdir()
+            (root / "vaults" / "all").mkdir(parents=True)
             config = root / "config.yaml"
-            config.write_text("vault:\n  path: ./wiki\n", encoding="utf-8")
+            config.write_text("vault:\n  path: ./vaults/all\n", encoding="utf-8")
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                 sock.bind(("127.0.0.1", 0))
                 sock.listen(1)
@@ -455,7 +455,7 @@ connectors:
         self.assertNotEqual(endpoint["port"], occupied_port)
         self.assertEqual(endpoint["base_url"], f"http://127.0.0.1:{endpoint['port']}")
         self.assertEqual(endpoint["config_path"], str(config.resolve()))
-        self.assertEqual(endpoint["vault_path"], str((root / "wiki").resolve()))
+        self.assertEqual(endpoint["vault_path"], str((root / "vaults" / "all").resolve()))
         self.assertEqual(user_endpoint, endpoint)
         uvicorn_run.assert_called_once()
         self.assertEqual(uvicorn_run.call_args.kwargs["port"], endpoint["port"])
@@ -474,7 +474,7 @@ connectors:
         ingest_recovery_args = parser.parse_args(["ingest", "--recover-run-id", "run-1"])
         runs_list_args = parser.parse_args(["runs", "list", "--active"])
         run_events_args = parser.parse_args(["runs", "events", "run-1"])
-        run_events_late_vault_args = parser.parse_args(["runs", "events", "run-1", "--vault", "./wiki"])
+        run_events_late_vault_args = parser.parse_args(["runs", "events", "run-1", "--vault", "./vaults/all"])
         run_cancel_args = parser.parse_args(["runs", "cancel", "run-1"])
         lint_primary_args = parser.parse_args(["lint"])
         lint_args = parser.parse_args(["lint-plan"])
@@ -500,7 +500,7 @@ connectors:
         self.assertTrue(runs_list_args.active)
         self.assertEqual(run_events_args.runs_command, "events")
         self.assertEqual(run_events_args.run_id, "run-1")
-        self.assertEqual(run_events_late_vault_args.vault, "./wiki")
+        self.assertEqual(run_events_late_vault_args.vault, "./vaults/all")
         self.assertEqual(run_cancel_args.runs_command, "cancel")
         self.assertEqual(run_cancel_args.run_id, "run-1")
         self.assertEqual(lint_primary_args.command, "lint")
@@ -517,7 +517,7 @@ connectors:
     def test_pages_command_lists_reads_and_links_pages(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             concepts = vault / "concepts"
             concepts.mkdir(parents=True)
             config = root / "config.yaml"
@@ -554,7 +554,7 @@ connectors:
     def test_reports_command_lists_and_reads_reports(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             maintenance = vault / "maintenance"
             maintenance.mkdir(parents=True)
             config = root / "config.yaml"

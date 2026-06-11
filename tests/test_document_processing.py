@@ -33,7 +33,7 @@ class FakeNativeMinerUProcessor(MinerUDocumentProcessor):
 
 class DocumentProcessingTests(unittest.TestCase):
     def test_pipeline_noops_when_mineru_is_disabled(self) -> None:
-        config = KnoArborConfig.model_validate({"vault": {"path": "./wiki"}})
+        config = KnoArborConfig.model_validate({"vault": {"path": "./vaults/all"}})
 
         result = DocumentProcessingPipeline().run(config)
 
@@ -49,7 +49,7 @@ class DocumentProcessingTests(unittest.TestCase):
             (input_dir / "paper.pdf").write_bytes(b"%PDF")
             config = KnoArborConfig.model_validate(
                 {
-                    "vault": {"path": str(root / "wiki")},
+                    "vault": {"path": str(root / "vaults" / "all")},
                     "document_processing": {
                         "mineru": {
                             "enabled": True,
@@ -76,7 +76,7 @@ class DocumentProcessingTests(unittest.TestCase):
             path.write_bytes(b"%PDF")
             config = KnoArborConfig.model_validate(
                 {
-                    "vault": {"path": str(root / "wiki")},
+                    "vault": {"path": str(root / "vaults" / "all")},
                     "document_processing": {
                         "mineru": {
                             "enabled": True,
@@ -106,7 +106,7 @@ class DocumentProcessingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = Path(tmp_dir) / "note.markdown"
             path.write_text("# Note\n\nBody.", encoding="utf-8")
-            config = KnoArborConfig.model_validate({"vault": {"path": str(Path(tmp_dir) / "wiki")}})
+            config = KnoArborConfig.model_validate({"vault": {"path": str(Path(tmp_dir) / "vaults" / "all")}})
 
             prepared, result = DocumentProcessingPipeline().prepare_input_file(config, path)
 
@@ -117,7 +117,7 @@ class DocumentProcessingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = Path(tmp_dir) / "paper.pdf"
             path.write_bytes(b"%PDF")
-            config = KnoArborConfig.model_validate({"vault": {"path": str(Path(tmp_dir) / "wiki")}})
+            config = KnoArborConfig.model_validate({"vault": {"path": str(Path(tmp_dir) / "vaults" / "all")}})
 
             with self.assertRaisesRegex(ValueError, "document_processing.mineru.enabled is false"):
                 DocumentProcessingPipeline().prepare_input_file(config, path)
@@ -130,7 +130,7 @@ class DocumentProcessingTests(unittest.TestCase):
             path.write_bytes(b"%PDF")
             config = KnoArborConfig.model_validate(
                 {
-                    "vault": {"path": str(root / "wiki")},
+                    "vault": {"path": str(root / "vaults" / "all")},
                     "document_processing": {
                         "mineru": {
                             "enabled": True,
@@ -159,7 +159,7 @@ class DocumentProcessingTests(unittest.TestCase):
             note.write_text("# A\n", encoding="utf-8")
             nested_note.write_text("# B\n", encoding="utf-8")
             hidden_note.write_text("# Hidden\n", encoding="utf-8")
-            config = KnoArborConfig.model_validate({"vault": {"path": str(root / "wiki")}})
+            config = KnoArborConfig.model_validate({"vault": {"path": str(root / "vaults" / "all")}})
 
             prepared, result = DocumentProcessingPipeline().prepare_input_folder(config, folder)
 
@@ -172,7 +172,7 @@ class DocumentProcessingTests(unittest.TestCase):
             folder = root / "docs"
             folder.mkdir()
             (folder / "paper.pdf").write_bytes(b"%PDF")
-            config = KnoArborConfig.model_validate({"vault": {"path": str(root / "wiki")}})
+            config = KnoArborConfig.model_validate({"vault": {"path": str(root / "vaults" / "all")}})
 
             with self.assertRaises(DocumentPreprocessorUnavailable):
                 DocumentProcessingPipeline().prepare_input_folder(config, folder)
@@ -188,7 +188,7 @@ class DocumentProcessingTests(unittest.TestCase):
             (folder / "paper.pdf").write_bytes(b"%PDF")
             config = KnoArborConfig.model_validate(
                 {
-                    "vault": {"path": str(root / "wiki")},
+                    "vault": {"path": str(root / "vaults" / "all")},
                     "document_processing": {
                         "mineru": {
                             "enabled": True,
@@ -207,7 +207,7 @@ class DocumentProcessingTests(unittest.TestCase):
     def test_enabled_mineru_requires_endpoint(self) -> None:
         config = KnoArborConfig.model_validate(
             {
-                "vault": {"path": "./wiki"},
+                "vault": {"path": "./vaults/all"},
                 "document_processing": {"mineru": {"enabled": True, "input_dir": "./docs"}},
             }
         )

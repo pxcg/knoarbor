@@ -29,7 +29,7 @@ class WikiWritePipeline:
         self.canonicalizer = canonicalizer or DraftCanonicalizer()
 
     def run(self, request: WikiDraftBatchWriteRequest) -> WikiDraftBatchWriteResponse:
-        vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
+        vault_path = Path(request.vault_path).expanduser().resolve()
         with vault_write_lock(vault_path):
             return self._run_locked(request, vault_path)
 

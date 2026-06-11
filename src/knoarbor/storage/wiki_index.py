@@ -10,21 +10,25 @@ from knoarbor.core.markdown import compact_inline_text, extract_heading, extract
 from knoarbor.core.schemas.wiki_write import VaultWriteResult, WikiDraft
 from knoarbor.core.wiki_schema import FRONTMATTER_TYPES, PAGE_TYPE_ORDER, is_index_excluded_file
 from knoarbor.runtime import vault_write_lock
+from knoarbor.storage.wiki_paths import content_relative_path, content_root, vault_relative_path
 
 
 def relative_wiki_path(vault_path: Path, path: Path) -> str:
-    return path.resolve().relative_to(vault_path.resolve()).as_posix()
+    try:
+        return content_relative_path(vault_path, path)
+    except ValueError:
+        return vault_relative_path(vault_path, path)
 
 
 def wiki_link_for_path(vault_path: Path, md_path: Path, title: str | None = None) -> str:
-    link_path = md_path.resolve().relative_to(vault_path.expanduser().resolve()).with_suffix("").as_posix()
+    link_path = md_path.resolve().relative_to(content_root(vault_path).resolve()).with_suffix("").as_posix()
     if title:
         return f"[[{link_path}|{title}]]"
     return f"[[{link_path}]]"
 
 
 def index_entry(vault_path: Path, md_path: Path) -> str:
-    relative = md_path.relative_to(vault_path).with_suffix("")
+    relative = md_path.resolve().relative_to(content_root(vault_path).resolve()).with_suffix("")
     link_path = relative.as_posix()
     fallback_title = md_path.stem
 
@@ -63,8 +67,9 @@ def is_machine_index_stale(vault_path: Path) -> bool:
     if any(not path.exists() for path in index_files):
         return True
     index_mtime = min(path.stat().st_mtime for path in index_files)
+    root = content_root(vault_path)
     for page_type in PAGE_TYPE_ORDER:
-        page_dir = vault_path / page_type
+        page_dir = root / page_type
         if not page_dir.exists():
             continue
         for md_path in page_dir.glob("*.md"):
@@ -105,8 +110,9 @@ def page_record(vault_path: Path, md_path: Path) -> dict[str, Any]:
 
 def build_machine_index(vault_path: Path) -> dict[str, Any]:
     pages: list[dict[str, Any]] = []
+    root = content_root(vault_path)
     for page_type in PAGE_TYPE_ORDER:
-        page_dir = vault_path / page_type
+        page_dir = root / page_type
         if not page_dir.exists():
             continue
         for md_path in sorted(page_dir.glob("*.md")):
@@ -161,11 +167,13 @@ def update_machine_index(vault_path: Path) -> None:
 
 
 def update_index(vault_path: Path) -> None:
-    index_path = vault_path / "index.md"
+    root = content_root(vault_path)
+    root.mkdir(parents=True, exist_ok=True)
+    index_path = root / "index.md"
     entries: dict[str, list[str]] = {name: [] for name in PAGE_TYPE_ORDER}
 
     for page_type in entries:
-        page_dir = vault_path / page_type
+        page_dir = root / page_type
         if not page_dir.exists():
             continue
         for md_path in sorted(page_dir.glob("*.md")):
@@ -231,7 +239,9 @@ def _string_or_none(value: object) -> str | None:
 
 
 def ensure_log(vault_path: Path) -> None:
-    log_path = vault_path / "log.md"
+    root = content_root(vault_path)
+    root.mkdir(parents=True, exist_ok=True)
+    log_path = root / "log.md"
     with vault_write_lock(vault_path):
         if not log_path.exists():
             log_path.write_text("# Log\n\nAppend-only operation log for ingest, query, and lint passes.\n", encoding="utf-8")
@@ -245,7 +255,7 @@ def append_ingest_log(
     action: str = "create",
 ) -> None:
     ensure_log(vault_path)
-    log_path = vault_path / "log.md"
+    log_path = content_root(vault_path) / "log.md"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     source = source_file if source_file else "null"
     entry = (
@@ -266,7 +276,7 @@ def append_ingest_log(
 
 def append_operation_log(vault_path: Path, message: str) -> None:
     ensure_log(vault_path)
-    log_path = vault_path / "log.md"
+    log_path = content_root(vault_path) / "log.md"
     with vault_write_lock(vault_path):
         with log_path.open("a", encoding="utf-8") as file:
             file.write(message.rstrip() + "\n")

@@ -30,6 +30,7 @@ from knoarbor.maintenance.lint_rules import (
     REQUIRED_SECTIONS_BY_DIR,
     WEAK_GRAPH_DIRS,
 )
+from knoarbor.storage.wiki_paths import content_root
 
 
 def lint_collected_pages(
@@ -71,8 +72,9 @@ def lint_collected_pages(
 def _lint_unexpected_markdown(vault_path: Path) -> list[WikiLintIssue]:
     allowed_dirs = set(FRONTMATTER_TYPES) | set(SYSTEM_PAGE_DIRS) | INDEX_EXCLUDED_DIRS
     issues: list[WikiLintIssue] = []
-    for md_path in sorted(vault_path.rglob("*.md")):
-        relative = md_path.relative_to(vault_path)
+    root = content_root(vault_path)
+    for md_path in sorted(root.rglob("*.md")):
+        relative = md_path.relative_to(root)
         if is_index_excluded_file(md_path.name):
             continue
         if relative.parts and relative.parts[0] in allowed_dirs:
@@ -121,7 +123,7 @@ def _lint_adjacent_duplicate_headings(pages: list[LintPage]) -> list[WikiLintIss
 
 
 def _lint_index_coverage(vault_path: Path, pages: list[LintPage]) -> list[WikiLintIssue]:
-    index_path = vault_path / "index.md"
+    index_path = content_root(vault_path) / "index.md"
     if not index_path.exists():
         return [_issue("missing_index", "error", "index.md", "Wiki index.md is missing.")]
 

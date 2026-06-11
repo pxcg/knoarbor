@@ -15,12 +15,12 @@ vaults:
   profiles:
     personal:
       name: My Knowledge Base
-      path: ./wiki
+      path: ./vaults/all
 
 # `vault` is the active vault resolved from `vaults.default`. It is kept for
 # existing CLI/API internals and simple one-vault deployments.
 vault:
-  path: ./wiki
+  path: ./vaults/all
 
 server:
   host: 127.0.0.1
@@ -62,6 +62,13 @@ models:
     #   json_mode: false
     #   context_window: 32768
     #   max_output_tokens: 8000
+    # qwen-vl:
+    #   base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    #   api_key_env: DASHSCOPE_API_KEY
+    #   model: qwen3-vl-plus
+    #   json_mode: false
+    #   context_window: 262144
+    #   max_output_tokens: 8000
 
 document_processing:
   mineru:
@@ -73,8 +80,8 @@ document_processing:
     #   cd /path/to/MinerU
     #   .venv/bin/mineru-api --host 127.0.0.1 --port 18000
     endpoint: http://127.0.0.1:18000/file_parse
-    input_dir: ./wiki/raw/documents/originals
-    output_dir: ./wiki/raw/documents/markdown
+    input_dir: ./vaults/all/raw/documents/originals
+    output_dir: ./vaults/all/raw/documents/markdown
     recursive: true
     patterns:
       - "*.pdf"
@@ -109,34 +116,34 @@ connectors:
       sessions_dir: ~/.codex/sessions
       pattern: "rollout-*.jsonl"
       recursive: true
-      raw_output_dir: ./wiki/raw/chats
+      raw_output_dir: ./vaults/all/raw/chats
   hermes:
     enabled: false
     settings:
       sessions_dir: ~/.hermes/sessions
-      raw_output_dir: ./wiki/raw/chats
+      raw_output_dir: ./vaults/all/raw/chats
   openclaw:
     enabled: false
     settings:
       sessions_dir: ~/.openclaw/agents/main/sessions
       pattern: "*.jsonl"
       recursive: false
-      raw_output_dir: ./wiki/raw/chats
+      raw_output_dir: ./vaults/all/raw/chats
   claude_code:
     enabled: false
     settings:
       sessions_dir: ~/.claude/projects
       pattern: "*.jsonl"
       recursive: true
-      raw_output_dir: ./wiki/raw/chats
+      raw_output_dir: ./vaults/all/raw/chats
   markdown:
     enabled: true
     settings:
       roots:
-        - ./wiki/raw/notes
-        - ./wiki/raw/documents/markdown
+        - ./vaults/all/raw/notes
+        - ./vaults/all/raw/documents/markdown
       recursive: true
-      raw_output_dir: ./wiki/raw/notes
+      raw_output_dir: ./vaults/all/raw/notes
       preserve_relative_paths: true
 
 query:

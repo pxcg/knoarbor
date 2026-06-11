@@ -11,6 +11,7 @@ from knoarbor.connectors.selection import selected_connector_configs
 from knoarbor.core.config import KnoArborConfig, ModelProviderConfig, default_config_path, load_config
 from knoarbor.core.schemas.doctor import DoctorCheck, DoctorReport, DoctorStatus
 from knoarbor.core.wiki_schema import CONTENT_PAGE_DIRS
+from knoarbor.storage.wiki_paths import content_root
 from knoarbor.runtime.run_monitor import list_runs
 from knoarbor.semantic.llm import ModelGateway, ProviderHealthCheck, is_local_or_private_model_endpoint
 
@@ -145,14 +146,17 @@ class DoctorService:
                 )
             ]
         checks.append(DoctorCheck(name="vault.exists", status="ok", message="Vault directory exists.", details={"vault_path": str(vault)}))
-        required = ["SCHEMA.md", "index.md", "log.md", ".knoarborignore"]
-        missing = [name for name in required if not (vault / name).exists()]
+        page_root = content_root(vault)
+        required = ["SCHEMA.md", "index.md", "log.md"]
+        missing = [f"pages/{name}" for name in required if not (page_root / name).exists()]
+        if not (vault / ".knoarborignore").exists():
+            missing.append(".knoarborignore")
         checks.append(
             DoctorCheck(
                 name="vault.structure",
                 status="warning" if missing else "ok",
                 message="Vault is missing initialization files." if missing else "Vault initialization files are present.",
-                details={"missing": missing, "required": required},
+                details={"missing": missing, "required": [f"pages/{name}" for name in required] + [".knoarborignore"]},
             )
         )
         return checks
@@ -161,8 +165,9 @@ class DoctorService:
         vault = config.vault.path
         if not vault.exists() or not vault.is_dir():
             return []
+        page_root = content_root(vault)
         counts = {
-            page_dir: len([path for path in (vault / page_dir).glob("*.md") if path.is_file()]) if (vault / page_dir).exists() else 0
+            page_dir: len([path for path in (page_root / page_dir).glob("*.md") if path.is_file()]) if (page_root / page_dir).exists() else 0
             for page_dir in CONTENT_PAGE_DIRS
         }
         page_count = sum(counts.values())
@@ -421,14 +426,14 @@ def _next_steps(checks: list[DoctorCheck]) -> list[str]:
         return check.status if check else "ok"
 
     if status_of("config.exists") == "error":
-        add("Run `uv run knoar first-run --vault ./wiki` to create config.yaml and initialize a local vault.")
+        add("Run `uv run knoar first-run --vault ./vaults/all` to create config.yaml and initialize a local vault.")
         return steps
 
     if status_of("config.local_file") == "warning":
         add("Copy config.example.yaml to config.yaml before editing persistent local settings.")
 
     if status_of("vault.exists") == "error":
-        add("Run `uv run knoar init --vault ./wiki` or `uv run knoar first-run --vault ./wiki` to create the vault.")
+        add("Run `uv run knoar init --vault ./vaults/all` or `uv run knoar first-run --vault ./vaults/all` to create the vault.")
     elif status_of("vault.structure") == "warning":
         add("Run `uv run knoar init --vault <vault-path>` to restore missing vault initialization files.")
 

@@ -12,6 +12,7 @@ from knoarbor.core.errors import ConfigNotFound, InvalidConfig, VaultPathError
 
 SUPPORTED_CONFIG_VERSION = 1
 MIN_CONFIG_VERSION = 1
+DEFAULT_VAULT_PATH = Path("./vaults/all")
 
 
 class ConfigMigrationError(ValueError):
@@ -113,7 +114,7 @@ class MinerUDocumentProcessingConfig(BaseModel):
     enabled: bool = False
     endpoint: str | None = None
     input_dir: Path | None = None
-    output_dir: Path = Path("./wiki/raw/documents/markdown")
+    output_dir: Path = DEFAULT_VAULT_PATH / "raw/documents/markdown"
     recursive: bool = True
     patterns: list[str] = Field(default_factory=lambda: ["*.pdf", "*.docx", "*.pptx"])
     mode: str | None = "auto"

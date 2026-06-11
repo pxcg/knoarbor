@@ -26,9 +26,9 @@ from knoarbor.retrieval.markdown import (
 
 
 def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
-    vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
+    vault_path = Path(request.vault_path).expanduser().resolve()
     if not vault_path.exists() or not vault_path.is_dir():
-        raise UserInputError(f"obsidian_vault_path does not exist or is not a directory: {vault_path}")
+        raise UserInputError(f"vault_path does not exist or is not a directory: {vault_path}")
 
     terms = query_terms(request.query)
     if not terms:
@@ -85,9 +85,9 @@ def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
 
 
 def build_wiki_context(request: WikiContextRequest) -> WikiContextResponse:
-    vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
+    vault_path = Path(request.vault_path).expanduser().resolve()
     if not vault_path.exists() or not vault_path.is_dir():
-        raise UserInputError(f"obsidian_vault_path does not exist or is not a directory: {vault_path}")
+        raise UserInputError(f"vault_path does not exist or is not a directory: {vault_path}")
 
     terms = query_terms(request.query)
     if not terms:
@@ -183,7 +183,9 @@ def build_context_match(item: ScoredPage, terms: list[str], request: WikiContext
 def match_reason(item: ScoredPage) -> str:
     fields = ", ".join(sorted(item.matched_fields)) or "content"
     if item.graph_boost:
-        return f"Matched {fields}; related-page graph boost {round(item.graph_boost, 3)}."
+        reasons = ", ".join(sorted(set(item.graph_reasons)))
+        suffix = f" via {reasons}" if reasons else ""
+        return f"Matched {fields}; graph relevance boost {round(item.graph_boost, 3)}{suffix}."
     return f"Matched {fields}."
 
 

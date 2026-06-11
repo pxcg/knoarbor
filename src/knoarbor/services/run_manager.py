@@ -28,7 +28,7 @@ class RunManager:
         self._queue = LocalRunQueue()
 
     def start_ingest(self, request: IngestRunRequest, runner: Callable[[IngestRunRequest], Any]) -> RunStartResponse:
-        config = _request_config(request.config_path, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
+        config = _request_config(request.config_path, vault_path=request.vault_path, vault_id=request.vault_id)
         return self._start(
             config.vault.path,
             "ingest",
@@ -39,7 +39,7 @@ class RunManager:
         )
 
     def start_ingest_file(self, request: IngestFileRunRequest, runner: Callable[[IngestFileRunRequest], Any]) -> RunStartResponse:
-        config = _request_config(request.config_path, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
+        config = _request_config(request.config_path, vault_path=request.vault_path, vault_id=request.vault_id)
         return self._start(
             config.vault.path,
             "ingest",
@@ -50,7 +50,7 @@ class RunManager:
         )
 
     def start_ingest_folder(self, request: IngestFolderRunRequest, runner: Callable[[IngestFolderRunRequest], Any]) -> RunStartResponse:
-        config = _request_config(request.config_path, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
+        config = _request_config(request.config_path, vault_path=request.vault_path, vault_id=request.vault_id)
         return self._start(
             config.vault.path,
             "ingest",
@@ -65,7 +65,7 @@ class RunManager:
         request: IngestDocumentRunRequest,
         runner: Callable[[IngestDocumentRunRequest], Any],
     ) -> RunStartResponse:
-        config = _request_config(request.config_path, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
+        config = _request_config(request.config_path, vault_path=request.vault_path, vault_id=request.vault_id)
         return self._start(
             config.vault.path,
             "ingest",
@@ -165,8 +165,8 @@ class RunManager:
         )
 
     def start_lint(self, request: LintRunRequest, runner: Callable[[LintRunRequest], Any]) -> RunStartResponse:
-        if request.obsidian_vault_path:
-            vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
+        if request.vault_path:
+            vault_path = Path(request.vault_path).expanduser().resolve()
             vault_id = request.vault_id
             vault_name = _configured_vault_name(request.config_path, vault_id)
         else:
@@ -174,7 +174,7 @@ class RunManager:
             vault_path = config.vault.path
             vault_id = config.active_vault_id()
             vault_name = config.active_vault_name()
-        request = request.model_copy(update={"obsidian_vault_path": str(vault_path), "vault_id": request.vault_id or vault_id})
+        request = request.model_copy(update={"vault_path": str(vault_path), "vault_id": request.vault_id or vault_id})
         return self._start(
             vault_path,
             "lint",
@@ -185,7 +185,7 @@ class RunManager:
         )
 
     def start_query(self, request: WikiSearchRequest, runner: Callable[[WikiSearchRequest], Any]) -> RunStartResponse:
-        return self._start(Path(request.obsidian_vault_path).expanduser().resolve(), "query", request.model_dump(), lambda: runner(request))
+        return self._start(Path(request.vault_path).expanduser().resolve(), "query", request.model_dump(), lambda: runner(request))
 
     def list(self, vault_path: str, *, active_only: bool = False, limit: int = 50, vault_id: str | None = None, vault_name: str | None = None) -> RunListResponse:
         response = list_runs(Path(vault_path), active_only=active_only, limit=limit)

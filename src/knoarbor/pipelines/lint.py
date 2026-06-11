@@ -58,7 +58,7 @@ class WikiLintPipeline:
         monitor = current_run_monitor()
         if monitor:
             monitor.event("scan_started", stage="scan", message="Running deterministic wiki scan.")
-        vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
+        vault_path = Path(request.vault_path).expanduser().resolve()
         pages, issues, stats = scan_vault(
             vault_path,
             request.max_chars_per_page,
@@ -72,7 +72,7 @@ class WikiLintPipeline:
         return WikiScanResponse(pages=pages, issues=issues, fixes=fixes, stats=stats)
 
     def select_candidates(self, request: WikiLintCandidateSelectRequest) -> WikiLintCandidateSelectResponse:
-        vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
+        vault_path = Path(request.vault_path).expanduser().resolve()
         candidates, stats, warnings = select_lint_candidates(
             vault_path,
             request.mode,
@@ -83,7 +83,7 @@ class WikiLintPipeline:
         return WikiLintCandidateSelectResponse(mode=request.mode, candidates=candidates, stats=stats, warnings=warnings)
 
     def lint(self, request: WikiLintRequest) -> WikiLintResponse:
-        vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
+        vault_path = Path(request.vault_path).expanduser().resolve()
         issues, stats = lint_vault(vault_path, request.scope_pages, request.include_related, privacy_config=self.privacy_config)
         fixes = build_fix_plan(issues)
         if request.apply_safe_fixes:
@@ -131,7 +131,7 @@ class WikiLintPipeline:
         scope_pages = _scope_pages(request)
         deterministic_lint = self.lint(
             WikiLintRequest(
-                obsidian_vault_path=request.obsidian_vault_path,
+                vault_path=request.vault_path,
                 write_report=False,
                 apply_safe_fixes=request.apply_safe_fixes,
                 safe_fix_ledger_path=request.ledger_path,
@@ -217,7 +217,7 @@ class WikiLintPipeline:
                 written_pages = self.execution_router.written_page_paths(request, draft_write_response)
                 written_page_details = self.execution_router.written_page_details(request, draft_write_response)
             raw_verifications = verify_lint_post_fixes(
-                Path(request.obsidian_vault_path).expanduser().resolve(),
+                Path(request.vault_path).expanduser().resolve(),
                 applied_operations=applied_operations,
                 draft_batch=draft_batch,
                 draft_write_response=draft_write_response,
@@ -230,7 +230,7 @@ class WikiLintPipeline:
                     monitor.event("rescan_started", status="linting", stage="rescan", message="Rescanning after maintenance changes.")
                 rescan = self.lint(
                     WikiLintRequest(
-                        obsidian_vault_path=request.obsidian_vault_path,
+                        vault_path=request.vault_path,
                         write_report=False,
                         apply_safe_fixes=False,
                         scope_pages=_scope_pages(request),
@@ -257,7 +257,7 @@ class WikiLintPipeline:
                 if (retry["applied_operations"] or retry["written_pages"]) and rescan is None:
                     rescan = self.lint(
                         WikiLintRequest(
-                            obsidian_vault_path=request.obsidian_vault_path,
+                            vault_path=request.vault_path,
                             write_report=False,
                             apply_safe_fixes=False,
                             scope_pages=_scope_pages(request),
@@ -280,7 +280,7 @@ class WikiLintPipeline:
                     )
                 rescan = self.lint(
                     WikiLintRequest(
-                        obsidian_vault_path=request.obsidian_vault_path,
+                        vault_path=request.vault_path,
                         write_report=False,
                         apply_safe_fixes=False,
                         scope_pages=_scope_pages(request),
@@ -368,7 +368,7 @@ def _run_semantic_diagnose(pipeline: WikiLintPipeline, request: LintRunRequest, 
     if mode == "semantic_structural":
         scan = pipeline.scan(
             WikiScanRequest(
-                obsidian_vault_path=request.obsidian_vault_path,
+                vault_path=request.vault_path,
                 max_chars_per_page=request.max_chars_per_page,
                 scope_pages=_scope_pages(request),
                 include_related=request.include_related,
@@ -379,7 +379,7 @@ def _run_semantic_diagnose(pipeline: WikiLintPipeline, request: LintRunRequest, 
     if mode == "semantic_quality":
         selected = pipeline.select_candidates(
             WikiLintCandidateSelectRequest(
-                obsidian_vault_path=request.obsidian_vault_path,
+                vault_path=request.vault_path,
                 mode="quality",
                 max_candidates=request.max_candidates,
                 max_chars_per_page=request.max_chars_per_page,
@@ -390,7 +390,7 @@ def _run_semantic_diagnose(pipeline: WikiLintPipeline, request: LintRunRequest, 
 
     structural_scan = pipeline.scan(
         WikiScanRequest(
-            obsidian_vault_path=request.obsidian_vault_path,
+            vault_path=request.vault_path,
             max_chars_per_page=request.max_chars_per_page,
             scope_pages=_scope_pages(request),
             include_related=request.include_related,
@@ -399,7 +399,7 @@ def _run_semantic_diagnose(pipeline: WikiLintPipeline, request: LintRunRequest, 
     structural = pipeline.semantic_workflow.diagnose_structural(_structural_diagnose_payload(structural_scan), max_tokens=request.max_tokens)
     selected = pipeline.select_candidates(
         WikiLintCandidateSelectRequest(
-            obsidian_vault_path=request.obsidian_vault_path,
+            vault_path=request.vault_path,
             mode="quality",
             max_candidates=request.max_candidates,
             max_chars_per_page=request.max_chars_per_page,
@@ -448,7 +448,7 @@ def _run_deferred_retry(
     )
     scan = pipeline.scan(
         WikiScanRequest(
-            obsidian_vault_path=retry_request.obsidian_vault_path,
+            vault_path=retry_request.vault_path,
             max_chars_per_page=retry_request.max_chars_per_page,
             scope_pages=retry_pages,
             include_related=True,
@@ -480,7 +480,7 @@ def _run_deferred_retry(
         written_pages = pipeline.execution_router.written_page_paths(retry_request, draft_write_response)
         written_page_details = pipeline.execution_router.written_page_details(retry_request, draft_write_response)
     raw_verifications = verify_lint_post_fixes(
-        Path(retry_request.obsidian_vault_path).expanduser().resolve(),
+        Path(retry_request.vault_path).expanduser().resolve(),
         applied_operations=applied_operations,
         draft_batch=draft_batch,
         draft_write_response=draft_write_response,
@@ -686,7 +686,7 @@ def _empty_maintenance_review(summary: str) -> LintMaintenanceReview:
 def _write_lint_run_artifacts_if_requested(request: LintRunRequest, result: LintRunResult) -> LintRunResult:
     if not request.write_report and not request.append_ledger:
         return result
-    vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
+    vault_path = Path(request.vault_path).expanduser().resolve()
     monitor = current_run_monitor()
     ledger_path, report_path = write_lint_run_artifacts(
         vault_path,

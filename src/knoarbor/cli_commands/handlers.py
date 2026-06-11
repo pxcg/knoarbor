@@ -33,7 +33,8 @@ from knoarbor.semantic import (
     build_semantic_runner as build_configured_semantic_runner,
     load_semantic_contract,
 )
-from knoarbor.storage.wiki_init import init_wiki_vault
+from knoarbor.storage.wiki_init import init_wiki_vault, migrate_wiki_pages_layout
+from knoarbor.storage.wiki_paths import content_root
 from knoarbor.cli_utils import (
     count_raw_sources,
     follow_run_events,
@@ -219,12 +220,13 @@ def run_status(args: argparse.Namespace) -> int:
     vault_path = resolve_vault_path(args, config)
     scan = WikiLintPipeline(privacy_config=config.privacy).scan(
         WikiScanRequest(
-            obsidian_vault_path=str(vault_path),
+            vault_path=str(vault_path),
             max_chars_per_page=0,
         )
     )
     status = {
         "vault_path": str(vault_path),
+        "content_root": str(content_root(vault_path)),
         "pages": len(scan.pages),
         "issues": len(scan.issues),
         "errors": scan.stats.get("error_count", 0),
@@ -232,9 +234,9 @@ def run_status(args: argparse.Namespace) -> int:
         "info": scan.stats.get("info_count", 0),
         "directories": scan.stats.get("directories", {}),
         "raw_sources": count_raw_sources(vault_path),
-        "has_schema": (vault_path / "SCHEMA.md").exists(),
-        "has_index": (vault_path / "index.md").exists(),
-        "has_log": (vault_path / "log.md").exists(),
+        "has_schema": (content_root(vault_path) / "SCHEMA.md").exists(),
+        "has_index": (content_root(vault_path) / "index.md").exists(),
+        "has_log": (content_root(vault_path) / "log.md").exists(),
         "has_ignore": (vault_path / ".knoarborignore").exists(),
     }
     if args.json:
@@ -242,6 +244,7 @@ def run_status(args: argparse.Namespace) -> int:
         return 0
 
     print(f"vault: {status['vault_path']}")
+    print(f"content_root: {status['content_root']}")
     print(f"pages: {status['pages']}")
     print(f"raw_sources: {status['raw_sources']}")
     print(f"issues: {status['issues']} ({status['errors']} errors, {status['warnings']} warnings, {status['info']} info)")
@@ -250,6 +253,21 @@ def run_status(args: argparse.Namespace) -> int:
 
 
 def run_vaults(args: argparse.Namespace) -> int:
+    if getattr(args, "vaults_command", None) == "migrate-layout":
+        config = resolve_config(args)
+        vault_path = resolve_vault_path(args, config)
+        result = migrate_wiki_pages_layout(vault_path)
+        if args.json:
+            print_json(result.model_dump())
+            return 0
+        print(f"vault: {result.vault_path}")
+        print(f"content_root: {result.content_root}")
+        print(f"moved: {len(result.moved_paths)}")
+        print(f"skipped: {len(result.skipped_paths)}")
+        for path in result.moved_paths:
+            print(f"- moved {path}")
+        return 0
+
     response = VaultRegistryService().list_vaults(config_path=args.config)
     if args.json:
         print_json(response.model_dump())
@@ -411,7 +429,7 @@ def run_query(args: argparse.Namespace) -> int:
     query_config = config.query
     response = WikiSearchService().search(
         WikiSearchRequest(
-            obsidian_vault_path=str(vault_path),
+            vault_path=str(vault_path),
             query=args.query,
             mode=args.mode or query_config.mode,
             page_dirs=args.page_dirs if args.page_dirs is not None else query_config.page_dirs,
@@ -448,7 +466,7 @@ def run_query_feedback(args: argparse.Namespace) -> int:
     vault_path = resolve_vault_path(args, config)
     response = WikiSearchService().feedback(
         WikiQueryFeedbackRequest(
-            obsidian_vault_path=str(vault_path),
+            vault_path=str(vault_path),
             query=args.query,
             useful=args.useful,
             selected_paths=args.selected_paths or [],
@@ -471,7 +489,7 @@ def run_scan(args: argparse.Namespace) -> int:
     vault_path = resolve_vault_path(args, config)
     response = WikiLintPipeline(privacy_config=config.privacy).scan(
         WikiScanRequest(
-            obsidian_vault_path=str(vault_path),
+            vault_path=str(vault_path),
             max_chars_per_page=args.max_chars_per_page,
         )
     )
@@ -492,7 +510,7 @@ def run_lint(args: argparse.Namespace) -> int:
     vault_path = resolve_vault_path(args, config)
     response = WikiLintPipeline(privacy_config=config.privacy).lint(
         WikiLintRequest(
-            obsidian_vault_path=str(vault_path),
+            vault_path=str(vault_path),
             write_report=args.write_report,
             report_path=args.report_path,
             apply_safe_fixes=args.apply_safe_fixes,
@@ -527,7 +545,7 @@ def run_lint_run(args: argparse.Namespace) -> int:
     )
     internal_mode = normalize_lint_run_mode(args.mode)
     request = LintRunRequest(
-        obsidian_vault_path=str(vault_path),
+        vault_path=str(vault_path),
         vault_id=args.vault_id,
         scope=scope,
         mode=internal_mode,
@@ -933,7 +951,7 @@ def run_lint_plan(args: argparse.Namespace) -> int:
     if args.mode == "structural":
         scan = pipeline.scan(
             WikiScanRequest(
-                obsidian_vault_path=str(vault_path),
+                vault_path=str(vault_path),
                 max_chars_per_page=args.max_chars_per_page,
             )
         )
@@ -971,7 +989,7 @@ def run_lint_plan(args: argparse.Namespace) -> int:
     else:
         selected = pipeline.select_candidates(
             WikiLintCandidateSelectRequest(
-                obsidian_vault_path=str(vault_path),
+                vault_path=str(vault_path),
                 mode="quality",
                 max_candidates=args.max_candidates,
                 max_chars_per_page=args.max_chars_per_page,

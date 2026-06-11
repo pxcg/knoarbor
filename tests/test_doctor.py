@@ -26,9 +26,9 @@ class DoctorServiceTests(unittest.TestCase):
     def test_reports_ready_minimal_markdown_setup(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             notes = root / "notes"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             notes.mkdir()
             for name in ["SCHEMA.md", "index.md", "log.md", ".knoarborignore"]:
                 (vault / name).write_text("", encoding="utf-8")
@@ -79,9 +79,9 @@ class DoctorServiceTests(unittest.TestCase):
     def test_reports_empty_vault_next_step(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             notes = root / "notes"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             notes.mkdir()
             for name in ["SCHEMA.md", "index.md", "log.md", ".knoarborignore"]:
                 (vault / name).write_text("", encoding="utf-8")
@@ -122,9 +122,9 @@ class DoctorServiceTests(unittest.TestCase):
     def test_lightweight_doctor_skips_runtime_connector_discovery(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             missing_notes = root / "missing-notes"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             for name in ["SCHEMA.md", "index.md", "log.md", ".knoarborignore"]:
                 (vault / name).write_text("", encoding="utf-8")
             config = root / "config.yaml"
@@ -154,8 +154,8 @@ class DoctorServiceTests(unittest.TestCase):
     def test_runtime_doctor_warns_when_local_provider_has_no_models(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
-            vault.mkdir()
+            vault = root / "vaults" / "all"
+            vault.mkdir(parents=True)
             for name in ["SCHEMA.md", "index.md", "log.md", ".knoarborignore"]:
                 (vault / name).write_text("", encoding="utf-8")
             config = root / "config.yaml"

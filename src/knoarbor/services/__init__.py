@@ -9,6 +9,8 @@ from knoarbor.services.run_manager import RunManager
 from knoarbor.services.source_catalog import SourceCatalogService
 from knoarbor.services.vault_registry import VaultRegistryService
 from knoarbor.services.wiki_linter import WikiLinterService
+from knoarbor.services.wiki_pages import WikiPageService
+from knoarbor.services.wiki_reports import WikiReportService
 from knoarbor.services.wiki_search import WikiSearchService
 
 
@@ -22,3 +24,5 @@ class ApplicationServices:
     source_catalog: SourceCatalogService = field(default_factory=SourceCatalogService)
     model_probe: ModelProbeService = field(default_factory=ModelProbeService)
     vaults: VaultRegistryService = field(default_factory=VaultRegistryService)
+    wiki_pages: WikiPageService = field(default_factory=WikiPageService)
+    wiki_reports: WikiReportService = field(default_factory=WikiReportService)

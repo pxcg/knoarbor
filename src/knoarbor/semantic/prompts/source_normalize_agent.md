@@ -71,7 +71,7 @@ For segmented sources, use `source_document.metadata.segmentation` as outline co
 
 - `output.schema_version` must be exactly `knowledge_extract.v1`.
 - `source.source_type` must reflect the source content, not the trigger branch.
-- `source.source_path` should prefer a path relative to `wiki/` when available; otherwise preserve the connector-provided path.
+- `source.source_path` should prefer a path relative to the selected vault when available; otherwise preserve the connector-provided path.
 - `source.title` should be a human-readable title, not a filename. Remove extensions such as `.md`, `.markdown`, `.pdf`, `.docx`, and `.txt` when deriving it from a file path.
 - For chat sources, include complete substantive user/assistant dialogue units and preserve message indexes when available.
 - For coding-assistant chat sources such as Codex, OpenClaw, and Claude Code, retain user requests and assistant final answers, but exclude system/developer instructions, hidden reasoning, tool schemas, terminal output, patch logs, and process-only status messages unless they are themselves the knowledge being discussed.

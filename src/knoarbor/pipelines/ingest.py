@@ -54,7 +54,7 @@ from knoarbor.pipelines.lint import WikiLintPipeline
 from knoarbor.pipelines.source import SourcePipeline, SourcePipelineFailure, SourcePipelineItem
 from knoarbor.pipelines.source_segmentation import SourceSegmentBatch, SourceSegmenter
 from knoarbor.pipelines.write import WikiWritePipeline
-from knoarbor.runtime import current_run_monitor
+from knoarbor.runtime import current_run_monitor, vault_write_lock
 from knoarbor.storage.source_metrics import connector_source_metric_key, update_source_counts
 
 
@@ -162,15 +162,16 @@ class IngestSourceExecutor:
                 segmentation_config=segmentation_config,
             )
             if write and (result.generated_pages or _checkpointable_semantic_skip(result)):
-                _commit_checkpoint_plan(
-                    self.checkpoint_store,
-                    vault_path=vault_path,
-                    state=state,
-                    checkpoint_plan=checkpoint_plan,
-                    generated_pages=result.generated_pages,
-                    fallback_content_hash=item.raw.content_hash[:12],
-                )
-                self.checkpoint_store.write_state(vault_path, checkpoint_path, state)
+                with vault_write_lock(vault_path):
+                    _commit_checkpoint_plan(
+                        self.checkpoint_store,
+                        vault_path=vault_path,
+                        state=state,
+                        checkpoint_plan=checkpoint_plan,
+                        generated_pages=result.generated_pages,
+                        fallback_content_hash=item.raw.content_hash[:12],
+                    )
+                    self.checkpoint_store.write_state(vault_path, checkpoint_path, state)
             if monitor:
                 monitor.event(
                     "source_finished",
@@ -302,7 +303,7 @@ class IngestSourceExecutor:
                 result.context["write_policy"] = {"changes": policy_result.changes}
             write_response = self.write_pipeline.run(
                 WikiDraftBatchWriteRequest(
-                    obsidian_vault_path=str(vault_path),
+                    vault_path=str(vault_path),
                     auto_related_links=False,
                     provenance_related_links=True,
                     drafts=policy_result.items,
@@ -321,7 +322,7 @@ class IngestSourceExecutor:
             try:
                 lint_response = self.lint_pipeline.run_maintenance(
                     LintRunRequest(
-                        obsidian_vault_path=str(vault_path),
+                        vault_path=str(vault_path),
                         scope=_maintenance_scope(result),
                         mode="deterministic",
                         apply_safe_fixes=auto_apply_safe_lint_fixes,
@@ -487,7 +488,7 @@ class IngestSourceExecutor:
                 result.context["write_policy"] = {"changes": policy_result.changes}
             write_response = self.write_pipeline.run(
                 WikiDraftBatchWriteRequest(
-                    obsidian_vault_path=str(vault_path),
+                    vault_path=str(vault_path),
                     auto_related_links=False,
                     provenance_related_links=True,
                     drafts=policy_result.items,
@@ -512,7 +513,7 @@ class IngestSourceExecutor:
                     monitor.event("scoped_lint_started", status="linting", stage="scoped_lint", current_item=result.source_id, message="Running scoped deterministic lint.")
                 lint_response = self.lint_pipeline.run_maintenance(
                     LintRunRequest(
-                        obsidian_vault_path=str(vault_path),
+                        vault_path=str(vault_path),
                         scope=_maintenance_scope(result),
                         mode="deterministic",
                         apply_safe_fixes=auto_apply_safe_lint_fixes,
@@ -1116,7 +1117,9 @@ class IngestPipeline:
 
 
 def _read_index_payload(vault_path: Path) -> dict[str, object]:
-    index_path = vault_path / "index.md"
+    from knoarbor.storage.wiki_paths import content_root
+
+    index_path = content_root(vault_path) / "index.md"
     if not index_path.exists():
         return {"available": False, "path": "index.md", "content": ""}
     return {"available": True, "path": "index.md", "content": index_path.read_text(encoding="utf-8")}

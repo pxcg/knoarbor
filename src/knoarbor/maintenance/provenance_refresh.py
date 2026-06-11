@@ -10,7 +10,7 @@ from knoarbor.core.schemas.wiki_write import WikiDraftBatchWriteItem, WikiDraftB
 from knoarbor.maintenance.wiki_links import reconcile_expected_related_pages
 from knoarbor.pipelines.write import WikiWritePipeline
 from knoarbor.storage.wiki_index import relative_wiki_path, update_index
-from knoarbor.storage.wiki_paths import normalize_source_digest_title, resolve_existing_target
+from knoarbor.storage.wiki_paths import content_root, normalize_source_digest_title, resolve_existing_target
 
 
 MAX_REFRESH_DIFF_LINES = 220
@@ -121,7 +121,7 @@ class ProvenanceRefreshExecutor:
         )
         write_response = self.write_pipeline.run(
             WikiDraftBatchWriteRequest(
-                obsidian_vault_path=str(vault_path),
+                vault_path=str(vault_path),
                 auto_related_links=False,
                 provenance_related_links=False,
                 drafts=[
@@ -158,8 +158,8 @@ class ProvenanceRefreshExecutor:
 
     def _attach_digest_links(self, vault_path: Path, source: str, digest_page: str, target_pages: list[str]) -> dict[str, object]:
         applied: list[dict[str, object]] = []
-        digest_path = vault_path / digest_page
-        if digest_path.exists():
+        digest_path = resolve_existing_target(vault_path, digest_page)
+        if digest_path is not None and digest_path.exists():
             operation = _reconcile_page(vault_path, digest_path, target_pages, "source_digest_missing_related_pages")
             if operation:
                 operation.update(
@@ -174,8 +174,8 @@ class ProvenanceRefreshExecutor:
                 applied.append(operation)
 
         for target_page in target_pages:
-            target_path = vault_path / target_page
-            if not target_path.exists():
+            target_path = resolve_existing_target(vault_path, target_page)
+            if target_path is None or not target_path.exists():
                 continue
             operation = _reconcile_page(vault_path, target_path, [digest_page], "knowledge_missing_source_digest_link")
             if operation:
@@ -194,7 +194,7 @@ class ProvenanceRefreshExecutor:
 
 def _source_digest_by_source(vault_path: Path) -> dict[str, str]:
     mapping: dict[str, str] = {}
-    sources_dir = vault_path / "sources"
+    sources_dir = content_root(vault_path) / "sources"
     if not sources_dir.exists():
         return mapping
     for page_path in sorted(sources_dir.glob("*.md")):

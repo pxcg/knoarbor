@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from knoarbor.audit.token_ledger import read_token_analysis
+from knoarbor.core.config import DEFAULT_VAULT_PATH
 from knoarbor.services.ui_config import UiConfigService, summarize_default_config
 from knoarbor.services.ui_config_models import (
     UiConfigDiagnostics,
@@ -20,10 +21,12 @@ from knoarbor.services.ui_config_models import (
 )
 from knoarbor.services.wiki_graph import WikiGraph, build_wiki_graph
 from knoarbor.storage.wiki_index import ensure_machine_index, machine_index_dir
+from knoarbor.storage.wiki_paths import content_root
 
 
 class UiStatusResponse(BaseModel):
     vault_path: str
+    content_root: str
     pages: int
     raw_sources: int
     issues: int
@@ -80,7 +83,7 @@ def create_ui_router() -> APIRouter:
 
     @router.get("/ui/api/status", response_model=UiStatusResponse, tags=["ui"])
     async def read_ui_status(vault_path: str | None = Query(default=None)) -> UiStatusResponse:
-        path = Path(vault_path or _summary_from_default_config().get("vault_path") or "./wiki").expanduser().resolve()
+        path = Path(vault_path or _summary_from_default_config().get("vault_path") or DEFAULT_VAULT_PATH).expanduser().resolve()
         index_pages = _read_machine_page_records(path)
         directories: dict[str, int] = {}
         for page in index_pages:
@@ -89,6 +92,7 @@ def create_ui_router() -> APIRouter:
         issue_counts = _latest_lint_issue_counts(path)
         return UiStatusResponse(
             vault_path=str(path),
+            content_root=str(content_root(path)),
             pages=len(index_pages),
             raw_sources=_count_raw_sources(path),
             issues=issue_counts["issues"],
@@ -100,7 +104,7 @@ def create_ui_router() -> APIRouter:
 
     @router.get("/ui/api/graph", response_model=WikiGraph, tags=["ui"])
     async def read_ui_graph(vault_path: str | None = Query(default=None)) -> WikiGraph:
-        path = Path(vault_path or _summary_from_default_config().get("vault_path") or "./wiki").expanduser().resolve()
+        path = Path(vault_path or _summary_from_default_config().get("vault_path") or DEFAULT_VAULT_PATH).expanduser().resolve()
         return build_wiki_graph(path)
 
     @router.get("/ui/api/tokens", tags=["ui"])
@@ -254,7 +258,7 @@ def _markdown_section(content: str, heading: str) -> str:
 
 
 def _resolve_vault_path(vault_path: str | None) -> Path:
-    return Path(vault_path or _summary_from_default_config().get("vault_path") or "./wiki").expanduser().resolve()
+    return Path(vault_path or _summary_from_default_config().get("vault_path") or DEFAULT_VAULT_PATH).expanduser().resolve()
 
 
 def _resolve_vault_file(vault_path: Path, relative_path: str) -> Path:

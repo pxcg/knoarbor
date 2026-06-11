@@ -46,11 +46,11 @@ def create_app(services: ApplicationServices | None = None) -> FastAPI:
     app.include_router(create_lint_router(services))
     app.include_router(create_models_router(services))
     app.include_router(create_query_router(services))
-    app.include_router(create_reports_router())
+    app.include_router(create_reports_router(services))
     app.include_router(create_runtime_router())
     app.include_router(create_runs_router(services))
     app.include_router(create_sources_router(services))
     app.include_router(create_vaults_router(services))
-    app.include_router(create_wiki_router())
+    app.include_router(create_wiki_router(services))
     app.include_router(create_ui_router())
     return app

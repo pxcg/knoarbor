@@ -78,7 +78,7 @@ class WikiIndexStorageTests(unittest.TestCase):
             )
 
             update_index(vault)
-            content = (vault / "index.md").read_text(encoding="utf-8")
+            content = (vault / "pages" / "index.md").read_text(encoding="utf-8")
 
         self.assertNotIn("lint_run_report", content)
         self.assertNotIn("maintenance/", content)

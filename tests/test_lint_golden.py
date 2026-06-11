@@ -26,7 +26,7 @@ class LintGoldenTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
             create_lint_fixture_vault(vault)
-            response = WikiLintPipeline().scan(WikiScanRequest(obsidian_vault_path=str(vault)))
+            response = WikiLintPipeline().scan(WikiScanRequest(vault_path=str(vault)))
 
         assert_json_snapshot(self, _stable_scan_response(response), FIXTURE_DIR / "deterministic_scan.json")
 
@@ -36,7 +36,7 @@ class LintGoldenTests(unittest.TestCase):
             create_lint_fixture_vault(vault)
             response = WikiLintPipeline(LintStructuralFixtureWorkflow()).run_maintenance(
                 LintRunRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     scope=MaintenanceScope(
                         scope_id="golden:lint",
                         trigger="manual",

@@ -3,12 +3,13 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 
 from knoarbor.entrypoints.vault_selection import resolve_single_vault
-from knoarbor.services.wiki_pages import WikiPageBacklinksResponse, WikiPageDetail, WikiPageService, WikiPagesResponse
+from knoarbor.services import ApplicationServices
+from knoarbor.services.wiki_pages import WikiPageBacklinksResponse, WikiPageDetail, WikiPagesResponse
 
 
-def create_wiki_router() -> APIRouter:
+def create_wiki_router(services: ApplicationServices) -> APIRouter:
     router = APIRouter(prefix="/wiki", tags=["wiki"])
-    service = WikiPageService()
+    service = services.wiki_pages
 
     @router.get("/pages", response_model=WikiPagesResponse)
     async def list_pages(

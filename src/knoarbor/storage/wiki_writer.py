@@ -11,6 +11,7 @@ from knoarbor.retrieval.wiki_links import find_related_links
 from knoarbor.semantic.wiki_render import apply_patched_markdown, render_markdown
 from knoarbor.storage.wiki_paths import (
     available_title_path,
+    content_root,
     resolve_existing_by_hash,
     resolve_required_target,
 )
@@ -142,7 +143,7 @@ def write_draft(
     if target_path:
         wiki_path = target_path
     else:
-        output_dir = vault_path / draft.page_dir
+        output_dir = content_root(vault_path) / draft.page_dir
         output_dir.mkdir(parents=True, exist_ok=True)
         wiki_path = resolve_existing_by_hash(vault_path, draft.page_dir, digest) or available_title_path(output_dir, draft.title)
 

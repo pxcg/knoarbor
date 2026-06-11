@@ -128,7 +128,7 @@ class RunMonitorTests(unittest.TestCase):
             vault = Path(tmp_dir)
             manager = RunManager()
             started = manager.start_query(
-                WikiSearchRequest(obsidian_vault_path=str(vault), query="agent", record_query=False),
+                WikiSearchRequest(vault_path=str(vault), query="agent", record_query=False),
                 lambda request: {"query": request.query, "results": []},
             )
             for _ in range(20):
@@ -149,7 +149,7 @@ class RunMonitorTests(unittest.TestCase):
             with patch("knoarbor.services.wiki_search.search_query", side_effect=RuntimeError("query failed")):
                 started = manager.start_query(
                     WikiSearchRequest(
-                        obsidian_vault_path=str(vault),
+                        vault_path=str(vault),
                         query="agent",
                         record_query=True,
                         write_report=True,
@@ -280,11 +280,11 @@ class RunMonitorTests(unittest.TestCase):
                     release_first.wait(2)
                 return {"query": request.query, "results": []}
 
-            first = manager.start_query(WikiSearchRequest(obsidian_vault_path=str(vault), query="first", record_query=False), runner)
+            first = manager.start_query(WikiSearchRequest(vault_path=str(vault), query="first", record_query=False), runner)
             self.assertEqual(first.status, "queued")
             self.assertTrue(first_started.wait(2))
 
-            second = manager.start_query(WikiSearchRequest(obsidian_vault_path=str(vault), query="second", record_query=False), runner)
+            second = manager.start_query(WikiSearchRequest(vault_path=str(vault), query="second", record_query=False), runner)
             time.sleep(0.1)
             second_record = manager.read(str(vault), second.run_id)
             self.assertEqual(second_record.status, "queued")

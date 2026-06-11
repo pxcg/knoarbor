@@ -32,7 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     first_run_parser = subparsers.add_parser("first-run", help="Create local config, initialize the vault, and run first-run diagnostics.")
-    first_run_parser.add_argument("--vault", default=None, help="Vault path to create. Defaults to ./wiki in the local config.")
+    first_run_parser.add_argument("--vault", default=None, help="Vault path to create. Defaults to ./vaults/all in the local config.")
     first_run_parser.add_argument(
         "--example",
         action=argparse.BooleanOptionalAction,
@@ -64,6 +64,10 @@ def build_parser() -> argparse.ArgumentParser:
     vaults_list_parser = vaults_subparsers.add_parser("list", help="List configured vault profiles.")
     vaults_list_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
     vaults_list_parser.set_defaults(handler=run_vaults)
+    vaults_migrate_parser = vaults_subparsers.add_parser("migrate-layout", help="Move legacy root-level wiki pages into pages/.")
+    add_vault_argument(vaults_migrate_parser)
+    vaults_migrate_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
+    vaults_migrate_parser.set_defaults(handler=run_vaults)
     vaults_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
     vaults_parser.set_defaults(handler=run_vaults)
 

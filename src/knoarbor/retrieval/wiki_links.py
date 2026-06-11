@@ -16,7 +16,7 @@ from knoarbor.core.markdown import (
 from knoarbor.core.wiki_lists import merge_unique_items
 from knoarbor.core.wiki_schema import INDEX_EXCLUDED_DIRS, PAGE_TYPE_ORDER, is_index_excluded_file
 from knoarbor.storage.wiki_index import relative_wiki_path, wiki_link_for_path
-from knoarbor.storage.wiki_paths import resolve_existing_target
+from knoarbor.storage.wiki_paths import content_root, resolve_existing_target
 
 
 def normalize_title_key(value: str) -> str:
@@ -51,8 +51,9 @@ def resolve_wikilink_target(vault_path: Path, target: str) -> str | None:
 
 def resolve_relative_wiki_path(vault_path: Path, target: str) -> str | None:
     wanted = f"{target.removesuffix('.md')}.md".lower()
+    root = content_root(vault_path)
     for page_dir in PAGE_TYPE_ORDER:
-        directory_path = vault_path / page_dir
+        directory_path = root / page_dir
         if not directory_path.exists():
             continue
         for md_path in directory_path.glob("*.md"):
@@ -67,10 +68,11 @@ def resolve_relative_wiki_path(vault_path: Path, target: str) -> str | None:
 def resolve_wikilink_by_title(vault_path: Path, title: str, directory: str | None) -> str | None:
     matches: list[str] = []
     target_title = normalize_title_key(title)
+    root = content_root(vault_path)
     for page_dir in PAGE_TYPE_ORDER:
         if directory and page_dir != directory:
             continue
-        directory_path = vault_path / page_dir
+        directory_path = root / page_dir
         if not directory_path.exists():
             continue
         for md_path in directory_path.glob("*.md"):
@@ -129,8 +131,9 @@ def find_related_links(vault_path: Path, source_focus: str, current_path: Path |
     words = {word for word in re.findall(r"[\w\u4e00-\u9fff]{2,}", source_focus) if len(word) >= 2}
     related: list[str] = []
 
-    for md_path in vault_path.rglob("*.md"):
-        relative_parts = md_path.relative_to(vault_path).parts
+    root = content_root(vault_path)
+    for md_path in root.rglob("*.md"):
+        relative_parts = md_path.relative_to(root).parts
         if current_path and md_path.resolve() == current_path.resolve():
             continue
         if any(part in INDEX_EXCLUDED_DIRS for part in relative_parts):

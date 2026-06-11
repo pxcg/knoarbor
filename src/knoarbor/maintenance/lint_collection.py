@@ -10,12 +10,14 @@ from knoarbor.core.schemas.wiki_lint import WikiLintIssue
 from knoarbor.core.wiki_schema import PAGE_TYPE_ORDER, is_index_excluded_file
 from knoarbor.maintenance.lint_models import LintPage
 from knoarbor.maintenance.lint_rules import KNOWLEDGE_DIRS
+from knoarbor.storage.wiki_paths import content_root
 
 
 def collect_pages(vault_path: Path) -> list[LintPage]:
     pages: list[LintPage] = []
+    root = content_root(vault_path)
     for directory in PAGE_TYPE_ORDER:
-        page_dir = vault_path / directory
+        page_dir = root / directory
         if not page_dir.exists():
             continue
         for md_path in sorted(page_dir.glob("*.md")):
@@ -25,7 +27,7 @@ def collect_pages(vault_path: Path) -> list[LintPage]:
                 content = md_path.read_text(encoding="utf-8")
             except UnicodeDecodeError:
                 content = ""
-            relative_path = md_path.relative_to(vault_path).as_posix()
+            relative_path = md_path.relative_to(root).as_posix()
             metadata = parse_frontmatter(content) if content else {}
             pages.append(
                 LintPage(

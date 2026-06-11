@@ -44,8 +44,8 @@ class WikiLinterService:
         request = request.model_copy(update={"mode": mode})
         try:
             config = load_config(request.config_path or default_config_path())
-            config = select_config_vault(config, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
-            request = request.model_copy(update={"obsidian_vault_path": str(config.vault.path)})
+            config = select_config_vault(config, vault_path=request.vault_path, vault_id=request.vault_id)
+            request = request.model_copy(update={"vault_path": str(config.vault.path)})
             configure_runtime_logging(config.vault.path)
             if mode == "deterministic":
                 return WikiLintPipeline(privacy_config=config.privacy).run_maintenance(request)
@@ -75,8 +75,8 @@ class WikiLinterService:
         if not request.write_report and not request.append_ledger:
             return
         try:
-            if request.obsidian_vault_path:
-                vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
+            if request.vault_path:
+                vault_path = Path(request.vault_path).expanduser().resolve()
             else:
                 config = load_config(request.config_path or default_config_path())
                 vault_path = select_config_vault(config, vault_id=request.vault_id).vault.path

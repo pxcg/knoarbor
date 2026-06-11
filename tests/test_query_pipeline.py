@@ -127,7 +127,7 @@ class QueryPipelineTests(unittest.TestCase):
 
             response = search_query(
                 WikiSearchRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     query="agent loop",
                     mode="balanced",
                     page_dirs=["concepts"],
@@ -171,7 +171,7 @@ class QueryPipelineTests(unittest.TestCase):
 
             response = search_query(
                 WikiSearchRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     query="agent loop",
                     context_format="full",
                     max_context_chars=1000,
@@ -197,7 +197,7 @@ class QueryPipelineTests(unittest.TestCase):
 
             response = WikiSearchService().search(
                 WikiSearchRequest(
-                    obsidian_vault_path=str(vault),
+                    vault_path=str(vault),
                     query="agent loop",
                     record_query=False,
                     write_report=True,
@@ -215,7 +215,7 @@ class QueryPipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
             request = WikiSearchRequest(
-                obsidian_vault_path=str(vault),
+                vault_path=str(vault),
                 query="missing topic",
                 record_query=False,
             )

@@ -5,7 +5,6 @@
 !.env.example
 config.yaml
 config.local.yaml
-wiki/
 vaults/
 .knoarbor/
 __pycache__/
@@ -49,4 +48,4 @@ docs/zh/maintainer/
 
 # Obsidian local UI state
 .obsidian/
-wiki/.obsidian/
+vaults/**/.obsidian/

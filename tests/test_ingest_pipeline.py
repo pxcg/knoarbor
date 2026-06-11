@@ -25,6 +25,7 @@ from knoarbor.document_processing.schemas import DocumentProcessingItem, Documen
 from knoarbor.pipelines.ingest import IngestPipeline
 from knoarbor.pipelines.source import SourcePipeline
 from knoarbor.runtime import RunMonitor, run_monitor_context
+from knoarbor.storage.wiki_paths import content_root
 
 
 class FakeIngestSemanticWorkflow:
@@ -509,9 +510,9 @@ class IngestPipelineTests(unittest.TestCase):
     def test_connector_ingest_writes_and_then_skips_unchanged_source(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             notes = root / "notes"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             notes.mkdir()
             (notes / "agent.md").write_text(
                 "# Agent Loop\n\nObserve and act.\n\nContact alice@example.com\nDEEPSEEK_API_KEY=sk-abcdefghijklmnop1234567890",
@@ -549,9 +550,9 @@ class IngestPipelineTests(unittest.TestCase):
     def test_long_markdown_source_is_segmented_before_semantic_ingest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             notes = root / "notes"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             notes.mkdir()
             (notes / "long.md").write_text(
                 "# Part One\n\n" + "a" * 9000 + "\n\n## Part Two\n\n" + "b" * 9000 + "\n\n## Part Three\n\n" + "c" * 9000,
@@ -581,9 +582,9 @@ class IngestPipelineTests(unittest.TestCase):
     def test_segmented_ingest_merges_duplicate_source_digests_before_write(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             notes = root / "notes"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             notes.mkdir()
             (notes / "long.md").write_text(
                 "# Part One\n\n" + "a" * 9000 + "\n\n## Part Two\n\n" + "b" * 9000 + "\n\n## Part Three\n\n" + "c" * 9000,
@@ -602,7 +603,7 @@ class IngestPipelineTests(unittest.TestCase):
 
             result = pipeline.run(config, connector_names=["markdown"], write=True, write_report=False, append_ledger=False)
             source = result.results[0]
-            source_pages = sorted((vault / "sources").glob("*.md"))
+            source_pages = sorted((content_root(vault) / "sources").glob("*.md"))
             self.assertEqual(len(source_pages), 1)
             self.assertEqual(result.stats["written_count"], 1)
             self.assertEqual(source.generated_pages, ["sources/Long-Source-Digest.md"])
@@ -611,9 +612,9 @@ class IngestPipelineTests(unittest.TestCase):
     def test_ingest_uses_provenance_links_without_broad_lexical_related_links(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             notes = root / "notes"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             notes.mkdir()
             (vault / "concepts").mkdir()
             (vault / "concepts" / "Existing-Agent.md").write_text(
@@ -644,9 +645,9 @@ class IngestPipelineTests(unittest.TestCase):
     def test_document_processing_runs_before_markdown_discovery(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             processed = root / "raw" / "documents" / "markdown" / "paper.md"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             config = KnoArborConfig(
                 vault=VaultConfig(path=vault),
                 connectors={
@@ -673,9 +674,9 @@ class IngestPipelineTests(unittest.TestCase):
     def test_prepared_file_ingest_keeps_document_processing_result(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             source = root / "parsed.md"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             source.write_text("# Parsed File\n\nContent.", encoding="utf-8")
             config = KnoArborConfig(
                 vault=VaultConfig(path=vault),
@@ -716,7 +717,7 @@ class IngestPipelineTests(unittest.TestCase):
     def test_ingest_builds_single_candidate_pool_and_materializes_selected_pages(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             notes = root / "notes"
             (vault / "concepts").mkdir(parents=True)
             notes.mkdir()
@@ -766,7 +767,7 @@ class IngestPipelineTests(unittest.TestCase):
     def test_ingest_context_reranks_same_source_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             notes = root / "notes"
             (vault / "concepts").mkdir(parents=True)
             notes.mkdir()
@@ -827,9 +828,9 @@ class IngestPipelineTests(unittest.TestCase):
     def test_ingest_writes_compact_report_and_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             notes = root / "notes"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             notes.mkdir()
             (notes / "agent.md").write_text("# Agent Loop\n\nObserve and act.", encoding="utf-8")
             config = KnoArborConfig(
@@ -873,9 +874,9 @@ class IngestPipelineTests(unittest.TestCase):
     def test_ingest_records_source_failure_and_continues_batch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             notes = root / "notes"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             notes.mkdir()
             (notes / "a_bad.md").write_text("# Bad\n\nThis source fails.", encoding="utf-8")
             (notes / "b_good.md").write_text("# Good\n\nThis source succeeds.", encoding="utf-8")
@@ -910,9 +911,9 @@ class IngestPipelineTests(unittest.TestCase):
     def test_quality_gate_blocks_invalid_approved_draft_before_write(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             notes = root / "notes"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             notes.mkdir()
             (notes / "agent.md").write_text("# Agent Loop\n\nObserve and act.", encoding="utf-8")
             config = KnoArborConfig(
@@ -940,9 +941,9 @@ class IngestPipelineTests(unittest.TestCase):
     def test_quality_gate_blocks_write_action_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             notes = root / "notes"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             notes.mkdir()
             (notes / "agent.md").write_text("# Agent\n\nAgent loop.", encoding="utf-8")
             config = KnoArborConfig(
@@ -967,7 +968,7 @@ class IngestPipelineTests(unittest.TestCase):
     def test_relation_update_operation_patches_existing_page(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             notes = root / "notes"
             (vault / "concepts").mkdir(parents=True)
             notes.mkdir()
@@ -1024,9 +1025,9 @@ class IngestPipelineTests(unittest.TestCase):
     def test_relation_skip_records_semantic_skip_reason_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             notes = root / "notes"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             notes.mkdir()
             (notes / "thin.md").write_text("todo", encoding="utf-8")
             config = KnoArborConfig(
@@ -1054,9 +1055,9 @@ class IngestPipelineTests(unittest.TestCase):
         for page_dir, page_type in [("claims", "claim"), ("timelines", "timeline"), ("workflows", "workflow")]:
             with tempfile.TemporaryDirectory() as tmp_dir:
                 root = Path(tmp_dir)
-                vault = root / "wiki"
+                vault = root / "vaults" / "all"
                 notes = root / "notes"
-                vault.mkdir()
+                vault.mkdir(parents=True)
                 notes.mkdir()
                 (notes / f"{page_dir}.md").write_text(f"# {page_dir}\n\nDurable {page_dir}.", encoding="utf-8")
                 config = KnoArborConfig(
@@ -1074,7 +1075,7 @@ class IngestPipelineTests(unittest.TestCase):
                     connector_names=["markdown"],
                     write=True,
                 )
-                page = vault / result.results[0].generated_pages[0]
+                page = content_root(vault) / result.results[0].generated_pages[0]
                 content = page.read_text(encoding="utf-8")
 
             self.assertIn(f"type: {page_type}", content)
@@ -1083,9 +1084,9 @@ class IngestPipelineTests(unittest.TestCase):
     def test_hermes_connector_uses_incremental_session_window(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             sessions = root / "sessions"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             sessions.mkdir()
             session_path = sessions / "session_demo.json"
             session_path.write_text(
@@ -1145,9 +1146,9 @@ class IngestPipelineTests(unittest.TestCase):
     def test_source_pipeline_item_failure_does_not_abort_connector(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             raw = root / "good.md"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             raw.write_text("# Good\n\nContent", encoding="utf-8")
             config = KnoArborConfig(
                 vault=VaultConfig(path=vault),
@@ -1176,9 +1177,9 @@ class IngestPipelineTests(unittest.TestCase):
     def test_missing_source_checkpoint_creates_lifecycle_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
+            vault = root / "vaults" / "all"
             notes = root / "notes"
-            vault.mkdir()
+            vault.mkdir(parents=True)
             notes.mkdir()
             source_path = notes / "agent.md"
             source_path.write_text("# Agent Loop\n\nObserve and act.", encoding="utf-8")

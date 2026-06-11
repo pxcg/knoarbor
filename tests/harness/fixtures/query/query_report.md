@@ -6,7 +6,7 @@
 - mode: balanced
 - retrieval_mode: machine_hybrid_balanced
 - returned_count: 3
-- context_pack_chars: 1845
+- context_pack_chars: 1960
 - context_pack_truncated: False
 
 ## Results
@@ -17,9 +17,9 @@
 - type: concept
 - match_kind: direct
 - relevance: high
-- score: 37.9
-- matched_fields: body, headings, key_points, path, summary, tags, title
-- reason: Matched body, headings, key_points, path, summary, tags, title.
+- score: 42.7
+- matched_fields: body, headings, key_points, path, related_graph, summary, tags, title
+- reason: Matched body, headings, key_points, path, related_graph, summary, tags, title; graph relevance boost 4.8 via backlink, shared_source.
 
 Summary:
 
@@ -34,9 +34,9 @@ Excerpts:
 - type: source
 - match_kind: direct
 - relevance: high
-- score: 30.4
+- score: 31.0
 - matched_fields: body, headings, path, related_graph, summary, title
-- reason: Matched body, headings, path, related_graph, summary, title; related-page graph boost 3.0.
+- reason: Matched body, headings, path, related_graph, summary, title; graph relevance boost 3.6 via outbound_link, shared_source.
 
 Summary:
 
@@ -51,9 +51,9 @@ Excerpts:
 - type: entity
 - match_kind: direct
 - relevance: high
-- score: 17.4
+- score: 16.8
 - matched_fields: body, related_graph, summary, tags
-- reason: Matched body, related_graph, summary, tags; related-page graph boost 3.0.
+- reason: Matched body, related_graph, summary, tags; graph relevance boost 2.4 via outbound_link.
 
 Summary:
 
@@ -75,7 +75,7 @@ Excerpts:
 ## Trace
 
 - candidate_count: 3
-- context_pack_chars: 1845
+- context_pack_chars: 1960
 - context_pack_truncated: False
 - direct_match_count: 3
 - direct_page_count: 3
@@ -87,13 +87,13 @@ Excerpts:
 - origin_counts: {'direct': 3, 'related': 0}
 - page_count: 3
 - query_terms: ['agent', 'loop', 'workflow']
-- related_expansion_count: 2
-- related_result_paths: ['entities/OpenClaw.md', 'sources/Agent-Loop-Source.md']
-- related_seed_pages: ['concepts/Agent-Loop.md']
+- related_expansion_count: 3
+- related_result_paths: ['concepts/Agent-Loop.md', 'entities/OpenClaw.md', 'sources/Agent-Loop-Source.md']
+- related_seed_pages: ['concepts/Agent-Loop.md', 'entities/OpenClaw.md', 'sources/Agent-Loop-Source.md']
 - returned_count: 3
 - returned_paths: ['concepts/Agent-Loop.md', 'sources/Agent-Loop-Source.md', 'entities/OpenClaw.md']
 - schema_version: query_trace.v1
-- top_matches: [{'path': 'concepts/Agent-Loop.md', 'score': 37.9, 'relevance': 'high', 'matched_fields': ['body', 'headings', 'key_points', 'path', 'summary', 'tags', 'title'], 'reason': 'Matched body, headings, key_points, path, summary, tags, title.'}, {'path': 'sources/Agent-Loop-Source.md', 'score': 30.4, 'relevance': 'high', 'matched_fields': ['body', 'headings', 'path', 'related_graph', 'summary', 'title'], 'reason': 'Matched body, headings, path, related_graph, summary, title; related-page graph boost 3.0.'}, {'path': 'entities/OpenClaw.md', 'score': 17.4, 'relevance': 'high', 'matched_fields': ['body', 'related_graph', 'summary', 'tags'], 'reason': 'Matched body, related_graph, summary, tags; related-page graph boost 3.0.'}]
+- top_matches: [{'path': 'concepts/Agent-Loop.md', 'score': 42.7, 'relevance': 'high', 'matched_fields': ['body', 'headings', 'key_points', 'path', 'related_graph', 'summary', 'tags', 'title'], 'reason': 'Matched body, headings, key_points, path, related_graph, summary, tags, title; graph relevance boost 4.8 via backlink, shared_source.'}, {'path': 'sources/Agent-Loop-Source.md', 'score': 31.0, 'relevance': 'high', 'matched_fields': ['body', 'headings', 'path', 'related_graph', 'summary', 'title'], 'reason': 'Matched body, headings, path, related_graph, summary, title; graph relevance boost 3.6 via outbound_link, shared_source.'}, {'path': 'entities/OpenClaw.md', 'score': 16.8, 'relevance': 'high', 'matched_fields': ['body', 'related_graph', 'summary', 'tags'], 'reason': 'Matched body, related_graph, summary, tags; graph relevance boost 2.4 via outbound_link.'}]
 
 ## Context Pack
 
@@ -106,7 +106,7 @@ Answer guidance:
 - Cite page paths when making claims, especially for specific facts or recommendations.
 - Prefer high-relevance results and quoted excerpts; use low-relevance pages only as supporting context.
 
-1. Agent Loop (concepts/Agent-Loop.md, relevance: high, score: 37.9)
+1. Agent Loop (concepts/Agent-Loop.md, relevance: high, score: 42.7)
 Match origin: direct
 Summary: Agent loop is a control pattern where a model observes context, reasons, acts with tools, and uses feedback.
 Key points:
@@ -115,20 +115,20 @@ Key points:
 Relevant excerpts:
 - concepts/Agent-Loop.md#Key Points: - Agent loops are dynamic and tool-aware. - Workflows provide deterministic structure around uncertain agent decisions.
 Source: raw/notes/agent-loop.md
-Why matched: Matched body, headings, key_points, path, summary, tags, title.
+Why matched: Matched body, headings, key_points, path, related_graph, summary, tags, title; graph relevance boost 4.8 via backlink, shared_source.
 
-2. Agent Loop Source (sources/Agent-Loop-Source.md, relevance: high, score: 30.4)
+2. Agent Loop Source (sources/Agent-Loop-Source.md, relevance: high, score: 31.0)
 Match origin: direct
 Summary: Source digest for agent loop and workflow comparison notes.
 Relevant excerpts:
 - sources/Agent-Loop-Source.md#Summary: Source digest for agent loop and workflow comparison notes.
 Source: raw/notes/agent-loop.md
-Why matched: Matched body, headings, path, related_graph, summary, title; related-page graph boost 3.0.
+Why matched: Matched body, headings, path, related_graph, summary, title; graph relevance boost 3.6 via outbound_link, shared_source.
 
-3. OpenClaw (entities/OpenClaw.md, relevance: high, score: 17.4)
+3. OpenClaw (entities/OpenClaw.md, relevance: high, score: 16.8)
 Match origin: direct
 Summary: OpenClaw is an engineering agent system that combines structured workflows with agent loops.
 Relevant excerpts:
 - entities/OpenClaw.md#Summary: OpenClaw is an engineering agent system that combines structured workflows with agent loops.
-Why matched: Matched body, related_graph, summary, tags; related-page graph boost 3.0.
+Why matched: Matched body, related_graph, summary, tags; graph relevance boost 2.4 via outbound_link.
 ```

@@ -174,8 +174,8 @@ vaults:
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
-            vault.mkdir()
+            vault = root / "vaults" / "all"
+            vault.mkdir(parents=True)
             config = root / "config.yaml"
             config.write_text(
                 f"""
@@ -218,8 +218,8 @@ vault:
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
-            vault.mkdir()
+            vault = root / "vaults" / "all"
+            vault.mkdir(parents=True)
             config = root / "config.yaml"
             config.write_text(
                 f"""
@@ -747,8 +747,8 @@ connectors: {{}}
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            vault = root / "wiki"
-            vault.mkdir()
+            vault = root / "vaults" / "all"
+            vault.mkdir(parents=True)
             pdf = root / "paper.pdf"
             pdf.write_bytes(b"%PDF")
             config = root / "config.yaml"
@@ -786,8 +786,8 @@ connectors: {{}}
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             missing_config = Path(tmp_dir) / "config.yaml"
-            vault = Path(tmp_dir) / "wiki"
-            vault.mkdir()
+            vault = Path(tmp_dir) / "vaults" / "all"
+            vault.mkdir(parents=True)
             client = TestClient(create_app())
 
             response = client.post(

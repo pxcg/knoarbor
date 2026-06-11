@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from knoarbor.core.schemas.execution import WorkflowExecutionMode
 from knoarbor.core.schemas.maintenance import MaintenanceScope
@@ -23,7 +23,7 @@ LintRunProfile = Literal["standard", "deep"]
 
 
 class WikiLintRequest(BaseModel):
-    obsidian_vault_path: str = Field(..., min_length=1)
+    vault_path: str = Field(..., min_length=1)
     write_report: bool = True
     report_path: str | None = None
     apply_safe_fixes: bool = False
@@ -65,10 +65,8 @@ class LintPolicyDecision(BaseModel):
 
 
 class LintRunRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
     execution: WorkflowExecutionMode = "queued"
-    obsidian_vault_path: str | None = Field(default=None, alias="vault_path", min_length=1)
+    vault_path: str | None = Field(default=None, min_length=1)
     vault_id: str | None = None
     config_path: str | None = None
     provider: str | None = None
@@ -113,7 +111,7 @@ class LintRunResult(BaseModel):
 
 
 class WikiScanRequest(BaseModel):
-    obsidian_vault_path: str = Field(..., min_length=1)
+    vault_path: str = Field(..., min_length=1)
     max_chars_per_page: int = Field(default=2500, ge=0, le=30000)
     scope_pages: list[str] = Field(default_factory=list)
     include_related: bool = True
@@ -145,7 +143,7 @@ class WikiScanResponse(BaseModel):
 
 
 class WikiLintCandidateSelectRequest(BaseModel):
-    obsidian_vault_path: str = Field(..., min_length=1)
+    vault_path: str = Field(..., min_length=1)
     mode: Literal["quality", "freshness", "full"] = "quality"
     max_candidates: int = Field(default=8, ge=1, le=30)
     max_chars_per_page: int = Field(default=3000, ge=500, le=30000)

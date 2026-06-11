@@ -46,7 +46,7 @@ class LintExecutionRouter:
             return []
         response = self.operation_pipeline.apply(
             WikiOperationApplyRequest(
-                obsidian_vault_path=request.obsidian_vault_path,
+                vault_path=request.vault_path,
                 operations=operations,
             )
         )
@@ -72,7 +72,7 @@ class LintExecutionRouter:
     def write_drafts(self, request: LintRunRequest, draft_batch: WikiDraftBatch) -> WikiDraftBatchWriteResponse:
         return self.write_pipeline.run(
             WikiDraftBatchWriteRequest(
-                obsidian_vault_path=request.obsidian_vault_path,
+                vault_path=request.vault_path,
                 auto_related_links=False,
                 provenance_related_links=False,
                 drafts=[
@@ -134,13 +134,13 @@ class LintExecutionRouter:
         queued_actions: list[dict[str, object]],
     ) -> ProvenanceRefreshResult:
         return self.provenance_refresh.apply(
-            vault_path=Path(request.obsidian_vault_path).expanduser().resolve(),
+            vault_path=Path(request.vault_path).expanduser().resolve(),
             queued_actions=queued_actions,
         )
 
     @staticmethod
     def written_page_paths(request: LintRunRequest, response: WikiDraftBatchWriteResponse) -> list[str]:
-        vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
+        vault_path = Path(request.vault_path).expanduser().resolve()
         paths: list[str] = []
         seen: set[str] = set()
         for result in response.results:
@@ -153,7 +153,7 @@ class LintExecutionRouter:
 
     @staticmethod
     def written_page_details(request: LintRunRequest, response: WikiDraftBatchWriteResponse) -> list[dict[str, object]]:
-        vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
+        vault_path = Path(request.vault_path).expanduser().resolve()
         details: list[dict[str, object]] = []
         seen: set[str] = set()
         for result in response.results:

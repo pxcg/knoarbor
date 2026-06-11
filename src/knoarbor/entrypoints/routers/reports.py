@@ -3,12 +3,13 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 
 from knoarbor.entrypoints.vault_selection import resolve_single_vault, resolve_vault_group
-from knoarbor.services.wiki_reports import WikiReportDetail, WikiReportService, WikiReportsResponse
+from knoarbor.services import ApplicationServices
+from knoarbor.services.wiki_reports import WikiReportDetail, WikiReportsResponse
 
 
-def create_reports_router() -> APIRouter:
+def create_reports_router(services: ApplicationServices) -> APIRouter:
     router = APIRouter(prefix="/reports", tags=["reports"])
-    service = WikiReportService()
+    service = services.wiki_reports
 
     @router.get("", response_model=WikiReportsResponse)
     async def list_reports(

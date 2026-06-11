@@ -76,7 +76,7 @@ class WikiDraftBatchWriteItem(BaseModel):
 
 class WikiDraftBatchWriteRequest(BaseModel):
     drafts: list[WikiDraftBatchWriteItem] = Field(..., min_length=1)
-    obsidian_vault_path: str = Field(..., min_length=1)
+    vault_path: str = Field(..., min_length=1)
     auto_related_links: bool = True
     provenance_related_links: bool | None = None
 

@@ -17,7 +17,7 @@ class WikiWritePipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
             request = WikiDraftBatchWriteRequest(
-                obsidian_vault_path=str(vault),
+                vault_path=str(vault),
                 auto_related_links=False,
                 drafts=[
                     WikiDraftBatchWriteItem(
@@ -43,7 +43,7 @@ class WikiWritePipelineTests(unittest.TestCase):
 
             self.assertEqual(response.stats["written_count"], 1)
             self.assertTrue(output_path.exists())
-            self.assertTrue((vault / "index.md").exists())
+            self.assertTrue((vault / "pages" / "index.md").exists())
             self.assertEqual(response.results[0].stats["directory"], "concepts")
 
     def test_write_pipeline_sanitizes_unresolved_wikilinks(self) -> None:
@@ -51,7 +51,7 @@ class WikiWritePipelineTests(unittest.TestCase):
             vault = Path(tmp_dir)
             (vault / "concepts").mkdir()
             request = WikiDraftBatchWriteRequest(
-                obsidian_vault_path=str(vault),
+                vault_path=str(vault),
                 auto_related_links=False,
                 drafts=[
                     WikiDraftBatchWriteItem(
@@ -84,7 +84,7 @@ class WikiWritePipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
             request = WikiDraftBatchWriteRequest(
-                obsidian_vault_path=str(vault),
+                vault_path=str(vault),
                 auto_related_links=False,
                 drafts=[
                     WikiDraftBatchWriteItem(
@@ -117,7 +117,7 @@ class WikiWritePipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
             request = WikiDraftBatchWriteRequest(
-                obsidian_vault_path=str(vault),
+                vault_path=str(vault),
                 auto_related_links=False,
                 drafts=[
                     WikiDraftBatchWriteItem(
@@ -149,7 +149,7 @@ class WikiWritePipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
             request = WikiDraftBatchWriteRequest(
-                obsidian_vault_path=str(vault),
+                vault_path=str(vault),
                 auto_related_links=False,
                 drafts=[
                     WikiDraftBatchWriteItem(
@@ -174,8 +174,8 @@ class WikiWritePipelineTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "index failed"):
                     WikiWritePipeline().run(request)
 
-            self.assertTrue((vault / "concepts" / "Agent-Loop.md").exists())
-            self.assertFalse((vault / "index.md").exists())
+            self.assertTrue((vault / "pages" / "concepts" / "Agent-Loop.md").exists())
+            self.assertFalse((vault / "pages" / "index.md").exists())
 
 
 if __name__ == "__main__":

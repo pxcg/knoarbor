@@ -62,8 +62,8 @@ class IngestContextProviderTests(unittest.TestCase):
         provider = IngestContextProvider(query_pipeline=query_pipeline)
         extract = KnowledgeExtract.model_validate(source_normalize_output()["output"])
 
-        first = provider.build(Path("/tmp/wiki"), extract)
-        second = provider.build(Path("/tmp/wiki"), extract)
+        first = provider.build(Path("/tmp/vaults/all"), extract)
+        second = provider.build(Path("/tmp/vaults/all"), extract)
 
         self.assertEqual(query_pipeline.calls, 1)
         self.assertEqual(first.candidates[0].path, "concepts/Agent.md")
@@ -90,7 +90,7 @@ class IngestContextProviderTests(unittest.TestCase):
         provider = IngestContextProvider(query_pipeline=CountingQueryPipeline(page))
         extract = KnowledgeExtract.model_validate(source_normalize_output()["output"])
 
-        context = provider.build(Path("/tmp/wiki"), extract)
+        context = provider.build(Path("/tmp/vaults/all"), extract)
         payload = context.model_dump()
         candidate = payload["candidates"][0]
 

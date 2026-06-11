@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from knoarbor.audit.ingest_report import build_ingest_run_record, render_ingest_report
 from knoarbor.core.config import IngestSegmentationConfig, PrivacyConfig
 from knoarbor.core.markdown import parse_frontmatter
+from knoarbor.storage.wiki_paths import content_root
 from knoarbor.core.schemas.sources import SourceDocument
 from knoarbor.core.schemas.ingest_pipeline import IngestPipelineResult
 from knoarbor.pipelines.ingest import IngestPipeline
@@ -40,8 +41,8 @@ class IngestGoldenTests(unittest.TestCase):
 
     def test_segmented_ingest_aggregation_matches_golden_fixture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            vault = Path(tmp_dir) / "wiki"
-            vault.mkdir()
+            vault = Path(tmp_dir) / "vaults" / "all"
+            vault.mkdir(parents=True)
             workflow = SourceDigestOnlyWorkflow()
             result = IngestPipeline(workflow).run_document(  # type: ignore[arg-type]
                 long_markdown_source_document(),
@@ -167,8 +168,8 @@ def _stable_source_result(result: Any) -> dict[str, object]:
 
 def _segmented_quality_snapshot(document: SourceDocument) -> dict[str, object]:
     with tempfile.TemporaryDirectory() as tmp_dir:
-        vault = Path(tmp_dir) / "wiki"
-        vault.mkdir()
+        vault = Path(tmp_dir) / "vaults" / "all"
+        vault.mkdir(parents=True)
         workflow = MultiObjectSegmentWorkflow()
         result = IngestPipeline(workflow).run_document(  # type: ignore[arg-type]
             document,
@@ -215,7 +216,7 @@ def _segmented_quality_snapshot(document: SourceDocument) -> dict[str, object]:
 def _written_page_snapshots(vault: Path, pages: list[str]) -> list[dict[str, object]]:
     snapshots: list[dict[str, object]] = []
     for page in pages:
-        content = (vault / page).read_text(encoding="utf-8")
+        content = (content_root(vault) / page).read_text(encoding="utf-8")
         metadata = parse_frontmatter(content)
         title_match = re.search(r"^#\s+(.+)$", content, flags=re.MULTILINE)
         snapshots.append(

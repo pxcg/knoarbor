@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class WikiPageReadRequest(BaseModel):
-    obsidian_vault_path: str = Field(..., min_length=1)
+    vault_path: str = Field(..., min_length=1)
     page_paths: list[str] = Field(default_factory=list)
     max_pages: int = Field(default=5, ge=0, le=20)
     max_chars_per_page: int = Field(default=6000, ge=500, le=50000)
@@ -26,9 +26,7 @@ class WikiPageReadResponse(BaseModel):
 
 
 class WikiSearchRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    obsidian_vault_path: str | None = Field(default=None, alias="vault_path", min_length=1)
+    vault_path: str | None = Field(default=None, min_length=1)
     vault_id: str | None = None
     vault_ids: list[str] = Field(default_factory=list)
     all_vaults: bool = False
@@ -51,7 +49,7 @@ class WikiSearchRequest(BaseModel):
 
     @model_validator(mode="after")
     def require_vault_selector(self) -> "WikiSearchRequest":
-        if not self.obsidian_vault_path and not self.vault_id and not self.vault_ids and not self.all_vaults:
+        if not self.vault_path and not self.vault_id and not self.vault_ids and not self.all_vaults:
             raise ValueError("vault_path, vault_id, vault_ids, or all_vaults is required")
         return self
 
@@ -81,9 +79,7 @@ class WikiQueryGapSuggestion(BaseModel):
 
 
 class WikiQueryFeedbackRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    obsidian_vault_path: str | None = Field(default=None, alias="vault_path", min_length=1)
+    vault_path: str | None = Field(default=None, min_length=1)
     vault_id: str | None = None
     config_path: str | None = None
     query: str = Field(..., min_length=1)
@@ -95,7 +91,7 @@ class WikiQueryFeedbackRequest(BaseModel):
 
     @model_validator(mode="after")
     def require_feedback_vault_selector(self) -> "WikiQueryFeedbackRequest":
-        if not self.obsidian_vault_path and not self.vault_id:
+        if not self.vault_path and not self.vault_id:
             raise ValueError("vault_path or vault_id is required")
         return self
 
@@ -159,9 +155,7 @@ class WikiSearchResponse(BaseModel):
 
 
 class WikiContextRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    obsidian_vault_path: str = Field(..., alias="vault_path", min_length=1)
+    vault_path: str = Field(..., min_length=1)
     query: str = Field(..., min_length=1)
     purpose: Literal["ingest_relation", "lint_quality", "lint_freshness", "query", "manual"] = "manual"
     page_dirs: list[str] = Field(default_factory=list)

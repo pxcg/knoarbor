@@ -63,7 +63,7 @@ class WikiSearchService:
                 raise UserInputError(f"Unknown vault_id: {vault_id}. Known vaults: {known}")
             scoped_request = request.model_copy(
                 update={
-                    "obsidian_vault_path": None,
+                    "vault_path": None,
                     "vault_id": vault_id,
                     "vault_ids": [],
                     "all_vaults": False,
@@ -113,14 +113,14 @@ class WikiSearchService:
     def feedback(self, request: WikiQueryFeedbackRequest) -> WikiQueryFeedbackResponse:
         request, vault_path = _resolve_feedback_request(request)
         if not vault_path.exists() or not vault_path.is_dir():
-            raise UserInputError(f"obsidian_vault_path does not exist or is not a directory: {vault_path}")
+            raise UserInputError(f"vault_path does not exist or is not a directory: {vault_path}")
         ledger_path = append_query_feedback(vault_path, request)
         return WikiQueryFeedbackResponse(recorded=True, ledger_path=str(ledger_path))
 
     def trend(self, vault_path: str, *, limit: int = 100) -> WikiQueryTrendResponse:
         path = Path(vault_path).expanduser().resolve()
         if not path.exists() or not path.is_dir():
-            raise UserInputError(f"obsidian_vault_path does not exist or is not a directory: {path}")
+            raise UserInputError(f"vault_path does not exist or is not a directory: {path}")
         return WikiQueryTrendResponse(**build_query_trend(path, limit=limit))
 
     def _write_failure_artifacts(self, vault_path: Path, request: WikiSearchRequest, exc: BaseException) -> None:
@@ -211,14 +211,14 @@ def _unique_nonempty(items: list[str]) -> list[str]:
 
 def _resolve_query_request(request: WikiSearchRequest) -> tuple[WikiSearchRequest, Path]:
     config = load_config(Path(request.config_path).expanduser().resolve() if request.config_path else default_config_path())
-    vault_path = resolve_config_vault_path(config, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
-    return request.model_copy(update={"obsidian_vault_path": str(vault_path), "vault_id": request.vault_id or _vault_id_for_path(config, vault_path)}), vault_path
+    vault_path = resolve_config_vault_path(config, vault_path=request.vault_path, vault_id=request.vault_id)
+    return request.model_copy(update={"vault_path": str(vault_path), "vault_id": request.vault_id or _vault_id_for_path(config, vault_path)}), vault_path
 
 
 def _resolve_feedback_request(request: WikiQueryFeedbackRequest) -> tuple[WikiQueryFeedbackRequest, Path]:
     config = load_config(Path(request.config_path).expanduser().resolve() if request.config_path else default_config_path())
-    vault_path = resolve_config_vault_path(config, vault_path=request.obsidian_vault_path, vault_id=request.vault_id)
-    return request.model_copy(update={"obsidian_vault_path": str(vault_path), "vault_id": request.vault_id or _vault_id_for_path(config, vault_path)}), vault_path
+    vault_path = resolve_config_vault_path(config, vault_path=request.vault_path, vault_id=request.vault_id)
+    return request.model_copy(update={"vault_path": str(vault_path), "vault_id": request.vault_id or _vault_id_for_path(config, vault_path)}), vault_path
 
 
 def _vault_id_for_path(config, vault_path: Path) -> str | None:

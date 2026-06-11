@@ -8,22 +8,40 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.core.ignore import KnoArborIgnore
-from knoarbor.storage.wiki_init import init_wiki_vault
+from knoarbor.storage.wiki_init import init_wiki_vault, migrate_wiki_pages_layout
 
 
 class WikiInitTests(unittest.TestCase):
     def test_init_wiki_vault_creates_schema_index_log_and_ignore(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            vault = Path(tmp_dir) / "wiki"
+            vault = Path(tmp_dir) / "vaults" / "all"
 
             result = init_wiki_vault(vault)
 
-            self.assertTrue((vault / "SCHEMA.md").exists())
-            self.assertTrue((vault / "index.md").exists())
-            self.assertTrue((vault / "log.md").exists())
+            self.assertTrue((vault / "pages" / "SCHEMA.md").exists())
+            self.assertTrue((vault / "pages" / "index.md").exists())
+            self.assertTrue((vault / "pages" / "log.md").exists())
             self.assertTrue((vault / ".knoarborignore").exists())
             self.assertTrue((vault / "raw" / "documents" / "markdown").is_dir())
-            self.assertIn("SCHEMA.md", result.created_paths)
+            self.assertIn("pages/SCHEMA.md", result.created_paths)
+
+    def test_migrate_wiki_pages_layout_moves_legacy_content_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir) / "vaults" / "all"
+            (vault / "concepts").mkdir(parents=True)
+            (vault / "maintenance").mkdir()
+            (vault / "raw" / "notes").mkdir(parents=True)
+            (vault / "concepts" / "Agent.md").write_text("# Agent\n", encoding="utf-8")
+            (vault / "index.md").write_text("# Index\n", encoding="utf-8")
+            (vault / "maintenance" / "lint_report.md").write_text("# Report\n", encoding="utf-8")
+
+            result = migrate_wiki_pages_layout(vault)
+
+            self.assertTrue((vault / "pages" / "concepts" / "Agent.md").exists())
+            self.assertTrue((vault / "pages" / "index.md").exists())
+            self.assertFalse((vault / "concepts").exists())
+            self.assertTrue((vault / "maintenance" / "lint_report.md").exists())
+            self.assertIn("concepts", result.moved_paths)
 
     def test_knoarborignore_supports_negation_and_directory_patterns(self) -> None:
         matcher = KnoArborIgnore(["confidential/", "*.key", "!confidential/public.md"])

@@ -18,7 +18,7 @@ class WikiOperationPipeline:
         self.privacy_config = privacy_config or PrivacyConfig()
 
     def apply(self, request: WikiOperationApplyRequest) -> WikiOperationApplyResponse:
-        vault_path = Path(request.obsidian_vault_path).expanduser().resolve()
+        vault_path = Path(request.vault_path).expanduser().resolve()
         with vault_write_lock(vault_path):
             logger.info("wiki_operations_started operations=%s vault=%s", len(request.operations), vault_path)
             results = [

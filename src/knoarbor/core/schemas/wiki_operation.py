@@ -55,7 +55,7 @@ class WikiOperationInput(BaseModel):
 
 
 class WikiOperationApplyRequest(BaseModel):
-    obsidian_vault_path: str = Field(..., min_length=1)
+    vault_path: str = Field(..., min_length=1)
     operations: list[WikiOperationInput] = Field(..., min_length=1)
     ledger_path: str = "maintenance/operation_ledger.jsonl"
 
