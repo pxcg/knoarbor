@@ -343,9 +343,6 @@ function formatRunOutput(response: unknown, t: (key: string) => string) {
     lines.push(`${t("runId")}: ${data.run_id}`);
     lines.push(`${t("status")}: ${runStatusLabel(String(data.status || "running"), t)}`);
     lines.push(t("runStartedWatchMonitor"));
-    lines.push("");
-    lines.push(t("rawResponse"));
-    lines.push(JSON.stringify(response, null, 2));
     return lines.join("\n");
   }
   if (data.schema_version) lines.push(`${t("schema")}: ${data.schema_version}`);

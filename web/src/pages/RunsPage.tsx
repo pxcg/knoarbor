@@ -18,9 +18,7 @@ export function RunsPage({ context }: Props) {
 
   return (
     <section className="view active">
-      <VaultRunsSummary context={context} />
       <ActiveRunsPanel context={context} includeRecoverable />
-      <RunPreflight context={context} />
       <article className="panel">
         <div className="panel-header">
           <div>
@@ -63,10 +61,12 @@ export function RunsPage({ context }: Props) {
               </section>
             ))
           ) : (
-            <div className="empty-state">{context.t("noRunYet")}</div>
+          <div className="empty-state">{context.t("noRunYet")}</div>
           )}
         </div>
       </article>
+      <RunPreflight context={context} />
+      <VaultRunsSummary context={context} />
     </section>
   );
 }
@@ -74,13 +74,11 @@ export function RunsPage({ context }: Props) {
 function VaultRunsSummary({ context }: { context: AppContext }) {
   if (context.vaultOverviews.length <= 1) return null;
   return (
-    <article className="panel vault-runs-panel">
-      <div className="panel-header">
-        <div>
-          <h2>{context.t("allVaults")}</h2>
-          <p className="panel-copy">{context.t("vaultOverviewCopy")}</p>
-        </div>
-      </div>
+    <details className="panel vault-runs-panel compact-vault-overview">
+      <summary>
+        <span>{context.t("allVaults")}</span>
+        <small>{context.t("vaultOverviewCopy")}</small>
+      </summary>
       <div className="vault-run-grid">
         {context.vaultOverviews.map((item) => (
           <button
@@ -96,7 +94,7 @@ function VaultRunsSummary({ context }: { context: AppContext }) {
           </button>
         ))}
       </div>
-    </article>
+    </details>
   );
 }
 

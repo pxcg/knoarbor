@@ -40,7 +40,7 @@ export function buildVaultOptions(summary: ConfigSummary, registry?: VaultListRe
     {
       id: summary.vault_id || "default",
       name: summary.vault_name || summary.project_name || "KnoArbor",
-      path: summary.vault_path || "./wiki",
+      path: summary.vault_path || "./vaults/all",
     },
   ];
 }
@@ -52,7 +52,7 @@ export function resolveActiveVault(options: VaultOption[], preferredId: string, 
     options[0] || {
       id: summary.vault_id || "default",
       name: summary.vault_name || summary.project_name || "KnoArbor",
-      path: summary.vault_path || "./wiki",
+      path: summary.vault_path || "./vaults/all",
     }
   );
 }

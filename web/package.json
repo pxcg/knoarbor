@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/clean-dist-assets.mjs && tsc -b && vite build",
+    "check:i18n": "node scripts/check-i18n-parity.mjs",
+    "build": "node scripts/clean-dist-assets.mjs && npm run check:i18n && tsc -b && vite build",
     "test:e2e": "playwright test",
     "preview": "vite preview"
   },

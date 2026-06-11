@@ -11,6 +11,14 @@ type SectionProps = {
   t: (key: string) => string;
 };
 
+type ProviderRuntimeStatus = {
+  tone: "ok" | "warning" | "error" | "unknown";
+  dotClass: "online" | "warning" | "offline" | "neutral";
+  label: string;
+  detail: string;
+  checked: boolean;
+};
+
 const PROVIDER_PRESETS: ConfigFormProvider[] = [
   {
     name: "deepseek",
@@ -62,9 +70,9 @@ export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
     setForm({
       ...form,
       project_name: `${t("newVaultDefaultName")} ${stamp}`,
-      vault_path: `./wiki-${stamp}`,
+      vault_path: `./vaults/${id}`,
       vault_id: id,
-      vaults: [...vaults.map((vault) => ({ ...vault, active: false })), { id, name: `${t("newVaultDefaultName")} ${stamp}`, path: `./wiki-${stamp}`, active: true }],
+      vaults: [...vaults.map((vault) => ({ ...vault, active: false })), { id, name: `${t("newVaultDefaultName")} ${stamp}`, path: `./vaults/${id}`, active: true }],
     });
   }
 
@@ -80,7 +88,7 @@ export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
 
   function removeVault(index: number) {
     const vaults = normalizedVaults(form).filter((_, candidateIndex) => candidateIndex !== index);
-    syncVaults(vaults.length ? vaults : [{ id: "default", name: "My Knowledge Base", path: "./wiki", active: true }]);
+    syncVaults(vaults.length ? vaults : [{ id: "all", name: "My Knowledge Base", path: "./vaults/all", active: true }]);
   }
 
   function syncVaults(vaults: ConfigVaultProfile[]) {
@@ -122,7 +130,7 @@ export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
             </label>
             <label className="field compact-field vault-path-field">
               <span>{t("vaultPath")}</span>
-              <input value={vault.path} onChange={(event) => updateVault(index, { path: event.target.value })} placeholder="./wiki" />
+              <input value={vault.path} onChange={(event) => updateVault(index, { path: event.target.value })} placeholder="./vaults/all" />
             </label>
             <button className="icon-button" type="button" onClick={() => removeVault(index)} aria-label={t("removeVault")} disabled={normalizedVaults(form).length <= 1}>
               ×
@@ -137,7 +145,7 @@ export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
 function normalizedVaults(form: ConfigForm): ConfigVaultProfile[] {
   const vaults = form.vaults?.length
     ? form.vaults
-    : [{ id: form.vault_id || "default", name: form.project_name || "My Knowledge Base", path: form.vault_path || "./wiki", active: true }];
+    : [{ id: form.vault_id || "all", name: form.project_name || "My Knowledge Base", path: form.vault_path || "./vaults/all", active: true }];
   const activeId = form.vault_id || vaults.find((vault) => vault.active)?.id || vaults[0]?.id;
   return vaults.map((vault) => ({ ...vault, active: vault.id === activeId || Boolean(vault.active && !activeId) }));
 }
@@ -251,7 +259,7 @@ export function ConfigInputsSection({ form, setForm, t }: SectionProps) {
           </label>
         </ConnectorCard>
         <ConnectorCard title={t("nonMarkdownConnector")} checked={form.mineru_enabled} onChange={(checked) => setForm({ ...form, mineru_enabled: checked })}>
-          <PathField label={t("nonMarkdownInputDir")} value={form.mineru_input_dir} onChange={(value) => setForm({ ...form, mineru_input_dir: value })} placeholder="./wiki/raw/documents/originals" />
+          <PathField label={t("nonMarkdownInputDir")} value={form.mineru_input_dir} onChange={(value) => setForm({ ...form, mineru_input_dir: value })} placeholder="./vaults/all/raw/documents/originals" />
           <p className="panel-copy compact-copy">{t("nonMarkdownInputCopy")}</p>
         </ConnectorCard>
         <section className="settings-subcard chat-source-card">
@@ -477,6 +485,7 @@ export function ConfigModelProvidersSection({
   }
 
   const active = form.providers[activeProvider];
+  const activeRuntimeStatus = active ? providerRuntimeStatus(active, probeResults[active.name], t) : null;
   return (
     <>
       <div className="settings-inline-action model-provider-toolbar" id="settings-models">
@@ -493,35 +502,39 @@ export function ConfigModelProvidersSection({
             ))}
             <option value="">{t("custom")}</option>
           </select>
-          <button className="button secondary" onClick={addProvider}>
+          <button className="button secondary" onClick={addProvider} type="button">
             {t("addProvider")}
           </button>
         </div>
       </div>
       <div className="provider-workspace">
         <div className="provider-list">
-          {form.providers.map((provider, index) => (
-            <button className={`provider-row ${index === activeProvider ? "active" : ""}`} key={`${provider.name}:${index}`} onClick={() => setActiveProvider(index)} type="button">
-              <span className={`status-dot ${provider.api_key_configured ? "online" : "offline"}`} />
-              <strong>{provider.name || t("untitledProvider")}</strong>
-              <small>{provider.model || t("noModelSelected")}</small>
-            </button>
-          ))}
+          {form.providers.map((provider, index) => {
+            const runtimeStatus = providerRuntimeStatus(provider, probeResults[provider.name], t);
+            return (
+              <button className={`provider-row ${index === activeProvider ? "active" : ""} ${runtimeStatus.tone}`} key={`${provider.name}:${index}`} onClick={() => setActiveProvider(index)} type="button">
+                <span className={`status-dot ${runtimeStatus.dotClass}`} />
+                <strong>{provider.name || t("untitledProvider")}</strong>
+                <small title={runtimeStatus.detail}>{runtimeStatus.checked ? `${runtimeStatus.label} · ${runtimeStatus.detail}` : runtimeStatus.detail}</small>
+              </button>
+            );
+          })}
           {!form.providers.length && <div className="empty-state">{t("noProviders")}</div>}
         </div>
 
-        {active && (
-          <div className="provider-card">
+        {active && activeRuntimeStatus && (
+          <div className={`provider-card ${activeRuntimeStatus.tone}`}>
             <div className="provider-card-header">
               <div>
                 <h3>{active.name || t("newProvider")}</h3>
                 <p className="panel-copy">{t("providerCopy")}</p>
               </div>
-              <div className="provider-status">
-                <span className={`status-dot ${active.api_key_configured ? "online" : "offline"}`} />
-                {active.api_key_env ? (active.api_key_configured ? t("envConfigured") : t("envMissing")) : t("noEnv")}
+              <div className={`provider-status ${activeRuntimeStatus.tone}`} title={activeRuntimeStatus.detail}>
+                <span className={`status-dot ${activeRuntimeStatus.dotClass}`} />
+                <span>{activeRuntimeStatus.label}</span>
               </div>
             </div>
+            <p className={`provider-status-message ${activeRuntimeStatus.tone}`}>{activeRuntimeStatus.detail}</p>
             <div className="form-grid provider-form-grid">
               <PathField label={t("name")} value={active.name} onChange={(value) => updateProvider(activeProvider, { name: value })} />
               <PathField label={t("model")} value={active.model} onChange={(value) => updateProvider(activeProvider, { model: value })} />
@@ -535,13 +548,13 @@ export function ConfigModelProvidersSection({
               <span>{t("jsonMode")}</span>
             </label>
             <div className="provider-actions">
-              <button className="button secondary" onClick={() => onDiscover(active.name)} disabled={!active.name || pendingAction === `${active.name}:discover`}>
+              <button className="button secondary" onClick={() => onDiscover(active.name)} disabled={!active.name || pendingAction === `${active.name}:discover`} type="button">
                 {pendingAction === `${active.name}:discover` ? t("discoveringModel") : t("discoverModels")}
               </button>
-              <button className="button secondary" onClick={() => onProbe(active.name, "minimal")} disabled={!active.name || pendingAction === `${active.name}:minimal`}>
+              <button className="button secondary" onClick={() => onProbe(active.name, "minimal")} disabled={!active.name || pendingAction === `${active.name}:minimal`} type="button">
                 {pendingAction === `${active.name}:minimal` ? t("testingModels") : t("minimalProbe")}
               </button>
-              <button className="button secondary" onClick={() => onProbe(active.name, "structured")} disabled={!active.name || pendingAction === `${active.name}:structured`}>
+              <button className="button secondary" onClick={() => onProbe(active.name, "structured")} disabled={!active.name || pendingAction === `${active.name}:structured`} type="button">
                 {pendingAction === `${active.name}:structured` ? t("testingModels") : t("structuredProbe")}
               </button>
               {hasSuggestedConfig(probeResults[active.name]) && (
@@ -549,11 +562,12 @@ export function ConfigModelProvidersSection({
                   className="button primary"
                   onClick={() => onApplyCapabilities(active.name, suggestedConfigFor(probeResults[active.name]))}
                   disabled={!active.name || pendingAction === `${active.name}:apply`}
+                  type="button"
                 >
                   {pendingAction === `${active.name}:apply` ? t("running") : t("applyModelCapabilities")}
                 </button>
               )}
-              <button className="button secondary" onClick={() => removeProvider(activeProvider)}>
+              <button className="button secondary" onClick={() => removeProvider(activeProvider)} type="button">
                 {t("removeProvider")}
               </button>
             </div>
@@ -563,6 +577,56 @@ export function ConfigModelProvidersSection({
       </div>
     </>
   );
+}
+
+function providerRuntimeStatus(provider: ConfigFormProvider, result: ModelProviderProbeState | undefined, t: (key: string) => string): ProviderRuntimeStatus {
+  const latest = result?.probe || result?.discovery;
+  if (latest) {
+    if (latest.status === "ok" && latest.available) {
+      return {
+        tone: "ok",
+        dotClass: "online",
+        label: t("modelAvailable"),
+        detail: latest.message || provider.model || t("noModelSelected"),
+        checked: true,
+      };
+    }
+    if (latest.status === "warning" || latest.available) {
+      return {
+        tone: "warning",
+        dotClass: "warning",
+        label: t("modelNeedsAttention"),
+        detail: latest.message || provider.model || t("noModelSelected"),
+        checked: true,
+      };
+    }
+    return {
+      tone: "error",
+      dotClass: "offline",
+      label: t("modelUnavailable"),
+      detail: latest.message || provider.model || t("noModelSelected"),
+      checked: true,
+    };
+  }
+
+  if (provider.api_key_env && !provider.api_key_configured) {
+    return {
+      tone: "error",
+      dotClass: "offline",
+      label: t("envMissing"),
+      detail: provider.api_key_env,
+      checked: false,
+    };
+  }
+
+  const hasMinimumConfig = Boolean(provider.name && provider.model && provider.base_url);
+  return {
+    tone: hasMinimumConfig ? "unknown" : "warning",
+    dotClass: hasMinimumConfig ? "neutral" : "warning",
+    label: t("modelNotChecked"),
+    detail: hasMinimumConfig ? `${provider.model} · ${t("modelNotCheckedCopy")}` : t("providerMissingRequiredFields"),
+    checked: false,
+  };
 }
 
 function ModelProbeResultPanel({ result, t }: { result?: ModelProviderProbeState; t: (key: string) => string }) {
@@ -584,15 +648,15 @@ function ModelProbeResultPanel({ result, t }: { result?: ModelProviderProbeState
       <dl className="model-probe-grid">
         <div>
           <dt>{t("detectedContextWindow")}</dt>
-          <dd>{formatMaybeNumber(probe?.detected_context_window ?? discovery?.detected_context_window)}</dd>
+          <dd>{formatMaybeNumber(probe?.detected_context_window ?? discovery?.detected_context_window, t)}</dd>
         </div>
         <div>
           <dt>{t("effectiveContextWindow")}</dt>
-          <dd>{formatMaybeNumber(probe?.effective_context_window ?? discovery?.effective_context_window)}</dd>
+          <dd>{formatMaybeNumber(probe?.effective_context_window ?? discovery?.effective_context_window, t)}</dd>
         </div>
         <div>
           <dt>{t("modelCount")}</dt>
-          <dd>{formatMaybeNumber(discovery?.model_count)}</dd>
+          <dd>{formatMaybeNumber(discovery?.model_count, t)}</dd>
         </div>
         <div>
           <dt>{t("latency")}</dt>
@@ -604,7 +668,7 @@ function ModelProbeResultPanel({ result, t }: { result?: ModelProviderProbeState
         </div>
         <div>
           <dt>{t("suggestedMaxOutput")}</dt>
-          <dd>{formatMaybeNumber(suggested.max_output_tokens)}</dd>
+          <dd>{formatMaybeNumber(suggested.max_output_tokens, t)}</dd>
         </div>
       </dl>
     </section>
@@ -625,8 +689,8 @@ function suggestedConfigFor(result?: ModelProviderProbeState): ModelCapabilitySu
   return values;
 }
 
-function formatMaybeNumber(value: number | null | undefined): string {
-  return typeof value === "number" ? value.toLocaleString() : "n/a";
+function formatMaybeNumber(value: number | null | undefined, t: (key: string) => string): string {
+  return typeof value === "number" ? value.toLocaleString() : t("notAvailable");
 }
 
 function ConnectorCard({ title, checked, onChange, children }: { title: string; checked: boolean; onChange: (checked: boolean) => void; children: ReactNode }) {

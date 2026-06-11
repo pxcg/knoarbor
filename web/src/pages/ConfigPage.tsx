@@ -119,6 +119,7 @@ export function ConfigPage({ context, embedded = false }: Props) {
         ...current,
         [result.provider]: { ...(current[result.provider] || {}), discovery: result, lastAction: "discover" },
       }));
+      void diagnosticsQuery.refetch();
       context.setNotice({ message: result.message, error: !result.available });
     },
     onError: (error) => context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true }),
@@ -134,6 +135,7 @@ export function ConfigPage({ context, embedded = false }: Props) {
         ...current,
         [result.provider]: { ...(current[result.provider] || {}), probe: result, lastAction: result.level },
       }));
+      void diagnosticsQuery.refetch();
       context.setNotice({ message: result.message, error: result.status === "error" });
     },
     onError: (error) => context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true }),
@@ -300,7 +302,7 @@ function normalizeConfigForm(form: ConfigForm): ConfigForm {
             {
               id: form.vault_id || "default",
               name: form.project_name || "My Knowledge Base",
-              path: form.vault_path || "./wiki",
+              path: form.vault_path || "./vaults/all",
               active: true,
             },
           ],
