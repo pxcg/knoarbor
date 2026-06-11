@@ -21,7 +21,7 @@ uv run knoar --config ./config.yaml <command>
 
 ```bash
 uv run knoar first-run
-uv run knoar first-run --vault ./wiki
+uv run knoar first-run --vault ./vaults/all
 uv run knoar first-run --no-example
 uv run knoar first-run --json
 ```
@@ -37,7 +37,7 @@ uv run knoar query "Agent Loop 是什么？"
 ## 初始化
 
 ```bash
-uv run knoar init --vault ./wiki
+uv run knoar init --vault ./vaults/all
 ```
 
 如果 `config.yaml` 不存在，`init` 会先从内置默认配置创建本地配置，再初始化
@@ -137,7 +137,7 @@ uv run knoar ingest --vault-id personal --recover-run-id RUN_ID --write
 输出时使用 `--no-follow`。
 
 如果配置了多个知识库，知识编译每次只写入一个知识库。使用
-`--vault-id <id>` 选择已配置知识库，或使用 `--vault /path/to/wiki` 指定路径。
+`--vault-id <id>` 选择已配置知识库，或使用 `--vault /path/to/vault` 指定路径。
 
 ## 校验维护
 
@@ -163,7 +163,7 @@ uv run knoar lint --mode full --profile deep
 获取同步摘要。
 
 如果配置了多个知识库，校验维护每次只维护一个知识库。使用
-`--vault-id <id>` 选择已配置知识库，或使用 `--vault /path/to/wiki` 指定路径。
+`--vault-id <id>` 选择已配置知识库，或使用 `--vault /path/to/vault` 指定路径。
 
 ## 查询
 
@@ -216,13 +216,13 @@ uv run knoar reports list --vault-id personal
 长任务可以通过 run 命令查看进度、事件和取消状态。
 
 ```bash
-uv run knoar runs --vault ./wiki
+uv run knoar runs --vault ./vaults/all
 uv run knoar runs --vault-id personal
-uv run knoar runs list --vault ./wiki
-uv run knoar runs --active --vault ./wiki
-uv run knoar runs events RUN_ID --vault ./wiki
-uv run knoar runs events RUN_ID --follow --vault ./wiki
-uv run knoar runs cancel RUN_ID --vault ./wiki
+uv run knoar runs list --vault ./vaults/all
+uv run knoar runs --active --vault ./vaults/all
+uv run knoar runs events RUN_ID --vault ./vaults/all
+uv run knoar runs events RUN_ID --follow --vault ./vaults/all
+uv run knoar runs cancel RUN_ID --vault ./vaults/all
 ```
 
 ## 开发诊断

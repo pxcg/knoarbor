@@ -182,7 +182,7 @@ temporary directories.
 
 Never let automated gates write to:
 
-- project-root `wiki/`;
+- project-root `vaults/`;
 - project-root `config.yaml`;
 - project-root `.env`;
 - private connector source directories;

@@ -31,7 +31,7 @@ scripts/dev-check.sh
 scripts/release-check.sh
 ```
 
-`release-check.sh` 会按顺序执行 `dev-check.sh`、`release-readiness.py` 和 `clean-clone-smoke.sh`。`dev-check.sh` 包含前端构建、前端依赖安全扫描、Playwright UI 冒烟测试、Ruff、文档链接检查、Python 单元测试、只读 `doctor` 和 Python 包构建。
+`release-check.sh` 会按顺序执行 `dev-check.sh`、`release-readiness.py` 和 `clean-clone-smoke.sh`。`dev-check.sh` 包含前端 i18n 一致性检查、前端构建、前端依赖安全扫描、Playwright UI 冒烟测试、Ruff、文档链接检查、Python 单元测试、只读 `doctor` 和 Python 包构建。
 
 当模型供应商可用时，运行真实 release candidate 冒烟测试：
 
@@ -78,7 +78,7 @@ scripts/release-check.sh
 用户运行时数据包括：
 
 - 项目根目录下的 `config.yaml` 和 `.env`。
-- 项目根目录下的 `wiki/` 运行时知识库。
+- 项目根目录下的 `vaults/` 运行时知识库。
 - 各类 connector 读取的来源目录，例如本地聊天记录、Markdown 笔记目录、原始文档目录或私有导出目录。
 - 所有被 git ignore 的本地工作流导出、缓存和私有开发记录。
 
@@ -86,7 +86,7 @@ scripts/release-check.sh
 
 - 自动门禁可以读取 `config.example.yaml`，但需要配置文件时必须写入临时 config。
 - 自动门禁如果需要知识库，必须在 `mktemp -d` 下创建临时 vault，并用 `trap` 清理。
-- 自动门禁不得初始化、重写、lint、ingest 或清理项目根目录下的 `wiki/`、`config.yaml`、`.env`。
+- 自动门禁不得初始化、重写、lint、ingest 或清理项目根目录下的 `vaults/`、`config.yaml`、`.env`。
 - 只有用户明确触发的产品命令，例如 `knoar init`、`knoar ingest`、API 调用或 UI 操作，才可以作用于用户配置的真实知识库。
 - 仓库脚本不得对项目根目录下被 ignore 的运行时路径使用 `git clean -fdx` 或宽泛的 `rm -rf`。
 
@@ -97,7 +97,7 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 TEMP_CONFIG="$TMP_DIR/config.yaml"
-TEMP_VAULT="$TMP_DIR/wiki"
+TEMP_VAULT="/vaults/all"
 
 # 将 config.example.yaml 复制为 TEMP_CONFIG，把 vault.path 改到 TEMP_VAULT，
 # 后续 CLI/API 检查只使用 TEMP_CONFIG。
@@ -172,7 +172,7 @@ KnoArbor 使用小型发布分支模型。目标是在保持公开历史清晰�
 - `web/`：React + Vite 管理控制台源码。
 - `docs/`：公开文档。
 - `integrations/skills/`：通用 AI 工具技能说明。
-- `wiki/`：运行时目录，默认不提交。
+- `vaults/`：运行时知识库集合目录，默认不提交。
 
 ## 设计原则
 

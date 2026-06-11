@@ -66,14 +66,14 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 
 常见运行目录：
 
-- `wiki/raw/chats/`：Hermes、Codex、OpenClaw、Claude Code 等 AI 工具会话。
-- `wiki/raw/notes/`：导入的 Markdown 笔记。
-- `wiki/raw/articles/`：网页或文章导出。
-- `wiki/raw/documents/originals/`：PDF、DOCX、PPTX、XLSX、手册、课程资料等富文档原件。
-- `wiki/raw/documents/markdown/`：由 MinerU-compatible 等确定性预处理器生成的 Markdown。
-- `wiki/raw/transcripts/`：会议、音频或视频转录。
-- `wiki/raw/datasets/`：结构化数据集。
-- `wiki/raw/media/`：原始图片和媒体。
+- `vaults/all/raw/chats/`：Hermes、Codex、OpenClaw、Claude Code 等 AI 工具会话。
+- `vaults/all/raw/notes/`：导入的 Markdown 笔记。
+- `vaults/all/raw/articles/`：网页或文章导出。
+- `vaults/all/raw/documents/originals/`：PDF、DOCX、PPTX、XLSX、手册、课程资料等富文档原件。
+- `vaults/all/raw/documents/markdown/`：由 MinerU-compatible 等确定性预处理器生成的 Markdown。
+- `vaults/all/raw/transcripts/`：会议、音频或视频转录。
+- `vaults/all/raw/datasets/`：结构化数据集。
+- `vaults/all/raw/media/`：原始图片和媒体。
 
 规则：
 
@@ -84,24 +84,26 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 
 ### 知识层
 
-知识层保存维护后的 Wiki 页面：
+知识层保存维护后的 Wiki 页面，物理位置是 `vaults/all/pages/`。
+当你希望在 Obsidian 中打开干净的知识库时，应打开 `vaults/all/pages`，而不是整个 `vaults/all` 运行时工作区：
 
-- `sources/`：来源摘要页面。
-- `entities/`：人物、组织、产品、项目、工具、标准、地点、数据集等命名对象。
-- `concepts/`：方法、架构、模式、原则和技术实践。
-- `comparisons/`：以比较为核心的页面。
-- `queries/`：尚未成熟为稳定实体、概念或比较页面的留存问答。
-- `claims/`：原子化、有证据支撑的声明。
-- `timelines/`：事件序列。
-- `workflows/`：可复用流程和操作指南。
-- `maintenance/`：报告、checkpoint、ledger 和维护制品。
+- `pages/sources/`：来源摘要页面。
+- `pages/entities/`：人物、组织、产品、项目、工具、标准、地点、数据集等命名对象。
+- `pages/concepts/`：方法、架构、模式、原则和技术实践。
+- `pages/comparisons/`：以比较为核心的页面。
+- `pages/queries/`：尚未成熟为稳定实体、概念或比较页面的留存问答。
+- `pages/claims/`：原子化、有证据支撑的声明。
+- `pages/timelines/`：事件序列。
+- `pages/workflows/`：可复用流程和操作指南。
+
+人类可读报告保存在 `vaults/all/maintenance/`。运行状态、ledger、checkpoint、lock 和机器索引保存在 `vaults/all/.knoarbor/`。
 
 规则：
 
 - 每个 Wiki 页面应代表一个稳定知识对象。
 - 页面边界比保留原始来源形状更重要。
 - 优先创建少量有用页面，而不是大量薄页面。
-- `maintenance/` 不是常规知识目标。
+- `maintenance/`、`raw/` 和 `.knoarbor/` 不是常规知识目标。
 
 ### 索引层
 
@@ -109,7 +111,7 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 
 当前实现：
 
-- 生成的 `wiki/index.md` 作为人类可读路由目录和调试制品；
+- 生成的 `vaults/all/pages/index.md` 作为人类可读路由目录和调试制品；
 - 基于本地 Markdown 的标题、路径、标签、摘要、Key Points、标题层级、正文关键词和相关页做检索；
 - 为宿主 AI 工具返回 query context pack。
 
@@ -251,12 +253,22 @@ query
 - 不修改 Wiki 页面。
 - 不声称 related 页面比 direct 页面更弱或更强；`match_kind` 只解释检索来源。
 
+检索信号：
+
+- title、path、tags、summary、key points、headings 和正文的词面匹配。
+- 通过出站 wikilink 和反向链接进行相关页扩展。
+- 对同源页面和同类型页面给予可解释的图谱相关性加权。
+- 面向宿主 AI 组装有界 context pack。
+
 ## 本地运行基础设施
 
 KnoArbor 是本地优先的 Wiki 引擎，但仍需要明确运行时基础设施。
 
 - **机器索引层**：面向程序读取的页面、链接、来源和检索元数据，区别于人类可读的 `index.md`。
 - **单机队列**：`LocalRunQueue` 是第一版队列后端，按 vault 串行化运行，避免写入重叠。恢复失败项时创建新的 run，而不是修改已完成 run。
+- **运行生命周期**：排队、运行、心跳、取消、恢复元数据和事件记录属于 Runtime 层。Pipeline 只通过该边界上报进度，不直接写 run-state 文件。
+- **运行事件**：长流程使用结构化事件记录阶段、模型调用、重试、页面写入、查询结果和失败。UI、CLI、报告和 skill 读取同一事件流，不从临时日志中重建进度。
+- **恢复机制**：可恢复运行由已保存的运行元数据和报告推导。恢复会创建新的 scoped run，不会原地修改已经完成的 run 记录。
 - **运行日志**：诊断日志写入 `.knoarbor/logs/knoarbor.log`，与用户报告、ledger 和 run events 分离。
 - **文件锁**：本地 vault 修改使用 `.knoarbor/locks/vault.write.lock`，保护页面、索引、日志、checkpoint、ledger 和维护写入。
 - **语义重试策略**：模型重试属于 `SemanticRunner`，不散落在 ingest、lint、API route 或 prompt 专用清洗逻辑中。runner 只重试配置在错误码白名单中的错误。
@@ -273,7 +285,7 @@ KnoArbor 是本地优先的 Wiki 引擎，但仍需要明确运行时基础设�
 ```text
 storage / retrieval metadata
   -> WikiPagesService
-  -> /wiki/pages, /wiki/pages/content, /wiki/pages/links
+  -> /vaults/all/pages, /vaults/all/pages/content, /vaults/all/pages/links
   -> UI, skills, CLI wrappers, external clients
 ```
 

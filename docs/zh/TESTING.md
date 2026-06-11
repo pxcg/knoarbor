@@ -23,12 +23,14 @@ uv run --extra dev python -m unittest discover -s tests
 ```bash
 cd web
 npm install
+npm run check:i18n
 npm run build
 npm run test:e2e
 ```
 
 覆盖范围：
 
+- 中英文 UI 翻译 key 一致性；
 - TypeScript 构建；
 - Vite production bundle；
 - 针对打包后 FastAPI 控制台的导航冒烟；
@@ -53,16 +55,29 @@ scripts/dev-check.sh
 - 使用临时 config 和临时 vault 的 CLI 诊断；
 - Python 包构建。
 
-该脚本不得写入维护者真实的 `wiki/`、`config.yaml` 或 `.env`。
+该脚本不得写入维护者真实的 `vaults/`、`config.yaml` 或 `.env`。
 
 ## 单项质量门禁
 
 ```bash
 uv run --extra dev ruff check src tests scripts
 uv run python scripts/check-doc-links.py
+cd web && npm run check:i18n
 ```
 
-这两项已经纳入 `scripts/dev-check.sh` 和 CI。修改 Python 代码或公开文档时，可以单独运行。
+这些检查已经纳入 `scripts/dev-check.sh` 和 CI。修改 Python 代码、公开文档或前端文案时，可以单独运行。
+
+## 测试分层
+
+KnoArbor 将快速本地检查与真实模型检查分开：
+
+- **单元测试**覆盖纯函数、schema、检索评分、报告渲染和 pipeline policy，不访问网络或用户真实 vault。
+- **契约测试**覆盖 API、CLI、skill helper、semantic schema 和 model gateway 边界，使用 fake client 或临时 vault。
+- **Golden 测试**固定代表性的 ingest、lint、query 和 semantic 输出形态，避免用户可见报告和 context pack 静默漂移。
+- **UI 冒烟测试**覆盖页面加载、导航和打包控制台集成。
+- **真实模型冒烟**为可选测试，只能使用临时 vault。
+
+新增测试应说明保护的架构层。真实模型测试不得进入默认本地单元门禁。
 
 ## 发布门禁
 

@@ -32,7 +32,9 @@ The wiki is organized by page responsibility:
 - `claims/`: atomic, evidence-backed claims.
 - `timelines/`: chronology-first pages.
 - `workflows/`: reusable procedures.
-- `maintenance/`: reports and ledgers.
+- `pages/`: Obsidian-facing maintained Wiki pages. Open this directory in Obsidian.
+- `maintenance/`: human-readable reports.
+- `.knoarbor/`: machine state such as indexes, ledgers, runs, locks, and checkpoints.
 
 ## Ingest
 
@@ -64,6 +66,9 @@ User query -> Search wiki -> Context pack -> Host AI answer
 
 KnoArbor does not need to replace Hermes, Codex, OpenClaw, Claude Code, or other assistants. It provides durable context and provenance.
 
-## Runtime Vault
+## Runtime Vaults
 
-The `wiki/` directory is runtime data, not source code. It is ignored by git by default.
+The `vaults/` directory contains local runtime vaults, not source code. It is
+ignored by git by default. A default install uses `vaults/all/`; additional
+knowledge bases can live beside it, such as `vaults/work/` or
+`vaults/personal-study/`.

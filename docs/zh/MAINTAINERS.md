@@ -149,7 +149,7 @@ KnoArbor 优先使用明确的可靠性机制。
 
 自动门禁不得写入：
 
-- 项目根目录 `wiki/`；
+- 项目根目录 `vaults/`；
 - 项目根目录 `config.yaml`；
 - 项目根目录 `.env`；
 - 私有 connector 来源目录；

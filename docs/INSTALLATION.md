@@ -17,7 +17,7 @@ starting the FastAPI service, and opening the UI in a browser.
 git clone https://github.com/pxcg/knoarbor.git
 cd knoarbor
 uv sync
-uv run knoar first-run --vault ./wiki
+uv run knoar first-run --vault ./vaults/all
 ```
 
 Create local secret/config files:
@@ -70,8 +70,8 @@ uv run knoar lint --mode structural
 uv run knoar query "Agent Loop 是什么？"
 ```
 
-The generated wiki pages and reports are written under the configured `wiki/`
-directory.
+Generated wiki pages and reports are written under the configured vault
+directory, such as `vaults/all/`.
 
 ## Model Providers
 

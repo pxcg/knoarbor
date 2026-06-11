@@ -24,12 +24,14 @@ Unit tests must not require real model provider credentials.
 ```bash
 cd web
 npm install
+npm run check:i18n
 npm run build
 npm run test:e2e
 ```
 
 Scope:
 
+- Chinese/English UI translation key parity;
 - TypeScript build;
 - Vite production bundle;
 - navigation smoke against the packaged FastAPI console;
@@ -55,7 +57,7 @@ Current scope:
 - CLI diagnostics against a temporary config and temporary vault;
 - Python package build.
 
-This script must not write to the maintainer's real `wiki/`, `config.yaml`, or
+This script must not write to the maintainer's real `vaults/`, `config.yaml`, or
 `.env`.
 
 ## Individual Quality Gates
@@ -63,10 +65,28 @@ This script must not write to the maintainer's real `wiki/`, `config.yaml`, or
 ```bash
 uv run --extra dev ruff check src tests scripts
 uv run python scripts/check-doc-links.py
+cd web && npm run check:i18n
 ```
 
 These checks are part of `scripts/dev-check.sh` and CI. Run them directly when
 iterating on Python code or public documentation.
+
+## Test Taxonomy
+
+KnoArbor keeps fast local checks separate from live-provider checks:
+
+- **Unit tests** cover pure functions, schemas, retrieval scoring, report
+  rendering, and pipeline policies with no network or user vault access.
+- **Contract tests** cover API, CLI, skill helper, semantic schema, and model
+  gateway boundaries with fake clients or temporary vaults.
+- **Golden tests** lock representative ingest, lint, query, and semantic output
+  shapes so user-facing reports and context packs do not drift silently.
+- **UI smoke tests** cover page loading, navigation, and packaged console
+  integration.
+- **Live model smoke** is opt-in and uses temporary vaults only.
+
+New tests should state which layer they protect. Real model tests must remain
+outside the default local unit gate.
 
 ## Release Gate
 

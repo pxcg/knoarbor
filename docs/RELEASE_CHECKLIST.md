@@ -12,7 +12,7 @@ Required checks:
 
 ```bash
 git status --short
-git ls-files | rg '(^wiki/|^dist/|node_modules|\.venv|\.uv-cache|\.pytest_cache|egg-info|knoarbor_logo_asset_kit|\.obsidian)' || true
+git ls-files | rg '(^vaults/|^dist/|node_modules|\.venv|\.uv-cache|\.pytest_cache|egg-info|knoarbor_logo_asset_kit|\.obsidian)' || true
 ```
 
 Expected result:
@@ -25,8 +25,8 @@ Runtime data isolation:
 
 - Review scripts that reference `wiki`, `config.yaml`, `.env`, local source directories, or connector session paths.
 - Release/test scripts may read `config.example.yaml`, but any writable config or vault must live under `mktemp -d`.
-- Block the release if any automated gate writes to project-root `wiki/`, `config.yaml`, `.env`, or private connector source directories.
-- The acceptable exception is a clean-clone smoke test that writes `wiki/` inside its temporary clone, never inside the maintainer's working tree.
+- Block the release if any automated gate writes to project-root `vaults/`, `config.yaml`, `.env`, or private connector source directories.
+- The acceptable exception is a clean-clone smoke test that writes `vaults/` inside its temporary clone, never inside the maintainer's working tree.
 
 ## 2. Privacy And Secret Review
 

@@ -39,10 +39,10 @@ vaults:
   profiles:
     personal:
       name: My Knowledge Base
-      path: ./wiki
+      path: ./vaults/all
 
 vault:
-  path: ./wiki
+  path: ./vaults/all
 ```
 
 `vaults.profiles` is the formal multi-vault registry. Each profile has a stable
@@ -203,10 +203,10 @@ connectors:
     enabled: true
     settings:
       roots:
-        - ./wiki/raw/notes
-        - ./wiki/raw/documents/markdown
+        - ./vaults/all/raw/notes
+        - ./vaults/all/raw/documents/markdown
       recursive: true
-      raw_output_dir: ./wiki/raw/notes
+      raw_output_dir: ./vaults/all/raw/notes
       preserve_relative_paths: true
 ```
 
@@ -229,7 +229,7 @@ connectors:
       sessions_dir: ~/.codex/sessions
       pattern: "rollout-*.jsonl"
       recursive: true
-      raw_output_dir: ./wiki/raw/chats
+      raw_output_dir: ./vaults/all/raw/chats
 ```
 
 Enable Hermes only when the local Hermes session directory exists:
@@ -240,7 +240,7 @@ connectors:
     enabled: true
     settings:
       sessions_dir: ~/.hermes/sessions
-      raw_output_dir: ./wiki/raw/chats
+      raw_output_dir: ./vaults/all/raw/chats
 ```
 
 Enable OpenClaw only when the local OpenClaw session directory exists. The
@@ -255,7 +255,7 @@ connectors:
       sessions_dir: ~/.openclaw/agents/main/sessions
       pattern: "*.jsonl"
       recursive: false
-      raw_output_dir: ./wiki/raw/chats
+      raw_output_dir: ./vaults/all/raw/chats
 ```
 
 Enable Claude Code only when the local Claude Code project transcript directory exists:
@@ -268,7 +268,7 @@ connectors:
       sessions_dir: ~/.claude/projects
       pattern: "*.jsonl"
       recursive: true
-      raw_output_dir: ./wiki/raw/chats
+      raw_output_dir: ./vaults/all/raw/chats
 ```
 
 Use `generic_chat` for custom local chat exports only when no dedicated connector exists:
@@ -285,10 +285,10 @@ connectors:
         - "*.sqlite"
         - "*.db"
       recursive: true
-      raw_output_dir: ./wiki/raw/chats
+      raw_output_dir: ./vaults/all/raw/chats
 ```
 
-Markdown is the default stable input path. Put notes under a configured root, such as `./wiki/raw/notes`, or add another root:
+Markdown is the default stable input path. Put notes under a configured root, such as `./vaults/all/raw/notes`, or add another root:
 
 ```yaml
 connectors:
@@ -296,7 +296,7 @@ connectors:
     enabled: true
     settings:
       roots:
-        - ./wiki/raw/notes
+        - ./vaults/all/raw/notes
         - /path/to/your/markdown-notes
       recursive: true
 ```
@@ -304,7 +304,7 @@ connectors:
 Optional document processors live under `document_processing`, not under
 `connectors`. For example, `document_processing.mineru` can call a user-managed
 MinerU-compatible HTTP service and write Markdown into
-`wiki/raw/documents/markdown/`; the normal `markdown` connector then ingests that
+`vaults/all/raw/documents/markdown/`; the normal `markdown` connector then ingests that
 directory.
 
 Enable MinerU preprocessing only if you already run a compatible service. For a
@@ -323,8 +323,8 @@ document_processing:
   mineru:
     enabled: true
     endpoint: http://127.0.0.1:18000/file_parse
-    input_dir: ./wiki/raw/documents/originals
-    output_dir: ./wiki/raw/documents/markdown
+    input_dir: ./vaults/all/raw/documents/originals
+    output_dir: ./vaults/all/raw/documents/markdown
     mode: auto
     timeout_seconds: 600
     patterns:

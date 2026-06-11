@@ -26,10 +26,10 @@ vaults:
   profiles:
     personal:
       name: 我的知识库
-      path: ./wiki
+      path: ./vaults/all
 
 vault:
-  path: ./wiki
+  path: ./vaults/all
 ```
 
 `vaults.profiles` 是正式的多知识库配置。每个 profile 包含稳定 ID、显示名称和本地路径。`vaults.default` 选择当前默认知识库；CLI、API、前端和宿主 AI skill 在没有单次请求路径覆盖时都会使用该默认知识库。
@@ -83,7 +83,7 @@ connectors:
       sessions_dir: ~/.codex/sessions
       pattern: "rollout-*.jsonl"
       recursive: true
-      raw_output_dir: ./wiki/raw/chats
+      raw_output_dir: ./vaults/all/raw/chats
 ```
 
 启用 Hermes 需要本地存在 Hermes 会话目录：
@@ -94,7 +94,7 @@ connectors:
     enabled: true
     settings:
       sessions_dir: ~/.hermes/sessions
-      raw_output_dir: ./wiki/raw/chats
+      raw_output_dir: ./vaults/all/raw/chats
 ```
 
 启用 OpenClaw 需要本地存在 OpenClaw 会话目录。该 connector 只读取主会话 `.jsonl`，默认排除 `.trajectory.jsonl` 运行轨迹文件。
@@ -107,7 +107,7 @@ connectors:
       sessions_dir: ~/.openclaw/agents/main/sessions
       pattern: "*.jsonl"
       recursive: false
-      raw_output_dir: ./wiki/raw/chats
+      raw_output_dir: ./vaults/all/raw/chats
 ```
 
 启用 Claude Code 需要本地存在 Claude Code 项目会话目录：
@@ -120,7 +120,7 @@ connectors:
       sessions_dir: ~/.claude/projects
       pattern: "*.jsonl"
       recursive: true
-      raw_output_dir: ./wiki/raw/chats
+      raw_output_dir: ./vaults/all/raw/chats
 ```
 
 当没有专用 connector 时，可以使用 `generic_chat` 读取常见 `role`/`content` 结构的本地 JSONL 或 SQLite 聊天导出：
@@ -137,10 +137,10 @@ connectors:
         - "*.sqlite"
         - "*.db"
       recursive: true
-      raw_output_dir: ./wiki/raw/chats
+      raw_output_dir: ./vaults/all/raw/chats
 ```
 
-Markdown 是默认稳定入口。可以把笔记放入 `./wiki/raw/notes`，也可以添加自己的 Markdown 目录：
+Markdown 是默认稳定入口。可以把笔记放入 `./vaults/all/raw/notes`，也可以添加自己的 Markdown 目录：
 
 ```yaml
 connectors:
@@ -148,7 +148,7 @@ connectors:
     enabled: true
     settings:
       roots:
-        - ./wiki/raw/notes
+        - ./vaults/all/raw/notes
         - /path/to/your/markdown-notes
       recursive: true
 ```
@@ -169,8 +169,8 @@ document_processing:
   mineru:
     enabled: true
     endpoint: http://127.0.0.1:18000/file_parse
-    input_dir: ./wiki/raw/documents/originals
-    output_dir: ./wiki/raw/documents/markdown
+    input_dir: ./vaults/all/raw/documents/originals
+    output_dir: ./vaults/all/raw/documents/markdown
     mode: auto
     timeout_seconds: 600
     patterns:

@@ -40,7 +40,7 @@ The script runs frontend build, Ruff, documentation link checks, Python unit tes
 scripts/release-check.sh
 ```
 
-`release-check.sh` runs `dev-check.sh`, `release-readiness.py`, and `clean-clone-smoke.sh` in order. `dev-check.sh` includes frontend build, frontend dependency audit, Playwright UI smoke, Ruff, documentation link checks, Python tests, read-only `doctor`, and package build.
+`release-check.sh` runs `dev-check.sh`, `release-readiness.py`, and `clean-clone-smoke.sh` in order. `dev-check.sh` includes frontend i18n parity, frontend build, frontend dependency audit, Playwright UI smoke, Ruff, documentation link checks, Python tests, read-only `doctor`, and package build.
 
 When a model provider is available, run the live release-candidate smoke test:
 
@@ -69,7 +69,7 @@ Test and release scripts must never operate on a maintainer's real runtime data 
 User-owned runtime data includes:
 
 - `config.yaml` and `.env` in the project root.
-- The project-root `wiki/` runtime vault.
+- The project-root `vaults/` runtime vault.
 - Connector source directories such as local chat sessions, Markdown note folders, raw document folders, or private export directories.
 - Any local workflow export, cache, or private development record that is ignored by git.
 
@@ -77,7 +77,7 @@ Required rule:
 
 - Automated gates may read `config.example.yaml`, but they must write a temporary config when a command needs configuration.
 - Automated gates that need a vault must create one under `mktemp -d` and remove it with `trap` cleanup.
-- Automated gates must not initialize, rewrite, lint, ingest, or clean the project-root `wiki/`, `config.yaml`, or `.env`.
+- Automated gates must not initialize, rewrite, lint, ingest, or clean the project-root `vaults/`, `config.yaml`, or `.env`.
 - Only explicit user-facing product commands, such as `knoar init`, `knoar ingest`, API calls, or UI actions, may operate on the configured real vault.
 - Repository scripts must not use broad cleanup commands such as `git clean -fdx` or `rm -rf` against ignored project-root runtime paths.
 
@@ -88,7 +88,7 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 TEMP_CONFIG="$TMP_DIR/config.yaml"
-TEMP_VAULT="$TMP_DIR/wiki"
+TEMP_VAULT="/vaults/all"
 
 # Copy config.example.yaml into TEMP_CONFIG, rewrite vault.path to TEMP_VAULT,
 # then run CLI/API checks against TEMP_CONFIG only.

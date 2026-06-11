@@ -137,14 +137,14 @@ GET /runtime
   "service_online": true,
   "base_url": "http://127.0.0.1:8000",
   "config_path": "/path/to/config.yaml",
-  "vault_path": "/path/to/wiki",
+  "vault_path": "/path/to/vault",
   "vault_id": "personal",
   "vault_name": "我的知识库",
   "vaults": [
     {
       "id": "personal",
       "name": "我的知识库",
-      "path": "/path/to/wiki"
+      "path": "/path/to/vault"
     }
   ],
   "endpoint_path": "/path/to/.knoarbor/endpoint.json",
@@ -176,7 +176,7 @@ GET /vaults?config_path=/path/to/config.yaml
     {
       "id": "personal",
       "name": "个人知识库",
-      "path": "/path/to/wiki",
+      "path": "/path/to/vault",
       "active": true,
       "exists": true
     }
@@ -191,8 +191,8 @@ GET /vaults?config_path=/path/to/config.yaml
 ## 运行报告
 
 ```http
-GET /reports?vault_path=/path/to/wiki
-GET /reports/content?vault_path=/path/to/wiki&path=maintenance/ingest_report_YYYYMMDD_HHMMSS.md
+GET /reports?vault_path=/path/to/vault
+GET /reports/content?vault_path=/path/to/vault&path=maintenance/ingest_report_YYYYMMDD_HHMMSS.md
 ```
 
 列出或读取知识库 `maintenance/` 目录下的 Markdown 流程报告。报告属于公开集成 API，
@@ -418,7 +418,7 @@ POST /query
 
 ```json
 {
-  "vault_path": "/path/to/wiki",
+  "vault_path": "/path/to/vault",
   "query": "agent loop",
   "mode": "balanced",
   "context_format": "compact"
@@ -454,9 +454,9 @@ POST /query
 ## 运行监控
 
 ```http
-GET /runs?vault_path=/path/to/wiki&active_only=false&limit=50
-GET /runs/{run_id}?vault_path=/path/to/wiki
-GET /runs/{run_id}/events?vault_path=/path/to/wiki&after=0&limit=200
+GET /runs?vault_path=/path/to/vault&active_only=false&limit=50
+GET /runs/{run_id}?vault_path=/path/to/vault
+GET /runs/{run_id}/events?vault_path=/path/to/vault&after=0&limit=200
 GET /runs/{run_id}/stream?after=0
 POST /runs/{run_id}/cancel
 ```
@@ -471,12 +471,16 @@ POST /runs/{run_id}/cancel
 ## Wiki 页面
 
 ```http
-GET /wiki/pages?vault_path=/path/to/wiki
-GET /wiki/pages/content?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
-GET /wiki/pages/links?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
+GET /wiki/pages?vault_path=/path/to/vault
+GET /wiki/pages/content?vault_path=/path/to/vault&path=concepts/Agent-Loop.md
+GET /wiki/pages/links?vault_path=/path/to/vault&path=concepts/Agent-Loop.md
 ```
 
-`/wiki/pages` 返回页面摘要和链接元数据。`/wiki/pages/content` 返回单个 Markdown 页面及其元数据。`/wiki/pages/links` 返回指向目标页面的页面。
+`/wiki/pages` 返回页面摘要和链接元数据。`/wiki/pages/content` 返回单个
+Markdown 页面及其元数据。`/wiki/pages/links` 返回指向目标页面的页面。
+页面路径是相对于 Wiki 内容根目录的路径，例如 API 使用
+`concepts/Agent-Loop.md`。在文件系统中，新版工作区会把同一页面存放在
+`vaults/all/pages/concepts/Agent-Loop.md`。
 
 这些接口也支持同时传入 `config_path` 和 `vault_id`。当用户选择跨知识库
 `/query` 返回的某个结果时，应使用该结果的 `vault_id` 读取页面正文或链接，

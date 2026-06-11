@@ -24,7 +24,7 @@ If `--config` is omitted, the CLI searches for `config.yaml` and falls back to
 ## Recommended Commands
 
 These commands mirror the stable API surface: `/ingest`, `/lint`, `/query`,
-`/runs`, `/wiki/pages`, `/doctor`, and `/health`.
+`/runs`, `/vaults/all/pages`, `/doctor`, and `/health`.
 
 ### `first-run`
 
@@ -33,7 +33,7 @@ read-only diagnostics.
 
 ```bash
 uv run knoar first-run
-uv run knoar first-run --vault ./wiki
+uv run knoar first-run --vault ./vaults/all
 uv run knoar first-run --no-example
 uv run knoar first-run --json
 ```
@@ -53,7 +53,7 @@ uv run knoar query "Agent Loop 是什么？"
 Initialize a runtime wiki vault.
 
 ```bash
-uv run knoar init --vault ./wiki
+uv run knoar init --vault ./vaults/all
 ```
 
 When `config.yaml` is missing, `init` creates one from the bundled default
@@ -86,7 +86,7 @@ uv run knoar serve --host 0.0.0.0 --port 8000
 Print a local vault summary.
 
 ```bash
-uv run knoar status --vault ./wiki
+uv run knoar status --vault ./vaults/all
 uv run knoar status --vault-id personal
 ```
 
@@ -184,7 +184,7 @@ run queue by default and prints progress events plus heartbeat lines. Use
 explicitly want synchronous summary output.
 
 When multiple vaults are configured, ingest writes to one vault per command. Use
-`--vault-id <id>` to select a configured vault, or `--vault /path/to/wiki` for an
+`--vault-id <id>` to select a configured vault, or `--vault /path/to/vault` for an
 explicit vault path.
 
 ### `lint`
@@ -217,7 +217,7 @@ Like ingest, `lint` follows progress by default for human-readable output. Use
 output.
 
 When multiple vaults are configured, lint maintains one vault per command. Use
-`--vault-id <id>` to select a configured vault, or `--vault /path/to/wiki` for an
+`--vault-id <id>` to select a configured vault, or `--vault /path/to/vault` for an
 explicit vault path.
 
 ### `query`
@@ -273,6 +273,23 @@ uv run knoar pages read --vault-id personal concepts/Agent-Loop-and-Control-Patt
 Use `pages read` after query when you need the full maintained page body. Use
 `pages links` to inspect outbound links and backlinks without opening the UI.
 
+Page paths are relative to the maintained content root. In the default layout,
+KnoArbor stores these pages under `vaults/all/pages/`, but CLI commands still use
+paths such as `concepts/Agent-Loop.md`.
+
+### `vaults`
+
+List configured knowledge bases or migrate an older root-level wiki layout.
+
+```bash
+uv run knoar vaults list
+uv run knoar vaults migrate-layout --vault ./vaults/all
+```
+
+`migrate-layout` moves legacy root-level page directories such as `concepts/`,
+`entities/`, and `sources/` into `pages/`. It does not move `raw/`,
+`maintenance/`, or `.knoarbor/`.
+
 ### `reports`
 
 List or read workflow reports from the selected vault.
@@ -320,7 +337,7 @@ uv run knoar runs cancel RUN_ID
 Run deterministic scan without writing a maintenance report.
 
 ```bash
-uv run knoar scan --vault ./wiki
+uv run knoar scan --vault ./vaults/all
 ```
 
 ## Developer Diagnostics

@@ -19,9 +19,9 @@ The public integration API is intentionally compact:
 - `GET /runs/{run_id}/events`
 - `GET /runs/{run_id}/stream`
 - `POST /runs/{run_id}/cancel`
-- `GET /wiki/pages`
-- `GET /wiki/pages/content`
-- `GET /wiki/pages/links`
+- `GET /vaults/all/pages`
+- `GET /vaults/all/pages/content`
+- `GET /vaults/all/pages/links`
 
 Different workflow variants are selected by request fields such as `execution`, `kind`, `mode`, and `context_format`.
 

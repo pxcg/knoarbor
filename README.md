@@ -131,11 +131,11 @@ For a complete local installation path, see [Installation](docs/INSTALLATION.md)
 Create local configuration and initialize a vault:
 
 ```bash
-uv run knoar first-run --vault ./wiki
+uv run knoar first-run --vault ./vaults/all
 ```
 
-This creates `config.yaml`, initializes `./wiki`, and copies a small bundled
-Markdown example to `wiki/raw/notes/agent-loop.md`.
+This creates `config.yaml`, initializes `./vaults/all`, and copies a small bundled
+Markdown example to `vaults/all/raw/notes/agent-loop.md`.
 
 Create `.env` and set at least one provider key:
 
@@ -191,20 +191,23 @@ uv run knoarbor --help
 KnoArbor organizes knowledge into three layers:
 
 ```text
-wiki/
-├── raw/          # immutable source files
-├── sources/      # source digest pages
-├── entities/     # named people, organizations, products, projects
-├── concepts/     # reusable ideas, methods, architectures, principles
-├── comparisons/  # comparison-first pages
-├── queries/      # retained Q&A pages
-├── claims/       # verifiable atomic claims
-├── timelines/    # chronology-first pages
-├── workflows/    # repeatable process pages
-└── maintenance/  # reports, ledgers, checkpoints
+vaults/
+└── all/
+    ├── pages/        # Obsidian-facing wiki; open this directory in Obsidian
+    │   ├── sources/      # source digest pages
+    │   ├── entities/     # named people, organizations, products, projects
+    │   ├── concepts/     # reusable ideas, methods, architectures, principles
+    │   ├── comparisons/  # comparison-first pages
+    │   ├── queries/      # retained Q&A pages
+    │   ├── claims/       # verifiable atomic claims
+    │   ├── timelines/    # chronology-first pages
+    │   └── workflows/    # repeatable process pages
+    ├── raw/          # immutable source files
+    ├── maintenance/  # human-readable run reports
+    └── .knoarbor/    # machine state, indexes, ledgers, locks, runs
 ```
 
-The runtime `wiki/` directory is ignored by git because it can contain private notes, source documents, and generated pages.
+The runtime `vaults/` workspace is ignored by git because it can contain private notes, source documents, generated pages, and run records. Use `vaults/all/pages` as the clean Obsidian vault when you only want maintained Wiki pages.
 
 ## Usage
 
@@ -417,7 +420,7 @@ Ignored by default:
 - `.env`
 - `config.yaml`
 - `config.local.yaml`
-- `wiki/`
+- `vaults/`
 - `.local-dev/`
 - `.venv/`
 - `.uv-cache/`

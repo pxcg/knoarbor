@@ -142,14 +142,14 @@ HTTP-only integrations:
   "service_online": true,
   "base_url": "http://127.0.0.1:8000",
   "config_path": "/path/to/config.yaml",
-  "vault_path": "/path/to/wiki",
+  "vault_path": "/path/to/vault",
   "vault_id": "personal",
   "vault_name": "My Knowledge Base",
   "vaults": [
     {
       "id": "personal",
       "name": "My Knowledge Base",
-      "path": "/path/to/wiki"
+      "path": "/path/to/vault"
     }
   ],
   "endpoint_path": "/path/to/.knoarbor/endpoint.json",
@@ -182,7 +182,7 @@ Returns configured knowledge-base profiles:
     {
       "id": "personal",
       "name": "Personal Knowledge Base",
-      "path": "/path/to/wiki",
+      "path": "/path/to/vault",
       "active": true,
       "exists": true
     }
@@ -198,8 +198,8 @@ local inspection and one-off automation, but public clients should prefer
 ## Reports
 
 ```http
-GET /reports?vault_path=/path/to/wiki
-GET /reports/content?vault_path=/path/to/wiki&path=maintenance/ingest_report_YYYYMMDD_HHMMSS.md
+GET /reports?vault_path=/path/to/vault
+GET /reports/content?vault_path=/path/to/vault&path=maintenance/ingest_report_YYYYMMDD_HHMMSS.md
 ```
 
 Lists or reads Markdown workflow reports from the vault `maintenance/` folder.
@@ -443,7 +443,7 @@ Retrieves relevant wiki pages, excerpts, related context, trace data, and a prom
 
 ```json
 {
-  "vault_path": "/path/to/wiki",
+  "vault_path": "/path/to/vault",
   "query": "agent loop",
   "mode": "balanced",
   "context_format": "compact"
@@ -480,7 +480,7 @@ By default, query returns a bounded `compact` context pack. Set `context_format:
 
 ```http
 POST /query/feedback
-GET /query/trends?vault_path=/path/to/wiki&limit=100
+GET /query/trends?vault_path=/path/to/vault&limit=100
 ```
 
 Feedback records whether retrieved pages were useful. Trends return recent no-result and low-confidence query patterns from the query ledger.
@@ -490,9 +490,9 @@ Feedback records whether retrieved pages were useful. Trends return recent no-re
 Inspect runs:
 
 ```http
-GET /runs?vault_path=/path/to/wiki&active_only=false&limit=50
-GET /runs/{run_id}?vault_path=/path/to/wiki
-GET /runs/{run_id}/events?vault_path=/path/to/wiki&after=0&limit=200
+GET /runs?vault_path=/path/to/vault&active_only=false&limit=50
+GET /runs/{run_id}?vault_path=/path/to/vault
+GET /runs/{run_id}/events?vault_path=/path/to/vault&after=0&limit=200
 GET /runs/{run_id}/stream?after=0
 POST /runs/{run_id}/cancel
 ```
@@ -537,12 +537,17 @@ This design favors correctness and reproducibility over maximum throughput for t
 ## Wiki Page API
 
 ```http
-GET /wiki/pages?vault_path=/path/to/wiki
-GET /wiki/pages/content?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
-GET /wiki/pages/links?vault_path=/path/to/wiki&path=concepts/Agent-Loop.md
+GET /wiki/pages?vault_path=/path/to/vault
+GET /wiki/pages/content?vault_path=/path/to/vault&path=concepts/Agent-Loop.md
+GET /wiki/pages/links?vault_path=/path/to/vault&path=concepts/Agent-Loop.md
 ```
 
-`/wiki/pages` returns page summaries and link metadata. `/wiki/pages/content` returns one Markdown page with metadata and rendered summary fields. `/wiki/pages/links` returns pages that link to the selected page.
+`/wiki/pages` returns page summaries and link metadata. `/wiki/pages/content`
+returns one Markdown page with metadata and rendered summary fields.
+`/wiki/pages/links` returns pages that link to the selected page. Page paths are
+relative to the maintained content root, so callers pass
+`concepts/Agent-Loop.md` even though the default filesystem location is
+`vaults/all/pages/concepts/Agent-Loop.md`.
 
 These endpoints also accept `vault_id` with `config_path`. When a result from
 a multi-vault `/query` response is selected, pass the result's `vault_id` to

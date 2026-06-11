@@ -56,12 +56,14 @@ Inspect the generated knowledge network.
 
 KnoArbor writes normal Markdown pages into a local vault:
 
+- `pages/`: the Obsidian-facing Wiki root. Open this directory in Obsidian.
+- `pages/sources/`: source digest pages that explain what each source contributes.
+- `pages/entities/`: named tools, people, products, organizations, projects, and places.
+- `pages/concepts/`: reusable ideas, patterns, architectures, and principles.
+- `pages/comparisons/`, `pages/queries`, `pages/claims`, `pages/timelines`, and `pages/workflows`: more specialized knowledge objects.
 - `raw/`: immutable copied or normalized source material.
-- `sources/`: source digest pages that explain what each source contributes.
-- `entities/`: named tools, people, products, organizations, projects, and places.
-- `concepts/`: reusable ideas, patterns, architectures, and principles.
-- `comparisons/`, `queries`, `claims`, `timelines`, and `workflows`: more specialized knowledge objects.
-- `maintenance/`: run reports, ledgers, checkpoints, and audit records.
+- `maintenance/`: human-readable run reports.
+- `.knoarbor/`: machine state, indexes, ledgers, locks, and run records.
 
 The result is a traceable knowledge network: generated pages link to source digests, source digests point back to raw sources, and query returns evidence that a host AI can use.
 
@@ -105,7 +107,7 @@ Plain RAG often retrieves raw chunks at answer time. KnoArbor compiles durable w
 | Source handling | Search raw chunks | Preserve raw sources and source digests |
 | Knowledge shape | Query-time snippets | Stable pages with links and page types |
 | Maintenance | Usually implicit | Explicit lint, reports, and verification |
-| Human inspectability | Depends on app | Open the vault in editor or Obsidian |
+| Human inspectability | Depends on app | Open `pages/` in an editor or Obsidian |
 
 RAG can still be useful later as a retrieval backend. KnoArbor's first goal is to make the knowledge itself inspectable and maintainable.
 
@@ -114,9 +116,9 @@ RAG can still be useful later as a retrieval backend. KnoArbor's first goal is t
 For a short demo, use the built-in Agent Loop example:
 
 ```bash
-uv run knoar init --vault ./wiki
-mkdir -p wiki/raw/notes
-cp examples/agent-loop.md wiki/raw/notes/agent-loop.md
+uv run knoar init --vault ./vaults/all
+mkdir -p vaults/all/raw/notes
+cp examples/agent-loop.md vaults/all/raw/notes/agent-loop.md
 uv run knoar ingest --connector markdown --write
 uv run knoar lint --mode structural
 uv run knoar query "Agent Loop 是什么？"

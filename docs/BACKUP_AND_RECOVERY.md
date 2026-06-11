@@ -1,7 +1,7 @@
 # Backup And Recovery
 
 KnoArbor treats the runtime vault as user-owned data. The project repository
-contains source code and public documentation; your local `wiki/`, `config.yaml`,
+contains source code and public documentation; your local `vaults/`, `config.yaml`,
 and `.env` are intentionally ignored by git.
 
 This document explains what should be backed up, what can be recovered from git,
@@ -15,14 +15,14 @@ base:
 ```text
 config.yaml
 .env
-wiki/
+vaults/
 ```
 
 Recommended backup scope:
 
-- `wiki/**/*.md`: maintained wiki pages and reports.
-- `wiki/.knoarbor/`: machine indexes, ledgers, run records, and locks.
-- `wiki/raw/`: copied or normalized raw sources if you choose to keep them.
+- `vaults/**/*.md`: maintained wiki pages and reports.
+- `vaults/all/.knoarbor/`: machine indexes, ledgers, run records, and locks.
+- `vaults/all/raw/`: copied or normalized raw sources if you choose to keep them.
 - `config.yaml`: vault path, connector roots, model provider names, and runtime
   limits.
 - `.env`: model provider API keys and other local secrets.
@@ -43,7 +43,7 @@ Git can help when:
 
 Git cannot recover:
 
-- ignored `wiki/` runtime pages that were never committed;
+- ignored `vaults/` runtime pages that were never committed;
 - ignored `config.yaml` or `.env`;
 - local connector source files outside the repository;
 - deleted files that have no filesystem backup.
@@ -54,8 +54,8 @@ When recovering old tracked files, restore into a temporary directory first when
 possible:
 
 ```bash
-mkdir -p .local-dev/recovered-wiki
-git archive <commit> wiki | tar -x -C .local-dev/recovered-wiki
+mkdir -p .local-dev/recovered-vault
+git archive <commit> vaults | tar -x -C .local-dev/recovered-vault
 ```
 
 After reviewing the recovered files, copy only the pages you want into your
@@ -65,15 +65,15 @@ If you explicitly decide to restore tracked wiki files directly into the current
 vault, use a known commit:
 
 ```bash
-git restore --source=<commit> --worktree -- wiki
+git restore --source=<commit> --worktree -- vaults
 uv run python - <<'PY'
 from pathlib import Path
 from knoarbor.storage import update_index
-update_index(Path("wiki"))
+update_index(Path("vaults/all"))
 PY
 ```
 
-Because `wiki/` is ignored, restored files remain local runtime data and should
+Because `vaults/` is ignored, restored files remain local runtime data and should
 not be committed.
 
 ## Rebuild Indexes
@@ -85,14 +85,14 @@ and machine indexes:
 uv run python - <<'PY'
 from pathlib import Path
 from knoarbor.storage import update_index
-update_index(Path("wiki"))
+update_index(Path("vaults/all"))
 PY
 ```
 
 Then check:
 
 ```bash
-uv run knoar --config config.yaml status --vault wiki
+uv run knoar --config config.yaml status --vault vaults/all
 uv run knoar --config config.yaml query "agent loop" --json
 ```
 
@@ -107,7 +107,7 @@ Required rule:
 - Use `config.example.yaml` as input, then rewrite paths into the temporary
   directory.
 - Clean temporary directories with `trap`.
-- Do not run automated tests against project-root `wiki/`, `config.yaml`, or
+- Do not run automated tests against project-root `vaults/`, `config.yaml`, or
   `.env`.
 - Do not use broad cleanup commands such as `git clean -fdx` or `rm -rf` against
   ignored project-root runtime paths.
@@ -119,7 +119,7 @@ real vault.
 
 For local use:
 
-- Keep `wiki/` in Time Machine, Syncthing, cloud backup, or another private
+- Keep `vaults/` in Time Machine, Syncthing, cloud backup, or another private
   backup system.
 - Keep `.env` in a password manager or encrypted vault.
 - Export occasional snapshots before large ingest/lint runs.

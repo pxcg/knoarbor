@@ -54,14 +54,16 @@ KnoArbor 会把 Markdown 笔记、AI 对话记录和已解析文档编译成本�
 
 ## 它会生成什么
 
-KnoArbor 会把页面写入一个普通的本地 Markdown 知识库：
+KnoArbor 会把页面写入一个普通的本地 Markdown 工作区：
 
+- `pages/`：面向 Obsidian 的干净 Wiki 根目录。需要在 Obsidian 中查看时，打开这个目录。
+- `pages/sources/`：来源摘要页面，说明某个原始资料贡献了什么内容。
+- `pages/entities/`：工具、人物、产品、组织、项目、地点等命名对象。
+- `pages/concepts/`：方法、模式、架构、原则和可复用知识。
+- `pages/comparisons/`、`pages/queries/`、`pages/claims/`、`pages/timelines/`、`pages/workflows/`：更细分的知识对象。
 - `raw/`：不可变的原始资料或标准化后的资料副本。
-- `sources/`：来源摘要页面，说明某个原始资料贡献了什么内容。
-- `entities/`：工具、人物、产品、组织、项目、地点等命名对象。
-- `concepts/`：方法、模式、架构、原则和可复用知识。
-- `comparisons/`、`queries/`、`claims/`、`timelines/`、`workflows/`：更细分的知识对象。
-- `maintenance/`：运行报告、账本、断点和审计记录。
+- `maintenance/`：人类可读的运行报告。
+- `.knoarbor/`：机器状态、索引、账本、锁和运行记录。
 
 最终结果是一个可追溯的知识网络：知识页面连接来源摘要，来源摘要指向原始资料，查询阶段返回可供宿主 AI 使用的证据。
 
@@ -105,7 +107,7 @@ Query 会返回排序后的页面、摘录、关联上下文、来源线索、�
 | 来源处理 | 检索原始切块 | 保留 raw source 和 source digest |
 | 知识形态 | 查询时片段 | 有类型、有链接的稳定页面 |
 | 维护方式 | 通常隐式 | 显式 lint、报告和验证 |
-| 人类可检查性 | 依赖应用 | 可直接用编辑器或 Obsidian 打开 |
+| 人类可检查性 | 依赖应用 | 可直接用编辑器或 Obsidian 打开 `pages/` |
 
 后续仍然可以引入 RAG 作为检索后端。KnoArbor 的第一目标是让知识本身可检查、可维护。
 
@@ -114,9 +116,9 @@ Query 会返回排序后的页面、摘录、关联上下文、来源线索、�
 可以用内置 Agent Loop 示例做一次短演示：
 
 ```bash
-uv run knoar init --vault ./wiki
-mkdir -p wiki/raw/notes
-cp examples/agent-loop.md wiki/raw/notes/agent-loop.md
+uv run knoar init --vault ./vaults/all
+mkdir -p vaults/all/raw/notes
+cp examples/agent-loop.md vaults/all/raw/notes/agent-loop.md
 uv run knoar ingest --connector markdown --write
 uv run knoar lint --mode structural
 uv run knoar query "Agent Loop 是什么？"
