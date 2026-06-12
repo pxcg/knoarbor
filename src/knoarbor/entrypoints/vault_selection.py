@@ -5,7 +5,7 @@ from pathlib import Path
 
 from knoarbor.core.config import default_config_path, load_config
 from knoarbor.core.errors import UserInputError
-from knoarbor.core.vaults import resolve_config_vault_path
+from knoarbor.core.vaults import VIRTUAL_ALL_VAULT_ID, concrete_vault_profile_ids, resolve_config_vault_path
 
 
 @dataclass(frozen=True)
@@ -39,11 +39,14 @@ def resolve_vault_group(
     all_vaults: bool,
     config_path: str | None,
 ) -> list[ResolvedVault]:
+    if vault_id == VIRTUAL_ALL_VAULT_ID:
+        all_vaults = True
+        vault_id = None
     if not all_vaults and not vault_ids:
         return [resolve_single_vault(vault_path, vault_id, config_path)]
 
     config = load_config(Path(config_path).expanduser().resolve() if config_path else default_config_path())
-    selected_ids = list(config.vaults.profiles) if all_vaults else _unique_nonempty(vault_ids)
+    selected_ids = concrete_vault_profile_ids(config) if all_vaults else _unique_nonempty(vault_ids)
     if not selected_ids:
         raise UserInputError("No vault_ids were provided and no configured vault profiles are available.")
 

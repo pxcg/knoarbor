@@ -1,4 +1,4 @@
-export type ViewName = "overview" | "runs" | "sources" | "wiki" | "ingest" | "lint" | "query" | "graph" | "reports" | "tokens" | "settings" | "docs";
+export type ViewName = "chat" | "overview" | "runs" | "sources" | "wiki" | "ingest" | "lint" | "query" | "graph" | "reports" | "tokens" | "settings" | "docs";
 
 export type Language = "en" | "zh";
 

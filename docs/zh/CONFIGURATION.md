@@ -22,17 +22,19 @@ config_version: 1
 
 ```yaml
 vaults:
-  default: personal
+  default: default
   profiles:
-    personal:
+    default:
       name: 我的知识库
-      path: ./vaults/all
+      path: ./vaults/default
 
 vault:
-  path: ./vaults/all
+  path: ./vaults/default
 ```
 
 `vaults.profiles` 是正式的多知识库配置。每个 profile 包含稳定 ID、显示名称和本地路径。`vaults.default` 选择当前默认知识库；CLI、API、前端和宿主 AI skill 在没有单次请求路径覆盖时都会使用该默认知识库。
+
+`all` 是保留的虚拟查询范围，不应作为真实 profile ID。需要查询全部知识库时使用 `all_vaults: true` 或 `vault_id: "all"`；真实知识库建议使用 `default`、`personal`、`team` 等稳定 ID。
 
 `vault.path` 是当前默认知识库解析后的路径，用于简单单知识库部署和内部请求默认值。当配置了 `vaults.profiles` 时，KnoArbor 会从 `vaults.default` 自动派生 `vault.path`。
 
@@ -69,6 +71,25 @@ Prompt caching 由模型供应商实现，不需要在 KnoArbor 中单独开启�
 
 发现和探测不会自动修改配置。建议先查看探测结果，再在确认模型能力后写回配置。
 
+## 对话记忆
+
+对话记忆保存 Wiki Chat Agent 使用的长期交互偏好。它与 Wiki 页面和 Source Digest 分离：
+
+```yaml
+memory:
+  enabled: true
+  auto_write_explicit_low_risk: true
+  max_recalled_records: 12
+```
+
+记忆文件保存在当前知识库的 `.knoarbor/memory/`：
+
+- `records.jsonl`：用于召回的记忆记录；
+- `candidates.jsonl`：候选或自动写入的记忆；
+- `events.jsonl`：召回和写入审计事件。
+
+第一版只捕获用户明确表达的低风险偏好，例如“请记住……”“以后默认……”。它不会保存任意聊天全文，也不会把 Wiki 正文复制成记忆。
+
 ## 输入来源
 
 当前稳定入口以 Markdown 和标准化 source document 为主。默认启用 `markdown`，可选启用 `hermes`、`codex`、`openclaw`、`claude_code` 和 `generic_chat`。聊天记录和个人文件都属于一等来源，是否重要由内容决定，不由来源类型决定。
@@ -83,7 +104,7 @@ connectors:
       sessions_dir: ~/.codex/sessions
       pattern: "rollout-*.jsonl"
       recursive: true
-      raw_output_dir: ./vaults/all/raw/chats
+      raw_output_dir: ./vaults/default/raw/chats
 ```
 
 启用 Hermes 需要本地存在 Hermes 会话目录：
@@ -94,7 +115,7 @@ connectors:
     enabled: true
     settings:
       sessions_dir: ~/.hermes/sessions
-      raw_output_dir: ./vaults/all/raw/chats
+      raw_output_dir: ./vaults/default/raw/chats
 ```
 
 启用 OpenClaw 需要本地存在 OpenClaw 会话目录。该 connector 只读取主会话 `.jsonl`，默认排除 `.trajectory.jsonl` 运行轨迹文件。
@@ -107,7 +128,7 @@ connectors:
       sessions_dir: ~/.openclaw/agents/main/sessions
       pattern: "*.jsonl"
       recursive: false
-      raw_output_dir: ./vaults/all/raw/chats
+      raw_output_dir: ./vaults/default/raw/chats
 ```
 
 启用 Claude Code 需要本地存在 Claude Code 项目会话目录：
@@ -120,7 +141,7 @@ connectors:
       sessions_dir: ~/.claude/projects
       pattern: "*.jsonl"
       recursive: true
-      raw_output_dir: ./vaults/all/raw/chats
+      raw_output_dir: ./vaults/default/raw/chats
 ```
 
 当没有专用 connector 时，可以使用 `generic_chat` 读取常见 `role`/`content` 结构的本地 JSONL 或 SQLite 聊天导出：
@@ -137,10 +158,10 @@ connectors:
         - "*.sqlite"
         - "*.db"
       recursive: true
-      raw_output_dir: ./vaults/all/raw/chats
+      raw_output_dir: ./vaults/default/raw/chats
 ```
 
-Markdown 是默认稳定入口。可以把笔记放入 `./vaults/all/raw/notes`，也可以添加自己的 Markdown 目录：
+Markdown 是默认稳定入口。可以把笔记放入 `./vaults/default/raw/notes`，也可以添加自己的 Markdown 目录：
 
 ```yaml
 connectors:
@@ -148,7 +169,7 @@ connectors:
     enabled: true
     settings:
       roots:
-        - ./vaults/all/raw/notes
+        - ./vaults/default/raw/notes
         - /path/to/your/markdown-notes
       recursive: true
 ```
@@ -169,8 +190,8 @@ document_processing:
   mineru:
     enabled: true
     endpoint: http://127.0.0.1:18000/file_parse
-    input_dir: ./vaults/all/raw/documents/originals
-    output_dir: ./vaults/all/raw/documents/markdown
+    input_dir: ./vaults/default/raw/documents/originals
+    output_dir: ./vaults/default/raw/documents/markdown
     mode: auto
     timeout_seconds: 600
     patterns:

@@ -21,8 +21,8 @@ vaults/
 Recommended backup scope:
 
 - `vaults/**/*.md`: maintained wiki pages and reports.
-- `vaults/all/.knoarbor/`: machine indexes, ledgers, run records, and locks.
-- `vaults/all/raw/`: copied or normalized raw sources if you choose to keep them.
+- `vaults/default/.knoarbor/`: machine indexes, ledgers, run records, and locks.
+- `vaults/default/raw/`: copied or normalized raw sources if you choose to keep them.
 - `config.yaml`: vault path, connector roots, model provider names, and runtime
   limits.
 - `.env`: model provider API keys and other local secrets.
@@ -69,7 +69,7 @@ git restore --source=<commit> --worktree -- vaults
 uv run python - <<'PY'
 from pathlib import Path
 from knoarbor.storage import update_index
-update_index(Path("vaults/all"))
+update_index(Path("vaults/default"))
 PY
 ```
 
@@ -85,14 +85,14 @@ and machine indexes:
 uv run python - <<'PY'
 from pathlib import Path
 from knoarbor.storage import update_index
-update_index(Path("vaults/all"))
+update_index(Path("vaults/default"))
 PY
 ```
 
 Then check:
 
 ```bash
-uv run knoar --config config.yaml status --vault vaults/all
+uv run knoar --config config.yaml status --vault vaults/default
 uv run knoar --config config.yaml query "agent loop" --json
 ```
 

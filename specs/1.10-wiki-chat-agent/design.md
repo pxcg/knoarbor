@@ -1,0 +1,324 @@
+# 1.10 Wiki Chat Agent Design
+
+## Positioning
+
+Wiki Chat Agent is a KnoArbor console capability for asking natural-language
+questions about maintained vaults and supported KnoArbor operations.
+
+It uses an Agent Loop, but it is not a general tool-running agent. The loop only
+selects from KnoArbor-owned tools that already have stable service or API
+boundaries.
+
+```text
+Console Chat
+  -> Chat API
+  -> WikiChatAgent
+  -> ChatContextEngine
+  -> Model Gateway
+  -> KnoArbor Tool Registry
+  -> Query / Wiki / Reports / Runs / Sources / Workflows
+  -> ChatSessionStore
+  -> Chat response with answer, citations, trace, and optional run links
+```
+
+## References Considered
+
+Local reference systems:
+
+- `itp-inspectx` Agent Loop: useful for evented loop state, tool cycle,
+  checkpoint boundaries, and UI trace ideas.
+- Hermes Agent: useful for context building, prompt layering, memory
+  compression, and long-running tool discipline.
+- KnoArbor skill: useful for evidence-first host-AI usage and public API
+  parity.
+
+Adopted ideas:
+
+- bounded turn loop;
+- explicit event/tool trace;
+- model decision separated from tool execution;
+- stable context package before model calls;
+- no tool execution outside an allowlist.
+
+Rejected ideas:
+
+- generic tool registry with shell/browser/file tools;
+- native provider-specific tool calling as the only protocol;
+- chat page owning workflow behavior;
+- treating chat as the only query interface.
+
+## Owning Layers
+
+| Layer | Responsibility |
+| --- | --- |
+| UI | Chat layout, message state, trace display, links to pages/reports/runs. |
+| API | Stable `/chat`, `/chat/sessions`, and `/chat/sessions/{session_id}` contracts. |
+| Service | Agent loop orchestration, tool registry dispatch, model calls, response assembly. |
+| Context | Stable system prompt, workspace context, memory context, and recent session messages. |
+| Storage | Vault-scoped chat session records under `.knoarbor/chat/`. |
+| Semantic | Chat agent prompt and JSON decision schema. |
+| Model Gateway | Provider-neutral chat completion, retry, metrics, capability errors. |
+| Tool Adapters | Thin adapters over existing query, wiki page, report, run, source, ingest, and lint services. |
+| Runtime / Audit | Optional run/event records, failure reports, token ledger entries. |
+
+## Public API
+
+Endpoint:
+
+```text
+POST /chat
+```
+
+Request:
+
+```json
+{
+  "schema_version": "chat_request.v1",
+  "session_id": "chat_abc123",
+  "config_path": "config.yaml",
+  "vault_id": "default",
+  "vault_ids": [],
+  "all_vaults": false,
+  "messages": [
+    {"role": "user", "content": "Agent Loop 是什么？"}
+  ],
+  "mode": "balanced",
+  "max_turns": 6,
+  "include_trace": true
+}
+```
+
+Response:
+
+```json
+{
+  "schema_version": "chat_response.v1",
+  "session_id": "chat_abc123",
+  "answer": "...",
+  "messages": [],
+  "citations": [
+    {"kind": "page", "path": "concepts/Agent-Loop-and-Control-Patterns.md", "title": "Agent Loop and Control Patterns", "vault_id": "default"}
+  ],
+  "tool_trace": [
+    {"tool": "search_wiki", "arguments": {}, "status": "ok", "summary": "..."}
+  ],
+  "run_links": [],
+  "stats": {
+    "model_calls": 2,
+    "tool_calls": 1,
+    "total_tokens": 1234
+  },
+  "warnings": []
+}
+```
+
+Session APIs:
+
+```text
+GET /chat/sessions
+GET /chat/sessions/{session_id}
+```
+
+The API is synchronous for the first implementation. If streaming is added
+later, it should use the same internal event model, write into the same
+session record, and preserve this final response shape.
+
+## Chat Session Store
+
+Session records are vault-scoped runtime records:
+
+```text
+vaults/<vault-id>/.knoarbor/chat/
+  sessions/
+    chat_<id>.json
+```
+
+The store owns:
+
+- stable session ID generation;
+- title and timestamp updates;
+- appended messages;
+- citations, tool traces, events, run links, memory metadata, warnings, and
+  usage stats;
+- list/read APIs for the console.
+
+It does not own final answer generation, prompt decisions, wiki page content,
+or maintained page writes.
+
+## Chat Context Engine
+
+The context engine builds model messages for each chat turn:
+
+```text
+stable system prompt
+  -> workspace/vault context
+  -> optional memory context
+  -> recent persisted and request messages
+```
+
+This keeps prompt assembly out of the loop executor and makes later prompt
+cache, token-budget, and memory improvements local to one layer.
+
+## Agent Decision Protocol
+
+The model returns a strict JSON decision on every loop step:
+
+```json
+{
+  "type": "tool_call",
+  "tool": "search_wiki",
+  "arguments": {"query": "Agent Loop", "mode": "balanced"}
+}
+```
+
+or:
+
+```json
+{
+  "type": "final",
+  "answer": "...",
+  "citations": [{"kind": "page", "path": "..."}]
+}
+```
+
+Native model tool-calling can be added behind the same service boundary later,
+but the stable internal contract remains `tool_call | final` so DeepSeek,
+Ollama, vLLM, and OpenAI-compatible providers behave consistently.
+
+## Tool Registry
+
+Tools are grouped by risk and intent.
+
+### Read Tools
+
+Read tools are safe and can be used automatically:
+
+- `search_wiki`: calls query service and returns result summaries, excerpts,
+  vault labels, and candidate page paths.
+- `read_wiki_page`: reads one maintained page through `WikiPageService`.
+- `list_wiki_pages`: lists pages with optional directory/type filters.
+- `read_report`: reads one report through report service.
+- `list_runs`: lists active or recent runs.
+- `list_sources`: lists configured source connectors and source status.
+
+### Workflow Tools
+
+Workflow tools have side effects and require clear user intent:
+
+- `start_ingest`: queues supported ingest operation.
+- `start_lint`: queues supported lint operation.
+- `cancel_run`: cancels a run when the user identifies it.
+
+Workflow tool responses return run IDs and links. The agent does not hide a
+workflow start behind a vague answer.
+
+### Excluded Tools
+
+The chat agent does not get shell, arbitrary HTTP, browser automation, raw
+filesystem reads, raw vault writes, or model-provider mutation tools.
+
+## Loop Control
+
+Default loop:
+
+```text
+system prompt
+  -> user/history messages
+  -> model decision
+  -> if tool_call: validate arguments, execute tool, append compact result
+  -> repeat until final or max_turns
+```
+
+Rules:
+
+- `max_turns` defaults to 6.
+- A repeated identical tool call is stopped with a clarifying final answer.
+- Tool results are compact but include stable IDs, paths, vault labels, and
+  openable links.
+- Invalid model JSON is retried through the existing model retry boundary.
+- Exhausted turns return the best grounded partial answer plus next-step
+  suggestions.
+
+## Context Strategy
+
+Prompt layering:
+
+- stable system prompt: role, tool list, decision schema, safety rules;
+- semi-stable workspace context: active vault, available vaults, selected mode;
+- dynamic conversation: user messages and compact tool observations.
+
+This preserves model prompt-cache potential without hiding user-specific
+context inside the stable prompt.
+
+Tool results should be structured data, not full unbounded Markdown by default.
+Page reads can return section summaries and a bounded content window; the user
+can ask for more content explicitly.
+
+## UI Design
+
+The home page becomes `Chat`.
+
+Primary regions:
+
+- message thread;
+- composer with examples;
+- right-side or collapsible context panel for tool trace, citations, open pages,
+  reports, and run links;
+- active vault selector inherited from the global console shell.
+
+Interaction rules:
+
+- query/read answers show citations inline and as cards;
+- tool trace is collapsed by default and readable when opened;
+- workflow starts show run cards with status and links to Runs/Reports;
+- page citations can open the Knowledge Base without losing chat state.
+
+The old overview status cards move to Runs, Sources, Reports, or Settings. Chat
+is the primary landing page.
+
+## Failure Handling
+
+Failures use existing error envelopes and codes.
+
+Expected failure surfaces:
+
+- model unavailable;
+- invalid model decision;
+- unknown tool;
+- tool argument validation failed;
+- page/report/run not found;
+- ambiguous side-effect request;
+- max turns reached.
+
+The chat response should tell the user what happened and offer the next safe
+action. Backend logs and token ledger should contain model/tool timing.
+
+## Relationship To Existing Query And Skill
+
+`/query` remains evidence retrieval and does not call an answer model.
+
+The bundled host-AI skill remains retrieval-first because host AI owns the
+conversation. It may call `/chat` only when the user explicitly wants KnoArbor
+to synthesize an answer inside KnoArbor rather than return evidence to the host
+AI.
+
+## Rejected Alternatives
+
+### Put Chat Logic Into The Query Page
+
+Rejected because query is a retrieval API with stable no-model semantics.
+
+### Use A Generic Agent Runtime
+
+Rejected because KnoArbor needs a bounded knowledge-console agent, not a
+general automation platform.
+
+### Let The Prompt Read Files Or Decide Storage
+
+Rejected because prompts remain semantic contracts. File reads, reports,
+workflow starts, and storage policy belong to services and pipelines.
+
+### Make Side Effects Fully Implicit
+
+Rejected because ingest, lint, and cancellation alter runtime state. They
+require clear intent and visible run IDs.

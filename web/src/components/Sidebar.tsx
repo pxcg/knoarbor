@@ -3,7 +3,7 @@ import { LineIcon } from "./LineIcon";
 import type { Language, ViewName } from "../types";
 
 const navItems: ViewName[] = [
-  "overview",
+  "chat",
   "runs",
   "sources",
   "ingest",
@@ -17,7 +17,7 @@ const navItems: ViewName[] = [
 ];
 
 const navGroups: Array<{ labelKey: string; items: ViewName[] }> = [
-  { labelKey: "navGroupWorkspace", items: ["overview", "runs"] },
+  { labelKey: "navGroupWorkspace", items: ["chat", "runs"] },
   { labelKey: "navGroupKnowledge", items: ["sources", "wiki", "graph"] },
   { labelKey: "navGroupPipelines", items: ["ingest", "lint", "query"] },
   { labelKey: "navGroupInsights", items: ["reports", "tokens"] },

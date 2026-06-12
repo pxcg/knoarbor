@@ -24,6 +24,18 @@ Use query as candidate discovery, not as the final answer shape.
 Compact context is the default evidence layer for the host AI to judge
 relevance. Do not present it as a user-facing answer by itself.
 
+## Query Versus Chat
+
+`query` is the default retrieval operation for this skill. It is model-free,
+fast, and returns pages, excerpts, source pointers, and a context pack for the
+host AI to evaluate.
+
+KnoArbor also exposes `/chat` for the local web console. That endpoint runs a
+bounded Wiki Chat Agent and synthesizes an answer itself. Host AI skills should
+not use `/chat` for ordinary answers because the host AI is already responsible
+for synthesis. Prefer `/chat` only when a user explicitly asks to use the
+KnoArbor console chat behavior.
+
 ## When To Read Full Pages
 
 Use `page read` when:

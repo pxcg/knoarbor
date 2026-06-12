@@ -91,7 +91,8 @@ Active spec: [1.4 Machine Index Layer](../specs/1.4-machine-index-layer/requirem
 Focus areas:
 
 - Add a machine index layer separate from the human-facing `index.md`.
-- Prefer SQLite FTS/BM25-style retrieval as the first durable local index.
+- Keep page-level BM25 ranking as the default lexical retrieval signal.
+- Add SQLite FTS-style retrieval as the first durable local index.
 - Keep vector search optional, not required for the default install.
 - Track index freshness, rebuild status, and failure states.
 - Let ingest and lint use the same index provider contracts.
@@ -184,9 +185,11 @@ These capabilities are useful and belong to a later product horizon:
 - bundled large model weights;
 - cloud synchronization;
 - collaborative editing;
-- turning KnoArbor into a chat assistant.
+- turning KnoArbor into a general-purpose chat assistant.
 
-KnoArbor should remain a knowledge engine that other tools can use.
+KnoArbor should remain a knowledge engine that other tools can use. Its console
+may include bounded wiki chat, but the product should not become a generic
+agent platform.
 
 ## Guiding Principles
 

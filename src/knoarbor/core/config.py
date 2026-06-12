@@ -12,7 +12,7 @@ from knoarbor.core.errors import ConfigNotFound, InvalidConfig, VaultPathError
 
 SUPPORTED_CONFIG_VERSION = 1
 MIN_CONFIG_VERSION = 1
-DEFAULT_VAULT_PATH = Path("./vaults/all")
+DEFAULT_VAULT_PATH = Path("./vaults/default")
 
 
 class ConfigMigrationError(ValueError):
@@ -161,6 +161,12 @@ class QueryConfig(BaseModel):
     max_chars_per_page: int = Field(default=6000, ge=500, le=50000)
 
 
+class MemoryConfig(BaseModel):
+    enabled: bool = True
+    auto_write_explicit_low_risk: bool = True
+    max_recalled_records: int = Field(default=12, ge=1, le=100)
+
+
 class IngestSegmentationConfig(BaseModel):
     enabled: bool = True
     max_chars_per_segment: int = Field(default=18000, ge=2000, le=100000)
@@ -229,6 +235,7 @@ class KnoArborConfig(BaseModel):
     connectors: dict[str, ConnectorConfig] = Field(default_factory=dict)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
     query: QueryConfig = Field(default_factory=QueryConfig)
+    memory: MemoryConfig = Field(default_factory=MemoryConfig)
     lint: LintConfig = Field(default_factory=LintConfig)
     privacy: PrivacyConfig = Field(default_factory=PrivacyConfig)
 

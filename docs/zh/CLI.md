@@ -21,7 +21,7 @@ uv run knoar --config ./config.yaml <command>
 
 ```bash
 uv run knoar first-run
-uv run knoar first-run --vault ./vaults/all
+uv run knoar first-run --vault ./vaults/default
 uv run knoar first-run --no-example
 uv run knoar first-run --json
 ```
@@ -37,7 +37,7 @@ uv run knoar query "Agent Loop 是什么？"
 ## 初始化
 
 ```bash
-uv run knoar init --vault ./vaults/all
+uv run knoar init --vault ./vaults/default
 ```
 
 如果 `config.yaml` 不存在，`init` 会先从内置默认配置创建本地配置，再初始化
@@ -216,13 +216,13 @@ uv run knoar reports list --vault-id personal
 长任务可以通过 run 命令查看进度、事件和取消状态。
 
 ```bash
-uv run knoar runs --vault ./vaults/all
+uv run knoar runs --vault ./vaults/default
 uv run knoar runs --vault-id personal
-uv run knoar runs list --vault ./vaults/all
-uv run knoar runs --active --vault ./vaults/all
-uv run knoar runs events RUN_ID --vault ./vaults/all
-uv run knoar runs events RUN_ID --follow --vault ./vaults/all
-uv run knoar runs cancel RUN_ID --vault ./vaults/all
+uv run knoar runs list --vault ./vaults/default
+uv run knoar runs --active --vault ./vaults/default
+uv run knoar runs events RUN_ID --vault ./vaults/default
+uv run knoar runs events RUN_ID --follow --vault ./vaults/default
+uv run knoar runs cancel RUN_ID --vault ./vaults/default
 ```
 
 ## 开发诊断

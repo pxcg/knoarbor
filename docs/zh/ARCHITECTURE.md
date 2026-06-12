@@ -38,11 +38,13 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 | Semantic | 窄功能 LLM 契约、prompt、schema 校验和语义步骤。 | 读取本地文件、写页面、执行操作或管理进度。 |
 | Model Gateway | 稳定模型边界、ProviderAdapter 选择、OpenAI-compatible 调用、JSON mode、端点检测、retry 和 token 指标。 | ingest/lint/query 的业务决策。 |
 | Storage / Writer | Markdown 渲染、patch 应用、索引更新、checkpoint 和底层 vault 文件原语。 | 判断某个知识对象是否应该存在，或汇总报告。 |
-| Retrieval / Index | 页面元数据、链接图谱、相关扩展、query context pack 和未来 BM25/vector provider。 | 修改 Wiki 页面。 |
+| Retrieval / Index | 页面元数据、字段加权 BM25 排序、链接图谱、相关扩展、query context pack 和未来持久/vector provider。 | 修改 Wiki 页面。 |
 | Maintenance | 确定性扫描、语义 lint 候选、operation 执行和验证。 | 原始来源摄入或审计制品归属。 |
 | Runtime | 队列、run monitor、heartbeat、事件目录、取消、文件锁和日志。 | 业务语义，或 SemanticRunner 之外的重试决策。 |
 | Config / Policy | 运行路径、模型供应商、connector、隐私、执行限制和功能开关。 | 配置不可见的隐藏行为。 |
 | Report / Audit | 人可读报告、机器 ledger、失败运行报告、查询记录、运行摘要和报告渲染。 | 页面正文事实来源或维护操作决策。 |
+| Wiki Chat Agent | 受限的控制台对话循环，围绕 KnoArbor 工具、引用和流程入口回答问题。 | 通用 shell、浏览器、文件、网络自动化或隐藏工作流策略。 |
+| Memory | 长期对话偏好、vault 级交互约定、显式记忆候选、召回上下文和记忆事件。 | Wiki 知识页面、raw source 归档、source digest 或任意聊天全文存储。 |
 
 实现说明：
 
@@ -66,14 +68,14 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 
 常见运行目录：
 
-- `vaults/all/raw/chats/`：Hermes、Codex、OpenClaw、Claude Code 等 AI 工具会话。
-- `vaults/all/raw/notes/`：导入的 Markdown 笔记。
-- `vaults/all/raw/articles/`：网页或文章导出。
-- `vaults/all/raw/documents/originals/`：PDF、DOCX、PPTX、XLSX、手册、课程资料等富文档原件。
-- `vaults/all/raw/documents/markdown/`：由 MinerU-compatible 等确定性预处理器生成的 Markdown。
-- `vaults/all/raw/transcripts/`：会议、音频或视频转录。
-- `vaults/all/raw/datasets/`：结构化数据集。
-- `vaults/all/raw/media/`：原始图片和媒体。
+- `vaults/default/raw/chats/`：Hermes、Codex、OpenClaw、Claude Code 等 AI 工具会话。
+- `vaults/default/raw/notes/`：导入的 Markdown 笔记。
+- `vaults/default/raw/articles/`：网页或文章导出。
+- `vaults/default/raw/documents/originals/`：PDF、DOCX、PPTX、XLSX、手册、课程资料等富文档原件。
+- `vaults/default/raw/documents/markdown/`：由 MinerU-compatible 等确定性预处理器生成的 Markdown。
+- `vaults/default/raw/transcripts/`：会议、音频或视频转录。
+- `vaults/default/raw/datasets/`：结构化数据集。
+- `vaults/default/raw/media/`：原始图片和媒体。
 
 规则：
 
@@ -84,8 +86,8 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 
 ### 知识层
 
-知识层保存维护后的 Wiki 页面，物理位置是 `vaults/all/pages/`。
-当你希望在 Obsidian 中打开干净的知识库时，应打开 `vaults/all/pages`，而不是整个 `vaults/all` 运行时工作区：
+知识层保存维护后的 Wiki 页面，物理位置是 `vaults/default/pages/`。
+当你希望在 Obsidian 中打开干净的知识库时，应打开 `vaults/default/pages`，而不是整个 `vaults/default` 运行时工作区：
 
 - `pages/sources/`：来源摘要页面。
 - `pages/entities/`：人物、组织、产品、项目、工具、标准、地点、数据集等命名对象。
@@ -96,7 +98,7 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 - `pages/timelines/`：事件序列。
 - `pages/workflows/`：可复用流程和操作指南。
 
-人类可读报告保存在 `vaults/all/maintenance/`。运行状态、ledger、checkpoint、lock 和机器索引保存在 `vaults/all/.knoarbor/`。
+人类可读报告保存在 `vaults/default/maintenance/`。运行状态、ledger、checkpoint、lock 和机器索引保存在 `vaults/default/.knoarbor/`。
 
 规则：
 
@@ -111,8 +113,9 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 
 当前实现：
 
-- 生成的 `vaults/all/pages/index.md` 作为人类可读路由目录和调试制品；
-- 基于本地 Markdown 的标题、路径、标签、摘要、Key Points、标题层级、正文关键词和相关页做检索；
+- 生成的 `vaults/default/pages/index.md` 作为人类可读路由目录和调试制品；
+- 基于本地 Markdown 的标题、路径、标签、摘要、Key Points、标题层级和正文做字段加权 BM25 检索；
+- 通过出站 wikilink、反向链接、来源关系和相关页做图谱扩展；
 - 为宿主 AI 工具返回 query context pack。
 
 长期方向：
@@ -120,7 +123,7 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 ```text
 IndexProvider
   -> MarkdownIndexProvider
-  -> BM25 / SQLite FTS provider
+  -> SQLite FTS provider
   -> Vector provider
   -> Hybrid provider
 ```
@@ -143,6 +146,23 @@ IndexProvider
 自动维护必须可检查。一次页面更新应能看到来源、理由、风险信号和执行结果。
 
 失败运行同样是审计事件。如果 ingest、lint 或 query 在正常结果生成前失败，只要能确定 vault 路径，service 层就应该写入失败报告和 ledger。Runtime queue 只记录运行状态；Audit 层负责用户可读的失败制品。
+
+### 记忆层
+
+记忆层保存 Wiki Chat Agent 使用的长期交互偏好。Memory 与 Wiki 页面、Source Digest 分离：
+
+- Wiki 页面记录稳定知识对象；
+- Source Digest 记录来源摘要和溯源；
+- Memory Record 指导对话界面如何按用户或 vault 偏好使用知识。
+
+记忆文件保存在 `vaults/default/.knoarbor/memory/`：
+
+- `records.jsonl`：append-only 记忆记录；
+- `candidates.jsonl`：候选或自动写入的记忆；
+- `events.jsonl`：召回和写入事件；
+- `profile.md`：可选的人类可读画像摘要。
+
+第一版在模型调用前召回记忆，并只捕获用户明确表达的低风险偏好。推断型会话总结、全局记忆和人工候选审查属于后续扩展。
 
 ## 主流程
 
@@ -255,16 +275,45 @@ query
 
 检索信号：
 
-- title、path、tags、summary、key points、headings 和正文的词面匹配。
-- 通过出站 wikilink 和反向链接进行相关页扩展。
+- title、path、tags、summary、key points、headings 和正文的字段加权 BM25 页面排序。
+- 尽量保留技术标识符和中文短语片段作为查询信号。
+- 通过出站 wikilink、反向链接、来源关系和图谱邻近度进行相关页扩展。
 - 对同源页面和同类型页面给予可解释的图谱相关性加权。
 - 面向宿主 AI 组装有界 context pack。
+
+### Wiki Chat Agent / 对话
+
+目标：让控制台用户用自然语言询问当前知识库，同时把所有动作限制在
+KnoArbor 自有边界内。
+
+```text
+chat request
+  -> bounded agent loop
+  -> model decision
+  -> KnoArbor tool registry
+  -> query / wiki pages / reports / runs / sources / explicit workflows
+  -> answer with citations, trace, and run links
+```
+
+职责：
+
+- 在管理控制台内综合回答。
+- 通过现有服务搜索和读取已维护 Wiki 页面。
+- 通过现有服务查看报告和运行记录。
+- 仅在用户意图明确时排队启动知识编译或校验维护。
+- 向前端展示引用和工具轨迹。
+
+边界：
+
+- `/query` 仍然是面向宿主 AI 的无模型证据检索。
+- Chat 不获得任意 shell、浏览器、文件系统或网络工具。
+- 工作流行为仍由 ingest/lint service 和 run manager 管理。
 
 ## 本地运行基础设施
 
 KnoArbor 是本地优先的 Wiki 引擎，但仍需要明确运行时基础设施。
 
-- **机器索引层**：面向程序读取的页面、链接、来源和检索元数据，区别于人类可读的 `index.md`。
+- **机器索引层**：面向程序读取的页面、链接、来源和检索元数据，区别于人类可读的 `index.md`。当前实现使用 Markdown 扫描、稳定 retrieval payload 和页面级 BM25 排序；后续 provider 可以在同一 `IndexProvider` 边界后面落地 `.knoarbor/index/*.json`、SQLite FTS 或向量索引。
 - **单机队列**：`LocalRunQueue` 是第一版队列后端，按 vault 串行化运行，避免写入重叠。恢复失败项时创建新的 run，而不是修改已完成 run。
 - **运行生命周期**：排队、运行、心跳、取消、恢复元数据和事件记录属于 Runtime 层。Pipeline 只通过该边界上报进度，不直接写 run-state 文件。
 - **运行事件**：长流程使用结构化事件记录阶段、模型调用、重试、页面写入、查询结果和失败。UI、CLI、报告和 skill 读取同一事件流，不从临时日志中重建进度。
@@ -285,7 +334,7 @@ KnoArbor 是本地优先的 Wiki 引擎，但仍需要明确运行时基础设�
 ```text
 storage / retrieval metadata
   -> WikiPagesService
-  -> /vaults/all/pages, /vaults/all/pages/content, /vaults/all/pages/links
+  -> /vaults/default/pages, /vaults/default/pages/content, /vaults/default/pages/links
   -> UI, skills, CLI wrappers, external clients
 ```
 
@@ -301,7 +350,8 @@ KnoArbor 使用窄功能语义契约，而不是自治多智能体团队。
 - Ingest Draft Review Agent：在 ingest 写入前审查写入安全。
 - Lint Diagnose Agents：把扫描和质量证据转换为维护候选。
 - Maintenance Review Agent：批准、推迟或拒绝维护候选。
-- Query 以检索为主，当前不使用回答生成智能体。
+- Query 以检索为主，不使用回答生成智能体。
+- Wiki Chat Agent 是控制台内受限的 KnoArbor 工具回答智能体。
 
 智能体不读文件、不写页面、不执行 operation，也不修复畸形上游输出。Python Core 负责编排、写入、ledger 和报告。
 

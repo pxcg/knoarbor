@@ -3,6 +3,7 @@ import {
   Bot,
   Boxes,
   Braces,
+  MessageSquareText,
   Activity,
   CheckCheck,
   CircleHelp,
@@ -23,6 +24,7 @@ import {
 
 export type IconName =
   | "overview"
+  | "chat"
   | "runs"
   | "sources"
   | "wiki"
@@ -44,6 +46,7 @@ export type IconName =
 
 const iconMap: Record<Exclude<IconName, "github">, LucideIcon> = {
   overview: PanelTop,
+  chat: MessageSquareText,
   runs: Activity,
   sources: Boxes,
   wiki: FolderOpen,

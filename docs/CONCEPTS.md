@@ -69,6 +69,6 @@ KnoArbor does not need to replace Hermes, Codex, OpenClaw, Claude Code, or other
 ## Runtime Vaults
 
 The `vaults/` directory contains local runtime vaults, not source code. It is
-ignored by git by default. A default install uses `vaults/all/`; additional
+ignored by git by default. A default install uses `vaults/default/`; additional
 knowledge bases can live beside it, such as `vaults/work/` or
 `vaults/personal-study/`.

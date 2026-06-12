@@ -35,6 +35,7 @@ http://127.0.0.1:8000
 | 知识编译 | `POST /ingest` | 编译配置来源、标准文档、单个文件或文件夹，或恢复失败编译 |
 | 校验维护 | `POST /lint` | 执行确定性、结构、质量或完整维护 |
 | 知识查询 | `POST /query` | 为宿主 AI 检索 Wiki 上下文 |
+| 对话 | `POST /chat` | 通过受限 KnoArbor Wiki Chat Agent 询问选中的知识库 |
 | 查询反馈 | `POST /query/feedback`, `GET /query/trends` | 记录和查看查询反馈 |
 | 运行报告 | `GET /reports`, `GET /reports/content` | 列出和读取流程报告 |
 | 运行监控 | `GET /runs`, `GET /runs/{run_id}` | 查看队列、运行中和已完成任务 |
@@ -71,6 +72,56 @@ http://127.0.0.1:8000
 保持一致。`/query` 不使用工作流 envelope，它直接返回
 `schema_version: "wiki_query.v1"` 的检索结果。
 
+## 对话
+
+```http
+POST /chat
+```
+
+运行受限的 KnoArbor Wiki Chat Agent。Chat 可以搜索已维护 Wiki 页面、
+读取页面、查看报告和运行记录、列出资料来源，也可以在用户明确要求时排队
+启动知识编译或校验维护。它不会暴露任意 shell、浏览器、文件系统或网络工具。
+
+请求示例：
+
+```json
+{
+  "schema_version": "chat_request.v1",
+  "config_path": "/path/to/config.yaml",
+  "vault_id": "personal",
+  "messages": [
+    {"role": "user", "content": "Agent Loop 是什么？"}
+  ],
+  "mode": "balanced",
+  "max_turns": 6,
+  "include_trace": true
+}
+```
+
+响应示例：
+
+```json
+{
+  "schema_version": "chat_response.v1",
+  "answer": "Agent Loop 是...",
+  "citations": [
+    {"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}
+  ],
+  "tool_trace": [
+    {"tool": "search_wiki", "status": "ok", "summary": "Found 3 wiki result(s)."}
+  ],
+  "run_links": [],
+  "memory_used": [],
+  "memory_candidates": [],
+  "memory_writes": [],
+  "stats": {"model_calls": 2, "tool_calls": 1, "memory_used": 0, "memory_writes": 0, "total_tokens": 1200},
+  "warnings": []
+}
+```
+
+当需要 KnoArbor 在控制台内综合回答时使用 `/chat`；当另一个宿主 AI
+需要拿到证据并自行生成最终回答时使用 `/query`。
+
 ## 知识库选择
 
 知识库是 KnoArbor 的一等知识空间。公开集成应优先使用
@@ -85,8 +136,9 @@ GET /vaults?config_path=/path/to/config.yaml
 
 响应会返回默认知识库，以及每个 profile 的 `id`、显示名称、解析后的路径、
 是否为当前默认知识库和路径是否可用。`POST /query` 还支持跨知识库检索：
-传入 `all_vaults: true` 查询全部已配置知识库，或传入 `vault_ids: [...]`
-查询指定知识库。返回结果会标注 `vault_id`、`vault_name` 和 `vault_path`。
+传入 `all_vaults: true` 或 `vault_id: "all"` 查询全部已配置真实知识库，
+也可以传入 `vault_ids: [...]` 查询指定知识库。返回结果会标注 `vault_id`、
+`vault_name` 和 `vault_path`。`all` 是保留的虚拟范围，不是可写入的真实知识库。
 
 ```http
 POST /query
@@ -467,6 +519,23 @@ POST /runs/{run_id}/cancel
 因为 run_id 是知识库局部标识。
 
 `/stream` 使用 Server-Sent Events。取消是协作式的，正在进行的模型请求可能会在下一个检查点前先完成。
+
+## 模型用量遥测
+
+当所选模型供应商返回用量信息时，流程报告和运行指标会包含以下字段：
+
+- `semantic_calls`
+- `total_tokens`
+- `tokens_per_second`
+- `prompt_cached_tokens`
+- `prompt_cache_hit_tokens`
+- `prompt_cache_miss_tokens`
+
+提示词缓存由模型供应商实现。KnoArbor 会保持长语义契约提示词稳定，并且只在模型 API 返回缓存字段时记录缓存遥测。
+
+知识编译、校验维护和对话中的模型调用也会写入
+`maintenance/token_ledger.jsonl`，分别标记为 `flow=ingest`、`flow=lint`
+或 `flow=chat`。Token 分析页面会读取这份账本，按流程、智能体、来源、页面、供应商和模型分析用量。
 
 ## Wiki 页面
 

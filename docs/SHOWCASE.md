@@ -116,9 +116,9 @@ RAG can still be useful later as a retrieval backend. KnoArbor's first goal is t
 For a short demo, use the built-in Agent Loop example:
 
 ```bash
-uv run knoar init --vault ./vaults/all
-mkdir -p vaults/all/raw/notes
-cp examples/agent-loop.md vaults/all/raw/notes/agent-loop.md
+uv run knoar init --vault ./vaults/default
+mkdir -p vaults/default/raw/notes
+cp examples/agent-loop.md vaults/default/raw/notes/agent-loop.md
 uv run knoar ingest --connector markdown --write
 uv run knoar lint --mode structural
 uv run knoar query "Agent Loop 是什么？"

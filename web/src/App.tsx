@@ -40,8 +40,9 @@ import { detectLanguage, translate } from "./i18n";
 import { queryKeys } from "./queryKeys";
 import type { Language, ViewName } from "./types";
 import type { RunRecord } from "./types";
-import { buildVaultOptions, buildVaultSelector, nextValidVaultId, resolveActiveVault, type VaultOption, type VaultOverview } from "./vaultRuntime";
+import { buildVaultOptions, buildVaultSelector, concreteVaultOptions, nextValidVaultId, resolveActiveVault, resolveConcreteVault, type VaultOption, type VaultOverview } from "./vaultRuntime";
 
+const loadChatPage = () => import("./pages/ChatPage").then((module) => ({ default: module.ChatPage }));
 const loadOverviewPage = () => import("./pages/OverviewPage").then((module) => ({ default: module.OverviewPage }));
 const loadRunsPage = () => import("./pages/RunsPage").then((module) => ({ default: module.RunsPage }));
 const loadSourcesPage = () => import("./pages/SourcesPage").then((module) => ({ default: module.SourcesPage }));
@@ -56,6 +57,7 @@ const loadConfigPage = () => import("./pages/ConfigPage").then((module) => ({ de
 const loadDocsPage = () => import("./pages/DocsPage").then((module) => ({ default: module.DocsPage }));
 
 const routePreloaders = {
+  chat: loadChatPage,
   overview: loadOverviewPage,
   runs: loadRunsPage,
   sources: loadSourcesPage,
@@ -80,6 +82,7 @@ function preloadRoute(view: ViewName) {
   });
 }
 
+const ChatPage = lazy(loadChatPage);
 const OverviewPage = lazy(loadOverviewPage);
 const RunsPage = lazy(loadRunsPage);
 const SourcesPage = lazy(loadSourcesPage);
@@ -101,7 +104,7 @@ export type AppNotice = {
 };
 
 export function App() {
-  const [activeView, setActiveView] = useState<ViewName>("overview");
+  const [activeView, setActiveView] = useState<ViewName>("chat");
   const [language, setLanguageState] = useState<Language>(() => detectLanguage());
   const [serviceOnline, setServiceOnline] = useState<boolean | null>(null);
   const [healthHint, setHealthHint] = useState(() => translate(detectLanguage(), "healthCheck"));
@@ -155,9 +158,11 @@ export function App() {
   });
   const vaultOptions = useMemo(() => buildVaultOptions(effectiveSummary, vaultsQuery.data), [effectiveSummary, vaultsQuery.data]);
   const activeVault = useMemo(() => resolveActiveVault(vaultOptions, selectedVaultId, effectiveSummary), [effectiveSummary, selectedVaultId, vaultOptions]);
-  const vaultPath = activeVault.path;
+  const concreteOptions = useMemo(() => concreteVaultOptions(vaultOptions), [vaultOptions]);
+  const activeConcreteVault = useMemo(() => resolveConcreteVault(vaultOptions, selectedVaultId, effectiveSummary), [effectiveSummary, selectedVaultId, vaultOptions]);
+  const vaultPath = activeConcreteVault.path;
   const activeVaultId = activeVault.id;
-  const activeVaultSelector = useMemo(() => buildVaultSelector(effectiveConfigPath, activeVault), [activeVault, effectiveConfigPath]);
+  const activeVaultSelector = useMemo(() => buildVaultSelector(effectiveConfigPath, activeConcreteVault), [activeConcreteVault, effectiveConfigPath]);
 
   const doctorQuery = useQuery({
     queryKey: queryKeys.doctor(effectiveConfigPath),
@@ -228,10 +233,10 @@ export function App() {
   });
 
   const vaultOverviewQueries = useQueries({
-    queries: vaultOptions.map((vault) => ({
+    queries: concreteOptions.map((vault) => ({
       queryKey: queryKeys.overview(vault.id),
       queryFn: () => fetchVaultOverview(vault, effectiveConfigPath),
-      enabled: configQuery.isSuccess && vaultOptions.length > 1 && needsVaultOverview,
+      enabled: configQuery.isSuccess && concreteOptions.length > 1 && needsVaultOverview,
       staleTime: 20_000,
       placeholderData: keepPreviousData,
     })),
@@ -246,7 +251,7 @@ export function App() {
   const activeRuns = activeRunsQuery.data?.runs || [];
   const recentRuns = recentRunsQuery.data?.runs || [];
   const vaultOverviews = vaultOptions.length > 1
-    ? vaultOptions.map((vault, index) => {
+    ? concreteOptions.map((vault, index) => {
       const query = vaultOverviewQueries[index];
       return query?.data || {
         vault,
@@ -258,7 +263,7 @@ export function App() {
       };
     })
     : [{
-      vault: activeVault,
+      vault: activeConcreteVault,
       status,
       activeRuns,
       recentRuns,
@@ -287,7 +292,7 @@ export function App() {
     setFocusedReportPath(null);
   }, []);
 
-  const loadVaultState = useCallback(async (vault: VaultOption = activeVault, scope: VaultRefreshScope = {}) => {
+  const loadVaultState = useCallback(async (vault: VaultOption = activeConcreteVault, scope: VaultRefreshScope = {}) => {
     const normalizedScope = {
       status: scope.status ?? true,
       reports: scope.reports ?? true,
@@ -306,7 +311,7 @@ export function App() {
       const reason = failure.reason || t("vaultRefreshFailed");
       setNotice({ message: reason instanceof Error ? reason.message : String(reason), error: true });
     }
-  }, [activeVault, effectiveConfigPath, queryClient, t]);
+  }, [activeConcreteVault, effectiveConfigPath, queryClient, t]);
 
   useEffect(() => {
     const preloadCommonRoutes = () => {
@@ -365,7 +370,7 @@ export function App() {
       const configResult = await queryClient.fetchQuery({ queryKey: queryKeys.config, queryFn: getConfig });
       const nextRegistry = await queryClient.fetchQuery({ queryKey: queryKeys.vaults(configResult.config_path), queryFn: () => getVaults(configResult.config_path) });
       const nextVaultOptions = buildVaultOptions(configResult.summary || {}, nextRegistry);
-      const nextVault = resolveActiveVault(nextVaultOptions, selectedVaultId, configResult.summary || {});
+      const nextVault = resolveConcreteVault(nextVaultOptions, selectedVaultId, configResult.summary || {});
       const nextSelector = buildVaultSelector(configResult.config_path, nextVault);
       const refreshTasks: Promise<unknown>[] = [
         queryClient.fetchQuery({ queryKey: queryKeys.health, queryFn: getHealth, staleTime: 0 }),
@@ -621,6 +626,7 @@ export function App() {
           reloadLabel={t("reloadPage")}
         >
           <Suspense fallback={<section className="panel page-loading">{t("loading")}</section>}>
+            {activeView === "chat" && <ChatPage context={context} />}
             {activeView === "overview" && <OverviewPage context={context} onNavigate={setActiveView} />}
             {activeView === "runs" && <RunsPage context={context} />}
             {activeView === "sources" && <SourcesPage context={context} />}

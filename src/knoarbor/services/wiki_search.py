@@ -4,7 +4,7 @@ from pathlib import Path
 
 from knoarbor.core.config import default_config_path, load_config
 from knoarbor.core.errors import UserInputError
-from knoarbor.core.vaults import resolve_config_vault_path
+from knoarbor.core.vaults import VIRTUAL_ALL_VAULT_ID, concrete_vault_profile_ids, resolve_config_vault_path
 from knoarbor.core.schemas.wiki_query import (
     WikiContextRequest,
     WikiContextResponse,
@@ -27,6 +27,8 @@ class WikiSearchService:
     """Retrieves compact wiki context for Hermes or other query callers."""
 
     def search(self, request: WikiSearchRequest) -> WikiSearchResponse:
+        if request.vault_id == VIRTUAL_ALL_VAULT_ID:
+            request = request.model_copy(update={"vault_id": None, "all_vaults": True})
         if request.all_vaults or request.vault_ids:
             return self._search_many(request)
         return self._search_one(request)
@@ -51,7 +53,7 @@ class WikiSearchService:
 
     def _search_many(self, request: WikiSearchRequest) -> WikiSearchResponse:
         config = load_config(Path(request.config_path).expanduser().resolve() if request.config_path else default_config_path())
-        target_vault_ids = list(config.vaults.profiles) if request.all_vaults else _unique_nonempty(request.vault_ids)
+        target_vault_ids = concrete_vault_profile_ids(config) if request.all_vaults else _unique_nonempty(request.vault_ids)
         if not target_vault_ids:
             raise UserInputError("No vault_ids were provided and no configured vault profiles are available.")
 

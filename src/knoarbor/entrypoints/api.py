@@ -14,6 +14,7 @@ from knoarbor.entrypoints.errors import (
     value_error_handler,
 )
 from knoarbor.entrypoints.routers import (
+    create_chat_router,
     create_doctor_router,
     create_health_router,
     create_ingest_router,
@@ -40,6 +41,7 @@ def create_app(services: ApplicationServices | None = None) -> FastAPI:
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, request_validation_error_handler)
     app.add_exception_handler(Exception, unexpected_exception_handler)
+    app.include_router(create_chat_router(services))
     app.include_router(create_doctor_router(services))
     app.include_router(create_health_router())
     app.include_router(create_ingest_router(services))

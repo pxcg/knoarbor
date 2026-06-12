@@ -131,11 +131,11 @@ For a complete local installation path, see [Installation](docs/INSTALLATION.md)
 Create local configuration and initialize a vault:
 
 ```bash
-uv run knoar first-run --vault ./vaults/all
+uv run knoar first-run --vault ./vaults/default
 ```
 
-This creates `config.yaml`, initializes `./vaults/all`, and copies a small bundled
-Markdown example to `vaults/all/raw/notes/agent-loop.md`.
+This creates `config.yaml`, initializes `./vaults/default`, and copies a small bundled
+Markdown example to `vaults/default/raw/notes/agent-loop.md`.
 
 Create `.env` and set at least one provider key:
 
@@ -207,7 +207,7 @@ vaults/
     └── .knoarbor/    # machine state, indexes, ledgers, locks, runs
 ```
 
-The runtime `vaults/` workspace is ignored by git because it can contain private notes, source documents, generated pages, and run records. Use `vaults/all/pages` as the clean Obsidian vault when you only want maintained Wiki pages.
+The runtime `vaults/` workspace is ignored by git because it can contain private notes, source documents, generated pages, and run records. Use `vaults/default/pages` as the clean Obsidian vault when you only want maintained Wiki pages.
 
 ## Usage
 

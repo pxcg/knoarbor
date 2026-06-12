@@ -322,6 +322,101 @@ export type QueryTrendResponse = {
   repeated_gap_queries: Array<{ query: string; count: number }>;
 };
 
+export type ChatMessageItem = {
+  role: "user" | "assistant" | "tool";
+  content: string;
+  tool_name?: string | null;
+};
+
+export type ChatCitation = {
+  kind: "page" | "report" | "run" | "source";
+  path?: string | null;
+  title?: string | null;
+  vault_id?: string | null;
+  vault_name?: string | null;
+  vault_path?: string | null;
+  run_id?: string | null;
+  reason?: string;
+};
+
+export type ChatToolTraceItem = {
+  tool: string;
+  arguments: Record<string, unknown>;
+  status: "ok" | "error" | "skipped";
+  summary: string;
+  citations: ChatCitation[];
+  result: Record<string, unknown>;
+};
+
+export type ChatEvent = {
+  event_type: string;
+  created_at: string;
+  message: string;
+  tool?: string | null;
+  turn?: number | null;
+  status?: "ok" | "error" | "skipped" | null;
+  payload: Record<string, unknown>;
+};
+
+export type ChatRunLink = {
+  flow: "ingest" | "lint" | "query";
+  run_id: string;
+  status: string;
+  vault_id?: string | null;
+  vault_name?: string | null;
+  vault_path?: string | null;
+};
+
+export type ChatResponse = {
+  schema_version: "chat_response.v1";
+  session_id?: string | null;
+  answer: string;
+  messages: ChatMessageItem[];
+  citations: ChatCitation[];
+  tool_trace: ChatToolTraceItem[];
+  events: ChatEvent[];
+  run_links: ChatRunLink[];
+  stats: Record<string, unknown>;
+  warnings: string[];
+};
+
+export type ChatSessionSummary = {
+  session_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  vault_id?: string | null;
+  vault_name?: string | null;
+  vault_path?: string | null;
+  message_count: number;
+  last_message: string;
+};
+
+export type ChatSessionRecord = {
+  schema_version: "chat_session.v1";
+  session_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  vault_id?: string | null;
+  vault_name?: string | null;
+  vault_path?: string | null;
+  messages: ChatMessageItem[];
+  citations: ChatCitation[];
+  tool_trace: ChatToolTraceItem[];
+  events: ChatEvent[];
+  run_links: ChatRunLink[];
+  memory_used: unknown[];
+  memory_candidates: unknown[];
+  memory_writes: unknown[];
+  stats: Record<string, unknown>;
+  warnings: string[];
+};
+
+export type ChatSessionListResponse = {
+  sessions: ChatSessionSummary[];
+};
+
 export type PageSummary = {
   path: string;
   directory: string;
@@ -679,6 +774,52 @@ export async function searchWiki(
       include_content: options.include_content || false,
     },
   });
+}
+
+export async function sendChatMessage(
+  selector: VaultSelector,
+  messages: ChatMessageItem[],
+  options: {
+    mode?: "quick" | "balanced" | "deep";
+    vault_ids?: string[];
+    all_vaults?: boolean;
+    max_turns?: number;
+    session_id?: string | null;
+  } = {},
+): Promise<ChatResponse> {
+  return requestJson("/chat", {
+    method: "POST",
+    body: {
+      schema_version: "chat_request.v1",
+      session_id: options.session_id || undefined,
+      config_path: selector.config_path,
+      vault_id: selector.vault_id,
+      vault_path: selector.vault_id ? undefined : selector.vault_path,
+      vault_ids: options.vault_ids || [],
+      all_vaults: options.all_vaults || false,
+      messages,
+      mode: options.mode || "balanced",
+      max_turns: options.max_turns || 6,
+      include_trace: true,
+    },
+  });
+}
+
+export async function listChatSessions(selector: VaultSelector, limit = 12): Promise<ChatSessionListResponse> {
+  const params = new URLSearchParams();
+  if (selector.config_path) params.set("config_path", selector.config_path);
+  if (selector.vault_id) params.set("vault_id", selector.vault_id);
+  if (!selector.vault_id && selector.vault_path) params.set("vault_path", selector.vault_path);
+  params.set("limit", String(limit));
+  return requestJson(`/chat/sessions?${params.toString()}`);
+}
+
+export async function readChatSession(selector: VaultSelector, sessionId: string): Promise<ChatSessionRecord> {
+  const params = new URLSearchParams();
+  if (selector.config_path) params.set("config_path", selector.config_path);
+  if (selector.vault_id) params.set("vault_id", selector.vault_id);
+  if (!selector.vault_id && selector.vault_path) params.set("vault_path", selector.vault_path);
+  return requestJson(`/chat/sessions/${encodeURIComponent(sessionId)}?${params.toString()}`);
 }
 
 export async function sendQueryFeedback(

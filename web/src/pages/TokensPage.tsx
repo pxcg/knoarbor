@@ -299,7 +299,7 @@ function buildFlowAgentGroups(calls: TokenCallRecord[], byFlow: TokenMetricGroup
   for (const flow of byFlow) {
     if (!flows.has(flow.name)) flows.set(flow.name, new Map());
   }
-  const preferredOrder = ["ingest", "lint", "query", "unknown"];
+  const preferredOrder = ["ingest", "lint", "query", "chat", "unknown"];
   return [...flows.entries()]
     .sort(([left], [right]) => preferredOrderIndex(left, preferredOrder) - preferredOrderIndex(right, preferredOrder))
     .map(([name, agents]) => {

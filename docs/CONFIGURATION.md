@@ -35,20 +35,24 @@ Migration helpers are structural only. They may move or rename fields in a futur
 
 ```yaml
 vaults:
-  default: personal
+  default: default
   profiles:
-    personal:
+    default:
       name: My Knowledge Base
-      path: ./vaults/all
+      path: ./vaults/default
 
 vault:
-  path: ./vaults/all
+  path: ./vaults/default
 ```
 
 `vaults.profiles` is the formal multi-vault registry. Each profile has a stable
 ID, a display name, and a local path. `vaults.default` selects the active vault
 used by CLI, API, UI, and host-AI skill calls when no request-specific path is
 provided.
+
+`all` is reserved as a virtual query scope. Do not create a real profile with
+ID `all`; use `all_vaults: true` or `vault_id: "all"` when a query should search
+every configured concrete vault.
 
 `vault.path` is the resolved active vault path kept for simple one-vault
 deployments and internal request defaults. When `vaults.profiles` is present,
@@ -163,6 +167,28 @@ uv run knoar ingest --provider openrouter --write
 uv run knoar lint --provider deepseek --mode quality
 ```
 
+## Chat Memory
+
+Chat memory stores durable interaction preferences for the Wiki Chat Agent. It
+is separate from wiki pages and source digests:
+
+```yaml
+memory:
+  enabled: true
+  auto_write_explicit_low_risk: true
+  max_recalled_records: 12
+```
+
+Memory files are stored under `.knoarbor/memory/` inside the selected vault:
+
+- `records.jsonl`: memory records used for recall;
+- `candidates.jsonl`: proposed or automatically written candidates;
+- `events.jsonl`: recall and write audit events.
+
+The first implementation captures only explicit low-risk preferences such as
+“remember this”, “以后默认……”, or “prefer ...”. It does not store arbitrary chat
+transcripts or turn raw wiki content into memory.
+
 ## Ingest Segmentation
 
 Long source segmentation is part of the core ingest pipeline. It runs after a
@@ -203,10 +229,10 @@ connectors:
     enabled: true
     settings:
       roots:
-        - ./vaults/all/raw/notes
-        - ./vaults/all/raw/documents/markdown
+        - ./vaults/default/raw/notes
+        - ./vaults/default/raw/documents/markdown
       recursive: true
-      raw_output_dir: ./vaults/all/raw/notes
+      raw_output_dir: ./vaults/default/raw/notes
       preserve_relative_paths: true
 ```
 
@@ -229,7 +255,7 @@ connectors:
       sessions_dir: ~/.codex/sessions
       pattern: "rollout-*.jsonl"
       recursive: true
-      raw_output_dir: ./vaults/all/raw/chats
+      raw_output_dir: ./vaults/default/raw/chats
 ```
 
 Enable Hermes only when the local Hermes session directory exists:
@@ -240,7 +266,7 @@ connectors:
     enabled: true
     settings:
       sessions_dir: ~/.hermes/sessions
-      raw_output_dir: ./vaults/all/raw/chats
+      raw_output_dir: ./vaults/default/raw/chats
 ```
 
 Enable OpenClaw only when the local OpenClaw session directory exists. The
@@ -255,7 +281,7 @@ connectors:
       sessions_dir: ~/.openclaw/agents/main/sessions
       pattern: "*.jsonl"
       recursive: false
-      raw_output_dir: ./vaults/all/raw/chats
+      raw_output_dir: ./vaults/default/raw/chats
 ```
 
 Enable Claude Code only when the local Claude Code project transcript directory exists:
@@ -268,7 +294,7 @@ connectors:
       sessions_dir: ~/.claude/projects
       pattern: "*.jsonl"
       recursive: true
-      raw_output_dir: ./vaults/all/raw/chats
+      raw_output_dir: ./vaults/default/raw/chats
 ```
 
 Use `generic_chat` for custom local chat exports only when no dedicated connector exists:
@@ -285,10 +311,10 @@ connectors:
         - "*.sqlite"
         - "*.db"
       recursive: true
-      raw_output_dir: ./vaults/all/raw/chats
+      raw_output_dir: ./vaults/default/raw/chats
 ```
 
-Markdown is the default stable input path. Put notes under a configured root, such as `./vaults/all/raw/notes`, or add another root:
+Markdown is the default stable input path. Put notes under a configured root, such as `./vaults/default/raw/notes`, or add another root:
 
 ```yaml
 connectors:
@@ -296,7 +322,7 @@ connectors:
     enabled: true
     settings:
       roots:
-        - ./vaults/all/raw/notes
+        - ./vaults/default/raw/notes
         - /path/to/your/markdown-notes
       recursive: true
 ```
@@ -304,7 +330,7 @@ connectors:
 Optional document processors live under `document_processing`, not under
 `connectors`. For example, `document_processing.mineru` can call a user-managed
 MinerU-compatible HTTP service and write Markdown into
-`vaults/all/raw/documents/markdown/`; the normal `markdown` connector then ingests that
+`vaults/default/raw/documents/markdown/`; the normal `markdown` connector then ingests that
 directory.
 
 Enable MinerU preprocessing only if you already run a compatible service. For a
@@ -323,8 +349,8 @@ document_processing:
   mineru:
     enabled: true
     endpoint: http://127.0.0.1:18000/file_parse
-    input_dir: ./vaults/all/raw/documents/originals
-    output_dir: ./vaults/all/raw/documents/markdown
+    input_dir: ./vaults/default/raw/documents/originals
+    output_dir: ./vaults/default/raw/documents/markdown
     mode: auto
     timeout_seconds: 600
     patterns:

@@ -22,11 +22,11 @@ Create local configuration, initialize the vault, and install the bundled
 example source:
 
 ```bash
-uv run knoar first-run --vault ./vaults/all
+uv run knoar first-run --vault ./vaults/default
 ```
 
-This creates `config.yaml`, initializes `./vaults/all`, and copies
-`agent-loop.md` into `vaults/all/raw/notes/`.
+This creates `config.yaml`, initializes `./vaults/default`, and copies
+`agent-loop.md` into `vaults/default/raw/notes/`.
 
 Create `.env` and set at least one model key:
 
@@ -45,7 +45,7 @@ Edit `config.yaml` if needed:
 
 ```yaml
 vault:
-  path: ./vaults/all
+  path: ./vaults/default
 
 models:
   default_provider: deepseek

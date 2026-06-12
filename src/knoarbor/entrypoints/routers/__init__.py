@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from knoarbor.entrypoints.routers.chat import create_chat_router
 from knoarbor.entrypoints.routers.doctor import create_doctor_router
 from knoarbor.entrypoints.routers.health import create_health_router
 from knoarbor.entrypoints.routers.ingest import create_ingest_router
@@ -15,6 +16,7 @@ from knoarbor.entrypoints.routers.vaults import create_vaults_router
 from knoarbor.entrypoints.routers.wiki import create_wiki_router
 
 __all__ = [
+    "create_chat_router",
     "create_doctor_router",
     "create_health_router",
     "create_ingest_router",

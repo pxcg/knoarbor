@@ -336,6 +336,7 @@ def build_query_trace(stats: dict[str, object], results: list[WikiSearchResult])
     }
     return {
         "schema_version": "query_trace.v1",
+        "scoring_model": stats.get("scoring_model", "unknown"),
         "query_terms": stats.get("query_terms", []),
         "page_count": stats.get("page_count", 0),
         "direct_page_count": stats.get("direct_page_count", 0),

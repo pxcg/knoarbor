@@ -14,6 +14,13 @@ wiki retrieval, page reading, ingest, lint, diagnostics, reports, and run
 monitoring. The host AI still writes the final answer and decides how to use the
 evidence.
 
+This skill is evidence-first. For ordinary host-AI conversations, use
+`query`, `page read`, `report read`, and related operations so the host AI can
+compose the final answer. The KnoArbor `/chat` API is the local console's
+bounded Wiki Chat Agent; do not call it by default from this skill because that
+would delegate answer synthesis to a second assistant. Use `/chat` only when the
+user explicitly asks to invoke the KnoArbor console chat behavior.
+
 ## Core Rule
 
 Use the smallest operation that satisfies the user request:

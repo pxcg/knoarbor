@@ -26,7 +26,7 @@
 | 资料分段 | 已实现 | 长资料在标准化和 checkpoint window 之后分段，并在 source/window 边界聚合后提交。 | [架构设计](ARCHITECTURE.md), [1.3 Source Ecosystem](../../specs/1.3-source-ecosystem/requirements.md) |
 | 知识编译 | 已实现 | Ingest 负责资料标准化、分段语义处理、写入策略、局部 lint、checkpoint commit 和报告输出。 | [架构设计](ARCHITECTURE.md), [核心概念](CONCEPTS.md) |
 | 校验治理 | 已实现 | Lint 负责确定性扫描、语义候选、评审后操作执行、验证和维护报告。 | [1.5 Knowledge Governance](../../specs/1.5-knowledge-governance/requirements.md), [架构设计](ARCHITECTURE.md) |
-| Wiki 上下文检索 | 已实现 | Query 返回排序页面、摘录、来源线索、trace 数据、图谱相关性信号和供宿主 AI 使用的 context pack。 | [1.7 CLI/API/Skill Closure](../../specs/1.7-cli-api-skill-closure/requirements.md), [接口说明](API.md) |
+| Wiki 上下文检索 | 已实现 | Query 返回字段加权 BM25 排序页面、摘录、来源线索、trace 数据、图谱相关性信号和供宿主 AI 使用的 context pack。 | [1.7 CLI/API/Skill Closure](../../specs/1.7-cli-api-skill-closure/requirements.md), [接口说明](API.md) |
 | 运行队列与监控 | 已实现 | Runtime 负责排队执行、运行状态、心跳、取消、恢复元数据和 active/recent run 视图。 | [架构设计](ARCHITECTURE.md), [接口说明](API.md) |
 | 报告与审计层 | 已实现 | Audit 负责 ingest、lint、query、token 和失败报告，以及机器可读 ledger。 | [架构设计](ARCHITECTURE.md), [测试与质量门禁](TESTING.md) |
 | 模型网关 | 已实现 | 模型调用经过 provider adapter、OpenAI-compatible transport、结构化输出处理、usage metrics 和 endpoint 检查。 | [架构设计](ARCHITECTURE.md), [配置说明](CONFIGURATION.md) |
@@ -36,7 +36,7 @@
 | CLI 入口 | 已实现 | CLI 为用户提供默认可读输出，并通过 JSON 输出支持自动化。 | [1.7 CLI/API/Skill Closure](../../specs/1.7-cli-api-skill-closure/requirements.md), [命令行](CLI.md) |
 | 公开 API | 已实现 | 公开 endpoint family 保持小集合：health、doctor、sources、ingest、lint、query、runs、reports、wiki pages 和 runtime metadata。 | [接口说明](API.md), [API 兼容性](API_COMPATIBILITY.md) |
 | 宿主 AI Skill | 已实现 | Skill 调用本地 API 完成 query、页面读取、source catalog、runs、reports、ingest 和 lint 操作。 | [1.7 CLI/API/Skill Closure](../../specs/1.7-cli-api-skill-closure/requirements.md) |
-| 机器索引层 | 计划中 | 检索将进入 index provider contract，增加本地持久索引元数据和 freshness 状态。 | [1.4 Machine Index Layer](../../specs/1.4-machine-index-layer/requirements.md) |
+| 机器索引层 | 部分实现 | 检索已经使用 index provider 边界和页面级 BM25 排序；本地持久索引、重建状态和 freshness 诊断仍在规划中。 | [1.4 Machine Index Layer](../../specs/1.4-machine-index-layer/requirements.md) |
 | 可选向量检索 | 暂缓 | 向量检索作为 index contract 后面的可选 provider。 | [1.4 Machine Index Layer](../../specs/1.4-machine-index-layer/requirements.md) |
 | 托管多用户服务 | 暂缓 | 本地优先单用户使用是当前产品基线。 | [路线图](ROADMAP.md) |
 

@@ -44,6 +44,26 @@ class MarkdownRetrievalTests(unittest.TestCase):
         self.assertIn("concepts/Attention.md", scored)
         self.assertIn("title", scored["concepts/Attention.md"].matched_fields)
 
+    def test_bm25_prefers_page_identity_over_repeated_body_mentions(self) -> None:
+        title_page = _page(
+            "concepts/Agent-Loop.md",
+            title="Agent Loop",
+            summary="A maintained page about agent loop control.",
+            body="Short canonical page.",
+        )
+        noisy_page = _page(
+            "concepts/Noisy.md",
+            title="Misc Notes",
+            summary="Loose notes.",
+            body="agent loop " * 80,
+        )
+
+        scored = score_pages([noisy_page, title_page], query_terms("agent loop"), "agent loop")
+        ranked = sorted(scored.values(), key=lambda item: item.score, reverse=True)
+
+        self.assertEqual(ranked[0].page.relative_path, "concepts/Agent-Loop.md")
+        self.assertIn("title", ranked[0].matched_fields)
+
     def test_collect_search_pages_skips_maintenance_reports(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
@@ -118,25 +138,28 @@ class MarkdownRetrievalTests(unittest.TestCase):
 def _page(
     relative_path: str,
     *,
+    title: str | None = None,
     source: str | None = None,
     directory: str = "concepts",
     page_type: str = "concept",
     related_pages: list[str] | None = None,
+    summary: str = "",
+    body: str = "",
 ):
     return SearchPage(
         path=Path("/tmp") / relative_path,
         relative_path=relative_path,
         directory=directory,
-        title=Path(relative_path).stem,
+        title=title or Path(relative_path).stem,
         page_type=page_type,
         status="draft",
         source=source,
         tags=[],
-        summary="",
+        summary=summary,
         key_points=[],
         related_pages=related_pages or [],
         headings=[],
-        body="",
+        body=body,
     )
 
 

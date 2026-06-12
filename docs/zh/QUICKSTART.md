@@ -19,11 +19,11 @@ uv sync
 ## 2. 首次运行
 
 ```bash
-uv run knoar first-run --vault ./vaults/all
+uv run knoar first-run --vault ./vaults/default
 ```
 
-这会创建 `config.yaml`，初始化 `./vaults/all`，并把 `agent-loop.md` 示例复制到
-`vaults/all/raw/notes/`。
+这会创建 `config.yaml`，初始化 `./vaults/default`，并把 `agent-loop.md` 示例复制到
+`vaults/default/raw/notes/`。
 
 创建 `.env` 并填写至少一个模型密钥：
 

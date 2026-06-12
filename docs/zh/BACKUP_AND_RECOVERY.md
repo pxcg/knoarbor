@@ -17,8 +17,8 @@ vaults/
 建议备份范围：
 
 - `vaults/**/*.md`：维护后的 wiki 页面和运行报告。
-- `vaults/all/.knoarbor/`：机器索引、台账、运行记录和锁文件。
-- `vaults/all/raw/`：你选择保留的原始资料或标准化资料。
+- `vaults/default/.knoarbor/`：机器索引、台账、运行记录和锁文件。
+- `vaults/default/raw/`：你选择保留的原始资料或标准化资料。
 - `config.yaml`：知识库路径、输入来源、模型供应商名称和运行限制。
 - `.env`：模型供应商 API Key 和本地密钥。
 
@@ -59,7 +59,7 @@ git restore --source=<commit> --worktree -- vaults
 uv run python - <<'PY'
 from pathlib import Path
 from knoarbor.storage import update_index
-update_index(Path("vaults/all"))
+update_index(Path("vaults/default"))
 PY
 ```
 
@@ -73,14 +73,14 @@ PY
 uv run python - <<'PY'
 from pathlib import Path
 from knoarbor.storage import update_index
-update_index(Path("vaults/all"))
+update_index(Path("vaults/default"))
 PY
 ```
 
 然后检查：
 
 ```bash
-uv run knoar --config config.yaml status --vault vaults/all
+uv run knoar --config config.yaml status --vault vaults/default
 uv run knoar --config config.yaml query "agent loop" --json
 ```
 

@@ -98,6 +98,7 @@ class QueryPipeline:
             warnings=[],
             stats={
                 "index_provider": self.index_provider.name,
+                "scoring_model": "field_weighted_bm25",
                 "page_count": len(direct_pages),
                 "direct_page_count": len(direct_pages),
                 "graph_page_count": len(graph_pages),

@@ -8,7 +8,7 @@
 
 ```bash
 uv run knoar doctor
-uv run knoar status --vault vaults/all
+uv run knoar status --vault vaults/default
 ```
 
 `doctor` 是只读检查，会检查配置、知识库结构、模型环境变量、输入来源、文档预处理设置和最近运行状态。
@@ -68,11 +68,11 @@ uv run knoar doctor
 修复：
 
 ```bash
-uv run knoar --config config.yaml status --vault vaults/all
+uv run knoar --config config.yaml status --vault vaults/default
 uv run python - <<'PY'
 from pathlib import Path
 from knoarbor.storage import update_index
-update_index(Path("vaults/all"))
+update_index(Path("vaults/default"))
 PY
 ```
 
@@ -84,7 +84,7 @@ PY
 
 检查：
 
-- `vaults/all/maintenance/` 下的 ingest report。
+- `vaults/default/maintenance/` 下的 ingest report。
 - `config.yaml` 中的 connector roots。
 - `uv run knoar sources --connector markdown --json`。
 
@@ -111,14 +111,14 @@ KA-DOC-001
 长语义流程可能正在等待模型调用。查看运行监控：
 
 ```bash
-uv run knoar runs --vault vaults/all
-uv run knoar runs events <run_id> --vault vaults/all
+uv run knoar runs --vault vaults/default
+uv run knoar runs events <run_id> --vault vaults/default
 ```
 
 需要取消时：
 
 ```bash
-uv run knoar runs cancel <run_id> --vault vaults/all
+uv run knoar runs cancel <run_id> --vault vaults/default
 ```
 
 取消是协作式的。正在进行的模型调用可能会先完成，流程随后在下一个检查点停止。
@@ -131,7 +131,7 @@ uv run knoar runs cancel <run_id> --vault vaults/all
 uv run python - <<'PY'
 from pathlib import Path
 from knoarbor.storage import update_index
-update_index(Path("vaults/all"))
+update_index(Path("vaults/default"))
 PY
 ```
 

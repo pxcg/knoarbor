@@ -57,6 +57,27 @@ class QueryPipelineTests(unittest.TestCase):
         self.assertGreaterEqual(result.stats["direct_match_count"], 1)
         self.assertEqual(result.stats["returned_count"], 1)
 
+    def test_query_pipeline_reads_machine_index_pages_layout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            concepts = vault / "pages" / "concepts"
+            concepts.mkdir(parents=True)
+            (concepts / "Agent-Loop.md").write_text(
+                "# Agent Loop\n\n## Summary\n\nAgent loop uses reasoning and tool calls.\n",
+                encoding="utf-8",
+            )
+
+            result = QueryPipeline().run(
+                QueryPipelineRequest(
+                    vault_path=vault,
+                    query="agent loop",
+                    limit=3,
+                )
+            )
+
+        self.assertEqual(result.matches[0].page.relative_path, "concepts/Agent-Loop.md")
+        self.assertIn("tool calls", result.matches[0].page.body)
+
     def test_query_pipeline_filters_page_dirs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)

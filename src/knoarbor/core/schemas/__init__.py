@@ -1,3 +1,14 @@
+from knoarbor.core.schemas.chat import (
+    ChatCitation,
+    ChatMessageItem,
+    ChatRequest,
+    ChatResponse,
+    ChatRunLink,
+    ChatSessionListResponse,
+    ChatSessionRecord,
+    ChatSessionSummary,
+    ChatToolTraceItem,
+)
 from knoarbor.core.schemas.connectors import ConnectorDiscoverResponse, ConnectorRunRequest
 from knoarbor.core.schemas.events import KnowledgeEvent
 from knoarbor.core.schemas.execution import WorkflowExecutionMode, WorkflowFlow, WorkflowResponse
@@ -32,6 +43,7 @@ from knoarbor.core.schemas.ingest_run import (
     UnifiedIngestRequest,
 )
 from knoarbor.core.schemas.maintenance import MaintenanceScope, MaintenanceScopeSource
+from knoarbor.core.schemas.memory import MemoryCandidate, MemoryEvent, MemoryRecallResult, MemoryRecord
 from knoarbor.core.schemas.sources import RawSource, SourceDocument, SourceRef
 from knoarbor.core.schemas.wiki_lint import (
     LintPolicyDecision,
@@ -96,6 +108,15 @@ __all__ = [
     "WorkflowExecutionMode",
     "WorkflowFlow",
     "WorkflowResponse",
+    "ChatCitation",
+    "ChatMessageItem",
+    "ChatRequest",
+    "ChatResponse",
+    "ChatRunLink",
+    "ChatSessionListResponse",
+    "ChatSessionRecord",
+    "ChatSessionSummary",
+    "ChatToolTraceItem",
     "KnowledgeExtract",
     "KnowledgeSource",
     "ContentUnit",
@@ -121,6 +142,10 @@ __all__ = [
     "UnifiedIngestRequest",
     "MaintenanceScope",
     "MaintenanceScopeSource",
+    "MemoryCandidate",
+    "MemoryEvent",
+    "MemoryRecallResult",
+    "MemoryRecord",
     "LintPolicyDecision",
     "LintRunMode",
     "LintRunRequest",

@@ -16,7 +16,7 @@ KnoArbor 是本地优先的 Python 服务，并内置管理界面。首次部署
 git clone https://github.com/pxcg/knoarbor.git
 cd knoarbor
 uv sync
-uv run knoar first-run --vault ./vaults/all
+uv run knoar first-run --vault ./vaults/default
 ```
 
 创建本地密钥和配置文件：
@@ -69,7 +69,7 @@ uv run knoar lint --mode structural
 uv run knoar query "Agent Loop 是什么？"
 ```
 
-生成的 Wiki 页面和报告会写入配置的 vault 目录，例如 `vaults/all/`。
+生成的 Wiki 页面和报告会写入配置的 vault 目录，例如 `vaults/default/`。
 
 ## 模型供应商
 

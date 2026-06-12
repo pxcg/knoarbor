@@ -35,6 +35,7 @@ Public endpoints are organized by product capability, not by internal workflow s
 | Ingest | `POST /ingest` | Compile configured sources, one normalized document, one file or folder, or recover a failed ingest |
 | Lint | `POST /lint` | Run deterministic, structural, quality, or full maintenance |
 | Query | `POST /query` | Retrieve wiki context for a host AI |
+| Chat | `POST /chat` | Ask the selected vault through the bounded KnoArbor Wiki Chat Agent |
 | Query telemetry | `POST /query/feedback`, `GET /query/trends` | Record and inspect query usefulness signals |
 | Reports | `GET /reports`, `GET /reports/content` | List and read workflow reports |
 | Run monitor | `GET /runs`, `GET /runs/{run_id}` | Inspect queued/running/completed workflows |
@@ -72,6 +73,58 @@ or `result`; the top-level fields stay present in both modes. `/query` is not a
 workflow response: it returns `schema_version: "wiki_query.v1"` with retrieval
 results directly.
 
+## Chat
+
+```http
+POST /chat
+```
+
+Runs the bounded KnoArbor Wiki Chat Agent. Chat can search maintained wiki
+pages, read pages, inspect reports and runs, list sources, and queue explicitly
+requested ingest or lint workflows. It does not expose arbitrary shell,
+browser, filesystem, or network tools.
+
+Example request:
+
+```json
+{
+  "schema_version": "chat_request.v1",
+  "config_path": "/path/to/config.yaml",
+  "vault_id": "personal",
+  "messages": [
+    {"role": "user", "content": "Agent Loop 是什么？"}
+  ],
+  "mode": "balanced",
+  "max_turns": 6,
+  "include_trace": true
+}
+```
+
+Example response:
+
+```json
+{
+  "schema_version": "chat_response.v1",
+  "answer": "Agent Loop is...",
+  "citations": [
+    {"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}
+  ],
+  "tool_trace": [
+    {"tool": "search_wiki", "status": "ok", "summary": "Found 3 wiki result(s)."}
+  ],
+  "run_links": [],
+  "memory_used": [],
+  "memory_candidates": [],
+  "memory_writes": [],
+  "stats": {"model_calls": 2, "tool_calls": 1, "memory_used": 0, "memory_writes": 0, "total_tokens": 1200},
+  "warnings": []
+}
+```
+
+Use `/chat` when KnoArbor should synthesize an answer inside the console. Use
+`/query` when another host AI should receive evidence and generate the final
+answer itself.
+
 ## Vault Selection
 
 Vaults are first-class knowledge-base spaces. Public integrations should prefer
@@ -87,9 +140,10 @@ GET /vaults?config_path=/path/to/config.yaml
 The response returns the configured default vault and each profile's `id`,
 display `name`, resolved `path`, active state, and availability.
 
-`POST /query` also supports multi-vault retrieval with `all_vaults: true` or
-`vault_ids: [...]`; each result is annotated with `vault_id`, `vault_name`, and
-`vault_path`.
+`POST /query` also supports multi-vault retrieval with `all_vaults: true`,
+`vault_id: "all"`, or `vault_ids: [...]`; each result is annotated with
+`vault_id`, `vault_name`, and `vault_path`. `all` is a reserved virtual scope,
+not a writable vault profile.
 
 ```http
 POST /query
@@ -522,6 +576,11 @@ Workflow reports and run metrics include model usage fields when the selected pr
 - `prompt_cache_miss_tokens`
 
 Prompt caching is provider-owned. KnoArbor keeps long semantic contract prompts stable and records cache telemetry only when the model API returns cache fields.
+
+Ingest, lint, and chat model calls are also appended to
+`maintenance/token_ledger.jsonl` with `flow=ingest`, `flow=lint`, or
+`flow=chat`. The Token Analytics page reads this ledger to compare usage by
+workflow, agent, source, page, provider, and model.
 
 ## Concurrency Model
 

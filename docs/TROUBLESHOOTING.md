@@ -9,7 +9,7 @@ Run:
 
 ```bash
 uv run knoar doctor
-uv run knoar status --vault vaults/all
+uv run knoar status --vault vaults/default
 ```
 
 `doctor` is read-only. It checks configuration, vault structure, model
@@ -71,11 +71,11 @@ Common causes:
 Fix:
 
 ```bash
-uv run knoar --config config.yaml status --vault vaults/all
+uv run knoar --config config.yaml status --vault vaults/default
 uv run python - <<'PY'
 from pathlib import Path
 from knoarbor.storage import update_index
-update_index(Path("vaults/all"))
+update_index(Path("vaults/default"))
 PY
 ```
 
@@ -87,7 +87,7 @@ Skipping is usually expected when the source checkpoint hash has not changed.
 
 Check:
 
-- Ingest report under `vaults/all/maintenance/`.
+- Ingest report under `vaults/default/maintenance/`.
 - Connector roots in `config.yaml`.
 - `uv run knoar sources --connector markdown --json`.
 
@@ -116,14 +116,14 @@ Fix:
 Long semantic workflows may wait on model calls. Check the run monitor:
 
 ```bash
-uv run knoar runs --vault vaults/all
-uv run knoar runs events <run_id> --vault vaults/all
+uv run knoar runs --vault vaults/default
+uv run knoar runs events <run_id> --vault vaults/default
 ```
 
 If cancellation is needed:
 
 ```bash
-uv run knoar runs cancel <run_id> --vault vaults/all
+uv run knoar runs cancel <run_id> --vault vaults/default
 ```
 
 Cancellation is cooperative. An active model call may finish before the pipeline
@@ -137,7 +137,7 @@ If files were restored manually, rebuild indexes:
 uv run python - <<'PY'
 from pathlib import Path
 from knoarbor.storage import update_index
-update_index(Path("vaults/all"))
+update_index(Path("vaults/default"))
 PY
 ```
 

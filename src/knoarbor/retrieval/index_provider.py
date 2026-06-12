@@ -10,6 +10,7 @@ from knoarbor.core.wiki_schema import PAGE_TYPE_ORDER
 from knoarbor.retrieval.markdown import SearchPage, collect_search_pages, strip_frontmatter
 from knoarbor.retrieval.wiki_links import resolve_wikilink_target
 from knoarbor.storage import ensure_machine_index, machine_index_dir
+from knoarbor.storage.wiki_paths import content_root
 
 
 @dataclass(frozen=True)
@@ -71,9 +72,10 @@ def _record_to_search_page(vault_path: Path, record: dict[str, object]) -> Searc
     relative_path = str(record.get("path") or "")
     if not relative_path:
         return None
-    path = (vault_path / relative_path).resolve()
+    root = content_root(vault_path)
+    path = (root / relative_path).resolve()
     try:
-        path.relative_to(vault_path)
+        path.relative_to(root)
     except ValueError:
         return None
     if not path.exists() or not path.is_file():

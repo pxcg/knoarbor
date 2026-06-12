@@ -14,7 +14,7 @@ without requiring a vector database or heavyweight service.
 
 - Add a machine-readable index boundary separate from `index.md`.
 - Preserve `index.md` as a human debugging and routing artifact.
-- Prefer SQLite FTS/BM25-style local retrieval before optional vector search.
+- Prefer local BM25 ranking and SQLite FTS-style durable retrieval before optional vector search.
 - Give ingest, lint, query, and UI a shared index provider contract.
 - Track index freshness, rebuild status, and failure states.
 - Keep the default installation local and lightweight.
@@ -67,14 +67,15 @@ Acceptance criteria:
 
 Implemented:
 
-- Markdown-based retrieval.
+- Markdown-based retrieval with field-weighted BM25 page scoring.
 - Human-readable `index.md`.
 - Query context packs and trace metadata.
 - `IndexProvider` direction documented in architecture and roadmap.
+- Query trace records the active scoring model.
 
 Still in scope for 1.4:
 
-- Formalize provider interface and freshness model.
+- Formalize provider freshness model.
 - Add durable local machine index storage.
 - Add rebuild command/API/reporting.
 - Update query to use the provider boundary by default when available.

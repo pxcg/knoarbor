@@ -8,14 +8,15 @@ Status values:
 
 ## Provider Contract
 
-- [next] Define `PageIndexRecord` and `IndexProvider` contracts.
-- [next] Add provider tests with the current Markdown provider.
-- [later] Move current retrieval callers onto the provider boundary.
+- [done] Define `PageIndexRecord` and `IndexProvider` contracts.
+- [done] Add provider tests with the current Markdown provider.
+- [done] Move current retrieval callers onto the provider boundary.
+- [done] Add field-weighted BM25 page scoring to the Markdown provider.
 
 ## Durable Local Index
 
 - [later] Design local index artifact path under the vault runtime boundary.
-- [later] Implement SQLite FTS/BM25-style provider.
+- [later] Implement SQLite FTS provider.
 - [later] Track provider schema version and rebuild metadata.
 
 ## Rebuild And Freshness
@@ -26,9 +27,10 @@ Status values:
 
 ## Query Integration
 
-- [later] Use machine index when fresh and available.
+- [done] Record scoring model in query trace.
+- [later] Use durable machine index when fresh and available.
 - [later] Keep Markdown provider as explicit fallback until durable provider is stable.
-- [later] Record index provider and freshness in query trace.
+- [later] Record durable index provider and freshness in query trace.
 
 ## Deferred
 

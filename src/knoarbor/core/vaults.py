@@ -5,6 +5,8 @@ from pathlib import Path
 from knoarbor.core.config import KnoArborConfig, VaultConfig
 from knoarbor.core.errors import UserInputError
 
+VIRTUAL_ALL_VAULT_ID = "all"
+
 
 def resolve_config_vault_path(config: KnoArborConfig, *, vault_path: str | None = None, vault_id: str | None = None) -> Path:
     """Resolve a caller vault selector against configured vault profiles.
@@ -16,6 +18,8 @@ def resolve_config_vault_path(config: KnoArborConfig, *, vault_path: str | None 
     if vault_path:
         return Path(vault_path).expanduser().resolve()
     if vault_id:
+        if vault_id == VIRTUAL_ALL_VAULT_ID:
+            raise UserInputError("vault_id=all is a virtual multi-vault selector and cannot be resolved to one vault path.")
         profile = config.vaults.profiles.get(vault_id)
         if profile is None:
             known = ", ".join(sorted(config.vaults.profiles))
@@ -32,3 +36,9 @@ def select_config_vault(config: KnoArborConfig, *, vault_path: str | None = None
     if vault_id:
         updates["vaults"] = config.vaults.model_copy(update={"default": vault_id})
     return config.model_copy(update=updates)
+
+
+def concrete_vault_profile_ids(config: KnoArborConfig) -> list[str]:
+    """Return configured vault IDs that represent concrete writable vaults."""
+
+    return [vault_id for vault_id in config.vaults.profiles if vault_id != VIRTUAL_ALL_VAULT_ID]

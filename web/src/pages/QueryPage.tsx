@@ -34,7 +34,7 @@ export function QueryPage({ context, embedded = false }: Props) {
         mode,
         context_format: contextFormat,
         page_dirs: pageDirsValue,
-        all_vaults: vaultScope === "all",
+        all_vaults: vaultScope === "all" || (vaultScope === "current" && context.activeVaultId === "all"),
         vault_ids: vaultScope === "selected" ? targetVaults.map((vault) => vault.id) : [],
       });
       const nextScopedResults = (response.results || []).map((result) => ({
@@ -111,7 +111,7 @@ export function QueryPage({ context, embedded = false }: Props) {
         </div>
         {vaultScope === "selected" && (
           <div className="query-vault-picker">
-            {context.vaultOptions.map((vault) => (
+            {context.vaultOptions.filter((vault) => !vault.virtual).map((vault) => (
               <label key={vault.id} className="checkbox-field compact-checkbox">
                 <input
                   type="checkbox"
@@ -246,13 +246,14 @@ function resolveQueryVaults(
   scope: "current" | "all" | "selected",
   selectedVaultIds: string[],
 ) {
-  if (scope === "all") return vaults;
+  const concreteVaults = vaults.filter((vault) => !vault.virtual);
+  if (scope === "all" || activeVaultId === "all") return concreteVaults;
   if (scope === "selected") {
-    const selected = vaults.filter((vault) => selectedVaultIds.includes(vault.id));
-    return selected.length ? selected : vaults.filter((vault) => vault.id === activeVaultId);
+    const selected = concreteVaults.filter((vault) => selectedVaultIds.includes(vault.id));
+    return selected.length ? selected : concreteVaults.filter((vault) => vault.id === activeVaultId);
   }
-  const current = vaults.filter((vault) => vault.id === activeVaultId);
-  return current.length ? current : vaults.slice(0, 1);
+  const current = concreteVaults.filter((vault) => vault.id === activeVaultId);
+  return current.length ? current : concreteVaults.slice(0, 1);
 }
 
 function openResultPage(context: AppContext, vault: VaultOption, path: string) {

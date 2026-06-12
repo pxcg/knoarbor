@@ -67,7 +67,7 @@ export function AppShell({
                 <select value={activeVaultId} onChange={(event) => onSetActiveVault(event.target.value)}>
                   {vaultOptions.map((vault) => (
                     <option value={vault.id} key={vault.id}>
-                      {vault.name}
+                      {vault.id === "all" ? t("allVaults") : vault.name}
                     </option>
                   ))}
                 </select>

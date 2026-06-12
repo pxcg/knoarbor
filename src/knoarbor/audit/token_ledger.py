@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 from knoarbor.audit.report_formatting import as_dict, as_list
@@ -17,6 +18,10 @@ def append_ingest_token_records(vault_path: Path, record: dict[str, object]) -> 
 
 def append_lint_token_records(vault_path: Path, record: dict[str, object]) -> None:
     append_jsonl_records(vault_path, TOKEN_LEDGER_PATH, build_lint_token_records(record))
+
+
+def append_chat_token_records(vault_path: Path, record: dict[str, object]) -> None:
+    append_jsonl_records(vault_path, TOKEN_LEDGER_PATH, build_chat_token_records(record))
 
 
 def read_token_analysis(vault_path: Path, *, limit: int | None = 5000) -> dict[str, object]:
@@ -87,6 +92,57 @@ def build_lint_token_records(record: dict[str, object]) -> list[dict[str, object
         "page_paths": _lint_page_paths(record),
     }
     return _call_records(base, as_dict(as_dict(record.get("metrics")).get("semantic")), page_paths=as_list(base.get("page_paths")))
+
+
+def build_chat_token_records(record: dict[str, object]) -> list[dict[str, object]]:
+    base = {
+        "schema_version": "token_ledger.v1",
+        "flow": "chat",
+        "run_id": record.get("chat_id"),
+        "created_at": record.get("created_at"),
+        "finished_at": record.get("finished_at"),
+        "mode": record.get("mode"),
+        "connector": "chat",
+        "source_id": record.get("source_id") or "chat",
+        "source_file": record.get("source_file"),
+        "page_paths": _chat_page_paths(record),
+    }
+    rows: list[dict[str, object]] = []
+    for call_index, raw_call in enumerate(as_list(record.get("calls"))):
+        call = as_dict(raw_call)
+        prompt_tokens = _int(call.get("prompt_tokens"))
+        cached_tokens = _int(call.get("prompt_cached_tokens"))
+        completion_tokens = _int(call.get("completion_tokens"))
+        total_tokens = _int(call.get("total_tokens"))
+        elapsed_seconds = _float(call.get("elapsed_seconds"))
+        rows.append(
+            {
+                **base,
+                "call_index": call_index,
+                "agent": "wiki_chat_agent",
+                "agent_schema_version": "chat_agent.v1",
+                "provider": call.get("provider") or record.get("provider"),
+                "model": call.get("model") or record.get("model"),
+                "prompt_tokens": prompt_tokens,
+                "prompt_cached_tokens": cached_tokens,
+                "prompt_cache_hit_tokens": _int(call.get("prompt_cache_hit_tokens")),
+                "prompt_cache_miss_tokens": _int(call.get("prompt_cache_miss_tokens")),
+                "prompt_cache_rate": _ratio(cached_tokens, prompt_tokens),
+                "prompt_stable_chars": 0,
+                "prompt_dynamic_chars": _int(call.get("prompt_chars")),
+                "dynamic_to_stable_ratio": None,
+                "payload_char_total": _int(call.get("prompt_chars")),
+                "payload_top_field": "messages",
+                "payload_char_breakdown": {"messages": _int(call.get("prompt_chars"))},
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens,
+                "elapsed_seconds": elapsed_seconds,
+                "tokens_per_second": call.get("tokens_per_second") or _ratio(completion_tokens, elapsed_seconds),
+                "turn": call.get("turn"),
+                "page_paths": as_list(base.get("page_paths")),
+            }
+        )
+    return rows
 
 
 def build_token_analysis(records: list[dict[str, object]]) -> dict[str, object]:
@@ -190,6 +246,24 @@ def _lint_page_paths(record: dict[str, object]) -> list[str]:
         if isinstance(value, str) and value:
             paths.append(value)
     return _unique_strings(paths)
+
+
+def _chat_page_paths(record: dict[str, object]) -> list[str]:
+    paths: list[str] = []
+    for citation in as_list(record.get("citations")):
+        path = as_dict(citation).get("path")
+        if isinstance(path, str) and path:
+            paths.append(path)
+    for trace in as_list(record.get("tool_trace")):
+        for citation in as_list(as_dict(trace).get("citations")):
+            path = as_dict(citation).get("path")
+            if isinstance(path, str) and path:
+                paths.append(path)
+    return _unique_strings(paths)
+
+
+def current_timestamp() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def _group(records: list[dict[str, object]], key: str) -> list[dict[str, object]]:

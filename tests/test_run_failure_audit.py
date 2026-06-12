@@ -24,7 +24,7 @@ class RunFailureAuditTests(unittest.TestCase):
             vault = root / "vaults" / "all"
             vault.mkdir(parents=True)
             config_path = root / "config.yaml"
-            config_path.write_text(Path("config.example.yaml").read_text().replace("./vaults/all", str(vault)), encoding="utf-8")
+            config_path.write_text(Path("config.example.yaml").read_text().replace("./vaults/default", str(vault)), encoding="utf-8")
             pdf_path = root / "sample.pdf"
             pdf_path.write_bytes(b"%PDF-1.4\n% test")
 

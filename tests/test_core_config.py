@@ -213,7 +213,7 @@ class ConfigTests(unittest.TestCase):
             finally:
                 os.chdir(previous)
 
-        self.assertEqual(config.vault.path, (Path(tmp_dir) / "vaults" / "all").resolve())
+        self.assertEqual(config.vault.path, (Path(tmp_dir) / "vaults" / "default").resolve())
         self.assertEqual(config.project.host_project_root, Path(tmp_dir).resolve())
 
     def test_runtime_path_validation_rejects_missing_vault(self) -> None:

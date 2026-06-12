@@ -6,6 +6,7 @@ from pathlib import Path
 
 from knoarbor.core.markdown import extract_heading, extract_list_items, extract_section, parse_frontmatter
 from knoarbor.core.wiki_schema import INDEX_EXCLUDED_DIRS, PAGE_TYPE_ORDER, is_index_excluded_file
+from knoarbor.retrieval.bm25 import BM25Document, BM25Field, score_bm25_documents
 from knoarbor.retrieval.wiki_links import resolve_wikilink_target
 from knoarbor.storage import relative_wiki_path
 from knoarbor.storage.wiki_paths import content_root
@@ -113,44 +114,29 @@ def normalize_text(value: str) -> str:
 
 
 def score_pages(pages: list[SearchPage], terms: list[str], query: str) -> dict[str, ScoredPage]:
-    scored: dict[str, ScoredPage] = {}
-    for page in pages:
-        score = 0.0
-        matched: set[str] = set()
-        matched_terms: dict[str, list[str]] = {}
-        score += score_field(page.title, terms, query, FIELD_WEIGHTS["title"], "title", matched, matched_terms)
-        score += score_field(" ".join(page.tags), terms, query, FIELD_WEIGHTS["tags"], "tags", matched, matched_terms)
-        score += score_field(page.summary, terms, query, FIELD_WEIGHTS["summary"], "summary", matched, matched_terms)
-        score += score_field(" ".join(page.key_points), terms, query, FIELD_WEIGHTS["key_points"], "key_points", matched, matched_terms)
-        score += score_field(" ".join(page.headings), terms, query, FIELD_WEIGHTS["headings"], "headings", matched, matched_terms)
-        score += score_field(page.relative_path, terms, query, FIELD_WEIGHTS["path"], "path", matched, matched_terms)
-        score += score_field(page.body, terms, query, FIELD_WEIGHTS["body"], "body", matched, matched_terms)
-        if score > 0:
-            scored[page.relative_path] = ScoredPage(page=page, score=score, matched_fields=matched, matched_terms=matched_terms)
-    return scored
+    page_by_path = {page.relative_path: page for page in pages}
+    documents = [_page_to_bm25_document(page) for page in pages]
+    matches = score_bm25_documents(documents, terms, query)
+    return {
+        path: ScoredPage(page=page_by_path[path], score=match.score, matched_fields=match.matched_fields, matched_terms=match.matched_terms)
+        for path, match in matches.items()
+        if path in page_by_path and match.score > 0
+    }
 
 
-def score_field(
-    value: str,
-    terms: list[str],
-    query: str,
-    weight: float,
-    field_name: str,
-    matched: set[str],
-    matched_terms: dict[str, list[str]],
-) -> float:
-    text = normalize_text(value)
-    if not text:
-        return 0.0
-    field_hits = [term for term in terms if term in text]
-    hits = len(field_hits)
-    phrase = normalize_text(query)
-    phrase_boost = 2 if len(query.strip()) >= 3 and phrase in text else 0
-    if hits or phrase_boost:
-        matched.add(field_name)
-        values = list(dict.fromkeys([*field_hits[:12], *([phrase] if phrase_boost else [])]))
-        matched_terms[field_name] = values
-    return min(hits, 8) * weight + phrase_boost * weight
+def _page_to_bm25_document(page: SearchPage) -> BM25Document:
+    return BM25Document(
+        id=page.relative_path,
+        fields=[
+            BM25Field("title", page.title, FIELD_WEIGHTS["title"]),
+            BM25Field("tags", " ".join(page.tags), FIELD_WEIGHTS["tags"]),
+            BM25Field("summary", page.summary, FIELD_WEIGHTS["summary"]),
+            BM25Field("key_points", " ".join(page.key_points), FIELD_WEIGHTS["key_points"]),
+            BM25Field("headings", " ".join(page.headings), FIELD_WEIGHTS["headings"]),
+            BM25Field("path", page.relative_path, FIELD_WEIGHTS["path"]),
+            BM25Field("body", page.body, FIELD_WEIGHTS["body"]),
+        ],
+    )
 
 
 def expand_related_pages(

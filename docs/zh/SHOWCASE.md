@@ -116,9 +116,9 @@ Query 会返回排序后的页面、摘录、关联上下文、来源线索、�
 可以用内置 Agent Loop 示例做一次短演示：
 
 ```bash
-uv run knoar init --vault ./vaults/all
-mkdir -p vaults/all/raw/notes
-cp examples/agent-loop.md vaults/all/raw/notes/agent-loop.md
+uv run knoar init --vault ./vaults/default
+mkdir -p vaults/default/raw/notes
+cp examples/agent-loop.md vaults/default/raw/notes/agent-loop.md
 uv run knoar ingest --connector markdown --write
 uv run knoar lint --mode structural
 uv run knoar query "Agent Loop 是什么？"
