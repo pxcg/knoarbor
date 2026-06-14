@@ -160,8 +160,11 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertIn("full maintained page content", response.tool_trace[0].result["primary_page"]["content"])
         self.assertEqual(response.tool_trace[0].result["supporting_pages"][0]["path"], "concepts/Session-Memory-Architecture-for-Agent-Loops.md")
         self.assertIn("production agent loops", response.tool_trace[0].result["supporting_pages"][0]["content_excerpt"])
+        self.assertEqual(response.tool_trace[0].result["evidence_pack"]["recommended_action"], "answer_from_evidence")
         self.assertIn('"primary_page"', client.requests[1].messages[-1].content)
         self.assertIn('"supporting_pages"', client.requests[1].messages[-1].content)
+        self.assertIn('"evidence_pack"', client.requests[1].messages[-1].content)
+        self.assertNotIn('"result":', client.requests[1].messages[-1].content)
         self.assertIn("Agent Loop full maintained page content", client.requests[1].messages[-1].content)
         self.assertTrue(all(message.role != "tool" for request in client.requests for message in request.messages))
         event_types = [event.event_type for event in response.events]
@@ -184,6 +187,41 @@ class ChatAgentServiceTest(unittest.TestCase):
 
         self.assertEqual(response.tool_trace[0].status, "error")
         self.assertIn("Unknown chat tool", response.tool_trace[0].summary)
+
+    def test_search_evidence_pack_marks_weak_coverage(self) -> None:
+        class WeakWikiSearch(FakeWikiSearch):
+            def search(self, request):
+                response = super().search(request)
+                return response.model_copy(
+                    update={
+                        "primary_pages": [],
+                        "supporting_pages": [],
+                        "source_pages": [],
+                        "results": [],
+                        "answer_set": WikiAnswerSet(reason="No maintained answer page was selected.", stop_reason="no_results"),
+                        "evidence_coverage": WikiEvidenceCoverage(status="weak", gap_count=1, missing_facets=["unknown"]),
+                    }
+                )
+
+        @dataclass
+        class WeakServices(FakeServices):
+            wiki_search: WeakWikiSearch = field(default_factory=WeakWikiSearch)
+
+        client = FakeChatClient(
+            [
+                {"type": "tool_call", "tool": "search_wiki", "arguments": {"query": "不存在的主题"}},
+                {"type": "final", "answer": "本地知识库没有可靠覆盖。", "citations": []},
+            ]
+        )
+        response = ChatAgentService(client_factory=lambda _request: client).chat(
+            ChatRequest(messages=[ChatMessageItem(role="user", content="不存在的主题是什么？")], vault_path="/tmp/vault", append_ledger=False),
+            WeakServices(),  # type: ignore[arg-type]
+        )
+
+        pack = response.tool_trace[0].result["evidence_pack"]
+        self.assertEqual(pack["recommended_action"], "answer_with_gap")
+        self.assertEqual(pack["evidence_coverage"]["status"], "weak")
+        self.assertIn("answer_with_gap", client.requests[1].messages[-1].content)
 
     def test_source_question_can_use_source_digest_as_primary_page(self) -> None:
         client = FakeChatClient(

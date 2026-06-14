@@ -16,6 +16,7 @@ Console Chat
   -> ChatContextEngine
   -> Model Gateway
   -> KnoArbor Tool Registry
+  -> ChatEvidencePlanner
   -> Query / Wiki / Reports / Runs / Sources / Workflows
   -> ChatSessionStore
   -> Chat response with answer, citations, optional trace, and optional run links
@@ -59,6 +60,7 @@ Rejected ideas:
 | Semantic | Chat agent prompt and JSON decision schema. |
 | Model Gateway | Provider-neutral chat completion, retry, metrics, capability errors. |
 | Tool Adapters | Thin adapters over existing query, wiki page, report, run, source, ingest, and lint services. |
+| Evidence Planning | Converts rich query/tool results into bounded model-facing evidence packs. |
 | Runtime / Audit | Optional run/event records, failure reports, token ledger entries. |
 
 ## Public API
@@ -218,8 +220,23 @@ chunks.
 
 The chat agent should synthesize an answer from the primary page when it
 answers the question, enrich it with supporting pages when useful, and cite
-page paths. It should present a page list only when the user explicitly asks to
-list pages, browse the vault, or choose from candidates.
+the pages it used. The raw query response is retained for UI trace and API
+inspection, while `ChatEvidencePlanner` produces the smaller model-facing
+`evidence_pack` for the next loop turn.
+
+The evidence pack owns:
+
+- answer action guidance such as `answer_from_evidence`,
+  `read_primary_if_detail_needed`, or `answer_with_gap`;
+- primary page content as the answer anchor;
+- supporting page summaries and excerpts;
+- source page summaries for provenance;
+- weak-evidence and missing-facet signals.
+
+This keeps token budgeting and evidence sufficiency out of the prompt while
+preserving page-first wiki semantics. The agent should present a page list only
+when the user explicitly asks to list pages, browse the vault, or choose from
+candidates.
 
 ### Workflow Tools
 
@@ -255,7 +272,8 @@ Rules:
 - A repeated identical tool call is stopped with a clarifying final answer.
 - Tool results are compact but include stable IDs, paths, vault labels, and
   openable links.
-- Invalid model JSON is retried through the existing model retry boundary.
+- Invalid model JSON is reported as a model output error with enough context for
+  the caller to retry through the normal request boundary.
 - Exhausted turns return the best grounded partial answer plus next-step
   suggestions.
 

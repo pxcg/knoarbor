@@ -29,6 +29,7 @@ from knoarbor.core.schemas.wiki_lint import LintRunRequest
 from knoarbor.core.schemas.wiki_query import WikiSearchRequest, WikiSearchResult
 from knoarbor.core.vaults import VIRTUAL_ALL_VAULT_ID
 from knoarbor.entrypoints.vault_selection import resolve_single_vault
+from knoarbor.services.chat_evidence import ChatEvidencePlanner, search_result_to_chat_payload
 from knoarbor.services.chat_context import ChatContextEngine, latest_user_text, memory_target, session_target
 from knoarbor.semantic.llm import ChatClient, ChatCompletionRequest, ChatMessage, ModelGateway
 
@@ -106,6 +107,7 @@ class _ChatLoop:
     client: ChatClient
     chat_id: str
     initial_messages: list[ChatMessage]
+    evidence_planner: ChatEvidencePlanner = field(default_factory=ChatEvidencePlanner)
     trace: list[ChatToolTraceItem] = field(default_factory=list)
     events: list[ChatEvent] = field(default_factory=list)
     run_links: list[ChatRunLink] = field(default_factory=list)
@@ -172,7 +174,7 @@ class _ChatLoop:
                 status=observation.status,
             )
             messages.append(ChatMessage(role="assistant", content=completion.content))
-            messages.append(ChatMessage(role="user", content=_tool_observation_text(observation)))
+            messages.append(ChatMessage(role="user", content=self._tool_observation_text(observation)))
 
         self.warnings.append("Max chat agent turns reached.")
         self._event("chat_stopped", message="Max chat agent turns reached.")
@@ -284,23 +286,21 @@ class _ChatLoop:
             else None,
             "supporting_pages": [_chat_supporting_page_payload(item) for item in supporting],
             "source_pages": [_chat_supporting_page_payload(item) for item in source_pages],
-            "results": [
-                {
-                    "path": item.path,
-                    "title": item.title,
-                    "type": item.type,
-                    "role": item.role,
-                    "score": item.score,
-                    "summary": item.summary,
-                    "key_points": item.key_points[:5],
-                    "vault_id": item.vault_id,
-                    "vault_name": item.vault_name,
-                    "is_primary": bool(primary and item.path == primary.path and item.vault_id == primary.vault_id),
-                }
-                for item in response.results
-            ],
+            "results": [search_result_to_chat_payload(item) for item in response.results],
             "warnings": response.warnings,
         }
+        result["evidence_pack"] = self.evidence_planner.build_search_pack(
+            query=response.query,
+            result_count=len(response.results),
+            answer_scope=result["answer_scope"],
+            answer_set=result["answer_set"],
+            evidence_coverage=result["evidence_coverage"],
+            primary_page=result["primary_page"],
+            supporting_pages=result["supporting_pages"],
+            source_pages=result["source_pages"],
+            results=result["results"],
+            warnings=response.warnings,
+        ).payload
         return ChatToolTraceItem(tool="search_wiki", arguments=arguments, summary=f"Found {len(response.results)} wiki result(s).", citations=citations, result=result)
 
     def _tool_read_wiki_page(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
@@ -480,6 +480,17 @@ class _ChatLoop:
             )
         )
 
+    def _tool_observation_text(self, observation: ChatToolTraceItem) -> str:
+        return json.dumps(
+            self.evidence_planner.project_tool_observation(
+                observation.tool,
+                observation.status,
+                observation.summary,
+                observation.result,
+            ),
+            ensure_ascii=False,
+        )
+
 
 def _client_from_request(request: ChatRequest) -> ChatClient:
     config = load_config(Path(request.config_path).expanduser().resolve() if request.config_path else default_config_path())
@@ -531,18 +542,6 @@ def _parse_decision(content: str) -> ChatAgentDecision:
         return ChatAgentDecision.model_validate(payload)
     except (json.JSONDecodeError, ValidationError, ValueError) as exc:
         raise ModelOutputError(f"Chat agent returned invalid decision JSON: {exc}") from exc
-
-
-def _tool_observation_text(observation: ChatToolTraceItem) -> str:
-    return json.dumps(
-        {
-            "tool": observation.tool,
-            "status": observation.status,
-            "summary": observation.summary,
-            "result": observation.result,
-        },
-        ensure_ascii=False,
-    )
 
 
 def _primary_first_results(results: list[WikiSearchResult], primary: WikiSearchResult | None) -> list[WikiSearchResult]:
