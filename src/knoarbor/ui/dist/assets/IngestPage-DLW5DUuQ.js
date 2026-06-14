@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BX1tsrJU.js";import{t}from"./RunPage-DOzbH6og.js";var n=e();function r({context:e}){return(0,n.jsx)(`section`,{className:`view active`,children:(0,n.jsx)(t,{context:e,embedded:!0,mode:`ingest`})})}export{r as IngestPage};
