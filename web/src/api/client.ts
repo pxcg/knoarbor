@@ -329,6 +329,8 @@ export type ChatMessageItem = {
   tool_name?: string | null;
 };
 
+export type ChatExecutionMode = "auto" | "agentic" | "retrieval_first";
+
 export type ChatCitation = {
   kind: "page" | "report" | "run" | "source";
   role?: "primary" | "supporting" | "source" | "further_reading" | null;
@@ -744,10 +746,8 @@ export async function rerunFailedRun(selector: VaultSelector, runId: string, bod
 
 export type QuerySearchOptions = {
   mode?: "quick" | "balanced" | "deep";
-  context_format?: "compact" | "full";
   page_dirs?: string[];
   max_results?: number;
-  include_content?: boolean;
   vault_ids?: string[];
   all_vaults?: boolean;
 };
@@ -778,10 +778,8 @@ export async function searchWiki(
       vault_ids: options.vault_ids || [],
       all_vaults: options.all_vaults || false,
       mode: options.mode || "balanced",
-      context_format: options.context_format || "compact",
       page_dirs: options.page_dirs || [],
       max_results: options.max_results || 6,
-      include_content: options.include_content || false,
     },
   });
 }
@@ -791,6 +789,7 @@ export async function sendChatMessage(
   messages: ChatMessageItem[],
   options: {
     mode?: "quick" | "balanced" | "deep";
+    execution_mode?: ChatExecutionMode;
     vault_ids?: string[];
     all_vaults?: boolean;
     max_turns?: number;
@@ -809,6 +808,7 @@ export async function sendChatMessage(
       all_vaults: options.all_vaults || false,
       messages,
       mode: options.mode || "balanced",
+      execution_mode: options.execution_mode || "auto",
       max_turns: options.max_turns || 6,
       include_trace: true,
     },

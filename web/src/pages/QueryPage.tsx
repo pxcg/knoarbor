@@ -13,7 +13,6 @@ type Props = {
 export function QueryPage({ context, embedded = false }: Props) {
   const [query, setQuery] = useState("Agent Loop 控制模式");
   const [mode, setMode] = useState<"quick" | "balanced" | "deep">("balanced");
-  const [contextFormat, setContextFormat] = useState<"compact" | "full">("compact");
   const [vaultScope, setVaultScope] = useState<"current" | "all" | "selected">("current");
   const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([context.activeVaultId]);
   const [pageDirs, setPageDirs] = useState("");
@@ -32,7 +31,6 @@ export function QueryPage({ context, embedded = false }: Props) {
         .filter(Boolean);
       const response = await searchWiki(context.activeVaultSelector, query.trim(), {
         mode,
-        context_format: contextFormat,
         page_dirs: pageDirsValue,
         all_vaults: vaultScope === "all" || (vaultScope === "current" && context.activeVaultId === "all"),
         vault_ids: vaultScope === "selected" ? targetVaults.map((vault) => vault.id) : [],
@@ -94,14 +92,6 @@ export function QueryPage({ context, embedded = false }: Props) {
               <option value="balanced">{context.t("balancedQuery")}</option>
               <option value="deep">{context.t("deepQuery")}</option>
             </select>
-          </label>
-          <label className="field">
-            <span>{context.t("queryContextFormat")}</span>
-            <select value={contextFormat} onChange={(event) => setContextFormat(event.target.value as "compact" | "full")}>
-              <option value="compact">{context.t("compactContext")}</option>
-              <option value="full">{context.t("fullContext")}</option>
-            </select>
-            <small>{context.t("fullContextHint")}</small>
           </label>
           <label className="field">
             <span>{context.t("initialPageDirs")}</span>
