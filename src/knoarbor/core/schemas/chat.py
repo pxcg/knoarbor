@@ -9,6 +9,7 @@ from knoarbor.core.schemas.memory import MemoryCandidate, MemoryRecord
 
 ChatRole = Literal["user", "assistant", "tool"]
 ChatRetrievalMode = Literal["quick", "balanced", "deep"]
+ChatExecutionMode = Literal["auto", "agentic", "retrieval_first"]
 ChatToolStatus = Literal["ok", "error", "skipped"]
 ChatCitationKind = Literal["page", "report", "run", "source"]
 ChatEventType = Literal[
@@ -47,6 +48,7 @@ class ChatRequest(BaseModel):
     all_vaults: bool = False
     messages: list[ChatMessageItem] = Field(..., min_length=1)
     mode: ChatRetrievalMode = "balanced"
+    execution_mode: ChatExecutionMode = "auto"
     max_turns: int = Field(default=6, ge=1, le=12)
     include_trace: bool = True
     append_ledger: bool = True
@@ -186,3 +188,8 @@ class ChatAgentDecision(BaseModel):
         if self.type == "final" and not (self.answer or "").strip():
             raise ValueError("final decision requires answer")
         return self
+
+
+class ChatAnswerDraft(BaseModel):
+    answer: str = Field(..., min_length=1)
+    citations: list[ChatCitation] = Field(default_factory=list)

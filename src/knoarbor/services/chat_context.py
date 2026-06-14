@@ -37,12 +37,13 @@ class ChatContextEngine:
         *,
         chat_id: str,
         existing_session: ChatSessionRecord | None = None,
+        system_prompt: str | None = None,
     ) -> ChatContextBundle:
         conversation_messages = _merge_messages(existing_session.messages if existing_session else [], request.messages)
         warnings: list[str] = []
         memory_used: list[MemoryRecord] = []
         messages = [
-            ChatMessage(role="system", content=SYSTEM_PROMPT),
+            ChatMessage(role="system", content=system_prompt or SYSTEM_PROMPT),
             ChatMessage(role="system", content=f"Workspace context:\n{json.dumps(_workspace_context(request), ensure_ascii=False)}"),
         ]
         memory_context, memory_used, memory_warnings = self._memory_context(request, services, chat_id)

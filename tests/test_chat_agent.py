@@ -16,10 +16,10 @@ from knoarbor.services.memory import MemoryService
 
 
 class FakeChatClient:
-    provider = "fake"
     model = "fake-model"
 
-    def __init__(self, outputs: list[dict[str, object]]) -> None:
+    def __init__(self, outputs: list[dict[str, object]], *, provider: str = "fake") -> None:
+        self.provider = provider
         self.outputs = list(outputs)
         self.requests: list[ChatCompletionRequest] = []
 
@@ -153,8 +153,6 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(evidence_pack["primary_page"]["path"], "concepts/Agent-Loop.md")
         self.assertEqual(response.citations[0].vault_id, "agent-engineering")
         self.assertEqual([citation.path for citation in response.citations], ["concepts/Agent-Loop.md"])
-        self.assertTrue(services.wiki_search.requests[0].include_content)
-        self.assertEqual(services.wiki_search.requests[0].max_chars_per_page, 20000)
         self.assertTrue(response.tool_trace[0].result["primary_page"])
         self.assertEqual(response.tool_trace[0].result["primary_page"]["path"], "concepts/Agent-Loop.md")
         self.assertEqual(response.tool_trace[0].result["answer_scope"]["kind"], "broad")
@@ -174,6 +172,55 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertIn("model_call_started", event_types)
         self.assertIn("tool_call_finished", event_types)
         self.assertIn("final_answer_ready", event_types)
+
+    def test_retrieval_first_searches_before_answer_for_local_model(self) -> None:
+        client = FakeChatClient(
+            [
+                {
+                    "answer": "Agent Loop 是由维护页面说明的推理、行动和观察循环 [1]。",
+                    "citations": [
+                        {"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"},
+                        {"kind": "page", "path": "concepts/fake.md", "title": "Fake"},
+                    ],
+                }
+            ],
+            provider="ollama",
+        )
+        services = FakeServices()
+        response = ChatAgentService(client_factory=lambda _request: client).chat(
+            ChatRequest(messages=[ChatMessageItem(role="user", content="Agent Loop 是什么？")], vault_path="/tmp/vault", append_ledger=False),
+            services,  # type: ignore[arg-type]
+        )
+
+        self.assertEqual(response.stats["execution_mode"], "retrieval_first")
+        self.assertEqual(len(services.wiki_search.requests), 1)
+        self.assertEqual(len(response.tool_trace), 1)
+        self.assertEqual(response.tool_trace[0].tool, "search_wiki")
+        self.assertEqual(response.stats["model_calls"], 1)
+        self.assertEqual(response.stats["tool_calls"], 1)
+        self.assertEqual([citation.path for citation in response.citations], ["concepts/Agent-Loop.md"])
+        self.assertIn("wiki answer synthesizer", client.requests[0].messages[0].content.lower())
+        self.assertIn("evidence_pack", client.requests[0].messages[-1].content)
+
+    def test_agentic_mode_can_be_requested_for_local_model(self) -> None:
+        client = FakeChatClient(
+            [
+                {"type": "final", "answer": "Agentic answer.", "citations": []},
+            ],
+            provider="ollama",
+        )
+        response = ChatAgentService(client_factory=lambda _request: client).chat(
+            ChatRequest(
+                messages=[ChatMessageItem(role="user", content="Agent Loop 是什么？")],
+                vault_path="/tmp/vault",
+                execution_mode="agentic",
+                append_ledger=False,
+            ),
+            FakeServices(),  # type: ignore[arg-type]
+        )
+
+        self.assertEqual(response.stats["execution_mode"], "agentic")
+        self.assertEqual(response.tool_trace, [])
 
     def test_unknown_tool_is_reported_in_trace(self) -> None:
         client = FakeChatClient(

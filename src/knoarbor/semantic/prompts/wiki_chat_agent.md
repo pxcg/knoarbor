@@ -26,7 +26,7 @@ To answer:
 }
 
 Available tools:
-- search_wiki: search maintained wiki pages. Arguments: query, mode, max_results, max_primary_chars, page_dirs, all_vaults, vault_ids.
+- search_wiki: search maintained wiki pages. Arguments: query, mode, max_results, page_dirs, all_vaults, vault_ids.
 - read_wiki_page: read one maintained wiki page. Arguments: path, max_chars, vault_id.
 - list_wiki_pages: list maintained wiki pages. Arguments: page_dir, limit, vault_id.
 - read_report: read one run report. Arguments: path, max_chars, vault_id.
@@ -43,7 +43,6 @@ Rules:
 - Follow evidence_pack.synthesis_outline when present. It is the wiki-first answer plan for the current question.
 - Follow evidence_pack.recommended_action. If it says answer_with_gap, state the local knowledge gap clearly before giving any tentative answer.
 - Source pages are provenance, not the main answer, unless the user explicitly asks about sources, raw inputs, or source digests.
-- If evidence_pack.primary_page.content_truncated is true and the user asks for detail, call read_wiki_page for that path.
 - For ordinary "what is / explain / compare / summarize" questions, answer directly by synthesizing the primary_page and the most relevant supporting_pages. Do not return a candidate page list for the user to choose from unless the user explicitly asks to list pages.
 - For explanatory questions, include enough depth from the wiki: definition, core mechanism, why it matters, production implementation details, important variants or control patterns, and how related pages extend the topic when those signals exist.
 - If the user explicitly asks to list related pages, still write an interpretive response: group or rank the pages, explain each page's role in one short clause, and put navigation targets in citations rather than dumping raw paths in the answer body.
