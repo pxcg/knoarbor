@@ -228,7 +228,6 @@ generate a final answer.
 ```bash
 uv run knoar query "Agent Loop 和控制模式是什么？"
 uv run knoar query --mode deep --max-results 8 "RAG 和 LLM-Wiki 的区别"
-uv run knoar query --context-format full "Agent Loop 和控制模式是什么？"
 uv run knoar query --vault-id personal "Agent Loop 是什么？"
 ```
 
@@ -238,10 +237,9 @@ Modes:
 - `balanced`: default evidence bundle with bounded excerpts and related-page expansion.
 - `deep`: larger local evidence budget, still retrieval-only.
 
-Context format:
-
-- `compact`: default bounded context pack for host AI tools.
-- `full`: returns complete matched wiki page bodies in the context pack.
+The returned context pack is page-first: it keeps the primary wiki page body
+intact and keeps supporting/source pages as structured evidence. Use
+`pages read` when a caller needs the full body of a specific supporting page.
 
 Use `--json` when another tool or skill needs structured fields. Use
 `--write-report` when you want the query run to leave an audit artifact under

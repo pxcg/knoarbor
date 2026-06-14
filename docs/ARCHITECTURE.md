@@ -269,14 +269,14 @@ Goal: return wiki context for a host AI, not generate the final answer.
 query
   -> page retrieval
   -> related expansion
-  -> excerpts and source pointers
-  -> context pack
+  -> primary page body plus supporting structure
+  -> page-first context pack
   -> trace and gap signals
 ```
 
 Responsibilities:
 
-- return ranked pages, excerpts, source pointers, related context, and a bounded context pack;
+- return ranked pages, primary-page body content, supporting excerpts, source pointers, related context, and a page-first context pack;
 - explain retrieval through match reasons, matched terms, and trace data;
 - never mutate wiki pages;
 - never claim that related pages are weaker or stronger evidence than direct pages; `match_kind` only explains retrieval origin.
@@ -297,8 +297,9 @@ keeping all actions inside KnoArbor-owned boundaries.
 
 ```text
 chat request
-  -> bounded agent loop
-  -> model decision
+  -> execution mode selection
+  -> retrieval-first evidence pack OR bounded agent loop
+  -> answer synthesis OR model tool decision
   -> KnoArbor tool registry
   -> query / wiki pages / reports / runs / sources / explicit workflows
   -> answer with citations, trace, and run links
@@ -308,6 +309,8 @@ Responsibilities:
 
 - synthesize answers inside the management console;
 - search and read maintained wiki pages through existing services;
+- default local Ollama/vLLM providers to retrieval-first answering so small
+  local models do not need to perform tool-decision planning;
 - inspect reports and run records through existing services;
 - queue ingest or lint only when the user intent is explicit;
 - expose citations and tool trace to the UI.

@@ -170,12 +170,14 @@ uv run knoar lint --mode full --profile deep
 ```bash
 uv run knoar query "检索主题"
 uv run knoar query --mode deep "Agent Loop 是什么？"
-uv run knoar query --context-format full "Agent Loop 是什么？"
 uv run knoar query --write-report "Agent Loop 是什么？"
 uv run knoar query --vault-id personal "Agent Loop 是什么？"
 ```
 
 查询阶段返回的是本地 Wiki 上下文，不负责替代宿主 AI 生成最终聊天回答。
+返回的 context pack 是页面优先：primary 页面保留正文，supporting/source
+页面保留结构化摘要、Key Points、摘录和来源线索。需要读取某个辅助页面全文时，
+使用 `pages read`。
 
 记录一次查询反馈：
 

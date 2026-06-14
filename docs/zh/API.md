@@ -78,9 +78,13 @@ http://127.0.0.1:8000
 POST /chat
 ```
 
-运行受限的 KnoArbor Wiki Chat Agent。Chat 可以搜索已维护 Wiki 页面、
-读取页面、查看报告和运行记录、列出资料来源，也可以在用户明确要求时排队
-启动知识编译或校验维护。它不会暴露任意 shell、浏览器、文件系统或网络工具。
+运行受限的 KnoArbor Wiki Chat Agent。Chat 支持两种执行方式：`agentic`
+让强模型决定调用哪个 KnoArbor 工具；`retrieval_first` 由 KnoArbor 先检索
+Wiki，再让模型只基于 evidence pack 综合回答。`auto` 会对本地 Ollama/vLLM
+供应商使用 `retrieval_first`，对其他供应商使用 `agentic`。Chat 可以搜索
+已维护 Wiki 页面、读取页面、查看报告和运行记录、列出资料来源，也可以在
+用户明确要求时排队启动知识编译或校验维护。它不会暴露任意 shell、浏览器、
+文件系统或网络工具。
 
 请求示例：
 
@@ -93,6 +97,7 @@ POST /chat
     {"role": "user", "content": "Agent Loop 是什么？"}
   ],
   "mode": "balanced",
+  "execution_mode": "auto",
   "max_turns": 6,
   "include_trace": true
 }
@@ -114,7 +119,7 @@ POST /chat
   "memory_used": [],
   "memory_candidates": [],
   "memory_writes": [],
-  "stats": {"model_calls": 2, "tool_calls": 1, "memory_used": 0, "memory_writes": 0, "total_tokens": 1200},
+  "stats": {"execution_mode": "retrieval_first", "model_calls": 1, "tool_calls": 1, "memory_used": 0, "memory_writes": 0, "total_tokens": 1200},
   "warnings": []
 }
 ```
@@ -481,6 +486,11 @@ Query 采用页面优先的检索语义，而不是 chunk 优先语义。返回�
 `source_pages`。调用方可以自由引用任意返回页面；普通回答通常应优先基于
 primary 页面的结构化内容，再按需要使用 supporting/source 页面。
 
+返回的 context pack 是页面优先，而不是 chunk 优先：它会保留 primary
+页面的正文作为主要答案单元，同时把 supporting/source 页面作为结构化摘要、
+Key Points、摘录和来源线索返回。调用方需要读取某个辅助页面全文时，使用
+`/wiki/pages/content`。
+
 响应还会包含：
 
 - `answer_scope`：标记查询是窄问题、广泛问题还是探索问题，并记录本次检索
@@ -494,8 +504,7 @@ primary 页面的结构化内容，再按需要使用 supporting/source 页面�
 {
   "vault_path": "/path/to/vault",
   "query": "agent loop",
-  "mode": "balanced",
-  "context_format": "compact"
+  "mode": "balanced"
 }
 ```
 
@@ -506,8 +515,7 @@ primary 页面的结构化内容，再按需要使用 supporting/source 页面�
   "config_path": "/path/to/config.yaml",
   "query": "agent loop",
   "all_vaults": true,
-  "mode": "balanced",
-  "context_format": "compact"
+  "mode": "balanced"
 }
 ```
 
@@ -518,12 +526,9 @@ primary 页面的结构化内容，再按需要使用 supporting/source 页面�
   "config_path": "/path/to/config.yaml",
   "query": "agent loop",
   "vault_ids": ["personal", "team"],
-  "mode": "balanced",
-  "context_format": "compact"
+  "mode": "balanced"
 }
 ```
-
-默认返回压缩后的 `compact` 上下文包；如果调用方需要完整命中页面正文，可设置 `context_format: "full"`。
 
 ## 运行监控
 

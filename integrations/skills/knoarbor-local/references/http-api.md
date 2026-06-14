@@ -76,7 +76,7 @@ local files and does not start ingest.
 ```bash
 curl -sS -X POST "$KNOARBOR_BASE_URL/query" \
   -H 'Content-Type: application/json' \
-  -d "{\"query\":\"agent loop\",\"vault_path\":\"$KNOARBOR_VAULT_PATH\",\"mode\":\"balanced\",\"context_format\":\"compact\",\"max_results\":6,\"include_related\":true,\"include_content\":false,\"caller\":\"generic-skill\"}"
+  -d "{\"query\":\"agent loop\",\"vault_path\":\"$KNOARBOR_VAULT_PATH\",\"mode\":\"balanced\",\"max_results\":6,\"include_related\":true,\"caller\":\"generic-skill\"}"
 ```
 
 Query all configured vaults:
@@ -84,7 +84,7 @@ Query all configured vaults:
 ```bash
 curl -sS -X POST "$KNOARBOR_BASE_URL/query" \
   -H 'Content-Type: application/json' \
-  -d "{\"query\":\"agent loop\",\"config_path\":\"$KNOARBOR_CONFIG_PATH\",\"all_vaults\":true,\"mode\":\"balanced\",\"context_format\":\"compact\",\"max_results\":6,\"include_related\":true,\"include_content\":false,\"caller\":\"generic-skill\"}"
+  -d "{\"query\":\"agent loop\",\"config_path\":\"$KNOARBOR_CONFIG_PATH\",\"all_vaults\":true,\"mode\":\"balanced\",\"max_results\":6,\"include_related\":true,\"caller\":\"generic-skill\"}"
 ```
 
 Query selected configured vaults:
@@ -92,7 +92,7 @@ Query selected configured vaults:
 ```bash
 curl -sS -X POST "$KNOARBOR_BASE_URL/query" \
   -H 'Content-Type: application/json' \
-  -d "{\"query\":\"agent loop\",\"config_path\":\"$KNOARBOR_CONFIG_PATH\",\"vault_ids\":[\"personal\",\"team\"],\"mode\":\"balanced\",\"context_format\":\"compact\",\"max_results\":6,\"include_related\":true,\"include_content\":false,\"caller\":\"generic-skill\"}"
+  -d "{\"query\":\"agent loop\",\"config_path\":\"$KNOARBOR_CONFIG_PATH\",\"vault_ids\":[\"personal\",\"team\"],\"mode\":\"balanced\",\"max_results\":6,\"include_related\":true,\"caller\":\"generic-skill\"}"
 ```
 
 ## List Pages

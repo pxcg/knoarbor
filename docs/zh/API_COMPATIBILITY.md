@@ -23,7 +23,7 @@ KnoArbor 尚未发布稳定 v1 API，因此预发布阶段优先保持公开接�
 - `GET /vaults/all/pages/content`
 - `GET /vaults/all/pages/links`
 
-不同功能通过 `execution`、`kind`、`mode`、`context_format` 等请求字段选择。
+不同功能通过 `execution`、`kind`、`mode` 等请求字段选择。
 
 ## 原型路径
 

@@ -55,9 +55,9 @@ to one vault per run.
 ```bash
 python3 scripts/knoarbor.py query "Agent Loop 是什么"
 python3 scripts/knoarbor.py query "Agent Loop 控制模式" --mode deep --max-results 8
-python3 scripts/knoarbor.py query "Agent Loop 页面全文" --context-format full --include-content
 python3 scripts/knoarbor.py query "Agent Loop" --all-vaults
 python3 scripts/knoarbor.py query "Agent Loop" --query-vault-id personal --query-vault-id team
+python3 scripts/knoarbor.py page read concepts/Agent-Loop.md
 ```
 
 Progressive retrieval behavior:

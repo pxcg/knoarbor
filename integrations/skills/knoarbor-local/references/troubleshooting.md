@@ -134,8 +134,8 @@ returned `results[].path`.
 
 ## Response is too large
 
-Use compact mode:
+Limit the number of returned pages:
 
 ```bash
-python3 scripts/knoarbor.py query "agent loop" --context-format compact --max-results 4
+python3 scripts/knoarbor.py query "agent loop" --max-results 4
 ```

@@ -261,14 +261,14 @@ scan
 query
   -> page retrieval
   -> related expansion
-  -> excerpts and source pointers
-  -> context pack
+  -> primary page body plus supporting structure
+  -> page-first context pack
   -> trace and gap signals
 ```
 
 职责：
 
-- 返回排序页面、摘录、来源指针、相关上下文和有界 context pack。
+- 返回排序页面、主页面正文、辅助页面摘录、来源指针、相关上下文和页面优先 context pack。
 - 通过匹配原因、关键词和 trace 解释检索过程。
 - 不修改 Wiki 页面。
 - 不声称 related 页面比 direct 页面更弱或更强；`match_kind` 只解释检索来源。
@@ -279,7 +279,7 @@ query
 - 尽量保留技术标识符和中文短语片段作为查询信号。
 - 通过出站 wikilink、反向链接、来源关系和图谱邻近度进行相关页扩展。
 - 对同源页面和同类型页面给予可解释的图谱相关性加权。
-- 面向宿主 AI 组装有界 context pack。
+- 面向宿主 AI 组装页面优先 context pack：primary 页面保留正文，supporting/source 页面保留结构化摘要和摘录。
 
 ### Wiki Chat Agent / 对话
 
@@ -288,8 +288,9 @@ KnoArbor 自有边界内。
 
 ```text
 chat request
-  -> bounded agent loop
-  -> model decision
+  -> execution mode selection
+  -> retrieval-first evidence pack OR bounded agent loop
+  -> answer synthesis OR model tool decision
   -> KnoArbor tool registry
   -> query / wiki pages / reports / runs / sources / explicit workflows
   -> answer with citations, trace, and run links
@@ -299,6 +300,7 @@ chat request
 
 - 在管理控制台内综合回答。
 - 通过现有服务搜索和读取已维护 Wiki 页面。
+- 默认让本地 Ollama/vLLM 供应商使用 retrieval-first 回答，避免小型本地模型承担工具决策规划。
 - 通过现有服务查看报告和运行记录。
 - 仅在用户意图明确时排队启动知识编译或校验维护。
 - 向前端展示引用和工具轨迹。

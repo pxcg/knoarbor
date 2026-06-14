@@ -79,10 +79,14 @@ results directly.
 POST /chat
 ```
 
-Runs the bounded KnoArbor Wiki Chat Agent. Chat can search maintained wiki
-pages, read pages, inspect reports and runs, list sources, and queue explicitly
-requested ingest or lint workflows. It does not expose arbitrary shell,
-browser, filesystem, or network tools.
+Runs the bounded KnoArbor Wiki Chat Agent. Chat supports two execution styles:
+`agentic` lets a strong model decide which KnoArbor tool to call, while
+`retrieval_first` lets KnoArbor search the wiki first and asks the model only to
+synthesize an answer from the evidence pack. `auto` uses `retrieval_first` for
+local Ollama/vLLM providers and `agentic` for other providers. Chat can search
+maintained wiki pages, read pages, inspect reports and runs, list sources, and
+queue explicitly requested ingest or lint workflows. It does not expose
+arbitrary shell, browser, filesystem, or network tools.
 
 Example request:
 
@@ -95,6 +99,7 @@ Example request:
     {"role": "user", "content": "Agent Loop 是什么？"}
   ],
   "mode": "balanced",
+  "execution_mode": "auto",
   "max_turns": 6,
   "include_trace": true
 }
@@ -116,7 +121,7 @@ Example response:
   "memory_used": [],
   "memory_candidates": [],
   "memory_writes": [],
-  "stats": {"model_calls": 2, "tool_calls": 1, "memory_used": 0, "memory_writes": 0, "total_tokens": 1200},
+  "stats": {"execution_mode": "retrieval_first", "model_calls": 1, "tool_calls": 1, "memory_used": 0, "memory_writes": 0, "total_tokens": 1200},
   "warnings": []
 }
 ```
@@ -510,6 +515,12 @@ The response also groups those same result objects as `primary_pages`,
 ordinary answers should usually start from the primary page's structured wiki
 content and use supporting/source pages as needed.
 
+The context pack is page-first, not chunk-first: it preserves the primary page
+body as the maintained answer unit, while supporting and source pages are
+returned as structured summaries, key points, excerpts, and source pointers.
+Call `/wiki/pages/content` when the caller needs to read the full body of a
+specific supporting page.
+
 The response also includes:
 
 - `answer_scope`: whether the query is narrow, broad, or exploratory, plus the
@@ -524,8 +535,7 @@ The response also includes:
 {
   "vault_path": "/path/to/vault",
   "query": "agent loop",
-  "mode": "balanced",
-  "context_format": "compact"
+  "mode": "balanced"
 }
 ```
 
@@ -536,8 +546,7 @@ Configured multi-vault query:
   "config_path": "/path/to/config.yaml",
   "query": "agent loop",
   "all_vaults": true,
-  "mode": "balanced",
-  "context_format": "compact"
+  "mode": "balanced"
 }
 ```
 
@@ -548,12 +557,9 @@ Selected-vault query:
   "config_path": "/path/to/config.yaml",
   "query": "agent loop",
   "vault_ids": ["personal", "team"],
-  "mode": "balanced",
-  "context_format": "compact"
+  "mode": "balanced"
 }
 ```
-
-By default, query returns a bounded `compact` context pack. Set `context_format: "full"` when the caller wants complete matched wiki page bodies instead of a compressed context pack.
 
 ## Query Telemetry
 
