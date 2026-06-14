@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from knoarbor.core.schemas.chat import ChatRequest, ChatResponse, ChatSessionListResponse, ChatSessionRecord
+from knoarbor.core.schemas.chat import ChatRequest, ChatResponse, ChatSessionDeleteResponse, ChatSessionListResponse, ChatSessionRecord
 from knoarbor.services.chat_context import session_target
 from knoarbor.services import ApplicationServices
 
@@ -33,5 +33,15 @@ def create_chat_router(services: ApplicationServices) -> APIRouter:
     ) -> ChatSessionRecord:
         target = session_target(ChatRequest(config_path=config_path, vault_path=vault_path, vault_id=vault_id, messages=[{"role": "user", "content": "read session"}]))
         return services.chat_sessions.read_session(target.path, session_id)
+
+    @router.delete("/chat/sessions/{session_id}", response_model=ChatSessionDeleteResponse)
+    async def delete_chat_session(
+        session_id: str,
+        config_path: str | None = None,
+        vault_path: str | None = None,
+        vault_id: str | None = None,
+    ) -> ChatSessionDeleteResponse:
+        target = session_target(ChatRequest(config_path=config_path, vault_path=vault_path, vault_id=vault_id, messages=[{"role": "user", "content": "delete session"}]))
+        return ChatSessionDeleteResponse(deleted=services.chat_sessions.delete_session(target.path, session_id), session_id=session_id)
 
     return router

@@ -18,7 +18,7 @@ Console Chat
   -> KnoArbor Tool Registry
   -> Query / Wiki / Reports / Runs / Sources / Workflows
   -> ChatSessionStore
-  -> Chat response with answer, citations, trace, and optional run links
+  -> Chat response with answer, citations, optional trace, and optional run links
 ```
 
 ## References Considered
@@ -51,7 +51,7 @@ Rejected ideas:
 
 | Layer | Responsibility |
 | --- | --- |
-| UI | Chat layout, message state, trace display, links to pages/reports/runs. |
+| UI | Chat layout, message state, citations, and links to pages/reports/runs. |
 | API | Stable `/chat`, `/chat/sessions`, and `/chat/sessions/{session_id}` contracts. |
 | Service | Agent loop orchestration, tool registry dispatch, model calls, response assembly. |
 | Context | Stable system prompt, workspace context, memory context, and recent session messages. |
@@ -194,12 +194,32 @@ Tools are grouped by risk and intent.
 Read tools are safe and can be used automatically:
 
 - `search_wiki`: calls query service and returns result summaries, excerpts,
-  vault labels, and candidate page paths.
+  vault labels, candidate page paths, and page roles.
 - `read_wiki_page`: reads one maintained page through `WikiPageService`.
 - `list_wiki_pages`: lists pages with optional directory/type filters.
 - `read_report`: reads one report through report service.
 - `list_runs`: lists active or recent runs.
 - `list_sources`: lists configured source connectors and source status.
+
+## Page-First Query Semantics
+
+KnoArbor wiki pages are already curated knowledge units. Chat retrieval should
+therefore treat pages as answer-bearing objects, not as interchangeable RAG
+chunks.
+
+`search_wiki` returns:
+
+- `answer_scope`: whether the query is narrow, broad, or exploratory;
+- `answer_set`: the recommended answer-bearing page set by path;
+- `primary_pages`: maintained pages that directly answer the current question;
+- `supporting_pages`: related maintained pages that add mechanisms,
+  implementation details, caveats, comparisons, or follow-up context;
+- `source_pages`: source digest pages for provenance.
+
+The chat agent should synthesize an answer from the primary page when it
+answers the question, enrich it with supporting pages when useful, and cite
+page paths. It should present a page list only when the user explicitly asks to
+list pages, browse the vault, or choose from candidates.
 
 ### Workflow Tools
 

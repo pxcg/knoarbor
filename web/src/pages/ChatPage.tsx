@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import {
+  deleteChatSession,
   listChatSessions,
   readChatSession,
   sendChatMessage,
@@ -44,9 +45,8 @@ export function ChatPage({ context }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    if (turns.length > 0) return;
     setIsLoadingSessions(true);
-    listChatSessions(context.activeVaultSelector, 6)
+    listChatSessions(context.activeVaultSelector, 20)
       .then((response) => {
         if (!cancelled) setRecentSessions(response.sessions || []);
       })
@@ -59,7 +59,23 @@ export function ChatPage({ context }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [context.activeVaultSelector, turns.length]);
+  }, [context.activeVaultSelector]);
+
+  async function refreshSessions() {
+    try {
+      const response = await listChatSessions(context.activeVaultSelector, 20);
+      setRecentSessions(response.sessions || []);
+    } catch {
+      setRecentSessions([]);
+    }
+  }
+
+  function newSession() {
+    if (isSending) return;
+    setSessionId(null);
+    setTurns([]);
+    setInput("");
+  }
 
   async function restoreSession(nextSessionId: string) {
     if (isSending) return;
@@ -67,11 +83,30 @@ export function ChatPage({ context }: Props) {
     try {
       const record = await readChatSession(context.activeVaultSelector, nextSessionId);
       setSessionId(record.session_id);
-      setTurns(record.messages.map((message) => ({ role: message.role === "assistant" ? "assistant" : "user", content: message.content })));
+      setTurns(
+        record.messages
+          .filter((message) => message.role === "user" || message.role === "assistant")
+          .map((message) => ({
+            role: message.role === "assistant" ? "assistant" : "user",
+            content: message.content,
+            citations: message.role === "assistant" ? record.citations : undefined,
+          })),
+      );
     } catch (error) {
       context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
     } finally {
       setIsSending(false);
+    }
+  }
+
+  async function removeSession(nextSessionId: string) {
+    if (isSending) return;
+    try {
+      await deleteChatSession(context.activeVaultSelector, nextSessionId);
+      if (sessionId === nextSessionId) newSession();
+      await refreshSessions();
+    } catch (error) {
+      context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
     }
   }
 
@@ -103,6 +138,7 @@ export function ChatPage({ context }: Props) {
           citations: response.citations || [],
         },
       ]);
+      void refreshSessions();
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : String(error);
       const message = readableChatError(rawMessage, context);
@@ -118,6 +154,34 @@ export function ChatPage({ context }: Props) {
   return (
     <section className="view active chat-page">
       <div className="chat-layout">
+        <aside className="panel chat-session-sidebar">
+          <div className="chat-session-sidebar-header">
+            <strong>{context.t("chatSessions")}</strong>
+            <button className="icon-button" type="button" onClick={newSession} disabled={isSending} title={context.t("chatNewSession")}>
+              +
+            </button>
+          </div>
+          <div className="chat-session-list" aria-busy={isLoadingSessions}>
+            {isLoadingSessions && <span className="chat-session-muted">{context.t("loading")}</span>}
+            {!isLoadingSessions && recentSessions.length === 0 && <span className="chat-session-muted">{context.t("chatNoSessions")}</span>}
+            {recentSessions.map((session) => (
+              <div className={`chat-session-row ${session.session_id === sessionId ? "active" : ""}`} key={session.session_id}>
+                <button type="button" onClick={() => void restoreSession(session.session_id)} disabled={isSending} title={session.title}>
+                  {session.title}
+                </button>
+                <button
+                  className="chat-session-delete"
+                  type="button"
+                  onClick={() => void removeSession(session.session_id)}
+                  disabled={isSending}
+                  title={context.t("chatDeleteSession")}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        </aside>
         <article className="panel chat-thread-panel">
           <div className="chat-thread">
             {!hasConversation && (
@@ -136,29 +200,11 @@ export function ChatPage({ context }: Props) {
                     );
                   })}
                 </div>
-                {(isLoadingSessions || recentSessions.length > 0) && (
-                  <div className="chat-recent-sessions">
-                    <div className="chat-recent-heading">
-                      <strong>{context.language === "zh" ? "最近会话" : "Recent chats"}</strong>
-                      {isLoadingSessions && <span>{context.t("loading")}</span>}
-                    </div>
-                    <div className="chat-recent-list">
-                      {recentSessions.map((session) => (
-                        <button key={session.session_id} type="button" onClick={() => void restoreSession(session.session_id)} disabled={isSending}>
-                          <strong>{session.title}</strong>
-                          <span>{session.last_message || session.updated_at}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
             {turns.map((turn, index) => (
               <div className={`chat-message ${turn.role}`} key={`${turn.role}-${index}`}>
-                <div className="chat-avatar">{turn.role === "user" ? context.t("chatUser") : "K"}</div>
                 <div className="chat-bubble">
-                  <div className="chat-role">{turn.role === "user" ? context.t("chatUser") : context.t("chatAssistant")}</div>
                   {turn.role === "assistant" ? (
                     <ChatMarkdownAnswer content={turn.content} citations={turn.citations || []} context={context} />
                   ) : (
@@ -170,9 +216,7 @@ export function ChatPage({ context }: Props) {
             ))}
             {isSending && (
               <div className="chat-message assistant">
-                <div className="chat-avatar">K</div>
                 <div className="chat-bubble">
-                  <div className="chat-role">{context.t("chatAssistant")}</div>
                   <p className="muted-text">{context.t("chatThinking")}</p>
                 </div>
               </div>
@@ -265,6 +309,7 @@ function renderInlineCitations(content: string, citationCount: number) {
 }
 
 function CitationList({ citations, context, compact = false }: { citations: ChatCitation[]; context: AppContext; compact?: boolean }) {
+  const groups = groupCitations(citations, context);
   return (
     <details className={`chat-citations ${compact ? "compact" : ""}`}>
       <summary>
@@ -272,24 +317,48 @@ function CitationList({ citations, context, compact = false }: { citations: Chat
         <strong>{citations.length}</strong>
       </summary>
       <div className="chat-citation-list">
-        {citations.map((citation, index) => (
-          <button
-            key={`${citation.kind}-${citation.path || citation.run_id}-${index}`}
-            type="button"
-            onClick={() => openCitation(citation, context)}
-            className="chat-citation-card"
-          >
-            <span className="chat-citation-index">{index + 1}</span>
-            <span className="chat-citation-main">
-              <strong>{citation.title || citation.path || citation.run_id || citation.kind}</strong>
-              <small>{citation.vault_name || citation.vault_id || citation.kind}</small>
-            </span>
-            {citation.path && <code>{citation.path}</code>}
-          </button>
+        {groups.map((group) => (
+          <div className="chat-citation-group" key={group.label}>
+            <span className="chat-citation-group-label">{group.label}</span>
+            {group.items.map(({ citation, index }) => (
+              <button
+                key={`${citation.kind}-${citation.path || citation.run_id}-${index}`}
+                type="button"
+                onClick={() => openCitation(citation, context)}
+                className="chat-citation-card"
+              >
+                <span className="chat-citation-index">{index + 1}</span>
+                <span className="chat-citation-main">
+                  <strong>{citation.title || citation.path || citation.run_id || citation.kind}</strong>
+                  <small>{citation.vault_name || citation.vault_id || citation.kind}</small>
+                </span>
+                {citation.path && <code>{citation.path}</code>}
+              </button>
+            ))}
+          </div>
         ))}
       </div>
     </details>
   );
+}
+
+function groupCitations(citations: ChatCitation[], context: AppContext) {
+  const indexed = citations.map((citation, index) => ({ citation, index }));
+  const specs = [
+    { role: "primary", label: context.t("chatEvidencePrimary") },
+    { role: "supporting", label: context.t("chatEvidenceSupporting") },
+    { role: "source", label: context.t("chatEvidenceSource") },
+  ];
+  const groups = specs
+    .map((spec) => ({
+      label: spec.label,
+      items: indexed.filter(({ citation }) => citation.role === spec.role || (!citation.role && spec.role === "supporting")),
+    }))
+    .filter((group) => group.items.length);
+  const groupedIndexes = new Set(groups.flatMap((group) => group.items.map((item) => item.index)));
+  const other = indexed.filter((item) => !groupedIndexes.has(item.index));
+  if (other.length) groups.push({ label: context.t("chatEvidenceOther"), items: other });
+  return groups;
 }
 
 function openCitation(citation: ChatCitation, context: AppContext) {
@@ -308,11 +377,18 @@ function openCitation(citation: ChatCitation, context: AppContext) {
 
 function readableChatError(message: string, context: AppContext): string {
   const lower = message.toLowerCase();
-  if (lower.includes("model provider") || lower.includes("model") || lower.includes("external_service")) {
-    return context.t("chatErrorModelUnavailable");
-  }
   if (lower.includes("invalid decision") || lower.includes("invalid json") || lower.includes("model_output")) {
     return context.t("chatErrorInvalidOutput");
+  }
+  if (
+    lower.includes("model provider")
+    || lower.includes("external_service")
+    || lower.includes("provider endpoint")
+    || lower.includes("api key")
+    || lower.includes("connection")
+    || lower.includes("timeout")
+  ) {
+    return context.t("chatErrorModelUnavailable");
   }
   if (lower.includes("vault") || lower.includes("knowledge base")) {
     return context.t("chatErrorVaultUnavailable");

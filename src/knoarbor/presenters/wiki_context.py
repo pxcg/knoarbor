@@ -6,6 +6,9 @@ from pathlib import Path
 from knoarbor.core.errors import UserInputError
 from knoarbor.core.markdown import compact_inline_text
 from knoarbor.core.schemas.wiki_query import (
+    WikiAnswerScope,
+    WikiAnswerSet,
+    WikiEvidenceCoverage,
     WikiQueryGapSuggestion,
     WikiContextMatch,
     WikiContextRequest,
@@ -49,9 +52,16 @@ def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
         for item in pipeline_result.matches[: request.max_results]
         if item.score > 0
     ]
+    answer_scope = build_answer_scope(request, pipeline_result.stats, results)
+    answer_set = build_answer_set(request.query, results, answer_scope)
+    results = assign_result_roles(request.query, results, answer_set=answer_set)
+    primary_pages = [result for result in results if result.role == "primary"]
+    supporting_pages = [result for result in results if result.role == "supporting"]
+    source_pages = [result for result in results if result.role == "source"]
 
     gap_suggestions = build_gap_suggestions(request.query, results, pipeline_result.gaps)
-    answer_guidance = build_answer_guidance(results, gap_suggestions)
+    evidence_coverage = build_evidence_coverage(terms, answer_scope, primary_pages, supporting_pages, source_pages, pipeline_result.gaps)
+    answer_guidance = build_answer_guidance(results, gap_suggestions, primary_pages=primary_pages)
     context_pack = build_context_pack(
         request.query,
         results,
@@ -74,13 +84,19 @@ def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
         query=request.query,
         retrieval_mode=pipeline_result.retrieval_mode,
         results=results,
+        primary_pages=primary_pages,
+        supporting_pages=supporting_pages,
+        source_pages=source_pages,
+        answer_scope=answer_scope,
+        answer_set=answer_set,
+        evidence_coverage=evidence_coverage,
         context_pack=context_pack,
         answer_guidance=answer_guidance,
         gap_suggestions=gap_suggestions,
         gaps=pipeline_result.gaps,
         warnings=pipeline_result.warnings,
         stats=stats,
-        trace=build_query_trace(stats, results),
+        trace=build_query_trace(stats, results, answer_scope=answer_scope, answer_set=answer_set),
     )
 
 
@@ -241,16 +257,263 @@ def extract_sections(content: str) -> list[tuple[str, str]]:
     return sections
 
 
-def build_answer_guidance(results: list[WikiSearchResult], gaps: list[WikiQueryGapSuggestion]) -> list[str]:
+def build_answer_scope(request: WikiSearchRequest, stats: dict[str, object], results: list[WikiSearchResult]) -> WikiAnswerScope:
+    kind, reason = classify_answer_scope(request.query, results)
+    return WikiAnswerScope(
+        kind=kind,
+        vault_ids=_request_vault_ids(request, results),
+        initial_page_dirs=[str(item) for item in stats.get("initial_scope_dirs", request.page_dirs) or []],
+        expanded_page_dirs=[str(item) for item in stats.get("expanded_scope_dirs", request.page_dirs) or []],
+        include_related=request.include_related,
+        reason=reason,
+    )
+
+
+def _request_vault_ids(request: WikiSearchRequest, results: list[WikiSearchResult]) -> list[str]:
+    ids: list[str] = []
+    if request.all_vaults:
+        ids.append("all")
+    if request.vault_id:
+        ids.append(request.vault_id)
+    ids.extend(request.vault_ids)
+    ids.extend(result.vault_id or "" for result in results)
+    seen: set[str] = set()
+    output: list[str] = []
+    for item in ids:
+        text = item.strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        output.append(text)
+    return output
+
+
+def classify_answer_scope(query: str, results: list[WikiSearchResult]) -> tuple[str, str]:
+    if not results:
+        return "narrow", "No candidate pages were found."
+    text = normalize_text(query)
+    broad_terms = {
+        "architecture",
+        "compare",
+        "comparison",
+        "design",
+        "overview",
+        "pattern",
+        "patterns",
+        "strategy",
+        "summary",
+        "system",
+        "体系",
+        "全部",
+        "区别",
+        "如何",
+        "对比",
+        "怎么",
+        "总结",
+        "整体",
+        "方案",
+        "有哪些",
+        "机制",
+        "架构",
+        "模式",
+        "设计",
+        "风险",
+    }
+    exploratory_terms = {"guide", "learn", "roadmap", "了解", "介绍", "入门", "学习", "导览"}
+    non_source = [result for result in results if result.type != "source"]
+    directories = {result.path.split("/", 1)[0] for result in non_source if "/" in result.path}
+    top_scores = [result.score for result in non_source[:3]]
+    close_top_scores = len(top_scores) >= 2 and top_scores[1] >= top_scores[0] * 0.72
+    if any(term in text or term in query for term in exploratory_terms):
+        return "exploratory", "Query asks for a guided overview or learning path."
+    if any(term in text or term in query for term in broad_terms):
+        return "broad", "Query asks for a broad explanation or system-level synthesis."
+    if len(directories) >= 2 and len(non_source) >= 3 and close_top_scores:
+        return "broad", "Multiple strong pages across directories can jointly answer the query."
+    return "narrow", "Top result appears sufficient as the main answer unit."
+
+
+def build_answer_set(query: str, results: list[WikiSearchResult], scope: WikiAnswerScope) -> WikiAnswerSet:
+    if not results:
+        return WikiAnswerSet(reason="No candidate pages were found.", stop_reason="no_results")
+    source_paths = [result.path for result in results if result.type == "source"]
+    non_source = [result for result in results if result.type != "source"]
+    if not non_source and source_paths:
+        return WikiAnswerSet(
+            kind="single_page",
+            primary_paths=source_paths[:1],
+            source_paths=source_paths[1:4],
+            reason="Only source digest pages matched the query.",
+            stop_reason="source_only",
+        )
+    selected = select_answer_pages(query, non_source, scope.kind)
+    primary_paths = [selected[0].path] if selected else []
+    supporting_paths = [result.path for result in selected[1:]]
+    selected_paths = set(primary_paths + supporting_paths)
+    source_limit = 1 if scope.kind == "narrow" else 3
+    return WikiAnswerSet(
+        kind="multi_page" if len(selected) > 1 and scope.kind in {"broad", "exploratory"} else "single_page",
+        primary_paths=primary_paths,
+        supporting_paths=supporting_paths,
+        source_paths=source_paths[:source_limit],
+        further_reading_paths=[result.path for result in non_source if result.path not in selected_paths][:3],
+        reason=answer_set_reason(scope.kind, selected, source_paths),
+        stop_reason="coverage_saturated" if len(selected) > 1 else "top_answer_selected",
+    )
+
+
+def select_answer_pages(query: str, candidates: list[WikiSearchResult], scope_kind: str) -> list[WikiSearchResult]:
+    if not candidates:
+        return []
+    max_pages = {"narrow": 2, "broad": 5, "exploratory": 6}.get(scope_kind, 3)
+    selected: list[WikiSearchResult] = []
+    seen_facets: set[str] = set()
+    for candidate in candidates:
+        if len(selected) >= max_pages:
+            break
+        facets = result_facets(candidate)
+        if not selected:
+            selected.append(candidate)
+            seen_facets.update(facets)
+            continue
+        redundancy = facet_overlap(facets, seen_facets)
+        strong_relation = candidate.match_kind == "direct" or any(reason in candidate.reason for reason in ["shared_source", "outbound_link", "backlink"])
+        if scope_kind == "narrow" and len(selected) >= 1 and candidate.score < selected[0].score * 0.85 and redundancy > 0.6:
+            continue
+        if scope_kind in {"broad", "exploratory"} and redundancy >= 0.85:
+            continue
+        if not strong_relation and redundancy > 0.65:
+            continue
+        selected.append(candidate)
+        seen_facets.update(facets)
+    return selected
+
+
+def result_facets(result: WikiSearchResult) -> set[str]:
+    facets = {result.type, result.path.split("/", 1)[0]}
+    facets.update(result.tags[:8])
+    facets.update(result.matched_fields)
+    facets.update(result.matched_terms.get("graph_reasons", []))
+    facets.update(normalize_text(excerpt.heading)[:40] for excerpt in result.excerpts[:3] if excerpt.heading)
+    return {facet for facet in facets if facet}
+
+
+def facet_overlap(facets: set[str], seen_facets: set[str]) -> float:
+    if not facets:
+        return 0.0
+    return len(facets & seen_facets) / len(facets)
+
+
+def answer_set_reason(scope_kind: str, selected: list[WikiSearchResult], source_paths: list[str]) -> str:
+    if not selected:
+        return "No maintained answer page was selected."
+    if scope_kind == "narrow":
+        return "The query is narrow enough to anchor on the strongest maintained wiki page."
+    source_note = " Source digest pages are kept for provenance." if source_paths else ""
+    return f"The query is {scope_kind}; selected pages cover complementary wiki facets rather than one interchangeable chunk list.{source_note}"
+
+
+def build_evidence_coverage(
+    terms: list[str],
+    scope: WikiAnswerScope,
+    primary_pages: list[WikiSearchResult],
+    supporting_pages: list[WikiSearchResult],
+    source_pages: list[WikiSearchResult],
+    gaps: list[str],
+) -> WikiEvidenceCoverage:
+    selected_pages = [*primary_pages, *supporting_pages]
+    covered_terms = sorted(
+        {
+            term
+            for page in selected_pages
+            for values in page.matched_terms.values()
+            for term in values
+            if term in terms
+        }
+    )
+    missing_terms = [term for term in terms if term not in set(covered_terms)]
+    if gaps or not primary_pages:
+        status = "weak"
+    elif scope.kind in {"broad", "exploratory"} and len(supporting_pages) >= 2:
+        status = "strong" if len(covered_terms) >= max(1, len(terms) // 2) else "adequate"
+    else:
+        status = "adequate"
+    return WikiEvidenceCoverage(
+        status=status,
+        primary_count=len(primary_pages),
+        supporting_count=len(supporting_pages),
+        source_count=len(source_pages),
+        gap_count=len(gaps),
+        covered_terms=covered_terms[:12],
+        covered_facets=sorted({facet for page in selected_pages for facet in result_facets(page)})[:12],
+        missing_facets=missing_terms[:8],
+    )
+
+
+def assign_result_roles(query: str, results: list[WikiSearchResult], *, answer_set: WikiAnswerSet | None = None) -> list[WikiSearchResult]:
+    if not results:
+        return []
+
+    primary_paths = set(answer_set.primary_paths if answer_set else [])
+    supporting_paths = set(answer_set.supporting_paths if answer_set else [])
+    source_paths = set(answer_set.source_paths if answer_set else [])
+    primary_path = next(iter(primary_paths), "") or _primary_result_path(query, results)
+    output: list[WikiSearchResult] = []
+    for result in results:
+        if result.path == primary_path or result.path in primary_paths:
+            output.append(result.model_copy(update={"role": "primary"}))
+        elif result.path in supporting_paths:
+            output.append(result.model_copy(update={"role": "supporting"}))
+        elif result.path in source_paths or result.type == "source":
+            output.append(result.model_copy(update={"role": "source"}))
+        else:
+            output.append(result.model_copy(update={"role": "supporting"}))
+    return output
+
+
+def _primary_result_path(query: str, results: list[WikiSearchResult]) -> str:
+    if _query_prefers_source_page(query):
+        return results[0].path
+    for result in results:
+        if result.type != "source":
+            return result.path
+    return results[0].path
+
+
+def _query_prefers_source_page(query: str) -> bool:
+    text = query.lower()
+    source_terms = {
+        "source",
+        "provenance",
+        "raw",
+        "digest",
+        "来源",
+        "原始",
+        "溯源",
+        "出处",
+        "source digest",
+    }
+    return any(term in text for term in source_terms)
+
+
+def build_answer_guidance(
+    results: list[WikiSearchResult],
+    gaps: list[WikiQueryGapSuggestion],
+    *,
+    primary_pages: list[WikiSearchResult] | None = None,
+) -> list[str]:
     if not results:
         return [
             "No maintained wiki page matched strongly enough; tell the user the local KnoArbor vault has no reliable answer yet.",
             "Use other tools or ask a follow-up question before making factual claims.",
         ]
+    primary_pages = primary_pages or [results[0]]
     guidance = [
+        "Use primary_pages as the maintained wiki answer unit when they answer the question directly.",
+        "Use supporting_pages and source_pages for context, provenance, and follow-up suggestions.",
         "Use the returned wiki pages as local evidence, not as the only possible source of truth.",
         "Cite page paths when making claims, especially for specific facts or recommendations.",
-        "Prefer high-relevance results and quoted excerpts; use low-relevance pages only as supporting context.",
+        f"Primary page candidate: {primary_pages[0].path}.",
     ]
     if gaps:
         guidance.append("Mention the local knowledge gap if the answer depends on missing or weak wiki coverage.")
@@ -329,10 +592,21 @@ def build_context_pack(
     return "\n".join(lines).strip()
 
 
-def build_query_trace(stats: dict[str, object], results: list[WikiSearchResult]) -> dict[str, object]:
+def build_query_trace(
+    stats: dict[str, object],
+    results: list[WikiSearchResult],
+    *,
+    answer_scope: WikiAnswerScope,
+    answer_set: WikiAnswerSet,
+) -> dict[str, object]:
     origin_counts = {
         "direct": sum(1 for result in results if result.match_kind == "direct"),
         "related": sum(1 for result in results if result.match_kind == "related"),
+    }
+    role_counts = {
+        "primary": sum(1 for result in results if result.role == "primary"),
+        "supporting": sum(1 for result in results if result.role == "supporting"),
+        "source": sum(1 for result in results if result.role == "source"),
     }
     return {
         "schema_version": "query_trace.v1",
@@ -354,6 +628,9 @@ def build_query_trace(stats: dict[str, object], results: list[WikiSearchResult])
         "gap_count": stats.get("gap_count", 0),
         "gap_suggestion_count": stats.get("gap_suggestion_count", 0),
         "origin_counts": origin_counts,
+        "role_counts": role_counts,
+        "answer_scope": answer_scope.model_dump(),
+        "answer_set": answer_set.model_dump(),
         "returned_paths": [result.path for result in results],
         "top_matches": [
             {

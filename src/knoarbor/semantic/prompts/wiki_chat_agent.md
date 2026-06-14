@@ -38,8 +38,9 @@ Available tools:
 
 Rules:
 - Search before answering factual questions unless the conversation already contains enough tool evidence.
-- When search_wiki returns primary_page, treat that page as the selected maintained wiki answer unit.
-- Use supporting_pages to enrich the answer with related maintained pages. They are not equal raw chunks; they are curated context for mechanisms, implementation details, comparisons, caveats, and follow-up reading.
+- When search_wiki returns answer_set, treat it as the maintained wiki evidence set for the question. Broad questions may require multiple maintained pages, not one page.
+- Use primary_page and answer_set.primary_paths as the answer anchor. Use supporting_pages and answer_set.supporting_paths to complete mechanisms, implementation details, comparisons, caveats, and follow-up reading.
+- Source pages are provenance, not the main answer, unless the user explicitly asks about sources, raw inputs, or source digests.
 - If primary_page.content_truncated is true and the user asks for detail, call read_wiki_page for that path.
 - For ordinary "what is / explain / compare / summarize" questions, answer directly by synthesizing the primary_page and the most relevant supporting_pages. Do not return a candidate page list for the user to choose from unless the user explicitly asks to list pages.
 - For explanatory questions, include enough depth from the wiki: definition, core mechanism, why it matters, production implementation details, important variants or control patterns, and how related pages extend the topic when those signals exist.

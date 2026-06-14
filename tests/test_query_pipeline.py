@@ -159,9 +159,15 @@ class QueryPipelineTests(unittest.TestCase):
             )
 
         match_kinds = {result.path: result.match_kind for result in response.results}
+        roles = {result.path: result.role for result in response.results}
         self.assertEqual(response.schema_version, "wiki_query.v1")
         self.assertEqual(match_kinds["concepts/Agent-Loop.md"], "direct")
         self.assertEqual(match_kinds["entities/OpenClaw.md"], "related")
+        self.assertEqual(roles["concepts/Agent-Loop.md"], "primary")
+        self.assertEqual(roles["entities/OpenClaw.md"], "supporting")
+        self.assertEqual([page.path for page in response.primary_pages], ["concepts/Agent-Loop.md"])
+        self.assertEqual([page.path for page in response.supporting_pages], ["entities/OpenClaw.md"])
+        self.assertEqual(response.source_pages, [])
         related = next(result for result in response.results if result.path == "entities/OpenClaw.md")
         self.assertIn("related_graph", related.matched_fields)
         self.assertEqual(response.stats["page_count"], 1)
@@ -174,8 +180,48 @@ class QueryPipelineTests(unittest.TestCase):
         self.assertEqual(response.trace["related_result_paths"], ["entities/OpenClaw.md"])
         self.assertEqual(response.trace["returned_count"], 2)
         self.assertEqual(response.trace["origin_counts"], {"direct": 1, "related": 1})
+        self.assertEqual(response.trace["role_counts"], {"primary": 1, "supporting": 1, "source": 0})
         self.assertEqual(response.trace["gap_count"], 0)
+        self.assertEqual(response.answer_scope.kind, "narrow")
+        self.assertEqual(response.answer_set.kind, "single_page")
+        self.assertEqual(response.answer_set.primary_paths, ["concepts/Agent-Loop.md"])
+        self.assertEqual(response.answer_set.supporting_paths, ["entities/OpenClaw.md"])
+        self.assertEqual(response.evidence_coverage.primary_count, 1)
         self.assertIn("Match origin: related", response.context_pack)
+
+    def test_broad_query_builds_multi_page_answer_set(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            (vault / "concepts").mkdir()
+            (vault / "entities").mkdir()
+            (vault / "concepts" / "Agent-Loop.md").write_text(
+                "# Agent Loop\n\n## Summary\n\nAgent loop explains reasoning and tool execution patterns.\n",
+                encoding="utf-8",
+            )
+            (vault / "concepts" / "Session-Memory.md").write_text(
+                "# Session Memory\n\n## Summary\n\nSession memory supports long-running agent loops and context compaction.\n",
+                encoding="utf-8",
+            )
+            (vault / "entities" / "OpenClaw.md").write_text(
+                "# OpenClaw\n\n## Summary\n\nOpenClaw implements production agent loop infrastructure.\n",
+                encoding="utf-8",
+            )
+
+            response = search_query(
+                WikiSearchRequest(
+                    vault_path=str(vault),
+                    query="Agent Loop 架构和模式有哪些",
+                    mode="balanced",
+                    max_results=5,
+                    record_query=False,
+                )
+            )
+
+        self.assertEqual(response.answer_scope.kind, "broad")
+        self.assertEqual(response.answer_set.kind, "multi_page")
+        self.assertEqual(response.primary_pages[0].path, response.answer_set.primary_paths[0])
+        self.assertGreaterEqual(len(response.answer_set.supporting_paths), 1)
+        self.assertGreaterEqual(response.evidence_coverage.supporting_count, 1)
 
     def test_full_query_context_returns_complete_page_body_without_pack_truncation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

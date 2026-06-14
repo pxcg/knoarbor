@@ -28,6 +28,8 @@ Status values:
 ## Query Integration
 
 - [done] Record scoring model in query trace.
+- [done] Expose page roles in query output: primary, supporting, and source.
+- [done] Expose `answer_scope`, `answer_set`, and `evidence_coverage` so page-first callers can handle broad questions without treating pages as raw chunks.
 - [later] Use durable machine index when fresh and available.
 - [later] Keep Markdown provider as explicit fallback until durable provider is stable.
 - [later] Record durable index provider and freshness in query trace.

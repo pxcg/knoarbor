@@ -466,7 +466,29 @@ POST /lint
 POST /query
 ```
 
-返回相关 Wiki 页面、摘录、关联上下文、追踪信息和可交给宿主 AI 使用的上下文包。KnoArbor 不生成最终聊天答案。
+检索相关 Wiki 页面、摘录、关联上下文、trace 数据和可直接交给宿主 AI
+使用的 context pack。KnoArbor 在 `/query` 中不生成最终聊天回答，宿主 AI
+决定如何使用返回的证据。
+
+Query 采用页面优先的检索语义，而不是 chunk 优先语义。返回页面仍然按相关性
+放在 `results` 中，每个结果会带有 `role`：
+
+- `primary`：最直接回答问题的已维护 Wiki 页面。
+- `supporting`：补充实现细节、限制、对比或延伸阅读的相关页面。
+- `source`：用于溯源的来源摘要页面。
+
+响应会同时把这些结果分组为 `primary_pages`、`supporting_pages` 和
+`source_pages`。调用方可以自由引用任意返回页面；普通回答通常应优先基于
+primary 页面的结构化内容，再按需要使用 supporting/source 页面。
+
+响应还会包含：
+
+- `answer_scope`：标记查询是窄问题、广泛问题还是探索问题，并记录本次检索
+  使用的知识库和目录范围。
+- `answer_set`：按路径组织的推荐答案集合。窄问题通常以一个主页面为核心；
+  广泛问题可以包含多个补充页面，因为 Wiki 页面本身就是已维护的知识单元。
+- `evidence_coverage`：用 strong、adequate 或 weak 表示本地页面对问题的
+  覆盖程度。
 
 ```json
 {

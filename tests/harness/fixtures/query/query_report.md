@@ -6,7 +6,7 @@
 - mode: balanced
 - retrieval_mode: machine_hybrid_balanced
 - returned_count: 3
-- context_pack_chars: 1969
+- context_pack_chars: 2101
 - context_pack_truncated: False
 
 ## Results
@@ -64,9 +64,11 @@ Excerpts:
 
 ## Answer Guidance
 
+- Use primary_pages as the maintained wiki answer unit when they answer the question directly.
+- Use supporting_pages and source_pages for context, provenance, and follow-up suggestions.
 - Use the returned wiki pages as local evidence, not as the only possible source of truth.
 - Cite page paths when making claims, especially for specific facts or recommendations.
-- Prefer high-relevance results and quoted excerpts; use low-relevance pages only as supporting context.
+- Primary page candidate: concepts/Agent-Loop.md.
 
 ## Gap Signals
 
@@ -74,8 +76,10 @@ Excerpts:
 
 ## Trace
 
+- answer_scope: {'kind': 'narrow', 'vault_ids': [], 'initial_page_dirs': ['concepts', 'entities', 'sources'], 'expanded_page_dirs': ['concepts', 'entities', 'sources'], 'include_related': True, 'reason': 'Top result appears sufficient as the main answer unit.'}
+- answer_set: {'kind': 'single_page', 'primary_paths': ['concepts/Agent-Loop.md'], 'supporting_paths': [], 'source_paths': ['sources/Agent-Loop-Source.md'], 'further_reading_paths': ['entities/OpenClaw.md'], 'reason': 'The query is narrow enough to anchor on the strongest maintained wiki page.', 'stop_reason': 'top_answer_selected'}
 - candidate_count: 3
-- context_pack_chars: 1969
+- context_pack_chars: 2101
 - context_pack_truncated: False
 - direct_match_count: 3
 - direct_page_count: 3
@@ -92,6 +96,7 @@ Excerpts:
 - related_seed_pages: ['concepts/Agent-Loop.md', 'entities/OpenClaw.md', 'sources/Agent-Loop-Source.md']
 - returned_count: 3
 - returned_paths: ['concepts/Agent-Loop.md', 'sources/Agent-Loop-Source.md', 'entities/OpenClaw.md']
+- role_counts: {'primary': 1, 'supporting': 1, 'source': 1}
 - schema_version: query_trace.v1
 - scoring_model: field_weighted_bm25
 - top_matches: [{'path': 'concepts/Agent-Loop.md', 'score': 20.853, 'relevance': 'high', 'matched_fields': ['body', 'headings', 'key_points', 'path', 'related_graph', 'summary', 'tags', 'title'], 'reason': 'Matched body, headings, key_points, path, related_graph, summary, tags, title; graph relevance boost 3.954 via backlink, shared_source.'}, {'path': 'sources/Agent-Loop-Source.md', 'score': 13.453, 'relevance': 'high', 'matched_fields': ['body', 'headings', 'path', 'related_graph', 'summary', 'title'], 'reason': 'Matched body, headings, path, related_graph, summary, title; graph relevance boost 3.6 via outbound_link, shared_source.'}, {'path': 'entities/OpenClaw.md', 'score': 6.813, 'relevance': 'medium', 'matched_fields': ['body', 'related_graph', 'summary', 'tags'], 'reason': 'Matched body, related_graph, summary, tags; graph relevance boost 2.4 via outbound_link.'}]
@@ -103,9 +108,11 @@ Relevant KnoArbor context for the host AI.
 Query: agent loop workflow
 
 Answer guidance:
+- Use primary_pages as the maintained wiki answer unit when they answer the question directly.
+- Use supporting_pages and source_pages for context, provenance, and follow-up suggestions.
 - Use the returned wiki pages as local evidence, not as the only possible source of truth.
 - Cite page paths when making claims, especially for specific facts or recommendations.
-- Prefer high-relevance results and quoted excerpts; use low-relevance pages only as supporting context.
+- Primary page candidate: concepts/Agent-Loop.md.
 
 1. Agent Loop (concepts/Agent-Loop.md, relevance: high, score: 20.853)
 Match origin: direct

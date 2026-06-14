@@ -232,15 +232,37 @@ class _ChatLoop:
             caller="chat",
         )
         response = self.services.wiki_search.search(request)
-        primary = _select_primary_chat_result(response.results, query)
-        supporting = _supporting_chat_results(response.results, primary, limit=5)
+        primary = response.primary_pages[0] if response.primary_pages else _fallback_primary_result(response.results, query)
+        supporting = (
+            response.supporting_pages
+            or [
+                item
+                for item in response.results
+                if primary
+                and item.path != primary.path
+                and item.type != "source"
+            ]
+        )[:5]
+        source_pages = (response.source_pages or [item for item in response.results if item.role == "source" or item.type == "source"])[:5]
         citations = [
-            ChatCitation(kind="page", path=result.path, title=result.title, vault_id=result.vault_id, vault_name=result.vault_name, vault_path=result.vault_path, reason=result.reason)
+            ChatCitation(
+                kind="page",
+                role=result.role,
+                path=result.path,
+                title=result.title,
+                vault_id=result.vault_id,
+                vault_name=result.vault_name,
+                vault_path=result.vault_path,
+                reason=result.reason,
+            )
             for result in _primary_first_results(response.results, primary)
         ]
         result = {
             "query": response.query,
             "result_count": len(response.results),
+            "answer_scope": response.answer_scope.model_dump(),
+            "answer_set": response.answer_set.model_dump(),
+            "evidence_coverage": response.evidence_coverage.model_dump(),
             "retrieval": {
                 "mode": response.retrieval_mode,
                 "scoring_model": response.trace.get("scoring_model") or response.stats.get("scoring_model"),
@@ -261,11 +283,13 @@ class _ChatLoop:
             if primary
             else None,
             "supporting_pages": [_chat_supporting_page_payload(item) for item in supporting],
+            "source_pages": [_chat_supporting_page_payload(item) for item in source_pages],
             "results": [
                 {
                     "path": item.path,
                     "title": item.title,
                     "type": item.type,
+                    "role": item.role,
                     "score": item.score,
                     "summary": item.summary,
                     "key_points": item.key_points[:5],
@@ -521,27 +545,27 @@ def _tool_observation_text(observation: ChatToolTraceItem) -> str:
     )
 
 
-def _select_primary_chat_result(results: list[WikiSearchResult], query: str) -> WikiSearchResult | None:
-    if not results:
-        return None
-    if _query_prefers_source_page(query):
-        return results[0]
-    for result in results:
-        if result.type != "source":
-            return result
-    return results[0]
-
-
 def _primary_first_results(results: list[WikiSearchResult], primary: WikiSearchResult | None) -> list[WikiSearchResult]:
     if primary is None:
         return results
     return [primary, *[result for result in results if not (result.path == primary.path and result.vault_id == primary.vault_id)]]
 
 
-def _supporting_chat_results(results: list[WikiSearchResult], primary: WikiSearchResult | None, *, limit: int) -> list[WikiSearchResult]:
-    candidates = [result for result in results if not (primary and result.path == primary.path and result.vault_id == primary.vault_id)]
-    candidates.sort(key=lambda result: (result.type == "source", -result.score, result.path))
-    return candidates[:limit]
+def _fallback_primary_result(results: list[WikiSearchResult], query: str) -> WikiSearchResult | None:
+    if _query_prefers_source_page(query):
+        return results[0] if results else None
+    for result in results:
+        if result.role == "primary":
+            return result
+    for result in results:
+        if result.type != "source":
+            return result
+    return results[0] if results else None
+
+
+def _query_prefers_source_page(query: str) -> bool:
+    text = query.lower()
+    return any(term in text for term in {"source", "provenance", "raw", "digest", "来源", "原始", "溯源", "出处", "source digest"})
 
 
 def _chat_supporting_page_payload(item: WikiSearchResult) -> dict[str, object]:
@@ -550,6 +574,7 @@ def _chat_supporting_page_payload(item: WikiSearchResult) -> dict[str, object]:
         "path": item.path,
         "title": item.title,
         "type": item.type,
+        "role": item.role,
         "score": item.score,
         "relevance": item.relevance,
         "summary": item.summary,
@@ -560,21 +585,6 @@ def _chat_supporting_page_payload(item: WikiSearchResult) -> dict[str, object]:
         "vault_name": item.vault_name,
     }
 
-
-def _query_prefers_source_page(query: str) -> bool:
-    text = query.lower()
-    source_terms = {
-        "source",
-        "provenance",
-        "raw",
-        "digest",
-        "来源",
-        "原始",
-        "溯源",
-        "出处",
-        "source digest",
-    }
-    return any(term in text for term in source_terms)
 
 
 def _messages_chars(messages: list[ChatMessage]) -> int:

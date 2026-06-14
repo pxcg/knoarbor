@@ -493,7 +493,32 @@ Example:
 POST /query
 ```
 
-Retrieves relevant wiki pages, excerpts, related context, trace data, and a prompt-ready context pack. KnoArbor does not generate the final chat answer; the host AI decides how to use returned evidence.
+Retrieves relevant wiki pages, excerpts, related context, trace data, and a
+prompt-ready context pack. KnoArbor does not generate the final chat answer;
+the host AI decides how to use returned evidence.
+
+Query is page-first rather than chunk-first. Returned pages are still listed in
+ranked `results`, and each result has a `role`:
+
+- `primary`: the maintained wiki page that most directly answers the query.
+- `supporting`: related maintained pages that add implementation details,
+  caveats, comparisons, or follow-up context.
+- `source`: source digest pages that provide provenance.
+
+The response also groups those same result objects as `primary_pages`,
+`supporting_pages`, and `source_pages`. Callers may cite any returned page, but
+ordinary answers should usually start from the primary page's structured wiki
+content and use supporting/source pages as needed.
+
+The response also includes:
+
+- `answer_scope`: whether the query is narrow, broad, or exploratory, plus the
+  vault and directory scope used for retrieval.
+- `answer_set`: path-level grouping for the recommended answer set. Narrow
+  questions often use one primary page; broad questions can include several
+  supporting pages because each wiki page is a curated knowledge unit.
+- `evidence_coverage`: a compact signal for whether the returned pages provide
+  strong, adequate, or weak local coverage.
 
 ```json
 {

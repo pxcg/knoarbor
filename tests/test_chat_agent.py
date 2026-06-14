@@ -8,7 +8,7 @@ from pathlib import Path
 
 from knoarbor.core.schemas.chat import ChatMessageItem, ChatRequest
 from knoarbor.core.errors import ModelOutputError
-from knoarbor.core.schemas.wiki_query import WikiSearchResponse, WikiSearchResult
+from knoarbor.core.schemas.wiki_query import WikiAnswerScope, WikiAnswerSet, WikiEvidenceCoverage, WikiSearchResponse, WikiSearchResult
 from knoarbor.semantic.llm import ChatCompletionRequest, ChatCompletionResponse
 from knoarbor.services.chat_agent import ChatAgentService
 from knoarbor.services.chat_sessions import ChatSessionStore
@@ -54,6 +54,7 @@ class FakeWikiSearch:
                     path="sources/Agent-Loop-Source.md",
                     title="Agent Loop Source",
                     type="source",
+                    role="source",
                     status="draft",
                     score=12.0,
                     relevance="high",
@@ -68,6 +69,7 @@ class FakeWikiSearch:
                     path="concepts/Agent-Loop.md",
                     title="Agent Loop",
                     type="concept",
+                    role="primary",
                     status="draft",
                     score=9.0,
                     relevance="high",
@@ -83,6 +85,7 @@ class FakeWikiSearch:
                     path="concepts/Session-Memory-Architecture-for-Agent-Loops.md",
                     title="Session Memory Architecture for Agent Loops",
                     type="concept",
+                    role="supporting",
                     status="draft",
                     score=7.0,
                     relevance="medium",
@@ -95,6 +98,17 @@ class FakeWikiSearch:
                     vault_name="Agent Engineering",
                 )
             ],
+            primary_pages=[],
+            supporting_pages=[],
+            source_pages=[],
+            answer_scope=WikiAnswerScope(kind="broad", vault_ids=["agent-engineering"], reason="test"),
+            answer_set=WikiAnswerSet(
+                kind="multi_page",
+                primary_paths=["concepts/Agent-Loop.md"],
+                supporting_paths=["concepts/Session-Memory-Architecture-for-Agent-Loops.md"],
+                source_paths=["sources/Agent-Loop-Source.md"],
+            ),
+            evidence_coverage=WikiEvidenceCoverage(status="strong", primary_count=1, supporting_count=1, source_count=1),
             context_pack="Agent Loop context",
             answer_guidance=[],
             warnings=[],
@@ -140,6 +154,9 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(services.wiki_search.requests[0].max_chars_per_page, 20000)
         self.assertTrue(response.tool_trace[0].result["primary_page"])
         self.assertEqual(response.tool_trace[0].result["primary_page"]["path"], "concepts/Agent-Loop.md")
+        self.assertEqual(response.tool_trace[0].result["answer_scope"]["kind"], "broad")
+        self.assertEqual(response.tool_trace[0].result["answer_set"]["kind"], "multi_page")
+        self.assertEqual(response.citations[0].role, "primary")
         self.assertIn("full maintained page content", response.tool_trace[0].result["primary_page"]["content"])
         self.assertEqual(response.tool_trace[0].result["supporting_pages"][0]["path"], "concepts/Session-Memory-Architecture-for-Agent-Loops.md")
         self.assertIn("production agent loops", response.tool_trace[0].result["supporting_pages"][0]["content_excerpt"])

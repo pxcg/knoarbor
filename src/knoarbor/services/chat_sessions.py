@@ -36,6 +36,13 @@ class ChatSessionStore:
             raise UserInputError(f"Chat session is unreadable: {session_id}")
         return record
 
+    def delete_session(self, vault_path: str | Path, session_id: str) -> bool:
+        path = _session_path(vault_path, session_id)
+        if not path.exists():
+            raise UserInputError(f"Chat session does not exist: {session_id}")
+        path.unlink()
+        return True
+
     def load_existing(self, vault_path: str | Path, session_id: str | None) -> ChatSessionRecord | None:
         if not session_id:
             return None

@@ -26,7 +26,7 @@
 | 资料分段 | 已实现 | 长资料在标准化和 checkpoint window 之后分段，并在 source/window 边界聚合后提交。 | [架构设计](ARCHITECTURE.md), [1.3 Source Ecosystem](../../specs/1.3-source-ecosystem/requirements.md) |
 | 知识编译 | 已实现 | Ingest 负责资料标准化、分段语义处理、写入策略、局部 lint、checkpoint commit 和报告输出。 | [架构设计](ARCHITECTURE.md), [核心概念](CONCEPTS.md) |
 | 校验治理 | 已实现 | Lint 负责确定性扫描、语义候选、评审后操作执行、验证和维护报告。 | [1.5 Knowledge Governance](../../specs/1.5-knowledge-governance/requirements.md), [架构设计](ARCHITECTURE.md) |
-| Wiki 上下文检索 | 已实现 | Query 返回字段加权 BM25 排序页面、摘录、来源线索、trace 数据、图谱相关性信号和供宿主 AI 使用的 context pack。 | [1.7 CLI/API/Skill Closure](../../specs/1.7-cli-api-skill-closure/requirements.md), [接口说明](API.md) |
+| Wiki 上下文检索 | 已实现 | Query 返回字段加权 BM25 排序页面、页面角色（`primary`、`supporting`、`source`）、答案范围、答案集合、覆盖信号、摘录、来源线索、trace 数据、图谱相关性信号和供宿主 AI 使用的 context pack。 | [1.7 CLI/API/Skill Closure](../../specs/1.7-cli-api-skill-closure/requirements.md), [接口说明](API.md) |
 | 运行队列与监控 | 已实现 | Runtime 负责排队执行、运行状态、心跳、取消、恢复元数据和 active/recent run 视图。 | [架构设计](ARCHITECTURE.md), [接口说明](API.md) |
 | 报告与审计层 | 已实现 | Audit 负责 ingest、lint、query、token 和失败报告，以及机器可读 ledger。 | [架构设计](ARCHITECTURE.md), [测试与质量门禁](TESTING.md) |
 | 模型网关 | 已实现 | 模型调用经过 provider adapter、OpenAI-compatible transport、结构化输出处理、usage metrics 和 endpoint 检查。 | [架构设计](ARCHITECTURE.md), [配置说明](CONFIGURATION.md) |

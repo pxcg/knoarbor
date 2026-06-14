@@ -18,6 +18,8 @@ without requiring a vector database or heavyweight service.
 - Give ingest, lint, query, and UI a shared index provider contract.
 - Track index freshness, rebuild status, and failure states.
 - Keep the default installation local and lightweight.
+- Return page-level roles so query callers can distinguish primary answer
+  pages, supporting context pages, and source provenance pages.
 
 ## Non-Goals
 
@@ -39,6 +41,8 @@ Acceptance criteria:
 - Query can use a machine index provider.
 - Query results still include source path, title, page type, excerpts, and
   trace data.
+- Query results expose `role`, and responses group pages into `primary_pages`,
+  `supporting_pages`, and `source_pages`.
 - Missing or stale indexes produce actionable diagnostics.
 
 ### Rebuild Index
@@ -72,6 +76,8 @@ Implemented:
 - Query context packs and trace metadata.
 - `IndexProvider` direction documented in architecture and roadmap.
 - Query trace records the active scoring model.
+- Query response roles for primary answer pages, supporting context pages, and
+  source provenance pages.
 
 Still in scope for 1.4:
 

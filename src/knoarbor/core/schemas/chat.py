@@ -62,6 +62,7 @@ class ChatRequest(BaseModel):
 
 class ChatCitation(BaseModel):
     kind: ChatCitationKind
+    role: Literal["primary", "supporting", "source", "further_reading"] | None = None
     path: str | None = None
     title: str | None = None
     vault_id: str | None = None
@@ -164,6 +165,11 @@ class ChatSessionRecord(BaseModel):
 
 class ChatSessionListResponse(BaseModel):
     sessions: list[ChatSessionSummary] = Field(default_factory=list)
+
+
+class ChatSessionDeleteResponse(BaseModel):
+    deleted: bool
+    session_id: str
 
 
 class ChatAgentDecision(BaseModel):

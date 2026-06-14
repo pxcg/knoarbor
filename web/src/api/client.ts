@@ -290,6 +290,7 @@ export type QueryResult = {
   vault_id?: string | null;
   vault_name?: string | null;
   vault_path?: string | null;
+  role?: "primary" | "supporting" | "source";
   title: string;
   type: string;
   status: string;
@@ -330,6 +331,7 @@ export type ChatMessageItem = {
 
 export type ChatCitation = {
   kind: "page" | "report" | "run" | "source";
+  role?: "primary" | "supporting" | "source" | "further_reading" | null;
   path?: string | null;
   title?: string | null;
   vault_id?: string | null;
@@ -415,6 +417,11 @@ export type ChatSessionRecord = {
 
 export type ChatSessionListResponse = {
   sessions: ChatSessionSummary[];
+};
+
+export type ChatSessionDeleteResponse = {
+  deleted: boolean;
+  session_id: string;
 };
 
 export type PageSummary = {
@@ -751,6 +758,9 @@ export async function searchWiki(
   options: QuerySearchOptions = {},
 ): Promise<{
   results: QueryResult[];
+  primary_pages?: QueryResult[];
+  supporting_pages?: QueryResult[];
+  source_pages?: QueryResult[];
   context_pack: string;
   answer_guidance: string[];
   gap_suggestions: QueryGapSuggestion[];
@@ -820,6 +830,14 @@ export async function readChatSession(selector: VaultSelector, sessionId: string
   if (selector.vault_id) params.set("vault_id", selector.vault_id);
   if (!selector.vault_id && selector.vault_path) params.set("vault_path", selector.vault_path);
   return requestJson(`/chat/sessions/${encodeURIComponent(sessionId)}?${params.toString()}`);
+}
+
+export async function deleteChatSession(selector: VaultSelector, sessionId: string): Promise<ChatSessionDeleteResponse> {
+  const params = new URLSearchParams();
+  if (selector.config_path) params.set("config_path", selector.config_path);
+  if (selector.vault_id) params.set("vault_id", selector.vault_id);
+  if (!selector.vault_id && selector.vault_path) params.set("vault_path", selector.vault_path);
+  return requestJson(`/chat/sessions/${encodeURIComponent(sessionId)}?${params.toString()}`, { method: "DELETE" });
 }
 
 export async function sendQueryFeedback(

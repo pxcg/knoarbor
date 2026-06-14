@@ -127,6 +127,7 @@ class WikiSearchResult(BaseModel):
     score: float
     relevance: Literal["high", "medium", "low"]
     match_kind: Literal["direct", "related"]
+    role: Literal["primary", "supporting", "source"] = "supporting"
     matched_fields: list[str] = Field(default_factory=list)
     matched_terms: dict[str, list[str]] = Field(default_factory=dict)
     reason: str = ""
@@ -140,11 +141,47 @@ class WikiSearchResult(BaseModel):
     content_truncated: bool = False
 
 
+class WikiAnswerScope(BaseModel):
+    kind: Literal["narrow", "broad", "exploratory"] = "narrow"
+    vault_ids: list[str] = Field(default_factory=list)
+    initial_page_dirs: list[str] = Field(default_factory=list)
+    expanded_page_dirs: list[str] = Field(default_factory=list)
+    include_related: bool = True
+    reason: str = ""
+
+
+class WikiAnswerSet(BaseModel):
+    kind: Literal["single_page", "multi_page"] = "single_page"
+    primary_paths: list[str] = Field(default_factory=list)
+    supporting_paths: list[str] = Field(default_factory=list)
+    source_paths: list[str] = Field(default_factory=list)
+    further_reading_paths: list[str] = Field(default_factory=list)
+    reason: str = ""
+    stop_reason: str = ""
+
+
+class WikiEvidenceCoverage(BaseModel):
+    status: Literal["strong", "adequate", "weak"] = "weak"
+    primary_count: int = 0
+    supporting_count: int = 0
+    source_count: int = 0
+    gap_count: int = 0
+    covered_terms: list[str] = Field(default_factory=list)
+    covered_facets: list[str] = Field(default_factory=list)
+    missing_facets: list[str] = Field(default_factory=list)
+
+
 class WikiSearchResponse(BaseModel):
     schema_version: Literal["wiki_query.v1"] = "wiki_query.v1"
     query: str
     retrieval_mode: str
     results: list[WikiSearchResult]
+    primary_pages: list[WikiSearchResult] = Field(default_factory=list)
+    supporting_pages: list[WikiSearchResult] = Field(default_factory=list)
+    source_pages: list[WikiSearchResult] = Field(default_factory=list)
+    answer_scope: WikiAnswerScope = Field(default_factory=WikiAnswerScope)
+    answer_set: WikiAnswerSet = Field(default_factory=WikiAnswerSet)
+    evidence_coverage: WikiEvidenceCoverage = Field(default_factory=WikiEvidenceCoverage)
     context_pack: str
     answer_guidance: list[str] = Field(default_factory=list)
     gap_suggestions: list[WikiQueryGapSuggestion] = Field(default_factory=list)
