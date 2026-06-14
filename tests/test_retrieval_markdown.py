@@ -26,6 +26,15 @@ class MarkdownRetrievalTests(unittest.TestCase):
         self.assertIn("注意", terms)
         self.assertIn("注意力", terms)
 
+    def test_query_terms_filters_cjk_question_noise(self) -> None:
+        terms = query_terms("Agent Loop 是什么？请基于我的知识库回答")
+
+        self.assertIn("agent", terms)
+        self.assertIn("loop", terms)
+        self.assertNotIn("是什么", terms)
+        self.assertNotIn("什么", terms)
+        self.assertNotIn("知识库", terms)
+
     def test_collect_and_score_pages(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)

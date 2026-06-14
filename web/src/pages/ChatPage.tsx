@@ -61,6 +61,13 @@ export function ChatPage({ context }: Props) {
     };
   }, [context.activeVaultSelector]);
 
+  useEffect(() => {
+    const prompt = context.pendingChatPrompt.trim();
+    if (!prompt) return;
+    setInput(prompt);
+    context.clearPendingChatPrompt();
+  }, [context.pendingChatPrompt, context.clearPendingChatPrompt]);
+
   async function refreshSessions() {
     try {
       const response = await listChatSessions(context.activeVaultSelector, 20);
@@ -363,7 +370,7 @@ function groupCitations(citations: ChatCitation[], context: AppContext) {
 
 function openCitation(citation: ChatCitation, context: AppContext) {
   if (citation.kind === "page" && citation.path) {
-    context.openWikiPage(citation.path);
+    context.openWikiPageInVault(citation.vault_id, citation.path);
     return;
   }
   if (citation.kind === "report" && citation.path) {

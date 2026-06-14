@@ -22,6 +22,52 @@ FIELD_WEIGHTS: dict[str, float] = {
     "body": 0.8,
 }
 
+QUERY_STOP_TERMS = {
+    "about",
+    "answer",
+    "based",
+    "explain",
+    "list",
+    "please",
+    "show",
+    "summarize",
+    "tell",
+    "what",
+    "which",
+    "why",
+    "一下",
+    "一些",
+    "什么",
+    "介绍",
+    "列出",
+    "哪些",
+    "基于",
+    "如何",
+    "怎么",
+    "我想",
+    "所有",
+    "按照",
+    "相关",
+    "知识",
+    "知识库",
+    "给出",
+    "这个",
+    "这些",
+}
+
+QUERY_STOP_SUBSTRINGS = (
+    "是什么",
+    "是什",
+    "什么是",
+    "为我",
+    "帮我",
+    "请",
+    "请按",
+    "知识库里",
+    "和我说",
+    "告诉我",
+)
+
 
 @dataclass
 class SearchPage:
@@ -103,10 +149,17 @@ def query_terms(query: str) -> list[str]:
     seen: set[str] = set()
     unique: list[str] = []
     for term in terms:
-        if term and term not in seen:
+        if _is_query_signal_term(term) and term not in seen:
             seen.add(term)
             unique.append(term)
     return unique[:80]
+
+
+def _is_query_signal_term(term: str) -> bool:
+    text = term.strip().lower()
+    if not text or text in QUERY_STOP_TERMS:
+        return False
+    return not any(fragment in text for fragment in QUERY_STOP_SUBSTRINGS)
 
 
 def normalize_text(value: str) -> str:

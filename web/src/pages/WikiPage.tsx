@@ -127,7 +127,10 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
               <p className="panel-copy">{selectedDetail?.path || context.t("wikiNoSelection")}</p>
             </div>
             {selectedDetail && (
-              <button className="button secondary" type="button" onClick={() => context.openPageInGraph(selectedDetail.path)}>{context.t("openInGraph")}</button>
+              <div className="button-row compact-row">
+                <button className="button secondary" type="button" onClick={() => askAboutPage(context, selectedDetail)}>{context.t("askInChat")}</button>
+                <button className="button secondary" type="button" onClick={() => context.openPageInGraph(selectedDetail.path)}>{context.t("openInGraph")}</button>
+              </div>
             )}
           </div>
           {loading && <p className="panel-copy">{context.t("loading")}</p>}
@@ -158,6 +161,11 @@ function WikiPageRow({ page, active, onClick }: { page: PageSummary; active: boo
       {page.summary && <small>{page.summary}</small>}
     </button>
   );
+}
+
+function askAboutPage(context: AppContext, detail: PageDetail) {
+  const title = detail.summary.title || detail.path;
+  context.openChatWithPrompt(`请阅读并解释知识库页面「${title}」（${detail.path}），结合页面内容回答我的后续问题。`, context.activeVaultId);
 }
 
 function PageMetadata({ detail, t }: { detail: PageDetail; t: (key: string) => string }) {

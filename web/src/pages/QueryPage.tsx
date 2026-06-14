@@ -165,6 +165,9 @@ export function QueryPage({ context, embedded = false }: Props) {
                     <button className="button secondary small-button" type="button" onClick={() => openResultPage(context, vault, result.path)}>
                       {context.t("openInWiki")}
                     </button>
+                    <button className="button secondary small-button" type="button" onClick={() => askAboutResult(context, vault, result)}>
+                      {context.t("askInChat")}
+                    </button>
                     <button className="button secondary small-button" type="button" onClick={() => openResultGraph(context, vault, result.path)}>
                       {context.t("openInGraph")}
                     </button>
@@ -257,8 +260,7 @@ function resolveQueryVaults(
 }
 
 function openResultPage(context: AppContext, vault: VaultOption, path: string) {
-  context.setActiveVaultId(vault.id);
-  context.openWikiPage(path);
+  context.openWikiPageInVault(vault.id, path);
 }
 
 function vaultForResult(vaults: VaultOption[], activeVaultId: string, activeVaultPath: string, result: QueryResult): VaultOption {
@@ -276,4 +278,9 @@ function vaultForResult(vaults: VaultOption[], activeVaultId: string, activeVaul
 function openResultGraph(context: AppContext, vault: VaultOption, path: string) {
   context.setActiveVaultId(vault.id);
   context.openPageInGraph(path);
+}
+
+function askAboutResult(context: AppContext, vault: VaultOption, result: QueryResult) {
+  const title = result.title || result.path;
+  context.openChatWithPrompt(`请基于知识库页面「${title}」（${result.path}）回答，并说明它和我当前问题的关系。`, vault.id);
 }

@@ -118,6 +118,7 @@ export function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [focusedPageId, setFocusedPageId] = useState<string | null>(null);
   const [focusedWikiPath, setFocusedWikiPath] = useState<string | null>(null);
+  const [pendingChatPrompt, setPendingChatPrompt] = useState("");
   const [focusedReportPath, setFocusedReportPath] = useState<string | null>(null);
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("knoarbor.sidebarCollapsed") === "true");
@@ -432,6 +433,33 @@ export function App() {
     setActiveView("wiki");
   }, []);
 
+  const openWikiPageInVault = useCallback((vaultId: string | null | undefined, path: string) => {
+    if (vaultId && vaultId !== activeVaultId) {
+      localStorage.setItem("knoarbor.activeVaultId", vaultId);
+      setSelectedVaultId(vaultId);
+    }
+    setFocusedPageId(null);
+    setFocusedReportPath(null);
+    setFocusedWikiPath(path);
+    setActiveView("wiki");
+  }, [activeVaultId]);
+
+  const openChatWithPrompt = useCallback((prompt: string, vaultId?: string | null) => {
+    if (vaultId && vaultId !== activeVaultId) {
+      localStorage.setItem("knoarbor.activeVaultId", vaultId);
+      setSelectedVaultId(vaultId);
+    }
+    setFocusedPageId(null);
+    setFocusedReportPath(null);
+    setFocusedWikiPath(null);
+    setPendingChatPrompt(prompt);
+    setActiveView("chat");
+  }, [activeVaultId]);
+
+  const clearPendingChatPrompt = useCallback(() => {
+    setPendingChatPrompt("");
+  }, []);
+
   const setDoctorReportCached: Dispatch<SetStateAction<DoctorReport | null>> = useCallback((value) => {
     queryClient.setQueryData(queryKeys.doctor(configPath), (current: DoctorReport | null | undefined) =>
       typeof value === "function" ? value(current || null) : value,
@@ -501,6 +529,7 @@ export function App() {
       graph,
       focusedPageId,
       focusedWikiPath,
+      pendingChatPrompt,
       healthHint,
       pages,
       queryResults,
@@ -528,6 +557,9 @@ export function App() {
       navigate: setActiveView,
       openPageInGraph,
       openWikiPage,
+      openWikiPageInVault,
+      openChatWithPrompt,
+      clearPendingChatPrompt,
       openReport,
       openSettings: () => setWorkspaceSettingsOpen(true),
       status,
@@ -551,6 +583,7 @@ export function App() {
       doctorReport,
       graph,
       focusedPageId,
+      pendingChatPrompt,
       focusedReportPath,
       focusedWikiPath,
       healthHint,
@@ -577,6 +610,9 @@ export function App() {
       setLanguage,
       openPageInGraph,
       openWikiPage,
+      openWikiPageInVault,
+      openChatWithPrompt,
+      clearPendingChatPrompt,
       openReport,
       setDoctorReportCached,
       setStatusCached,
@@ -658,6 +694,7 @@ export type AppContext = {
   graph: GraphResponse | null;
   focusedPageId: string | null;
   focusedWikiPath: string | null;
+  pendingChatPrompt: string;
   healthHint: string;
   pages: PageSummary[];
   queryResults: QueryResult[];
@@ -685,6 +722,9 @@ export type AppContext = {
   navigate: (view: ViewName) => void;
   openPageInGraph: (pageId: string) => void;
   openWikiPage: (path: string) => void;
+  openWikiPageInVault: (vaultId: string | null | undefined, path: string) => void;
+  openChatWithPrompt: (prompt: string, vaultId?: string | null) => void;
+  clearPendingChatPrompt: () => void;
   openReport: (path: string) => void;
   openSettings: () => void;
   status: UiStatusResponse | null;

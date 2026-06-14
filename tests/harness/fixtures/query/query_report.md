@@ -6,7 +6,7 @@
 - mode: balanced
 - retrieval_mode: machine_hybrid_balanced
 - returned_count: 3
-- context_pack_chars: 2101
+- context_pack_chars: 2166
 - context_pack_truncated: False
 
 ## Results
@@ -79,7 +79,7 @@ Excerpts:
 - answer_scope: {'kind': 'narrow', 'vault_ids': [], 'initial_page_dirs': ['concepts', 'entities', 'sources'], 'expanded_page_dirs': ['concepts', 'entities', 'sources'], 'include_related': True, 'reason': 'Top result appears sufficient as the main answer unit.'}
 - answer_set: {'kind': 'single_page', 'primary_paths': ['concepts/Agent-Loop.md'], 'supporting_paths': [], 'source_paths': ['sources/Agent-Loop-Source.md'], 'further_reading_paths': ['entities/OpenClaw.md'], 'reason': 'The query is narrow enough to anchor on the strongest maintained wiki page.', 'stop_reason': 'top_answer_selected'}
 - candidate_count: 3
-- context_pack_chars: 2101
+- context_pack_chars: 2166
 - context_pack_truncated: False
 - direct_match_count: 3
 - direct_page_count: 3
@@ -115,6 +115,7 @@ Answer guidance:
 - Primary page candidate: concepts/Agent-Loop.md.
 
 1. Agent Loop (concepts/Agent-Loop.md, relevance: high, score: 20.853)
+Answer role: primary
 Match origin: direct
 Summary: Agent loop is a control pattern where a model observes context, reasons, acts with tools, and uses feedback.
 Key points:
@@ -125,18 +126,20 @@ Relevant excerpts:
 Source: raw/notes/agent-loop.md
 Why matched: Matched body, headings, key_points, path, related_graph, summary, tags, title; graph relevance boost 3.954 via backlink, shared_source.
 
-2. Agent Loop Source (sources/Agent-Loop-Source.md, relevance: high, score: 13.453)
+2. OpenClaw (entities/OpenClaw.md, relevance: medium, score: 6.813)
+Answer role: supporting
+Match origin: direct
+Summary: OpenClaw is an engineering agent system that combines structured workflows with agent loops.
+Relevant excerpts:
+- entities/OpenClaw.md#Summary: OpenClaw is an engineering agent system that combines structured workflows with agent loops.
+Why matched: Matched body, related_graph, summary, tags; graph relevance boost 2.4 via outbound_link.
+
+3. Agent Loop Source (sources/Agent-Loop-Source.md, relevance: high, score: 13.453)
+Answer role: source
 Match origin: direct
 Summary: Source digest for agent loop and workflow comparison notes.
 Relevant excerpts:
 - sources/Agent-Loop-Source.md#Summary: Source digest for agent loop and workflow comparison notes.
 Source: raw/notes/agent-loop.md
 Why matched: Matched body, headings, path, related_graph, summary, title; graph relevance boost 3.6 via outbound_link, shared_source.
-
-3. OpenClaw (entities/OpenClaw.md, relevance: medium, score: 6.813)
-Match origin: direct
-Summary: OpenClaw is an engineering agent system that combines structured workflows with agent loops.
-Relevant excerpts:
-- entities/OpenClaw.md#Summary: OpenClaw is an engineering agent system that combines structured workflows with agent loops.
-Why matched: Matched body, related_graph, summary, tags; graph relevance boost 2.4 via outbound_link.
 ```

@@ -51,6 +51,7 @@ class ChatEvidencePlanner:
             "result_count": result_count,
             "answer_scope": answer_scope,
             "answer_set": answer_set,
+            "synthesis_outline": self._synthesis_outline(answer_scope, primary_page, supporting_pages),
             "evidence_coverage": evidence_coverage,
             "recommended_action": action,
             "primary_page": self._primary_payload(primary_page),
@@ -107,6 +108,7 @@ class ChatEvidencePlanner:
     ) -> list[str]:
         instructions = [
             "Answer from the evidence pack, using the primary page as the anchor.",
+            "Follow synthesis_outline when it is present; it expresses the wiki-first answer structure for the current question.",
             "Use supporting pages only to add complementary mechanisms, caveats, comparisons, or follow-up topics.",
             "Keep citations aligned with the evidence pages used in the answer.",
         ]
@@ -117,6 +119,35 @@ class ChatEvidencePlanner:
         if evidence_coverage.get("missing_facets"):
             instructions.append(f"Potential missing facets: {', '.join(str(item) for item in evidence_coverage.get('missing_facets', []))}.")
         return instructions
+
+    def _synthesis_outline(
+        self,
+        answer_scope: dict[str, Any],
+        primary_page: dict[str, Any] | None,
+        supporting_pages: list[dict[str, Any]],
+    ) -> list[str]:
+        if not primary_page:
+            return [
+                "State the local wiki coverage gap.",
+                "If useful, suggest a specific ingest or query refinement action.",
+            ]
+        if answer_scope.get("kind") == "narrow":
+            return [
+                "Start with a direct definition or answer from the primary page.",
+                "Explain the core mechanism or decision points from that maintained page.",
+                "Use supporting pages only for extensions, comparisons, or implementation details.",
+                "End with concise related topics when they help the user continue.",
+            ]
+        support_types = sorted({str(page.get("type") or "") for page in supporting_pages if page.get("type")})
+        outline = [
+            "Start with the main thesis from the primary page.",
+            "Group supporting pages by the role they play: concepts, implementations, comparisons, workflows, or sources.",
+            "Synthesize across pages into a coherent structure instead of listing raw matches.",
+            "Call out where source pages provide provenance rather than the main answer.",
+        ]
+        if support_types:
+            outline.append(f"Available supporting page types: {', '.join(support_types)}.")
+        return outline
 
     def _primary_payload(self, page: dict[str, Any] | None) -> dict[str, Any] | None:
         if not page:

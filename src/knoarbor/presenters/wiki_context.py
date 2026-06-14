@@ -64,7 +64,7 @@ def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
     answer_guidance = build_answer_guidance(results, gap_suggestions, primary_pages=primary_pages)
     context_pack = build_context_pack(
         request.query,
-        results,
+        order_results_for_context(results),
         request.max_context_chars,
         answer_guidance,
         gap_suggestions,
@@ -568,17 +568,18 @@ def build_context_pack(
         lines.append("No relevant wiki pages found.")
         return "\n".join(lines)
 
+    ordered_results = order_results_for_context(results)
     if context_format == "full":
-        for index, result in enumerate(results, start=1):
+        for index, result in enumerate(ordered_results, start=1):
             lines.extend(build_result_context_block(index, result, full=True))
         return "\n".join(lines).strip()
 
     omitted = 0
-    for index, result in enumerate(results, start=1):
+    for index, result in enumerate(ordered_results, start=1):
         block = build_result_context_block(index, result)
         candidate = "\n".join([*lines, *block])
         if len(candidate) > max_chars:
-            omitted = len(results) - index + 1
+            omitted = len(ordered_results) - index + 1
             break
         lines.extend(block)
 
@@ -590,6 +591,19 @@ def build_context_pack(
         else:
             return ("\n".join(lines))[: max_chars - 20].rstrip() + "\n... [truncated]"
     return "\n".join(lines).strip()
+
+
+def order_results_for_context(results: list[WikiSearchResult]) -> list[WikiSearchResult]:
+    role_order = {"primary": 0, "supporting": 1, "source": 2}
+    return [result for _, result in sorted(
+        enumerate(results),
+        key=lambda pair: (
+            role_order.get(pair[1].role, 1),
+            1 if pair[1].type == "source" and pair[1].role != "source" else 0,
+            -pair[1].score,
+            pair[0],
+        ),
+    )]
 
 
 def build_query_trace(
@@ -648,6 +662,7 @@ def build_query_trace(
 def build_result_context_block(index: int, result: WikiSearchResult, *, full: bool = False) -> list[str]:
     lines = [
         f"{index}. {result.title} ({result.path}, relevance: {result.relevance}, score: {result.score})",
+        f"Answer role: {result.role}",
         f"Match origin: {result.match_kind}",
         f"Summary: {result.summary or 'No summary.'}",
     ]

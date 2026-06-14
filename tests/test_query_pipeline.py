@@ -223,6 +223,40 @@ class QueryPipelineTests(unittest.TestCase):
         self.assertGreaterEqual(len(response.answer_set.supporting_paths), 1)
         self.assertGreaterEqual(response.evidence_coverage.supporting_count, 1)
 
+    def test_context_pack_orders_answer_roles_before_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            (vault / "concepts").mkdir()
+            (vault / "sources").mkdir()
+            (vault / "concepts" / "Agent-Loop.md").write_text(
+                "# Agent Loop\n\n"
+                "## Summary\n\nAgent loop explains reasoning and tool execution.\n",
+                encoding="utf-8",
+            )
+            (vault / "sources" / "Agent-Loop-Source.md").write_text(
+                "# Agent Loop Source\n\n"
+                "## Summary\n\nAgent loop source digest.\n\n"
+                "## Key Points\n\n- Agent loop source digest.\n\n"
+                + "agent loop source digest " * 80,
+                encoding="utf-8",
+            )
+
+            response = search_query(
+                WikiSearchRequest(
+                    vault_path=str(vault),
+                    query="Agent Loop 是什么",
+                    mode="balanced",
+                    max_results=5,
+                    record_query=False,
+                )
+            )
+
+        self.assertEqual(response.primary_pages[0].path, "concepts/Agent-Loop.md")
+        primary_index = response.context_pack.index("Agent Loop (concepts/Agent-Loop.md")
+        source_index = response.context_pack.index("Agent Loop Source (sources/Agent-Loop-Source.md")
+        self.assertLess(primary_index, source_index)
+        self.assertNotIn("是什么", response.evidence_coverage.missing_facets)
+
     def test_full_query_context_returns_complete_page_body_without_pack_truncation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)

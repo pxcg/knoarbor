@@ -148,6 +148,9 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(response.stats["tool_calls"], 1)
         self.assertEqual(response.stats["total_tokens"], 30)
         self.assertEqual(response.citations[0].path, "concepts/Agent-Loop.md")
+        evidence_pack = response.tool_trace[0].result["evidence_pack"]
+        self.assertIn("synthesis_outline", evidence_pack)
+        self.assertEqual(evidence_pack["primary_page"]["path"], "concepts/Agent-Loop.md")
         self.assertEqual(response.citations[0].vault_id, "agent-engineering")
         self.assertEqual([citation.path for citation in response.citations], ["concepts/Agent-Loop.md"])
         self.assertTrue(services.wiki_search.requests[0].include_content)

@@ -265,15 +265,18 @@ def _merge_evidence_coverage(
 ) -> WikiEvidenceCoverage:
     statuses = {response.evidence_coverage.status for response in responses}
     status = "strong" if "strong" in statuses else "adequate" if "adequate" in statuses else "weak"
+    covered_terms = _merge_unique([term for response in responses for term in response.evidence_coverage.covered_terms])
+    covered_facets = _merge_unique([facet for response in responses for facet in response.evidence_coverage.covered_facets])
+    missing_facets = _merge_unique([facet for response in responses for facet in response.evidence_coverage.missing_facets if facet not in set(covered_terms)])
     return WikiEvidenceCoverage(
         status=status,
         primary_count=len(primary_pages),
         supporting_count=len(supporting_pages),
         source_count=len(source_pages),
         gap_count=sum(response.evidence_coverage.gap_count for response in responses),
-        covered_terms=_merge_unique([term for response in responses for term in response.evidence_coverage.covered_terms])[:12],
-        covered_facets=_merge_unique([facet for response in responses for facet in response.evidence_coverage.covered_facets])[:12],
-        missing_facets=_merge_unique([facet for response in responses for facet in response.evidence_coverage.missing_facets])[:8],
+        covered_terms=covered_terms[:12],
+        covered_facets=covered_facets[:12],
+        missing_facets=missing_facets[:8],
     )
 
 

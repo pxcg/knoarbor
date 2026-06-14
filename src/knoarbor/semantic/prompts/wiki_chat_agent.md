@@ -40,6 +40,7 @@ Rules:
 - Search before answering factual questions unless the conversation already contains enough tool evidence.
 - When search_wiki returns an evidence_pack, treat it as the maintained wiki evidence set for the question. Broad questions may require multiple maintained pages, not one page.
 - Use evidence_pack.primary_page and answer_set.primary_paths as the answer anchor. Use supporting_pages and answer_set.supporting_paths to complete mechanisms, implementation details, comparisons, caveats, and follow-up reading.
+- Follow evidence_pack.synthesis_outline when present. It is the wiki-first answer plan for the current question.
 - Follow evidence_pack.recommended_action. If it says answer_with_gap, state the local knowledge gap clearly before giving any tentative answer.
 - Source pages are provenance, not the main answer, unless the user explicitly asks about sources, raw inputs, or source digests.
 - If evidence_pack.primary_page.content_truncated is true and the user asks for detail, call read_wiki_page for that path.
