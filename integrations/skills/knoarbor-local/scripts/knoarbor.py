@@ -154,11 +154,9 @@ def _add_query(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) 
     parser = subparsers.add_parser("query", help="Retrieve wiki context for a user question.")
     parser.add_argument("query")
     parser.add_argument("--mode", choices=["quick", "balanced", "deep"], default="balanced")
-    parser.add_argument("--context-format", choices=["compact", "full"], default="compact")
     parser.add_argument("--max-results", type=int, default=6)
     parser.add_argument("--page-dir", action="append", dest="page_dirs", default=[])
     parser.add_argument("--include-related", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--include-content", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--all-vaults", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--query-vault-id", action="append", dest="query_vault_ids", default=[], help="Search a configured vault ID. Repeat to search multiple vaults.")
     parser.add_argument("--auto", action=argparse.BooleanOptionalAction, default=True)
@@ -298,11 +296,9 @@ def _cmd_query(args: argparse.Namespace, runtime: Runtime) -> int:
         "all_vaults": args.all_vaults,
         "config_path": str(runtime.config_path) if runtime.config_path else None,
         "mode": settings["mode"],
-        "context_format": settings["context_format"],
         "max_results": settings["max_results"],
         "page_dirs": args.page_dirs,
         "include_related": args.include_related,
-        "include_content": settings["include_content"],
         "caller": "generic-skill",
     }
     response = _post_json(f"{runtime.base_url}/query", payload, timeout=runtime.timeout)
@@ -722,9 +718,7 @@ def _require_vault(runtime: Runtime) -> str:
 def _query_settings(args: argparse.Namespace) -> dict[str, Any]:
     settings = {
         "mode": args.mode,
-        "context_format": args.context_format,
         "max_results": args.max_results,
-        "include_content": args.include_content,
     }
     if not args.auto:
         return settings
@@ -738,8 +732,6 @@ def _query_settings(args: argparse.Namespace) -> dict[str, Any]:
     short_lookup = len(query.strip()) <= 32 and not detailed and not broad_recall and not explicit_full
     if explicit_full:
         settings["mode"] = "deep"
-        settings["context_format"] = "full"
-        settings["include_content"] = True
     elif detailed:
         settings["mode"] = "deep"
     if broad_recall:

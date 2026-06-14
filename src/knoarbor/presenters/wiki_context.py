@@ -55,6 +55,7 @@ def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
     answer_scope = build_answer_scope(request, pipeline_result.stats, results)
     answer_set = build_answer_set(request.query, results, answer_scope)
     results = assign_result_roles(request.query, results, answer_set=answer_set)
+    results = apply_answer_content_strategy(results, pipeline_result.matches)
     primary_pages = [result for result in results if result.role == "primary"]
     supporting_pages = [result for result in results if result.role == "supporting"]
     source_pages = [result for result in results if result.role == "source"]
@@ -68,15 +69,14 @@ def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
         request.max_context_chars,
         answer_guidance,
         gap_suggestions,
-        request.context_format,
     )
     stats = {
         **pipeline_result.stats,
         "returned_count": len(results),
         "max_pages_to_read": request.max_pages_to_read,
-        "context_format": request.context_format,
+        "context_strategy": "page_first_primary_full",
         "context_pack_chars": len(context_pack),
-        "context_pack_truncated": request.context_format == "compact" and context_pack.endswith("... [truncated]"),
+        "context_pack_truncated": context_pack.endswith("... [truncated]"),
         "gap_count": len(pipeline_result.gaps),
         "gap_suggestion_count": len(gap_suggestions),
     }
@@ -143,10 +143,8 @@ def build_result(item: ScoredPage, terms: list[str], request: WikiSearchRequest)
     max_excerpts = 0 if request.mode == "quick" else request.max_excerpts_per_page
     if request.mode == "deep":
         max_excerpts = max(max_excerpts, min(6, request.max_excerpts_per_page + 2))
-    excerpts = select_excerpts(page, terms, max_excerpts, request.max_chars_per_excerpt, full=request.context_format == "full")
+    excerpts = select_excerpts(page, terms, max_excerpts, request.max_chars_per_excerpt)
     score = round(item.score, 3)
-    include_content = request.include_content or request.context_format == "full"
-    content = page.body if include_content and request.context_format == "full" else compact_inline_text(page.body, request.max_chars_per_page) if include_content else None
     return WikiSearchResult(
         path=page.relative_path,
         title=page.title,
@@ -161,16 +159,38 @@ def build_result(item: ScoredPage, terms: list[str], request: WikiSearchRequest)
         summary=compact_inline_text(page.summary, 500),
         key_points=[compact_inline_text(point, 240) for point in page.key_points[:6]],
         excerpts=excerpts,
-        content=content,
+        content=None,
         source=page.source,
         tags=page.tags,
         related_pages=page.related_pages[:10],
-        content_truncated=request.context_format != "full"
-        and (
-            bool(content and len(page.body) > request.max_chars_per_page)
-            or any(len(excerpt.content) >= request.max_chars_per_excerpt for excerpt in excerpts)
-        ),
+        content_truncated=False,
     )
+
+
+def apply_answer_content_strategy(
+    results: list[WikiSearchResult],
+    matches: list[ScoredPage],
+) -> list[WikiSearchResult]:
+    """Attach model-facing page bodies after answer roles are known.
+
+    KnoArbor retrieves maintained wiki pages, not interchangeable chunks. The
+    answer context should therefore preserve the primary answer page as a whole
+    and keep supporting/source pages structured unless the caller explicitly
+    asks for full context.
+    """
+
+    page_by_path = {item.page.relative_path: item.page for item in matches}
+    output: list[WikiSearchResult] = []
+    for result in results:
+        page = page_by_path.get(result.path)
+        if not page:
+            output.append(result)
+            continue
+        if result.role == "primary":
+            output.append(result.model_copy(update={"content": page.body, "content_truncated": False}))
+            continue
+        output.append(result.model_copy(update={"content": None, "content_truncated": False}))
+    return output
 
 
 def build_context_match(item: ScoredPage, terms: list[str], request: WikiContextRequest) -> WikiContextMatch:
@@ -549,7 +569,6 @@ def build_context_pack(
     max_chars: int,
     answer_guidance: list[str],
     gap_suggestions: list[WikiQueryGapSuggestion],
-    context_format: str = "compact",
 ) -> str:
     lines = [
         "Relevant KnoArbor context for the host AI.",
@@ -569,14 +588,13 @@ def build_context_pack(
         return "\n".join(lines)
 
     ordered_results = order_results_for_context(results)
-    if context_format == "full":
-        for index, result in enumerate(ordered_results, start=1):
-            lines.extend(build_result_context_block(index, result, full=True))
-        return "\n".join(lines).strip()
-
     omitted = 0
     for index, result in enumerate(ordered_results, start=1):
-        block = build_result_context_block(index, result)
+        include_full_body = result.role == "primary" and bool(result.content)
+        block = build_result_context_block(index, result, full=include_full_body)
+        if include_full_body:
+            lines.extend(block)
+            continue
         candidate = "\n".join([*lines, *block])
         if len(candidate) > max_chars:
             omitted = len(ordered_results) - index + 1

@@ -170,11 +170,8 @@ query:
   max_excerpts_per_page: 3
   max_chars_per_excerpt: 800
   max_context_chars: 8000
-  context_format: compact
   page_dirs: []
   include_related: true
-  include_content: false
-  max_chars_per_page: 6000
 
 memory:
   enabled: true

@@ -6,7 +6,7 @@
 - mode: balanced
 - retrieval_mode: machine_hybrid_balanced
 - returned_count: 3
-- context_pack_chars: 2166
+- context_pack_chars: 2734
 - context_pack_truncated: False
 
 ## Results
@@ -79,7 +79,7 @@ Excerpts:
 - answer_scope: {'kind': 'narrow', 'vault_ids': [], 'initial_page_dirs': ['concepts', 'entities', 'sources'], 'expanded_page_dirs': ['concepts', 'entities', 'sources'], 'include_related': True, 'reason': 'Top result appears sufficient as the main answer unit.'}
 - answer_set: {'kind': 'single_page', 'primary_paths': ['concepts/Agent-Loop.md'], 'supporting_paths': [], 'source_paths': ['sources/Agent-Loop-Source.md'], 'further_reading_paths': ['entities/OpenClaw.md'], 'reason': 'The query is narrow enough to anchor on the strongest maintained wiki page.', 'stop_reason': 'top_answer_selected'}
 - candidate_count: 3
-- context_pack_chars: 2166
+- context_pack_chars: 2734
 - context_pack_truncated: False
 - direct_match_count: 3
 - direct_page_count: 3
@@ -123,6 +123,26 @@ Key points:
 - Workflows provide deterministic structure around uncertain agent decisions.
 Relevant excerpts:
 - concepts/Agent-Loop.md#Key Points: - Agent loops are dynamic and tool-aware. - Workflows provide deterministic structure around uncertain agent decisions.
+Full page body:
+# Agent Loop
+
+## Summary
+
+Agent loop is a control pattern where a model observes context, reasons, acts with tools, and uses feedback.
+
+## Key Points
+
+- Agent loops are dynamic and tool-aware.
+- Workflows provide deterministic structure around uncertain agent decisions.
+
+## Answer
+
+Agent loop systems repeat observation, reasoning, action, and feedback. A workflow follows a predefined path, while an agent loop lets the model choose the next step.
+
+## Related Pages
+
+- [[entities/OpenClaw|OpenClaw]]
+- [[sources/Agent-Loop-Source|Agent Loop Source]]
 Source: raw/notes/agent-loop.md
 Why matched: Matched body, headings, key_points, path, related_graph, summary, tags, title; graph relevance boost 3.954 via backlink, shared_source.
 

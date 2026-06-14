@@ -407,11 +407,9 @@ class SkillQueryHelperTests(unittest.TestCase):
         args = argparse.Namespace(
             query="Agent Loop",
             mode="balanced",
-            context_format="compact",
             max_results=6,
             page_dirs=[],
             include_related=True,
-            include_content=False,
             auto=True,
             all_vaults=True,
             query_vault_ids=[],
@@ -439,11 +437,9 @@ class SkillQueryHelperTests(unittest.TestCase):
         args = argparse.Namespace(
             query="Agent Loop",
             mode="balanced",
-            context_format="compact",
             max_results=6,
             page_dirs=[],
             include_related=True,
-            include_content=False,
             auto=True,
             all_vaults=False,
             query_vault_ids=["personal", "team"],
@@ -682,40 +678,32 @@ class SkillQueryHelperTests(unittest.TestCase):
         self.assertEqual(payload["vault_path"], "/tmp/team-wiki")
         self.assertEqual(payload["config_path"], "/tmp/config.yaml")
 
-    def test_auto_query_settings_keep_compact_by_default(self) -> None:
+    def test_auto_query_settings_keep_balanced_by_default(self) -> None:
         helper = load_query_helper()
         settings = helper._query_settings(
             argparse.Namespace(
                 auto=True,
                 query="Agent Loop 是什么",
                 mode="balanced",
-                context_format="compact",
                 max_results=6,
-                include_content=False,
             )
         )
 
         self.assertEqual(settings["mode"], "balanced")
-        self.assertEqual(settings["context_format"], "compact")
         self.assertEqual(settings["max_results"], 4)
-        self.assertFalse(settings["include_content"])
 
-    def test_auto_query_settings_promote_full_content_requests(self) -> None:
+    def test_auto_query_settings_promote_detail_requests_to_deep_mode(self) -> None:
         helper = load_query_helper()
         settings = helper._query_settings(
             argparse.Namespace(
                 auto=True,
                 query="逐段分析 Agent Loop 页面全文",
                 mode="balanced",
-                context_format="compact",
                 max_results=6,
-                include_content=False,
             )
         )
 
         self.assertEqual(settings["mode"], "deep")
-        self.assertEqual(settings["context_format"], "full")
-        self.assertTrue(settings["include_content"])
 
     def test_auto_query_settings_can_be_disabled(self) -> None:
         helper = load_query_helper()
@@ -724,14 +712,11 @@ class SkillQueryHelperTests(unittest.TestCase):
                 auto=False,
                 query="逐段分析 Agent Loop 页面全文",
                 mode="balanced",
-                context_format="compact",
                 max_results=6,
-                include_content=False,
             )
         )
 
         self.assertEqual(settings["mode"], "balanced")
-        self.assertEqual(settings["context_format"], "compact")
         self.assertEqual(settings["max_results"], 6)
 
     def test_check_mode_reports_service_and_vault(self) -> None:

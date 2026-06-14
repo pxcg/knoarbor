@@ -257,7 +257,48 @@ class QueryPipelineTests(unittest.TestCase):
         self.assertLess(primary_index, source_index)
         self.assertNotIn("是什么", response.evidence_coverage.missing_facets)
 
-    def test_full_query_context_returns_complete_page_body_without_pack_truncation(self) -> None:
+    def test_compact_query_context_keeps_primary_body_and_structures_supporting_pages(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            (vault / "concepts").mkdir()
+            (vault / "entities").mkdir()
+            (vault / "concepts" / "Agent-Loop.md").write_text(
+                "# Agent Loop\n\n"
+                "## Summary\n\nAgent loop summary.\n\n"
+                "## Answer\n\n"
+                "Primary maintained page body should stay intact for answer synthesis.\n\n"
+                "## Related Pages\n\n- [[entities/OpenClaw|OpenClaw]]\n",
+                encoding="utf-8",
+            )
+            (vault / "entities" / "OpenClaw.md").write_text(
+                "# OpenClaw\n\n"
+                "## Summary\n\nOpenClaw supports production agent loop execution.\n\n"
+                "## Answer\n\n"
+                "Supporting implementation details should remain structured evidence, not full page body.\n",
+                encoding="utf-8",
+            )
+
+            response = search_query(
+                WikiSearchRequest(
+                    vault_path=str(vault),
+                    query="agent loop",
+                    mode="balanced",
+                    max_results=5,
+                    include_related=True,
+                    record_query=False,
+                )
+            )
+
+        primary = response.primary_pages[0]
+        supporting = next(result for result in response.results if result.path == "entities/OpenClaw.md")
+        self.assertIn("Primary maintained page body should stay intact", primary.content or "")
+        self.assertIn("Full page body:", response.context_pack)
+        self.assertIn("Primary maintained page body should stay intact", response.context_pack)
+        self.assertIsNone(supporting.content)
+        self.assertIn("OpenClaw supports production agent loop execution", response.context_pack)
+        self.assertNotIn("Supporting implementation details should remain structured evidence", response.context_pack)
+
+    def test_primary_page_body_is_preserved_even_when_context_budget_is_small(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
             (vault / "concepts").mkdir()
@@ -274,14 +315,13 @@ class QueryPipelineTests(unittest.TestCase):
                 WikiSearchRequest(
                     vault_path=str(vault),
                     query="agent loop",
-                    context_format="full",
                     max_context_chars=1000,
                     record_query=False,
                 )
             )
 
         self.assertIn(long_body.strip(), response.context_pack)
-        self.assertEqual(response.stats["context_format"], "full")
+        self.assertEqual(response.stats["context_strategy"], "page_first_primary_full")
         self.assertFalse(response.stats["context_pack_truncated"])
         self.assertFalse(response.results[0].content_truncated)
 

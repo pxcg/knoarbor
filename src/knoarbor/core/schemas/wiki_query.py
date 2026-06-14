@@ -39,10 +39,7 @@ class WikiSearchRequest(BaseModel):
     max_excerpts_per_page: int = Field(default=3, ge=0, le=8)
     max_chars_per_excerpt: int = Field(default=800, ge=120, le=3000)
     max_context_chars: int = Field(default=8000, ge=1000, le=30000)
-    context_format: Literal["compact", "full"] = "compact"
     include_related: bool = True
-    include_content: bool = False
-    max_chars_per_page: int = Field(default=6000, ge=500, le=50000)
     record_query: bool = True
     write_report: bool = False
     caller: str | None = None
