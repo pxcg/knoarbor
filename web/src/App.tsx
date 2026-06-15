@@ -123,7 +123,11 @@ export function App() {
   const [focusedReportPath, setFocusedReportPath] = useState<string | null>(null);
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("knoarbor.sidebarCollapsed") === "true");
-  const [selectedVaultId, setSelectedVaultId] = useState(() => localStorage.getItem("knoarbor.activeVaultId") || "");
+  const [selectedVaultId, setSelectedVaultId] = useState(() =>
+    localStorage.getItem("knoarbor.activeVaultId.userSet") === "true"
+      ? localStorage.getItem("knoarbor.activeVaultId") || ""
+      : "",
+  );
   const previousActiveRunCountRef = useRef(0);
   const queryClient = useQueryClient();
 
@@ -288,6 +292,7 @@ export function App() {
 
   const setActiveVaultId = useCallback((next: string) => {
     localStorage.setItem("knoarbor.activeVaultId", next);
+    localStorage.setItem("knoarbor.activeVaultId.userSet", "true");
     setSelectedVaultId(next);
     setFocusedPageId(null);
     setFocusedWikiPath(null);
@@ -356,7 +361,11 @@ export function App() {
     if (!vaultOptions.length) return;
     const next = nextValidVaultId(vaultOptions, selectedVaultId, effectiveSummary);
     if (next === selectedVaultId) return;
-    localStorage.setItem("knoarbor.activeVaultId", next);
+    if (localStorage.getItem("knoarbor.activeVaultId.userSet") === "true") {
+      localStorage.setItem("knoarbor.activeVaultId", next);
+    } else {
+      localStorage.removeItem("knoarbor.activeVaultId");
+    }
     setSelectedVaultId(next);
   }, [effectiveSummary.vault_id, selectedVaultId, vaultOptions]);
 
@@ -437,6 +446,7 @@ export function App() {
   const openWikiPageInVault = useCallback((vaultId: string | null | undefined, path: string) => {
     if (vaultId && vaultId !== activeVaultId) {
       localStorage.setItem("knoarbor.activeVaultId", vaultId);
+      localStorage.setItem("knoarbor.activeVaultId.userSet", "true");
       setSelectedVaultId(vaultId);
     }
     setFocusedPageId(null);
@@ -448,6 +458,7 @@ export function App() {
   const openChatWithPrompt = useCallback((prompt: string, vaultId?: string | null) => {
     if (vaultId && vaultId !== activeVaultId) {
       localStorage.setItem("knoarbor.activeVaultId", vaultId);
+      localStorage.setItem("knoarbor.activeVaultId.userSet", "true");
       setSelectedVaultId(vaultId);
     }
     setFocusedPageId(null);

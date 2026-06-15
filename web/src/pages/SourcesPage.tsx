@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import type { AppContext } from "../App";
-import { getConfigDiagnostics, getSourceCatalog, type ConfigDiagnosticItem, type SourceConnectorCatalogItem } from "../api/client";
+import { getConfigDiagnostics, getSourceCatalog, listChatSessions, type ConfigDiagnosticItem, type SourceConnectorCatalogItem } from "../api/client";
 import { BrandIcon, type BrandIconName } from "../components/BrandIcon";
 import { LoadingBlock } from "../components/LoadingBlock";
 import { queryKeys } from "../queryKeys";
@@ -28,6 +28,11 @@ export function SourcesPage({ context }: Props) {
     queryFn: () => getSourceCatalog(context.configPath),
     staleTime: 60_000,
   });
+  const chatSessionsQuery = useQuery({
+    queryKey: ["source-knoarbor-chat-sessions", context.activeVaultId],
+    queryFn: () => listChatSessions(context.activeVaultSelector, 50),
+    staleTime: 30_000,
+  });
   const enabled = new Set(context.summary.enabled_connectors || []);
   const enabledProcessors = new Set(context.summary.enabled_document_processors || []);
   const connectorDiagnostics = new Map((diagnosticsQuery.data?.connectors || []).map((item) => [item.name, item]));
@@ -38,6 +43,22 @@ export function SourcesPage({ context }: Props) {
     <section className="view active">
       <div className="source-grid">
         {catalogQuery.isLoading && !connectors.length && <LoadingBlock title={context.t("sourceCatalogLoading")} copy={context.t("sourceCatalogLoadingCopy")} />}
+        <article className="source-card product-card internal-source-card">
+          <span className="product-icon brand-product-icon brand-knoarbor" aria-hidden="true">
+            <BrandIcon name="knoarbor" />
+          </span>
+          <span className="product-card-body">
+            <span className="source-card-header">
+              <strong>{context.t("knoarborChatConnector")}</strong>
+              <span className="pill success">{context.t("internalSource")}</span>
+            </span>
+            <p>{context.t("sourceKnoArborChatDescription")}</p>
+            <span className="capability-row">
+              <small>{context.t("chatSessionCount")}: {chatSessionsQuery.data?.sessions.length ?? 0}</small>
+              {chatSessionsQuery.data?.sessions[0]?.updated_at && <small>{context.t("latestChatSession")}: {formatDate(chatSessionsQuery.data.sessions[0].updated_at)}</small>}
+            </span>
+          </span>
+        </article>
         {connectors.map((source) => {
           const diagnostic = connectorDiagnostics.get(source.name);
           const isEnabled = diagnostic?.enabled ?? source.enabled ?? enabled.has(source.name);
@@ -142,6 +163,10 @@ export function SourcesPage({ context }: Props) {
       </article>
     </section>
   );
+}
+
+function formatDate(value: string) {
+  return value.replace("T", " ").slice(0, 19);
 }
 
 function CapabilityRow({ catalog, diagnostic, fallback, t }: { catalog?: SourceConnectorCatalogItem; diagnostic?: ConfigDiagnosticItem; fallback: string; t: (key: string) => string }) {

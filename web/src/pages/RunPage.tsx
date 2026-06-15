@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { getPage, getReport, getSourceCatalog, runIngest, runIngestFile, runLint, type ReportDetail } from "../api/client";
+import { getPage, getReport, getSourceCatalog, ingestChatSession, listChatSessions, runIngest, runIngestFile, runLint, type ReportDetail } from "../api/client";
 import type { AppContext } from "../App";
 import { localizeReportKind, localizeReportTitle } from "../components/reportLabels";
 import { ReportSummaryCard } from "../components/report/ReportSummaryCard";
@@ -23,6 +23,7 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
   const [connectors, setConnectors] = useState("");
   const [inputFilePath, setInputFilePath] = useState("");
   const [inputScope, setInputScope] = useState("enabled");
+  const [selectedChatSessionId, setSelectedChatSessionId] = useState("");
   const [ingestWrite, setIngestWrite] = useState(false);
   const [ingestReport, setIngestReport] = useState(true);
   const [lintMode, setLintMode] = useState("structural");
@@ -40,6 +41,18 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
     staleTime: 60_000,
   });
   const connectorOptions = sortSourceConnectors(sourceCatalogQuery.data?.connectors || []);
+  const chatSessionsQuery = useQuery({
+    queryKey: ["run-chat-sessions", context.activeVaultId],
+    queryFn: () => listChatSessions(context.activeVaultSelector, 50),
+    enabled: mode !== "lint",
+    staleTime: 30_000,
+  });
+  const chatSessions = chatSessionsQuery.data?.sessions || [];
+
+  useEffect(() => {
+    if (selectedChatSessionId && chatSessions.some((session) => session.session_id === selectedChatSessionId)) return;
+    setSelectedChatSessionId(chatSessions[0]?.session_id || "");
+  }, [chatSessions, selectedChatSessionId]);
 
   useEffect(() => {
     if (!trackedRunId) return;
@@ -99,10 +112,12 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
             </div>
             <button
               className="button primary"
-              disabled={!configReady || (inputScope === "file" && !inputFilePath.trim())}
+              disabled={!configReady || (inputScope === "file" && !inputFilePath.trim()) || (inputScope === "knoarbor_chat" && !selectedChatSessionId)}
               onClick={() =>
                 runOperation(() =>
-                  inputScope === "file"
+                  inputScope === "knoarbor_chat"
+                    ? ingestChatSession(context.activeVaultSelector, selectedChatSessionId)
+                    : inputScope === "file"
                     ? runIngestFile({
                         config_path: context.configPath,
                         vault_id: context.activeVaultId,
@@ -129,6 +144,7 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
             <span>{context.t("inputsToRun")}</span>
             <select value={inputScope} onChange={(event) => setInputScope(event.target.value)}>
               <option value="enabled">{context.t("enabledConnectors")}</option>
+              <option value="knoarbor_chat">{context.t("knoarborChatConnector")}</option>
               {connectorOptions.map((connector) => (
                 <option value={connector.name} key={connector.name}>
                   {sourceTitle(connector.name, context.t)}
@@ -138,6 +154,21 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
               <option value="custom">{context.t("customConnectorList")}</option>
             </select>
           </label>
+          {inputScope === "knoarbor_chat" && (
+            <label className="field">
+              <span>{context.t("selectChatSession")}</span>
+              <select value={selectedChatSessionId} onChange={(event) => setSelectedChatSessionId(event.target.value)} disabled={chatSessionsQuery.isLoading || !chatSessions.length}>
+                {chatSessions.length ? chatSessions.map((session) => (
+                  <option value={session.session_id} key={session.session_id}>
+                    {session.title || session.session_id}
+                  </option>
+                )) : (
+                  <option value="">{context.t("noChatSessionsToIngest")}</option>
+                )}
+              </select>
+              <small>{context.t("knoarborChatInputHint")}</small>
+            </label>
+          )}
           {inputScope === "file" && (
             <label className="field">
               <span>{context.t("inputFilePath")}</span>

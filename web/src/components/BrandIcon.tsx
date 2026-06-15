@@ -3,7 +3,7 @@ import CodexLogo from "@lobehub/icons-static-svg/icons/codex.svg?url";
 import HermesLogo from "@lobehub/icons-static-svg/icons/hermesagent.svg?url";
 import OpenClawLogo from "@lobehub/icons-static-svg/icons/openclaw-color.svg?url";
 
-export type BrandIconName = "markdown" | "hermes" | "codex" | "openclaw" | "claude_code" | "generic_chat" | "mineru";
+export type BrandIconName = "markdown" | "hermes" | "codex" | "openclaw" | "claude_code" | "generic_chat" | "mineru" | "knoarbor";
 
 const THIRD_PARTY_SOURCE_ICONS: Partial<Record<BrandIconName, { src: string; alt: string }>> = {
   claude_code: { src: ClaudeCodeLogo, alt: "Claude Code" },
@@ -31,10 +31,21 @@ export function BrandIcon({ name, className }: { name: BrandIconName; className?
       return <MarkdownLogo className={className} />;
     case "mineru":
       return <PreprocessLogo className={className} />;
+    case "knoarbor":
+      return <KnoArborSourceLogo className={className} />;
     case "generic_chat":
     default:
       return <GenericChatLogo className={className} />;
   }
+}
+
+function KnoArborSourceLogo({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 3.5c3.4 2.2 5.2 4.7 5.2 7.2 0 2.7-2.1 4.9-5.2 4.9s-5.2-2.2-5.2-4.9c0-2.5 1.8-5 5.2-7.2Z" fill="none" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" />
+      <path d="M12 10v10M8.5 14.2 12 17l3.5-2.8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+    </svg>
+  );
 }
 
 function GenericChatLogo({ className }: { className?: string }) {

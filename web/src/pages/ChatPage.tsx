@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import {
-  closeChatSession,
   deleteChatSession,
   ingestChatSession,
   listChatSessions,
@@ -35,6 +34,15 @@ export function ChatPage({ context }: Props) {
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const activeChatAbortRef = useRef<AbortController | null>(null);
+  const chatVaultReady = useMemo(() => {
+    const selector = context.activeVaultSelector;
+    if (!context.configExists || !context.vaultOptions.length) return false;
+    if (selector.vault_id) {
+      return context.vaultOptions.some((vault) => vault.id === selector.vault_id);
+    }
+    return Boolean(selector.vault_path);
+  }, [context.activeVaultSelector, context.configExists, context.vaultOptions]);
 
   const apiMessages = useMemo<ChatMessageItem[]>(
     () => turns
@@ -45,6 +53,7 @@ export function ChatPage({ context }: Props) {
   );
 
   useEffect(() => {
+    if (!chatVaultReady) return;
     let cancelled = false;
     setIsLoadingSessions(true);
     listChatSessions(context.activeVaultSelector, 20)
@@ -60,7 +69,7 @@ export function ChatPage({ context }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [context.activeVaultSelector]);
+  }, [chatVaultReady, context.activeVaultSelector]);
 
   useEffect(() => {
     const prompt = context.pendingChatPrompt.trim();
@@ -70,6 +79,7 @@ export function ChatPage({ context }: Props) {
   }, [context.pendingChatPrompt, context.clearPendingChatPrompt]);
 
   async function refreshSessions() {
+    if (!chatVaultReady) return;
     try {
       const response = await listChatSessions(context.activeVaultSelector, 20);
       setRecentSessions(response.sessions || []);
@@ -86,20 +96,12 @@ export function ChatPage({ context }: Props) {
   }
 
   async function restoreSession(nextSessionId: string) {
-    if (isSending) return;
+    if (isSending || !chatVaultReady) return;
     setIsSending(true);
     try {
       const record = await readChatSession(context.activeVaultSelector, nextSessionId);
       setSessionId(record.session_id);
-      setTurns(
-        record.messages
-          .filter((message) => message.role === "user" || message.role === "assistant")
-          .map((message) => ({
-            role: message.role === "assistant" ? "assistant" : "user",
-            content: message.content,
-            citations: message.role === "assistant" ? record.citations : undefined,
-          })),
-      );
+      setTurns(sessionRecordToTurns(record));
     } catch (error) {
       context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
     } finally {
@@ -108,7 +110,7 @@ export function ChatPage({ context }: Props) {
   }
 
   async function removeSession(nextSessionId: string) {
-    if (isSending) return;
+    if (isSending || !chatVaultReady) return;
     try {
       await deleteChatSession(context.activeVaultSelector, nextSessionId);
       if (sessionId === nextSessionId) newSession();
@@ -118,11 +120,11 @@ export function ChatPage({ context }: Props) {
     }
   }
 
-  async function archiveCurrentSession() {
-    if (!sessionId || isSending || isArchiving) return;
+  async function archiveSession(nextSessionId: string) {
+    if (!nextSessionId || isSending || isArchiving || !chatVaultReady) return;
     setIsArchiving(true);
     try {
-      const response = await ingestChatSession(context.activeVaultSelector, sessionId);
+      const response = await ingestChatSession(context.activeVaultSelector, nextSessionId);
       context.setNotice({
         message: response.run_id ? `${context.t("chatIngestQueued")} ${response.run_id}` : context.t("chatIngestQueued"),
       });
@@ -135,33 +137,16 @@ export function ChatPage({ context }: Props) {
     }
   }
 
-  async function closeCurrentSession() {
-    if (!sessionId || isSending || isArchiving) return;
-    setIsArchiving(true);
-    try {
-      const response = await closeChatSession(context.activeVaultSelector, sessionId);
-      context.setNotice({
-        message: response.ingest_started && response.run_id
-          ? `${context.t("chatClosedAndIngestQueued")} ${response.run_id}`
-          : context.t("chatClosed"),
-      });
-      await refreshSessions();
-      if (response.ingest_started) context.navigate("runs");
-    } catch (error) {
-      context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
-    } finally {
-      setIsArchiving(false);
-    }
-  }
-
   async function submit(nextInput = input) {
     const content = nextInput.trim();
-    if (!content || isSending) return;
+    if (!content || isSending || !chatVaultReady) return;
     setInput("");
     const userTurn: ChatTurn = { role: "user", content };
     const nextTurns = [...turns, userTurn];
     setTurns(nextTurns);
     setIsSending(true);
+    const controller = new AbortController();
+    activeChatAbortRef.current = controller;
     try {
       const response = await sendChatMessage(
         context.activeVaultSelector,
@@ -171,6 +156,7 @@ export function ChatPage({ context }: Props) {
           all_vaults: context.activeVaultId === "all",
           max_turns: 6,
         },
+        controller.signal,
       );
       setSessionId(response.session_id || sessionId);
       setTurns((current) => [
@@ -183,13 +169,24 @@ export function ChatPage({ context }: Props) {
       ]);
       void refreshSessions();
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        context.setNotice({ message: context.t("chatStopped") });
+        return;
+      }
       const rawMessage = error instanceof Error ? error.message : String(error);
       const message = readableChatError(rawMessage, context);
       context.setNotice({ message, error: true });
       setTurns((current) => [...current, { role: "assistant", content: message }]);
     } finally {
+      if (activeChatAbortRef.current === controller) {
+        activeChatAbortRef.current = null;
+      }
       setIsSending(false);
     }
+  }
+
+  function stopSending() {
+    activeChatAbortRef.current?.abort();
   }
 
   const hasConversation = turns.length > 0 || isSending;
@@ -212,15 +209,26 @@ export function ChatPage({ context }: Props) {
                 <button type="button" onClick={() => void restoreSession(session.session_id)} disabled={isSending} title={session.title}>
                   {session.title}
                 </button>
-                <button
-                  className="chat-session-delete"
-                  type="button"
-                  onClick={() => void removeSession(session.session_id)}
-                  disabled={isSending}
-                  title={context.t("chatDeleteSession")}
-                >
-                  ×
-                </button>
+                <details className="chat-session-menu">
+                  <summary aria-label={context.t("chatSessionActions")} title={context.t("chatSessionActions")}>⋯</summary>
+                  <div className="chat-session-menu-popover">
+                    <button
+                      type="button"
+                      onClick={() => void archiveSession(session.session_id)}
+                      disabled={isSending || isArchiving}
+                    >
+                      {isArchiving ? context.t("chatArchiving") : context.t("chatIngestSession")}
+                    </button>
+                    <button
+                      className="danger"
+                      type="button"
+                      onClick={() => void removeSession(session.session_id)}
+                      disabled={isSending || isArchiving}
+                    >
+                      {context.t("chatDeleteSession")}
+                    </button>
+                  </div>
+                </details>
               </div>
             ))}
           </div>
@@ -266,29 +274,26 @@ export function ChatPage({ context }: Props) {
             )}
           </div>
           <div className="chat-composer">
-            <textarea
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  void submit();
-                }
-              }}
-              placeholder={context.t("chatPlaceholder")}
-              rows={3}
-            />
-            <div className="chat-composer-actions">
-              <div className="chat-session-actions">
-                <button className="button ghost" type="button" onClick={() => void archiveCurrentSession()} disabled={!sessionId || isSending || isArchiving}>
-                  {isArchiving ? context.t("chatArchiving") : context.t("chatIngestSession")}
-                </button>
-                <button className="button ghost" type="button" onClick={() => void closeCurrentSession()} disabled={!sessionId || isSending || isArchiving}>
-                  {context.t("chatCloseSession")}
-                </button>
-              </div>
-              <button className="button primary" type="button" onClick={() => void submit()} disabled={isSending || !input.trim()}>
-                {isSending ? context.t("chatSending") : context.t("chatSend")}
+            <div className="chat-input-shell">
+              <textarea
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void submit();
+                  }
+                }}
+                placeholder={context.t("chatPlaceholder")}
+                rows={2}
+              />
+              <button
+                className={`button ${isSending ? "secondary" : "primary"} chat-send-button`}
+                type="button"
+                onClick={isSending ? stopSending : () => void submit()}
+                disabled={!isSending && !input.trim()}
+              >
+                {isSending ? context.t("chatStop") : context.t("chatSend")}
               </button>
             </div>
           </div>
@@ -296,6 +301,26 @@ export function ChatPage({ context }: Props) {
       </div>
     </section>
   );
+}
+
+function sessionRecordToTurns(record: Awaited<ReturnType<typeof readChatSession>>): ChatTurn[] {
+  if (record.turns?.length) {
+    return record.turns.flatMap((turn) => [
+      { role: "user" as const, content: turn.user_message.content },
+      {
+        role: "assistant" as const,
+        content: turn.assistant_message.content,
+        citations: turn.citations || [],
+      },
+    ]);
+  }
+  return record.messages
+    .filter((message) => message.role === "user" || message.role === "assistant")
+    .map((message) => ({
+      role: message.role === "assistant" ? "assistant" : "user",
+      content: message.content,
+      citations: message.role === "assistant" ? record.citations : undefined,
+    }));
 }
 
 function ChatMarkdownAnswer({ content, citations, context }: { content: string; citations: ChatCitation[]; context: AppContext }) {

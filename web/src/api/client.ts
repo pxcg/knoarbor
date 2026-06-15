@@ -371,6 +371,22 @@ export type ChatRunLink = {
   vault_path?: string | null;
 };
 
+export type ChatTurnRecord = {
+  index: number;
+  created_at: string;
+  user_message: ChatMessageItem;
+  assistant_message: ChatMessageItem;
+  citations: ChatCitation[];
+  tool_trace: ChatToolTraceItem[];
+  events: ChatEvent[];
+  run_links: ChatRunLink[];
+  memory_used: unknown[];
+  memory_candidates: unknown[];
+  memory_writes: unknown[];
+  stats: Record<string, unknown>;
+  warnings: string[];
+};
+
 export type ChatResponse = {
   schema_version: "chat_response.v1";
   session_id?: string | null;
@@ -410,6 +426,7 @@ export type ChatSessionRecord = {
   last_ingest_run_id?: string | null;
   last_ingested_at?: string | null;
   messages: ChatMessageItem[];
+  turns: ChatTurnRecord[];
   citations: ChatCitation[];
   tool_trace: ChatToolTraceItem[];
   events: ChatEvent[];
@@ -814,9 +831,11 @@ export async function sendChatMessage(
     max_turns?: number;
     session_id?: string | null;
   } = {},
+  signal?: AbortSignal,
 ): Promise<ChatResponse> {
   return requestJson("/chat", {
     method: "POST",
+    signal,
     body: {
       schema_version: "chat_request.v1",
       session_id: options.session_id || undefined,
@@ -915,10 +934,11 @@ export async function getQueryTrends(selector: VaultSelector, limit = 100): Prom
   return requestJson(`/query/trends?${singleVaultQuery(selector)}&limit=${limit}`);
 }
 
-async function requestJson<T>(url: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
+async function requestJson<T>(url: string, options: { method?: string; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
   const init: RequestInit = {
     method: options.method || "GET",
     headers: { Accept: "application/json" },
+    signal: options.signal,
   };
   if (options.body !== undefined) {
     init.headers = { ...init.headers, "Content-Type": "application/json" };

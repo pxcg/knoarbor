@@ -58,7 +58,7 @@ export function AppShell({
         <header className="topbar">
           <div className="topbar-heading">
             <p className="topbar-kicker">{viewTitles[language][activeView]}</p>
-            <p className="topbar-subtitle">{viewSubtitles[language][activeView]}</p>
+            {activeView !== "chat" && <p className="topbar-subtitle">{viewSubtitles[language][activeView]}</p>}
           </div>
           <div className="topbar-actions">
             {vaultOptions.length > 1 && (

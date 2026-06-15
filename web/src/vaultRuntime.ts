@@ -49,6 +49,7 @@ export function buildVaultOptions(summary: ConfigSummary, registry?: VaultListRe
 export function resolveActiveVault(options: VaultOption[], preferredId: string, summary: ConfigSummary): VaultOption {
   return (
     options.find((vault) => vault.id === preferredId) ||
+    (!preferredId ? options.find((vault) => vault.id === "all") : undefined) ||
     options.find((vault) => vault.id === summary.vault_id) ||
     options[0] || {
       id: summary.vault_id || "default",
@@ -60,6 +61,7 @@ export function resolveActiveVault(options: VaultOption[], preferredId: string, 
 
 export function nextValidVaultId(options: VaultOption[], preferredId: string, summary: ConfigSummary): string {
   if (options.some((vault) => vault.id === preferredId)) return preferredId;
+  if (!preferredId) return options.find((vault) => vault.id === "all")?.id || summary.vault_id || options[0]?.id || "default";
   return summary.vault_id || options[0]?.id || "default";
 }
 

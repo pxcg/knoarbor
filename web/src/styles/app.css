@@ -379,6 +379,7 @@ textarea {
   padding: 8px 0 12px;
   background: linear-gradient(180deg, rgba(244, 247, 245, 0.97), rgba(244, 247, 245, 0.82) 82%, transparent);
   backdrop-filter: blur(10px);
+  flex-wrap: nowrap;
 }
 
 .topbar-heading {
@@ -437,8 +438,10 @@ h2 {
 }
 
 .topbar-actions {
-  flex-wrap: wrap;
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .topbar-vault-select {
@@ -448,9 +451,12 @@ h2 {
   border-radius: 9px;
   display: flex;
   gap: 8px;
-  max-width: min(340px, 40vw);
+  flex: 0 1 260px;
+  max-width: min(280px, 34vw);
   min-height: 36px;
+  min-width: 0;
   padding: 4px 8px 4px 10px;
+  white-space: nowrap;
 }
 
 .topbar-vault-select span {
@@ -467,10 +473,17 @@ h2 {
   color: var(--text);
   font-size: 12px;
   font-weight: 700;
-  min-width: 92px;
+  min-width: 0;
+  max-width: 160px;
   overflow: hidden;
   padding: 4px 22px 4px 4px;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-actions .button,
+.language-switch {
+  flex: 0 0 auto;
   white-space: nowrap;
 }
 
@@ -4953,7 +4966,6 @@ blockquote {
     position: static;
   }
 
-  .topbar,
   .panel-header,
   .section-divider {
     align-items: flex-start;
@@ -4971,6 +4983,20 @@ blockquote {
 }
 
 @media (max-width: 760px) {
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .topbar-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .topbar-vault-select {
+    max-width: 100%;
+  }
+
   .query-controls,
   .query-health {
     grid-template-columns: 1fr;
@@ -5028,10 +5054,12 @@ blockquote {
 }
 
 .chat-session-row {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 24px;
+  grid-template-columns: minmax(0, 1fr) 30px;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
+  min-height: 34px;
   border-radius: 9px;
 }
 
@@ -5059,29 +5087,89 @@ blockquote {
   color: #0f684d;
 }
 
-.chat-session-delete {
-  width: 22px;
-  height: 22px;
+.chat-session-menu {
+  position: relative;
+  justify-self: center;
   display: inline-grid;
   place-items: center;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 15px;
-  line-height: 1;
-  opacity: 0;
 }
 
-.chat-session-row:hover .chat-session-delete,
-.chat-session-row:focus-within .chat-session-delete {
+.chat-session-menu summary {
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+  list-style: none;
+  opacity: 0;
+  padding: 0 0 2px;
+}
+
+.chat-session-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.chat-session-row:hover .chat-session-menu summary,
+.chat-session-row:focus-within .chat-session-menu summary,
+.chat-session-menu[open] summary {
   opacity: 1;
 }
 
-.chat-session-delete:hover {
+.chat-session-menu summary:hover,
+.chat-session-menu[open] summary {
   background: #fff;
+  color: #17311f;
+}
+
+.chat-session-menu-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 132px;
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(31, 54, 40, 0.12);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 16px 36px rgba(24, 43, 32, 0.16);
+  padding: 6px;
+}
+
+.chat-session-menu-popover button {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #24342a;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 9px;
+  text-align: left;
+}
+
+.chat-session-menu-popover button:hover:not(:disabled) {
+  background: #edf5f0;
+}
+
+.chat-session-menu-popover button.danger {
   color: #a03636;
+}
+
+.chat-session-menu-popover button.danger:hover:not(:disabled) {
+  background: #fff1f1;
+}
+
+.chat-session-menu-popover button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .chat-session-muted {
@@ -5362,6 +5450,13 @@ blockquote {
   box-shadow: 0 18px 48px rgba(24, 43, 32, 0.1);
 }
 
+.chat-input-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
 .chat-composer textarea {
   width: 100%;
   min-height: 54px;
@@ -5372,6 +5467,12 @@ blockquote {
   background: transparent;
   color: var(--text);
   font: inherit;
+}
+
+.chat-send-button {
+  min-width: 78px;
+  min-height: 38px;
+  align-self: end;
 }
 
 .chat-composer-actions {
