@@ -53,20 +53,25 @@ class ModelProbeService:
     def discover(self, request: ModelDiscoveryRequest) -> ModelDiscoveryResponse:
         config = load_config(request.config_path or default_config_path())
         provider_name, provider = _resolve_provider(config.models.providers, request.provider or config.models.default_provider)
-        gateway = ModelGateway.from_config(provider_name, provider, timeout_seconds=min(config.models.request_timeout_seconds, 10.0))
+        discovery_provider = _provider_for_discovery(provider)
+        gateway = ModelGateway.from_config(provider_name, discovery_provider, timeout_seconds=min(config.models.request_timeout_seconds, 10.0))
         discovery = gateway.discover_models()
         details = dict(discovery.details)
         detected_context = _int_or_none(details.get("detected_context_window"))
         effective_context = detected_context or provider.context_window
+        configured_model_found = _bool_or_none(details.get("configured_model_found"))
+        status = "error"
+        if discovery.available:
+            status = "warning" if provider.model and configured_model_found is False else "ok"
         return ModelDiscoveryResponse(
             provider=provider_name,
             model=provider.model or "",
-            status="ok" if discovery.available else "error",
+            status=status,
             available=discovery.available,
-            message=discovery.message,
+            message=_discovery_message(discovery.message, provider.model, configured_model_found),
             model_ids=[str(item) for item in details.get("model_ids", []) if isinstance(item, str)],
             model_count=int(details.get("model_count") or 0),
-            configured_model_found=_bool_or_none(details.get("configured_model_found")),
+            configured_model_found=configured_model_found,
             detected_context_window=detected_context,
             configured_context_window=provider.context_window,
             effective_context_window=effective_context,
@@ -174,6 +179,25 @@ def _resolve_provider(providers: dict[str, ModelProviderConfig], provider_name: 
     if provider is None:
         raise UserInputError(f"Unknown model provider: {provider_name}")
     return provider_name, provider
+
+
+def _provider_for_discovery(provider: ModelProviderConfig) -> ModelProviderConfig:
+    """Build a provider config suitable for list-model discovery.
+
+    Discovery is the step that lets users choose a model, so it must only
+    require provider name/base URL/credentials. A concrete model remains
+    mandatory for probe and semantic generation.
+    """
+
+    if provider.model:
+        return provider
+    return provider.model_copy(update={"model": "__knoarbor_discovery__"})
+
+
+def _discovery_message(base_message: str, configured_model: str | None, configured_model_found: bool | None) -> str:
+    if configured_model and configured_model_found is False:
+        return f"{base_message} Configured model was not found in the discovered model list."
+    return base_message
 
 
 def _provider_credentials_ready(provider: ModelProviderConfig) -> bool:

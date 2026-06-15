@@ -12,7 +12,7 @@ from knoarbor.entrypoints.api import create_app
 from knoarbor.semantic.llm import ChatCompletionResponse, ProviderModelDiscovery
 
 
-def _write_config(path: Path, *, api_key_env: str | None = None) -> None:
+def _write_config(path: Path, *, api_key_env: str | None = None, model: str = "qwen-local") -> None:
     payload = {
         "vault": {"path": str(path.parent / "wiki")},
         "models": {
@@ -23,7 +23,7 @@ def _write_config(path: Path, *, api_key_env: str | None = None) -> None:
                 "local": {
                     "base_url": "http://localhost:8001/v1",
                     "api_key_env": api_key_env,
-                    "model": "qwen-local",
+                    "model": model,
                     "json_mode": False,
                     "context_window": 16384,
                     "max_output_tokens": 4096,
@@ -84,6 +84,34 @@ class ModelProbeApiTests(unittest.TestCase):
         self.assertEqual(payload["detected_context_window"], 32768)
         self.assertEqual(payload["effective_context_window"], 32768)
         self.assertEqual(payload["suggested_config"]["max_output_tokens"], 8000)
+
+    def test_discover_endpoint_does_not_require_selected_model(self) -> None:
+        discovery = ProviderModelDiscovery(
+            available=True,
+            message="ok",
+            details={
+                "model_ids": ["qwen3:14b", "qwen3.6:27b-q4_K_M"],
+                "model_count": 2,
+                "configured_model_found": False,
+            },
+        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config = Path(tmp_dir) / "config.yaml"
+            _write_config(config, model="")
+            client = TestClient(create_app())
+
+            with patch("knoarbor.services.model_probe.ModelGateway.discover_models", return_value=discovery):
+                response = client.post(
+                    "/models/discover",
+                    json={"config_path": str(config), "provider": "local"},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["available"])
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["model"], "")
+        self.assertEqual(payload["model_ids"], ["qwen3:14b", "qwen3.6:27b-q4_K_M"])
 
     def test_probe_endpoint_validates_structured_output(self) -> None:
         discovery = ProviderModelDiscovery(available=True, message="ok", details={"detected_context_window": 32768})

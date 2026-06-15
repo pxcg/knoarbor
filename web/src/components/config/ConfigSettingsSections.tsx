@@ -585,7 +585,12 @@ export function ConfigModelProvidersSection({
                 {t("removeProvider")}
               </button>
             </div>
-            <ModelProbeResultPanel result={probeResults[active.name]} t={t} />
+            <ModelProbeResultPanel
+              result={probeResults[active.name]}
+              t={t}
+              activeModel={active.model}
+              onSelectModel={(model) => updateProvider(activeProvider, { model })}
+            />
           </div>
         )}
       </div>
@@ -643,13 +648,24 @@ function providerRuntimeStatus(provider: ConfigFormProvider, result: ModelProvid
   };
 }
 
-function ModelProbeResultPanel({ result, t }: { result?: ModelProviderProbeState; t: (key: string) => string }) {
+function ModelProbeResultPanel({
+  result,
+  t,
+  activeModel,
+  onSelectModel,
+}: {
+  result?: ModelProviderProbeState;
+  t: (key: string) => string;
+  activeModel?: string;
+  onSelectModel?: (model: string) => void;
+}) {
   if (!result?.discovery && !result?.probe) {
     return <p className="settings-action-note">{t("modelProbeEmpty")}</p>;
   }
   const discovery = result.discovery;
   const probe = result.probe;
   const suggested = suggestedConfigFor(result);
+  const modelIds = discovery?.model_ids || [];
   return (
     <section className="model-probe-panel">
       <div className="model-probe-header">
@@ -685,6 +701,30 @@ function ModelProbeResultPanel({ result, t }: { result?: ModelProviderProbeState
           <dd>{formatMaybeNumber(suggested.max_output_tokens, t)}</dd>
         </div>
       </dl>
+      {discovery?.configured_model_found === false && activeModel && (
+        <p className="settings-action-note warning">{t("configuredModelMissing")}</p>
+      )}
+      {modelIds.length > 0 && (
+        <div className="model-discovery-list">
+          <div className="model-discovery-heading">
+            <h4>{t("availableModels")}</h4>
+            <span>{t("availableModelsCopy")}</span>
+          </div>
+          <div className="model-discovery-table" role="table" aria-label={t("availableModels")}>
+            {modelIds.map((modelId) => {
+              const selected = modelId === activeModel;
+              return (
+                <div className={`model-discovery-row ${selected ? "selected" : ""}`} role="row" key={modelId}>
+                  <span className="model-discovery-name" title={modelId}>{modelId}</span>
+                  <button className={selected ? "button ghost compact" : "button secondary compact"} type="button" onClick={() => onSelectModel?.(modelId)} disabled={selected}>
+                    {selected ? t("selectedModel") : t("useModel")}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
