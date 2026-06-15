@@ -14,7 +14,6 @@ from knoarbor.core.config import default_config_path, load_config
 from knoarbor.core.errors import ModelOutputError, UserInputError
 from knoarbor.core.schemas.chat import (
     ChatAnswerDraft,
-    ChatAgentDecision,
     ChatCitation,
     ChatEvent,
     ChatMessageItem,
@@ -23,13 +22,10 @@ from knoarbor.core.schemas.chat import (
     ChatRunLink,
     ChatToolTraceItem,
 )
-from knoarbor.core.schemas.ingest_run import IngestRunRequest
-from knoarbor.core.schemas.maintenance import MaintenanceScope, MaintenanceScopeSource
 from knoarbor.core.schemas.memory import MemoryCandidate, MemoryRecord
-from knoarbor.core.schemas.wiki_lint import LintRunRequest
 from knoarbor.core.schemas.wiki_query import WikiSearchRequest, WikiSearchResult
 from knoarbor.core.vaults import VIRTUAL_ALL_VAULT_ID
-from knoarbor.entrypoints.vault_selection import resolve_single_vault
+from knoarbor.retrieval.answer_selection import query_prefers_source_page
 from knoarbor.services.chat_evidence import ChatEvidencePlanner, search_result_to_chat_payload
 from knoarbor.services.chat_context import ChatContextEngine, latest_user_text, memory_target, session_target
 from knoarbor.semantic.contracts import load_prompt
@@ -38,16 +34,6 @@ from knoarbor.semantic.llm import ChatClient, ChatCompletionRequest, ChatMessage
 if TYPE_CHECKING:
     from knoarbor.services import ApplicationServices
 
-
-CHAT_LINT_MODES = {
-    "deterministic",
-    "structural",
-    "quality",
-    "full",
-    "semantic_structural",
-    "semantic_quality",
-    "semantic_full",
-}
 
 ANSWER_SYNTHESIS_PROMPT = load_prompt("wiki_chat_answer.md")
 
@@ -67,13 +53,12 @@ class ChatAgentService:
         chat_id = request.session_id or (existing_session.session_id if existing_session else None)
         if chat_id is None:
             chat_id = services.chat_sessions.new_session_id()
-        execution_mode = _resolve_execution_mode(request, client)
         context = self.context_engine.build(
             request,
             services,
             chat_id=chat_id,
             existing_session=existing_session,
-            system_prompt=ANSWER_SYNTHESIS_PROMPT if execution_mode == "retrieval_first" else None,
+            system_prompt=ANSWER_SYNTHESIS_PROMPT,
         )
         effective_request = request.model_copy(update={"messages": context.conversation_messages, "session_id": chat_id})
         loop = _ChatLoop(
@@ -86,14 +71,14 @@ class ChatAgentService:
             memory_used=context.memory_used,
             warnings=context.warnings,
         )
-        response = loop.run_retrieval_first() if execution_mode == "retrieval_first" else loop.run()
+        response = loop.run()
         response.stats.update(
             {
                 "chat_id": response.session_id,
                 "elapsed_seconds": round(time.perf_counter() - started, 3),
                 "provider": getattr(client, "provider", response.stats.get("provider")),
                 "model": getattr(client, "model", response.stats.get("model")),
-                "execution_mode": execution_mode,
+                "retrieval_strategy": response.stats.get("retrieval_strategy", "canonical_evidence"),
                 "session_vault_id": chat_target.vault_id,
                 "session_vault_name": chat_target.vault_name,
             }
@@ -133,75 +118,15 @@ class _ChatLoop:
 
     def run(self) -> ChatResponse:
         messages = list(self.initial_messages)
-        seen_tool_calls: set[str] = set()
-        self._event("chat_started", message="Chat request started.")
-        for turn in range(self.request.max_turns):
-            prompt_chars = _messages_chars(messages)
-            call_started = time.perf_counter()
-            self._event("model_call_started", message="Calling chat model.", turn=turn + 1)
-            completion = self.client.complete(
-                ChatCompletionRequest(
-                    messages=messages,
-                    temperature=0.1,
-                    max_tokens=_max_tokens(self.request),
-                )
-            )
-            self.model_calls += 1
-            _merge_usage(self.total_usage, completion.usage)
-            self._event(
-                "model_call_finished",
-                message="Chat model call finished.",
-                turn=turn + 1,
-                payload={"usage": completion.usage, "elapsed_seconds": completion.elapsed_seconds},
-            )
-            self.call_records.append(
-                {
-                    **completion.usage,
-                    "provider": completion.provider,
-                    "model": completion.model,
-                    "turn": turn + 1,
-                    "prompt_chars": prompt_chars,
-                    "elapsed_seconds": completion.elapsed_seconds or round(time.perf_counter() - call_started, 3),
-                    "tokens_per_second": completion.tokens_per_second,
-                }
-            )
-            decision = _parse_decision(completion.content)
-            if decision.type == "final":
-                return self._final_response(decision, turn + 1)
-
-            call_key = json.dumps({"tool": decision.tool, "arguments": decision.arguments}, sort_keys=True, ensure_ascii=False)
-            if call_key in seen_tool_calls:
-                self.warnings.append(f"Repeated tool call stopped: {decision.tool}")
-                return self._fallback_response("我已经尝试过相同的查询步骤，但没有得到新的信息。请补充更具体的页面、报告或主题。", turn + 1)
-            seen_tool_calls.add(call_key)
-
-            self._event("tool_call_started", message=f"Calling chat tool {decision.tool}.", tool=decision.tool, turn=turn + 1)
-            observation = self._execute_tool(decision.tool or "", decision.arguments)
-            self.trace.append(observation)
-            self._event(
-                "tool_call_failed" if observation.status == "error" else "tool_call_finished",
-                message=observation.summary,
-                tool=observation.tool,
-                turn=turn + 1,
-                status=observation.status,
-            )
-            messages.append(ChatMessage(role="assistant", content=completion.content))
-            messages.append(ChatMessage(role="user", content=self._tool_observation_text(observation)))
-
-        self.warnings.append("Max chat agent turns reached.")
-        self._event("chat_stopped", message="Max chat agent turns reached.")
-        return self._fallback_response("我已经达到本轮对话的工具调用上限。可以换一个更具体的问题，或指定要读取的页面、报告或运行 ID。", self.request.max_turns)
-
-    def run_retrieval_first(self) -> ChatResponse:
-        messages = list(self.initial_messages)
         self._event("chat_started", message="Chat request started.")
         query = latest_user_text(self.current_messages)
+        retrieval = _plan_chat_retrieval(query)
         self._event("tool_call_started", message="Searching wiki before answer synthesis.", tool="search_wiki", turn=1)
         observation = self._tool_search_wiki(
             {
                 "query": query,
-                "mode": self.request.mode,
-                "max_results": 8 if self.request.mode == "deep" else 6,
+                "mode": retrieval["mode"],
+                "max_results": retrieval["max_results"],
             }
         )
         self.trace.append(observation)
@@ -212,7 +137,7 @@ class _ChatLoop:
             turn=1,
             status=observation.status,
         )
-        messages.append(ChatMessage(role="user", content=self._retrieval_first_prompt(observation)))
+        messages.append(ChatMessage(role="user", content=self._evidence_prompt(observation)))
 
         prompt_chars = _messages_chars(messages)
         call_started = time.perf_counter()
@@ -244,9 +169,12 @@ class _ChatLoop:
             }
         )
         draft = _parse_answer_draft(completion.content)
-        return self._answer_response(draft, turns=1)
+        response = self._answer_response(draft, turns=1)
+        response.stats["retrieval_strategy"] = "canonical_evidence"
+        response.stats["retrieval_policy"] = retrieval
+        return response
 
-    def _retrieval_first_prompt(self, observation: ChatToolTraceItem) -> str:
+    def _evidence_prompt(self, observation: ChatToolTraceItem) -> str:
         payload = self.evidence_planner.project_tool_observation(
             observation.tool,
             observation.status,
@@ -261,38 +189,6 @@ class _ChatLoop:
             ensure_ascii=False,
         )
 
-    def _execute_tool(self, tool: str, arguments: dict[str, Any]) -> ChatToolTraceItem:
-        try:
-            if tool == "search_wiki":
-                return self._tool_search_wiki(arguments)
-            if tool == "read_wiki_page":
-                return self._tool_read_wiki_page(arguments)
-            if tool == "list_wiki_pages":
-                return self._tool_list_wiki_pages(arguments)
-            if tool == "read_report":
-                return self._tool_read_report(arguments)
-            if tool == "list_runs":
-                return self._tool_list_runs(arguments)
-            if tool == "list_sources":
-                return self._tool_list_sources(arguments)
-            if _is_side_effect_tool(tool) and not _side_effect_allowed(tool, latest_user_text(self.current_messages)):
-                return ChatToolTraceItem(
-                    tool=tool,
-                    arguments=arguments,
-                    status="skipped",
-                    summary="Side-effect tool requires an explicit user request.",
-                    result={"reason": "explicit_user_intent_required"},
-                )
-            if tool == "start_ingest":
-                return self._tool_start_ingest(arguments)
-            if tool == "start_lint":
-                return self._tool_start_lint(arguments)
-            if tool == "cancel_run":
-                return self._tool_cancel_run(arguments)
-            raise UserInputError(f"Unknown chat tool: {tool}")
-        except Exception as exc:
-            return ChatToolTraceItem(tool=tool, arguments=arguments, status="error", summary=str(exc), result={"error": str(exc)})
-
     def _tool_search_wiki(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
         query = _required_text(arguments, "query")
         max_results = _bounded_int(arguments.get("max_results"), default=6, minimum=1, maximum=12)
@@ -304,7 +200,7 @@ class _ChatLoop:
             vault_ids=[str(item) for item in arguments.get("vault_ids", self.request.vault_ids) or []],
             all_vaults=bool(arguments.get("all_vaults", self.request.all_vaults or self.request.vault_id == VIRTUAL_ALL_VAULT_ID)),
             query=query,
-            mode=arguments.get("mode") if arguments.get("mode") in {"quick", "balanced", "deep"} else self.request.mode,
+            mode=arguments.get("mode") if arguments.get("mode") in {"quick", "balanced", "deep"} else "balanced",
             page_dirs=[str(item) for item in arguments.get("page_dirs", []) if str(item).strip()],
             max_results=max_results,
             record_query=False,
@@ -312,14 +208,16 @@ class _ChatLoop:
             caller="chat",
         )
         response = self.services.wiki_search.search(request)
-        primary = response.primary_pages[0] if response.primary_pages else _fallback_primary_result(response.results, query)
+        primary_pages = response.primary_pages or _fallback_primary_results(response.results, query)
+        primary = primary_pages[0] if primary_pages else None
+        primary_paths = {item.path for item in primary_pages}
         supporting = (
             response.supporting_pages
             or [
                 item
                 for item in response.results
-                if primary
-                and item.path != primary.path
+                if primary_pages
+                and item.path not in primary_paths
                 and item.type != "source"
             ]
         )[:5]
@@ -335,7 +233,7 @@ class _ChatLoop:
                 vault_path=result.vault_path,
                 reason=result.reason,
             )
-            for result in _primary_first_results(response.results, primary)
+            for result in _primary_first_results(response.results, primary_pages)
         ]
         result = {
             "query": response.query,
@@ -362,6 +260,7 @@ class _ChatLoop:
             }
             if primary
             else None,
+            "primary_pages": [_chat_primary_page_payload(item) for item in primary_pages],
             "supporting_pages": [_chat_supporting_page_payload(item) for item in supporting],
             "source_pages": [_chat_supporting_page_payload(item) for item in source_pages],
             "results": [search_result_to_chat_payload(item) for item in response.results],
@@ -374,123 +273,13 @@ class _ChatLoop:
             answer_set=result["answer_set"],
             evidence_coverage=result["evidence_coverage"],
             primary_page=result["primary_page"],
+            primary_pages=result["primary_pages"],
             supporting_pages=result["supporting_pages"],
             source_pages=result["source_pages"],
             results=result["results"],
             warnings=response.warnings,
         ).payload
         return ChatToolTraceItem(tool="search_wiki", arguments=arguments, summary=f"Found {len(response.results)} wiki result(s).", citations=citations, result=result)
-
-    def _tool_read_wiki_page(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
-        path = _required_text(arguments, "path")
-        max_chars = _bounded_int(arguments.get("max_chars"), default=12000, minimum=1000, maximum=50000)
-        vault = resolve_single_vault(None if "vault_id" in arguments else self.request.vault_path, _concrete_argument_vault_id(arguments, self.request.vault_id), self.request.config_path)
-        page = self.services.wiki_pages.read_page(vault.path, path, vault_id=vault.vault_id, vault_name=vault.vault_name)
-        content = page.content
-        truncated = len(content) > max_chars
-        result = {
-            "path": page.path,
-            "title": page.summary.title,
-            "summary": page.summary.summary,
-            "content": content[:max_chars],
-            "truncated": truncated,
-            "outbound_links": [link.model_dump() for link in page.outbound_links],
-            "backlinks": [link.model_dump() for link in page.backlinks],
-        }
-        citation = ChatCitation(kind="page", path=page.path, title=page.summary.title, vault_id=vault.vault_id, vault_name=vault.vault_name, vault_path=str(vault.path))
-        return ChatToolTraceItem(tool="read_wiki_page", arguments=arguments, summary=f"Read page {page.path}{' (truncated)' if truncated else ''}.", citations=[citation], result=result)
-
-    def _tool_list_wiki_pages(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
-        vault = resolve_single_vault(None if "vault_id" in arguments else self.request.vault_path, _concrete_argument_vault_id(arguments, self.request.vault_id), self.request.config_path)
-        pages = self.services.wiki_pages.list_pages(vault.path, vault_id=vault.vault_id, vault_name=vault.vault_name).pages
-        page_dir = str(arguments.get("page_dir") or "").strip()
-        if page_dir:
-            pages = [page for page in pages if page.directory == page_dir]
-        limit = _bounded_int(arguments.get("limit"), default=30, minimum=1, maximum=100)
-        selected = pages[:limit]
-        return ChatToolTraceItem(
-            tool="list_wiki_pages",
-            arguments=arguments,
-            summary=f"Listed {len(selected)} page(s).",
-            citations=[ChatCitation(kind="page", path=page.path, title=page.title, vault_id=vault.vault_id, vault_name=vault.vault_name, vault_path=str(vault.path)) for page in selected],
-            result={"pages": [page.model_dump() for page in selected], "total_pages": len(pages)},
-        )
-
-    def _tool_read_report(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
-        path = _required_text(arguments, "path")
-        max_chars = _bounded_int(arguments.get("max_chars"), default=12000, minimum=1000, maximum=50000)
-        vault = resolve_single_vault(None if "vault_id" in arguments else self.request.vault_path, _concrete_argument_vault_id(arguments, self.request.vault_id), self.request.config_path)
-        report = self.services.wiki_reports.read_report(vault.path, path, vault_id=vault.vault_id, vault_name=vault.vault_name)
-        content = report.content
-        truncated = len(content) > max_chars
-        citation = ChatCitation(kind="report", path=report.path, title=report.summary.title, vault_id=vault.vault_id, vault_name=vault.vault_name, vault_path=str(vault.path))
-        return ChatToolTraceItem(
-            tool="read_report",
-            arguments=arguments,
-            summary=f"Read report {report.path}{' (truncated)' if truncated else ''}.",
-            citations=[citation],
-            result={"path": report.path, "title": report.summary.title, "kind": report.summary.kind, "content": content[:max_chars], "truncated": truncated},
-        )
-
-    def _tool_list_runs(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
-        vault = resolve_single_vault(None if "vault_id" in arguments else self.request.vault_path, _concrete_argument_vault_id(arguments, self.request.vault_id), self.request.config_path)
-        limit = _bounded_int(arguments.get("limit"), default=10, minimum=1, maximum=50)
-        active_only = bool(arguments.get("active_only", False))
-        response = self.services.runs.list(str(vault.path), active_only=active_only, limit=limit, vault_id=vault.vault_id, vault_name=vault.vault_name)
-        citations = [ChatCitation(kind="run", run_id=run.run_id, title=run.message, vault_id=run.vault_id, vault_name=run.vault_name, vault_path=run.vault_path) for run in response.runs]
-        return ChatToolTraceItem(tool="list_runs", arguments=arguments, summary=f"Listed {len(response.runs)} run(s).", citations=citations, result={"runs": [run.model_dump() for run in response.runs]})
-
-    def _tool_list_sources(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
-        response = self.services.source_catalog.list_catalog(config_path=self.request.config_path)
-        return ChatToolTraceItem(tool="list_sources", arguments=arguments, summary=f"Listed {len(response.connectors)} source connector(s).", result=response.model_dump())
-
-    def _tool_start_ingest(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
-        connector_names = [str(item) for item in arguments.get("connector_names", []) if str(item).strip()]
-        request = IngestRunRequest(config_path=self.request.config_path, vault_path=self.request.vault_path, vault_id=self.request.vault_id, connector_names=connector_names or None, write=True, write_report=True, append_ledger=True)
-        started = self.services.runs.start_ingest(request, self.services.ingest.run)
-        self.run_links.append(ChatRunLink(flow="ingest", run_id=started.run_id, status=started.status, vault_id=started.run.vault_id, vault_name=started.run.vault_name, vault_path=started.run.vault_path))
-        return ChatToolTraceItem(tool="start_ingest", arguments=arguments, summary=f"Queued ingest run {started.run_id}.", result=started.model_dump())
-
-    def _tool_start_lint(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
-        requested_mode = str(arguments.get("mode") or "deterministic")
-        mode = requested_mode if requested_mode in CHAT_LINT_MODES else "deterministic"
-        scope = MaintenanceScope(
-            scope_id="chat:manual",
-            trigger="manual",
-            source=MaintenanceScopeSource(kind="chat"),
-            global_checks=["structure", "provenance", "graph"],
-            reason="Queued from KnoArbor chat by explicit user request.",
-        )
-        request = LintRunRequest(config_path=self.request.config_path, vault_path=self.request.vault_path, vault_id=self.request.vault_id, scope=scope, mode=mode, write_report=True, append_ledger=True)
-        started = self.services.runs.start_lint(request, self.services.wiki_linter.run_maintenance)
-        self.run_links.append(ChatRunLink(flow="lint", run_id=started.run_id, status=started.status, vault_id=started.run.vault_id, vault_name=started.run.vault_name, vault_path=started.run.vault_path))
-        return ChatToolTraceItem(tool="start_lint", arguments=arguments, summary=f"Queued lint run {started.run_id}.", result=started.model_dump())
-
-    def _tool_cancel_run(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
-        run_id = _required_text(arguments, "run_id")
-        vault = resolve_single_vault(self.request.vault_path, self.request.vault_id, self.request.config_path)
-        run = self.services.runs.cancel(str(vault.path), run_id, vault_id=vault.vault_id, vault_name=vault.vault_name)
-        return ChatToolTraceItem(tool="cancel_run", arguments=arguments, summary=f"Cancellation requested for {run.run_id}.", result=run.model_dump())
-
-    def _final_response(self, decision: ChatAgentDecision, turns: int) -> ChatResponse:
-        citations = _final_citations(decision.citations, self.trace)
-        answer = _clean_answer_citation_paths(decision.answer or "", citations, latest_user_text=latest_user_text(self.current_messages))
-        self._capture_memory()
-        self._event("final_answer_ready", message="Final chat answer is ready.", turn=turns, payload={"citation_count": len(citations)})
-        return ChatResponse(
-            session_id=self.request.session_id,
-            answer=answer,
-            messages=[*self.request.messages, ChatMessageItem(role="assistant", content=answer)],
-            citations=citations,
-            tool_trace=self.trace if self.request.include_trace else [],
-            events=self.events,
-            run_links=self.run_links,
-            memory_used=self.memory_used,
-            memory_candidates=self.memory_candidates,
-            memory_writes=self.memory_writes,
-            stats=self._stats(turns),
-            warnings=self.warnings,
-        )
 
     def _answer_response(self, draft: ChatAnswerDraft, turns: int) -> ChatResponse:
         citations = _final_citations(draft.citations, self.trace)
@@ -502,23 +291,6 @@ class _ChatLoop:
             answer=answer,
             messages=[*self.request.messages, ChatMessageItem(role="assistant", content=answer)],
             citations=citations,
-            tool_trace=self.trace if self.request.include_trace else [],
-            events=self.events,
-            run_links=self.run_links,
-            memory_used=self.memory_used,
-            memory_candidates=self.memory_candidates,
-            memory_writes=self.memory_writes,
-            stats=self._stats(turns),
-            warnings=self.warnings,
-        )
-
-    def _fallback_response(self, answer: str, turns: int) -> ChatResponse:
-        self._capture_memory()
-        return ChatResponse(
-            session_id=self.request.session_id,
-            answer=answer,
-            messages=[*self.request.messages, ChatMessageItem(role="assistant", content=answer)],
-            citations=_unique_citations(citation for item in self.trace for citation in item.citations),
             tool_trace=self.trace if self.request.include_trace else [],
             events=self.events,
             run_links=self.run_links,
@@ -578,18 +350,6 @@ class _ChatLoop:
             )
         )
 
-    def _tool_observation_text(self, observation: ChatToolTraceItem) -> str:
-        return json.dumps(
-            self.evidence_planner.project_tool_observation(
-                observation.tool,
-                observation.status,
-                observation.summary,
-                observation.result,
-            ),
-            ensure_ascii=False,
-        )
-
-
 def _client_from_request(request: ChatRequest) -> ChatClient:
     config = load_config(Path(request.config_path).expanduser().resolve() if request.config_path else default_config_path())
     provider = request.provider or config.models.default_provider
@@ -616,7 +376,7 @@ def _append_chat_ledger(request: ChatRequest, response: ChatResponse, calls: lis
             "chat_id": response.stats.get("chat_id"),
             "created_at": current_timestamp(),
             "finished_at": current_timestamp(),
-            "mode": request.mode,
+            "mode": (response.stats.get("retrieval_policy") or {}).get("mode", "balanced"),
             "provider": response.stats.get("provider"),
             "model": response.stats.get("model"),
             "calls": calls,
@@ -624,14 +384,6 @@ def _append_chat_ledger(request: ChatRequest, response: ChatResponse, calls: lis
             "tool_trace": [item.model_dump() for item in response.tool_trace],
         },
     )
-
-
-def _parse_decision(content: str) -> ChatAgentDecision:
-    payload = _parse_json_object(content)
-    try:
-        return ChatAgentDecision.model_validate(payload)
-    except (ValidationError, ValueError) as exc:
-        raise ModelOutputError(f"Chat agent returned invalid decision JSON: {exc}") from exc
 
 
 def _parse_answer_draft(content: str) -> ChatAnswerDraft:
@@ -660,23 +412,21 @@ def _parse_json_object(content: str) -> dict[str, Any]:
     return payload
 
 
-def _resolve_execution_mode(request: ChatRequest, client: ChatClient) -> str:
-    if request.execution_mode != "auto":
-        return request.execution_mode
-    provider = str(getattr(client, "provider", request.provider or "")).lower()
-    if provider in {"ollama", "vllm"}:
-        return "retrieval_first"
-    return "agentic"
-
-
-def _primary_first_results(results: list[WikiSearchResult], primary: WikiSearchResult | None) -> list[WikiSearchResult]:
+def _primary_first_results(results: list[WikiSearchResult], primary: WikiSearchResult | list[WikiSearchResult] | None) -> list[WikiSearchResult]:
     if primary is None:
         return results
-    return [primary, *[result for result in results if not (result.path == primary.path and result.vault_id == primary.vault_id)]]
+    primary_pages = primary if isinstance(primary, list) else [primary]
+    primary_keys = {(result.path, result.vault_id) for result in primary_pages}
+    return [*primary_pages, *[result for result in results if (result.path, result.vault_id) not in primary_keys]]
+
+
+def _fallback_primary_results(results: list[WikiSearchResult], query: str) -> list[WikiSearchResult]:
+    primary = _fallback_primary_result(results, query)
+    return [primary] if primary else []
 
 
 def _fallback_primary_result(results: list[WikiSearchResult], query: str) -> WikiSearchResult | None:
-    if _query_prefers_source_page(query):
+    if query_prefers_source_page(query):
         return results[0] if results else None
     for result in results:
         if result.role == "primary":
@@ -686,14 +436,7 @@ def _fallback_primary_result(results: list[WikiSearchResult], query: str) -> Wik
             return result
     return results[0] if results else None
 
-
-def _query_prefers_source_page(query: str) -> bool:
-    text = query.lower()
-    return any(term in text for term in {"source", "provenance", "raw", "digest", "来源", "原始", "溯源", "出处", "source digest"})
-
-
 def _chat_supporting_page_payload(item: WikiSearchResult) -> dict[str, object]:
-    excerpt_limit = 1800 if item.type != "source" else 900
     return {
         "path": item.path,
         "title": item.title,
@@ -703,8 +446,25 @@ def _chat_supporting_page_payload(item: WikiSearchResult) -> dict[str, object]:
         "relevance": item.relevance,
         "summary": item.summary,
         "key_points": item.key_points[:6],
-        "content_excerpt": (item.content or "")[:excerpt_limit],
-        "content_truncated": bool(item.content and len(item.content) > excerpt_limit),
+        "content": item.content or "",
+        "content_truncated": item.content_truncated,
+        "vault_id": item.vault_id,
+        "vault_name": item.vault_name,
+    }
+
+
+def _chat_primary_page_payload(item: WikiSearchResult) -> dict[str, object]:
+    return {
+        "path": item.path,
+        "title": item.title,
+        "type": item.type,
+        "role": item.role,
+        "score": item.score,
+        "relevance": item.relevance,
+        "summary": item.summary,
+        "key_points": item.key_points[:8],
+        "content": item.content or "",
+        "content_truncated": item.content_truncated,
         "vault_id": item.vault_id,
         "vault_name": item.vault_name,
     }
@@ -826,57 +586,49 @@ def _answer_allows_file_paths(latest_user_text: str) -> bool:
     return any(term in latest_user_text for term in path_terms)
 
 
-def _latest_user_text(request: ChatRequest) -> str:
-    for message in reversed(request.messages):
-        if message.role == "user":
-            return message.content.lower()
-    return ""
-
-
-def _is_side_effect_tool(tool: str) -> bool:
-    return tool in {"start_ingest", "start_lint", "cancel_run"}
-
-
-def _side_effect_allowed(tool: str, user_text: str) -> bool:
-    intent_markers = {
-        "start_ingest": (
-            "ingest",
-            "compile",
-            "import",
-            "add",
-            "sync",
-            "update",
-            "write",
-            "编译",
-            "摄入",
-            "导入",
-            "加入",
-            "同步",
-            "更新",
-            "写入",
-        ),
-        "start_lint": (
-            "lint",
-            "maintain",
-            "repair",
-            "fix",
-            "check",
-            "diagnose",
-            "治理",
-            "维护",
-            "修复",
-            "检查",
-            "诊断",
-            "校验",
-        ),
-        "cancel_run": (
-            "cancel",
-            "stop",
-            "abort",
-            "取消",
-            "停止",
-            "中止",
-            "终止",
-        ),
+def _plan_chat_retrieval(query: str) -> dict[str, object]:
+    text = query.lower()
+    broad_terms = {
+        "对比",
+        "比较",
+        "区别",
+        "联系",
+        "完整",
+        "详细",
+        "深入",
+        "系统",
+        "架构",
+        "方案",
+        "如何",
+        "为什么",
+        "总结",
+        "compare",
+        "comparison",
+        "difference",
+        "architecture",
+        "system",
+        "design",
+        "deep",
+        "detailed",
+        "explain",
+        "how",
+        "why",
+        "summarize",
     }
-    return any(marker in user_text for marker in intent_markers.get(tool, ()))
+    focused_terms = {
+        "是什么",
+        "定义",
+        "含义",
+        "哪个页面",
+        "列出",
+        "打开",
+        "what is",
+        "definition",
+        "list",
+        "open",
+    }
+    if any(term in text for term in broad_terms) or len(query) >= 80:
+        return {"mode": "deep", "max_results": 8, "reason": "broad_or_comparative_question"}
+    if any(term in text for term in focused_terms) and len(query) <= 40:
+        return {"mode": "balanced", "max_results": 5, "reason": "focused_question"}
+    return {"mode": "balanced", "max_results": 6, "reason": "standard_question"}

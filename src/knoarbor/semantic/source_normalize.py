@@ -22,7 +22,7 @@ def build_source_normalize_input(document: SourceDocument) -> dict[str, object]:
 
 
 def _knowledge_source_type(document: SourceDocument) -> KnowledgeSourceType:
-    if document.source_type in {"hermes_chat", "codex_chat", "openclaw_chat", "claude_code_chat", "generic_chat"}:
+    if document.source_type in {"hermes_chat", "codex_chat", "openclaw_chat", "claude_code_chat", "knoarbor_chat", "generic_chat"}:
         return "chat"
     if document.source_type == "markdown":
         return "markdown"

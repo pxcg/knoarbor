@@ -8,10 +8,9 @@ from knoarbor.core.schemas.memory import MemoryCandidate, MemoryRecord
 
 
 ChatRole = Literal["user", "assistant", "tool"]
-ChatRetrievalMode = Literal["quick", "balanced", "deep"]
-ChatExecutionMode = Literal["auto", "agentic", "retrieval_first"]
 ChatToolStatus = Literal["ok", "error", "skipped"]
 ChatCitationKind = Literal["page", "report", "run", "source"]
+ChatSessionStatus = Literal["active", "closed"]
 ChatEventType = Literal[
     "chat_started",
     "model_call_started",
@@ -47,8 +46,6 @@ class ChatRequest(BaseModel):
     vault_ids: list[str] = Field(default_factory=list)
     all_vaults: bool = False
     messages: list[ChatMessageItem] = Field(..., min_length=1)
-    mode: ChatRetrievalMode = "balanced"
-    execution_mode: ChatExecutionMode = "auto"
     max_turns: int = Field(default=6, ge=1, le=12)
     include_trace: bool = True
     append_ledger: bool = True
@@ -139,6 +136,10 @@ class ChatSessionRecord(BaseModel):
     vault_id: str | None = None
     vault_name: str | None = None
     vault_path: str | None = None
+    status: ChatSessionStatus = "active"
+    closed_at: str | None = None
+    last_ingest_run_id: str | None = None
+    last_ingested_at: str | None = None
     messages: list[ChatMessageItem] = Field(default_factory=list)
     citations: list[ChatCitation] = Field(default_factory=list)
     tool_trace: list[ChatToolTraceItem] = Field(default_factory=list)
@@ -174,20 +175,27 @@ class ChatSessionDeleteResponse(BaseModel):
     session_id: str
 
 
-class ChatAgentDecision(BaseModel):
-    type: Literal["tool_call", "final"]
-    tool: str | None = None
-    arguments: dict[str, Any] = Field(default_factory=dict)
-    answer: str | None = None
-    citations: list[ChatCitation] = Field(default_factory=list)
+class ChatSessionIngestRequest(BaseModel):
+    config_path: str | None = None
+    vault_path: str | None = None
+    vault_id: str | None = None
+    provider: str | None = None
+    max_tokens: int | None = Field(default=None, ge=1)
+    write: bool = True
+    write_report: bool = True
+    append_ledger: bool = True
 
-    @model_validator(mode="after")
-    def validate_decision(self) -> "ChatAgentDecision":
-        if self.type == "tool_call" and not self.tool:
-            raise ValueError("tool_call decision requires tool")
-        if self.type == "final" and not (self.answer or "").strip():
-            raise ValueError("final decision requires answer")
-        return self
+
+class ChatSessionCloseRequest(ChatSessionIngestRequest):
+    auto_ingest: bool | None = None
+
+
+class ChatSessionWorkflowResponse(BaseModel):
+    session: ChatSessionRecord
+    ingest_started: bool = False
+    run_id: str | None = None
+    status: str | None = None
+    reason: str = ""
 
 
 class ChatAnswerDraft(BaseModel):

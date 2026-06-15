@@ -172,7 +172,7 @@ class SourceSegmenter:
         )
 
     def _blocks(self, document: SourceDocument) -> tuple[SegmentationMode, list[_Block]]:
-        if document.source_type in {"hermes_chat", "codex_chat", "openclaw_chat", "claude_code_chat", "generic_chat"}:
+        if document.source_type in {"hermes_chat", "codex_chat", "openclaw_chat", "claude_code_chat", "knoarbor_chat", "generic_chat"}:
             return "turns", self._turn_blocks(document)
         if document.content.sections and document.source_type == "document":
             return "pages", self._section_blocks(document)

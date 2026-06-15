@@ -65,12 +65,14 @@ class ServerConfig(BaseModel):
 
 
 class ModelProviderConfig(BaseModel):
+    adapter: Literal["openai_compatible", "ollama"] = "openai_compatible"
     base_url: str | None = None
     api_key_env: str | None = None
     model: str | None = None
     json_mode: bool = True
     context_window: int | None = Field(default=None, ge=1)
     max_output_tokens: int | None = Field(default=None, ge=1)
+    extra_body: dict[str, Any] = Field(default_factory=dict)
 
     def api_key(self, env: Mapping[str, str] | None = None) -> str | None:
         if not self.api_key_env:
@@ -164,6 +166,19 @@ class MemoryConfig(BaseModel):
     max_recalled_records: int = Field(default=12, ge=1, le=100)
 
 
+class ChatAutoIngestConfig(BaseModel):
+    enabled: bool = False
+    trigger: Literal["on_session_close"] = "on_session_close"
+    min_user_turns: int = Field(default=2, ge=1, le=50)
+    write: bool = True
+    write_report: bool = True
+    append_ledger: bool = True
+
+
+class ChatConfig(BaseModel):
+    auto_ingest: ChatAutoIngestConfig = Field(default_factory=ChatAutoIngestConfig)
+
+
 class IngestSegmentationConfig(BaseModel):
     enabled: bool = True
     max_chars_per_segment: int = Field(default=18000, ge=2000, le=100000)
@@ -232,6 +247,7 @@ class KnoArborConfig(BaseModel):
     connectors: dict[str, ConnectorConfig] = Field(default_factory=dict)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
     query: QueryConfig = Field(default_factory=QueryConfig)
+    chat: ChatConfig = Field(default_factory=ChatConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     lint: LintConfig = Field(default_factory=LintConfig)
     privacy: PrivacyConfig = Field(default_factory=PrivacyConfig)

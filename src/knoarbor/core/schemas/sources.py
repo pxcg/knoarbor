@@ -10,6 +10,7 @@ SourceType = Literal[
     "codex_chat",
     "openclaw_chat",
     "claude_code_chat",
+    "knoarbor_chat",
     "generic_chat",
     "markdown",
     "document",

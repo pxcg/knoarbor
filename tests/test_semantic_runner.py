@@ -15,6 +15,7 @@ from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 from knoarbor.semantic import (
     ChatCompletionRequest,
     ModelGateway,
+    OllamaNativeChatClient,
     OpenAICompatibleChatClient,
     SemanticRetryPolicy,
     SemanticRunner,
@@ -349,6 +350,18 @@ class SemanticRunnerTests(unittest.TestCase):
         self.assertEqual(gateway.model, "qwen")
         self.assertEqual(gateway.adapter.timeout_seconds, 300)
 
+    def test_model_gateway_wraps_ollama_native_adapter(self) -> None:
+        gateway = ModelGateway.from_config(
+            "ollama",
+            ModelProviderConfig(adapter="ollama", base_url="http://127.0.0.1:11434", model="qwen"),
+            timeout_seconds=300,
+        )
+
+        self.assertEqual(gateway.provider, "ollama")
+        self.assertEqual(gateway.model, "qwen")
+        self.assertIsInstance(gateway.adapter, OllamaNativeChatClient)
+        self.assertEqual(gateway.adapter.timeout_seconds, 300)
+
     def test_openai_compatible_client_allows_local_no_auth(self) -> None:
         client = OpenAICompatibleChatClient.from_config(
             "local",
@@ -366,6 +379,97 @@ class SemanticRunnerTests(unittest.TestCase):
             client.complete(ChatCompletionRequest(messages=[{"role": "user", "content": "hello"}]))
 
         self.assertIsNone(captured_auth)
+
+    def test_ollama_native_client_uses_api_chat_without_thinking_by_default(self) -> None:
+        client = OllamaNativeChatClient.from_config(
+            "ollama",
+            ModelProviderConfig(adapter="ollama", base_url="http://127.0.0.1:11434", model="qwen", json_mode=True),
+        )
+
+        captured_payload: dict[str, object] = {}
+        captured_url = ""
+
+        class OllamaChatResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self) -> bytes:
+                return json.dumps(
+                    {
+                        "message": {"role": "assistant", "content": '{"ok": true}'},
+                        "prompt_eval_count": 10,
+                        "eval_count": 4,
+                        "eval_duration": 2_000_000_000,
+                    }
+                ).encode("utf-8")
+
+        def fake_urlopen(request, **_kwargs):
+            nonlocal captured_payload, captured_url
+            captured_url = request.full_url
+            captured_payload = json.loads(request.data.decode("utf-8"))
+            return OllamaChatResponse()
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            response = client.complete(ChatCompletionRequest(messages=[{"role": "user", "content": "hello"}], max_tokens=64))
+
+        self.assertEqual(captured_url, "http://127.0.0.1:11434/api/chat")
+        self.assertFalse(captured_payload["think"])
+        self.assertFalse(captured_payload["stream"])
+        self.assertEqual(captured_payload["format"], "json")
+        self.assertEqual(captured_payload["options"], {"temperature": 0.1, "num_predict": 64})
+        self.assertEqual(response.content, '{"ok": true}')
+        self.assertEqual(response.usage["total_tokens"], 14)
+        self.assertEqual(response.tokens_per_second, 2.0)
+
+    def test_ollama_native_client_discovers_models_and_context_window(self) -> None:
+        client = OllamaNativeChatClient(
+            provider="ollama",
+            base_url="http://127.0.0.1:11434",
+            model="qwen3:14b",
+            configured_context_window=32768,
+        )
+
+        class TagsResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self) -> bytes:
+                return b'{"models":[{"name":"qwen3:14b"},{"name":"llama3.1:8b"}]}'
+
+        class ShowResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self) -> bytes:
+                return b'{"model_info":{"qwen3.context_length":65536}}'
+
+        def fake_urlopen(request, **_kwargs):
+            if request.full_url.endswith("/api/show"):
+                return ShowResponse()
+            return TagsResponse()
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            discovery = client.discover_models()
+
+        self.assertTrue(discovery.available)
+        self.assertTrue(discovery.details["models_list_valid"])
+        self.assertEqual(discovery.details["model_count"], 2)
+        self.assertTrue(discovery.details["configured_model_found"])
+        self.assertEqual(discovery.details["detected_context_window"], 65536)
+        self.assertEqual(discovery.details["effective_context_window"], 65536)
 
     def test_openai_compatible_client_requests_json_mode_by_default(self) -> None:
         client = OpenAICompatibleChatClient(

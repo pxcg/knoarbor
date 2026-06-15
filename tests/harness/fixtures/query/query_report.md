@@ -6,7 +6,7 @@
 - mode: balanced
 - retrieval_mode: machine_hybrid_balanced
 - returned_count: 3
-- context_pack_chars: 2734
+- context_pack_chars: 2867
 - context_pack_truncated: False
 
 ## Results
@@ -77,9 +77,9 @@ Excerpts:
 ## Trace
 
 - answer_scope: {'kind': 'narrow', 'vault_ids': [], 'initial_page_dirs': ['concepts', 'entities', 'sources'], 'expanded_page_dirs': ['concepts', 'entities', 'sources'], 'include_related': True, 'reason': 'Top result appears sufficient as the main answer unit.'}
-- answer_set: {'kind': 'single_page', 'primary_paths': ['concepts/Agent-Loop.md'], 'supporting_paths': [], 'source_paths': ['sources/Agent-Loop-Source.md'], 'further_reading_paths': ['entities/OpenClaw.md'], 'reason': 'The query is narrow enough to anchor on the strongest maintained wiki page.', 'stop_reason': 'top_answer_selected'}
+- answer_set: {'kind': 'single_page', 'primary_paths': ['concepts/Agent-Loop.md'], 'supporting_paths': ['entities/OpenClaw.md'], 'source_paths': ['sources/Agent-Loop-Source.md'], 'further_reading_paths': [], 'rejected_candidates': [], 'reason': 'The query is narrow enough to anchor on concepts/Agent-Loop.md. Source digest pages are kept for provenance.', 'stop_reason': 'answer_set_selected'}
 - candidate_count: 3
-- context_pack_chars: 2734
+- context_pack_chars: 2867
 - context_pack_truncated: False
 - direct_match_count: 3
 - direct_page_count: 3
@@ -91,6 +91,7 @@ Excerpts:
 - origin_counts: {'direct': 3, 'related': 0}
 - page_count: 3
 - query_terms: ['agent', 'loop', 'workflow']
+- rejected_candidates: []
 - related_expansion_count: 3
 - related_result_paths: ['concepts/Agent-Loop.md', 'entities/OpenClaw.md', 'sources/Agent-Loop-Source.md']
 - related_seed_pages: ['concepts/Agent-Loop.md', 'entities/OpenClaw.md', 'sources/Agent-Loop-Source.md']
@@ -152,6 +153,12 @@ Match origin: direct
 Summary: OpenClaw is an engineering agent system that combines structured workflows with agent loops.
 Relevant excerpts:
 - entities/OpenClaw.md#Summary: OpenClaw is an engineering agent system that combines structured workflows with agent loops.
+Full page body:
+# OpenClaw
+
+## Summary
+
+OpenClaw is an engineering agent system that combines structured workflows with agent loops.
 Why matched: Matched body, related_graph, summary, tags; graph relevance boost 2.4 via outbound_link.
 
 3. Agent Loop Source (sources/Agent-Loop-Source.md, relevance: high, score: 13.453)

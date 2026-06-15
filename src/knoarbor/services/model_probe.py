@@ -35,6 +35,7 @@ class ModelProbeService:
         providers = [
             ModelProviderSummary(
                 name=name,
+                adapter=provider.adapter,
                 base_url=provider.base_url,
                 model=provider.model,
                 json_mode=provider.json_mode,

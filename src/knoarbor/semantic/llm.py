@@ -87,6 +87,14 @@ class ModelGateway:
         *,
         timeout_seconds: float = 60.0,
     ) -> ModelGateway:
+        if config.adapter == "ollama":
+            return cls(
+                OllamaNativeChatClient.from_config(
+                    provider,
+                    config,
+                    timeout_seconds=timeout_seconds,
+                )
+            )
         return cls(
             OpenAICompatibleChatClient.from_config(
                 provider,
@@ -123,6 +131,7 @@ class OpenAICompatibleChatClient:
     json_mode: bool = True
     configured_context_window: int | None = None
     configured_max_output_tokens: int | None = None
+    extra_body: dict[str, object] | None = None
 
     @classmethod
     def from_config(
@@ -148,6 +157,7 @@ class OpenAICompatibleChatClient:
             json_mode=config.json_mode,
             configured_context_window=config.context_window,
             configured_max_output_tokens=config.max_output_tokens,
+            extra_body=config.extra_body,
         )
 
     def complete(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
@@ -160,6 +170,8 @@ class OpenAICompatibleChatClient:
             payload["max_tokens"] = request.max_tokens
         if self.json_mode:
             payload["response_format"] = {"type": "json_object"}
+        if self.extra_body:
+            payload.update(self.extra_body)
 
         http_request = urllib.request.Request(
             f"{self.base_url}/chat/completions",
@@ -352,8 +364,233 @@ class OpenAICompatibleChatClient:
         }
 
 
+@dataclass(frozen=True)
+class OllamaNativeChatClient:
+    provider: str
+    base_url: str
+    model: str
+    timeout_seconds: float = 60.0
+    json_mode: bool = True
+    configured_context_window: int | None = None
+    configured_max_output_tokens: int | None = None
+    extra_body: dict[str, object] | None = None
+
+    @classmethod
+    def from_config(
+        cls,
+        provider: str,
+        config: ModelProviderConfig,
+        *,
+        timeout_seconds: float = 60.0,
+    ) -> OllamaNativeChatClient:
+        base_url = (config.base_url or "").rstrip("/")
+        model = config.model or ""
+        if not base_url:
+            raise UserInputError(f"Model provider {provider} is missing base_url")
+        if not model:
+            raise UserInputError(f"Model provider {provider} is missing model")
+        return cls(
+            provider=provider,
+            base_url=_ollama_api_base_url(base_url),
+            model=model,
+            timeout_seconds=timeout_seconds,
+            json_mode=config.json_mode,
+            configured_context_window=config.context_window,
+            configured_max_output_tokens=config.max_output_tokens,
+            extra_body=config.extra_body,
+        )
+
+    def complete(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
+        options: dict[str, object] = {"temperature": request.temperature}
+        if request.max_tokens is not None:
+            options["num_predict"] = request.max_tokens
+        payload: dict[str, object] = {
+            "model": self.model,
+            "messages": [message.model_dump() for message in request.messages],
+            "stream": False,
+            "think": False,
+            "options": options,
+        }
+        if self.json_mode:
+            payload["format"] = "json"
+        if self.extra_body:
+            payload = _deep_merge_payload(payload, self.extra_body)
+
+        http_request = urllib.request.Request(
+            f"{self.base_url}/api/chat",
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            method="POST",
+        )
+        started = time.perf_counter()
+        try:
+            with urllib.request.urlopen(http_request, timeout=self.timeout_seconds, context=_ssl_context()) as response:  # noqa: S310
+                raw_text = response.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            raise ExternalServiceError(f"Model provider {self.provider} returned HTTP {exc.code}: {body}") from exc
+        except urllib.error.URLError as exc:
+            raise ExternalServiceError(f"Model provider {self.provider} request failed: {exc.reason}") from exc
+        except (http.client.IncompleteRead, TimeoutError, socket.timeout) as exc:
+            raise ExternalServiceError(f"Model provider {self.provider} response was interrupted: {exc}") from exc
+
+        try:
+            data = json.loads(raw_text)
+            content = _extract_ollama_content(data)
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise ModelOutputError(f"Model provider {self.provider} returned an invalid Ollama chat response: {exc}") from exc
+        elapsed = time.perf_counter() - started
+        usage = _extract_ollama_usage(data)
+        return ChatCompletionResponse(
+            content=content,
+            provider=self.provider,
+            model=self.model,
+            raw=data,
+            usage=usage,
+            elapsed_seconds=elapsed,
+            tokens_per_second=_ollama_tokens_per_second(data, usage, elapsed),
+        )
+
+    def check(self) -> ProviderHealthCheck:
+        discovery = self.discover_models()
+        if not discovery.available:
+            completion_probe = self._completion_health_probe(discovery)
+            if completion_probe is not None:
+                return completion_probe
+        return ProviderHealthCheck(
+            available=discovery.available,
+            structured_output=self.json_mode,
+            message=discovery.message,
+            details=discovery.details,
+        )
+
+    def _completion_health_probe(self, discovery: ProviderModelDiscovery) -> ProviderHealthCheck | None:
+        request = ChatCompletionRequest(
+            messages=[
+                ChatMessage(role="system", content="You are a model health probe. Return only JSON."),
+                ChatMessage(role="user", content='Return exactly {"ok": true}.'),
+            ],
+            temperature=0,
+            max_tokens=64,
+        )
+        try:
+            response = self.complete(request)
+        except (ExternalServiceError, ModelOutputError, UserInputError):
+            return None
+        try:
+            payload = json.loads(response.content.strip())
+        except json.JSONDecodeError:
+            payload = None
+        if not isinstance(payload, dict) or payload.get("ok") is not True:
+            return None
+        return ProviderHealthCheck(
+            available=True,
+            structured_output=self.json_mode,
+            message="Ollama chat probe succeeded; model discovery was unavailable or slow.",
+            details={
+                **discovery.details,
+                "discovery_message": discovery.message,
+                "completion_probe": "ok",
+                "completion_elapsed_seconds": round(response.elapsed_seconds, 3),
+                "completion_usage": response.usage,
+            },
+        )
+
+    def discover_models(self) -> ProviderModelDiscovery:
+        started = time.perf_counter()
+        request = urllib.request.Request(
+            f"{self.base_url}/api/tags",
+            headers={"Accept": "application/json"},
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=min(self.timeout_seconds, 5.0), context=_ssl_context()) as response:  # noqa: S310
+                body = response.read().decode("utf-8", errors="replace")
+                status_code = getattr(response, "status", 200)
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            return ProviderModelDiscovery(
+                available=False,
+                message=f"Ollama endpoint returned HTTP {exc.code} for /api/tags.",
+                details={"status_code": exc.code, "body_preview": body[:500], "elapsed_seconds": round(time.perf_counter() - started, 3)},
+            )
+        except urllib.error.URLError as exc:
+            return ProviderModelDiscovery(
+                available=False,
+                message=f"Ollama endpoint request failed: {exc.reason}",
+                details={"elapsed_seconds": round(time.perf_counter() - started, 3)},
+            )
+        except (http.client.IncompleteRead, TimeoutError, socket.timeout) as exc:
+            return ProviderModelDiscovery(
+                available=False,
+                message=f"Ollama endpoint check was interrupted: {exc}",
+                details={"elapsed_seconds": round(time.perf_counter() - started, 3)},
+            )
+
+        model_details = _extract_ollama_model_list_details(body, self.model)
+        show_details = self._detect_ollama_model_details()
+        detected_context_window = _int_or_none(show_details.get("detected_context_window"))
+        return ProviderModelDiscovery(
+            available=200 <= int(status_code) < 300,
+            message="Ollama endpoint responded to /api/tags.",
+            details={
+                "status_code": int(status_code),
+                "body_preview": body[:500],
+                "elapsed_seconds": round(time.perf_counter() - started, 3),
+                "configured_context_window": self.configured_context_window,
+                "configured_max_output_tokens": self.configured_max_output_tokens,
+                "detected_context_window": detected_context_window,
+                "effective_context_window": detected_context_window or self.configured_context_window,
+                "context_window_source": "runtime" if detected_context_window else "config" if self.configured_context_window else "unknown",
+                **model_details,
+                **show_details,
+            },
+        )
+
+    def _detect_ollama_model_details(self) -> dict[str, object]:
+        request = urllib.request.Request(
+            f"{self.base_url}/api/show",
+            data=json.dumps({"model": self.model}, ensure_ascii=False).encode("utf-8"),
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=min(self.timeout_seconds, 5.0), context=_ssl_context()) as response:  # noqa: S310
+                body = response.read().decode("utf-8", errors="replace")
+                status_code = getattr(response, "status", 200)
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            return {
+                "ollama_show_available": False,
+                "ollama_show_status_code": exc.code,
+                "ollama_show_error": body[:300],
+            }
+        except urllib.error.URLError as exc:
+            return {"ollama_show_available": False, "ollama_show_error": str(exc.reason)}
+        except (http.client.IncompleteRead, TimeoutError, socket.timeout) as exc:
+            return {"ollama_show_available": False, "ollama_show_error": str(exc)}
+
+        return {
+            "ollama_show_available": 200 <= int(status_code) < 300,
+            "ollama_show_status_code": int(status_code),
+            "detected_context_window": _extract_ollama_context_window(body),
+            "ollama_show_body_preview": body[:500],
+        }
+
+
 def _ssl_context() -> ssl.SSLContext:
     return ssl.create_default_context(cafile=certifi.where())
+
+
+def _deep_merge_payload(base: dict[str, object], extra: dict[str, object]) -> dict[str, object]:
+    merged = dict(base)
+    for key, value in extra.items():
+        current = merged.get(key)
+        if isinstance(current, dict) and isinstance(value, dict):
+            merged[key] = {**current, **value}
+        else:
+            merged[key] = value
+    return merged
 
 
 def is_local_or_private_model_endpoint(base_url: str | None) -> bool:
@@ -393,6 +630,18 @@ def _extract_openai_content(data: object) -> str:
     return content
 
 
+def _extract_ollama_content(data: object) -> str:
+    if not isinstance(data, dict):
+        raise SemanticContractError("Ollama response must be a JSON object")
+    message = data.get("message")
+    if not isinstance(message, dict):
+        raise SemanticContractError("Ollama response missing message")
+    content = message.get("content")
+    if not isinstance(content, str) or not content.strip():
+        raise SemanticContractError("Ollama response message content is empty")
+    return content
+
+
 def _extract_usage(data: object) -> dict[str, int]:
     if not isinstance(data, dict):
         return {}
@@ -415,6 +664,21 @@ def _extract_usage(data: object) -> dict[str, int]:
         cached_tokens = prompt_details.get("cached_tokens")
         if isinstance(cached_tokens, int):
             result["prompt_cached_tokens"] = cached_tokens
+    return result
+
+
+def _extract_ollama_usage(data: object) -> dict[str, int]:
+    if not isinstance(data, dict):
+        return {}
+    prompt_tokens = _int_or_none(data.get("prompt_eval_count"))
+    completion_tokens = _int_or_none(data.get("eval_count"))
+    result: dict[str, int] = {}
+    if prompt_tokens is not None:
+        result["prompt_tokens"] = prompt_tokens
+    if completion_tokens is not None:
+        result["completion_tokens"] = completion_tokens
+    if prompt_tokens is not None or completion_tokens is not None:
+        result["total_tokens"] = (prompt_tokens or 0) + (completion_tokens or 0)
     return result
 
 
@@ -442,6 +706,30 @@ def _extract_model_list_details(body: str, configured_model: str) -> dict[str, o
         "model_count": len(model_ids),
         "configured_model_found": configured_model in model_ids,
         "configured_model_max_model_len": detected_context_window,
+    }
+
+
+def _extract_ollama_model_list_details(body: str, configured_model: str) -> dict[str, object]:
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        return {"models_list_valid": False, "model_ids": [], "configured_model_found": False}
+    if not isinstance(payload, dict):
+        return {"models_list_valid": False, "model_ids": [], "configured_model_found": False}
+    models = payload.get("models")
+    if not isinstance(models, list):
+        return {"models_list_valid": False, "model_ids": [], "configured_model_found": False}
+    model_items = [item for item in models if isinstance(item, dict)]
+    model_ids = [
+        item.get("name") or item.get("model")
+        for item in model_items
+        if isinstance(item.get("name") or item.get("model"), str) and (item.get("name") or item.get("model"))
+    ]
+    return {
+        "models_list_valid": True,
+        "model_ids": model_ids[:100],
+        "model_count": len(model_ids),
+        "configured_model_found": configured_model in model_ids,
     }
 
 
@@ -567,3 +855,14 @@ def _tokens_per_second(usage: dict[str, int], elapsed_seconds: float) -> float |
     if not completion_tokens or elapsed_seconds <= 0:
         return None
     return completion_tokens / elapsed_seconds
+
+
+def _ollama_tokens_per_second(data: object, usage: dict[str, int], elapsed_seconds: float) -> float | None:
+    if isinstance(data, dict):
+        eval_duration = _int_or_none(data.get("eval_duration"))
+        completion_tokens = usage.get("completion_tokens")
+        if eval_duration and completion_tokens:
+            seconds = eval_duration / 1_000_000_000
+            if seconds > 0:
+                return completion_tokens / seconds
+    return _tokens_per_second(usage, elapsed_seconds)

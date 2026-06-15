@@ -165,12 +165,14 @@ def config_to_form(config: KnoArborConfig) -> UiConfigFormResponse:
         providers=[
             UiModelProviderForm(
                 name=name,
+                adapter=provider.adapter,
                 base_url=provider.base_url or "",
                 api_key_env=provider.api_key_env or "",
                 model=provider.model or "",
                 json_mode=provider.json_mode,
                 context_window=provider.context_window,
                 max_output_tokens=provider.max_output_tokens,
+                extra_body=provider.extra_body,
                 api_key_configured=_provider_credentials_ready(provider),
             )
             for name, provider in sorted(config.models.providers.items())
@@ -453,12 +455,14 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
         if not name:
             continue
         providers[name] = {
+            "adapter": provider.adapter,
             "base_url": provider.base_url.strip(),
             "api_key_env": provider.api_key_env.strip() or None,
             "model": provider.model.strip(),
             "json_mode": provider.json_mode,
             "context_window": provider.context_window,
             "max_output_tokens": provider.max_output_tokens,
+            "extra_body": provider.extra_body,
         }
     data = dict(base_data)
     data["config_version"] = 1

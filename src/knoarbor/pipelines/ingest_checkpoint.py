@@ -50,11 +50,12 @@ def _prepare_checkpoint_plan(
 
 
 def _uses_session_checkpoint(connector_name: str, document: SourceDocument) -> bool:
-    return connector_name in {"hermes", "codex", "openclaw", "claude_code", "generic_chat"} or document.source_type in {
+    return connector_name in {"hermes", "codex", "openclaw", "claude_code", "knoarbor_chat", "generic_chat"} or document.source_type in {
         "hermes_chat",
         "codex_chat",
         "openclaw_chat",
         "claude_code_chat",
+        "knoarbor_chat",
         "generic_chat",
     }
 

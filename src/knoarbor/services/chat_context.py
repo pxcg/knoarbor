@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from knoarbor.services import ApplicationServices
 
 
-SYSTEM_PROMPT = (Path(__file__).parents[1] / "semantic/prompts/wiki_chat_agent.md").read_text(encoding="utf-8")
+SYSTEM_PROMPT = (Path(__file__).parents[1] / "semantic/prompts/wiki_chat_answer.md").read_text(encoding="utf-8")
 
 
 @dataclass(frozen=True)
@@ -101,7 +101,6 @@ def _workspace_context(request: ChatRequest) -> dict[str, object]:
         },
         "vault_ids": request.vault_ids,
         "all_vaults": request.all_vaults,
-        "mode": request.mode,
     }
 
 

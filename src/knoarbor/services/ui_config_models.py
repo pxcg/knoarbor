@@ -48,12 +48,14 @@ class UiConfigUpdateResponse(BaseModel):
 
 class UiModelProviderForm(BaseModel):
     name: str
+    adapter: str = "openai_compatible"
     base_url: str = ""
     api_key_env: str = ""
     model: str = ""
     json_mode: bool = True
     context_window: int | None = None
     max_output_tokens: int | None = None
+    extra_body: dict[str, object] = Field(default_factory=dict)
     api_key_configured: bool = False
 
 

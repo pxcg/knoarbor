@@ -15,11 +15,14 @@ Return exactly one JSON object:
 }
 
 Evidence rules:
-- Use evidence_pack.primary_page as the answer anchor when present.
+- Use evidence_pack.primary_pages as the maintained wiki answer set when present.
+- Treat primary_pages and supporting_pages as structured wiki pages, not short RAG chunks.
+- Synthesize across the answer set and preserve important details from the maintained pages.
+- Use evidence_pack.primary_page only as the leading anchor when the answer needs an opening definition.
 - Use supporting_pages for mechanisms, implementation details, comparisons, caveats, and follow-up topics.
 - Use source_pages as provenance unless the user asks about sources.
 - If local evidence is weak or missing, state the gap clearly.
 - Cite only paths that appear in the evidence pack or tool observation.
 - Do not cite a page you did not use.
-- Prefer a complete wiki-informed answer over a bare definition.
+- Prefer a complete wiki-informed answer over a bare definition or a list of page titles.
 - Use compact bracket references like [1], [2] when useful, matching citation order.

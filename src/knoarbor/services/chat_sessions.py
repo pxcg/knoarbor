@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import hashlib
 from pathlib import Path
 from uuid import uuid4
 
@@ -10,6 +11,7 @@ from pydantic import ValidationError
 from knoarbor.audit.token_ledger import current_timestamp
 from knoarbor.core.errors import UserInputError
 from knoarbor.core.schemas.chat import ChatMessageItem, ChatResponse, ChatSessionListResponse, ChatSessionRecord
+from knoarbor.core.schemas.sources import SourceContent, SourceDocument, SourceFingerprint, SourceOrigin
 
 
 class ChatSessionStore:
@@ -73,6 +75,10 @@ class ChatSessionStore:
             vault_id=vault_id,
             vault_name=vault_name,
             vault_path=str(Path(vault_path).expanduser().resolve()),
+            status="active",
+            closed_at=None,
+            last_ingest_run_id=existing.last_ingest_run_id if existing else None,
+            last_ingested_at=existing.last_ingested_at if existing else None,
             messages=messages,
             citations=response.citations,
             tool_trace=response.tool_trace,
@@ -89,12 +95,77 @@ class ChatSessionStore:
         path.write_text(json.dumps(record.model_dump(), ensure_ascii=False, indent=2), encoding="utf-8")
         return record
 
+    def close_session(self, vault_path: str | Path, session_id: str) -> ChatSessionRecord:
+        record = self.read_session(vault_path, session_id)
+        closed = record.model_copy(update={"status": "closed", "closed_at": current_timestamp(), "updated_at": current_timestamp()})
+        self._write_record(vault_path, closed)
+        return closed
+
+    def mark_ingest_started(self, vault_path: str | Path, session_id: str, run_id: str) -> ChatSessionRecord:
+        record = self.read_session(vault_path, session_id)
+        updated = record.model_copy(update={"last_ingest_run_id": run_id, "last_ingested_at": current_timestamp(), "updated_at": current_timestamp()})
+        self._write_record(vault_path, updated)
+        return updated
+
+    def to_source_document(self, vault_path: str | Path, session_id: str) -> SourceDocument:
+        record = self.read_session(vault_path, session_id)
+        path = _session_path(vault_path, session_id)
+        raw_text = path.read_text(encoding="utf-8")
+        payload = _source_payload(record)
+        return SourceDocument(
+            source_id=f"knoarbor_chat:{record.session_id}",
+            source_type="knoarbor_chat",
+            origin=SourceOrigin(
+                connector="knoarbor_chat",
+                uri=f"knoarbor-chat://sessions/{record.session_id}",
+                raw_path=str(path),
+                original_path=path.as_uri(),
+                created_at=record.created_at,
+                updated_at=record.updated_at,
+            ),
+            content=SourceContent(
+                format="json",
+                text=json.dumps(payload, ensure_ascii=False, indent=2),
+                sections=[
+                    {
+                        "index": index,
+                        "raw_index": index,
+                        "role": message.role,
+                        "title": _compact_title(message.content),
+                        "content": message.content,
+                        "tool_name": message.tool_name,
+                    }
+                    for index, message in enumerate(record.messages)
+                ],
+            ),
+            metadata={
+                "title": record.title,
+                "session_id": record.session_id,
+                "source_app": "knoarbor",
+                "message_count": len(record.messages),
+                "status": record.status,
+                "closed_at": record.closed_at,
+                "vault_id": record.vault_id,
+                "vault_name": record.vault_name,
+            },
+            fingerprint=SourceFingerprint(
+                content_hash=hashlib.sha256(raw_text.encode("utf-8")).hexdigest(),
+                connector_version="knoarbor-chat@1",
+                parser_version="chat-session-source@1",
+            ),
+        )
+
     def _read_record_path(self, path: Path) -> ChatSessionRecord | None:
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
             return ChatSessionRecord.model_validate(payload)
         except (OSError, json.JSONDecodeError, ValidationError):
             return None
+
+    def _write_record(self, vault_path: str | Path, record: ChatSessionRecord) -> None:
+        path = _session_path(vault_path, record.session_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(record.model_dump(), ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _sessions_dir(vault_path: str | Path) -> Path:
@@ -139,3 +210,34 @@ def _title_from_messages(messages: list[ChatMessageItem]) -> str:
             title = re.sub(r"\s+", " ", message.content).strip()
             return title[:48] or "New chat"
     return "New chat"
+
+
+def _compact_title(text: str) -> str:
+    cleaned = re.sub(r"\s+", " ", text).strip()
+    return cleaned[:80] or "message"
+
+
+def _source_payload(record: ChatSessionRecord) -> dict[str, object]:
+    return {
+        "schema_version": "knoarbor_chat_extract.v1",
+        "source_app": "knoarbor",
+        "session_id": record.session_id,
+        "title": record.title,
+        "session_start": record.created_at,
+        "last_updated": record.updated_at,
+        "closed_at": record.closed_at,
+        "message_count": len(record.messages),
+        "messages": [
+            {
+                "index": index,
+                "raw_index": index,
+                "role": message.role,
+                "content": message.content,
+                "tool_name": message.tool_name,
+            }
+            for index, message in enumerate(record.messages)
+        ],
+        "citations": [citation.model_dump(mode="json") for citation in record.citations],
+        "run_links": [link.model_dump(mode="json") for link in record.run_links],
+        "warnings": record.warnings,
+    }

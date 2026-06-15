@@ -147,12 +147,21 @@ class WikiAnswerScope(BaseModel):
     reason: str = ""
 
 
+class WikiRejectedCandidate(BaseModel):
+    path: str
+    title: str = ""
+    reason: str
+    score: float | None = None
+    role_hint: Literal["primary", "supporting", "source", "further_reading"] | None = None
+
+
 class WikiAnswerSet(BaseModel):
     kind: Literal["single_page", "multi_page"] = "single_page"
     primary_paths: list[str] = Field(default_factory=list)
     supporting_paths: list[str] = Field(default_factory=list)
     source_paths: list[str] = Field(default_factory=list)
     further_reading_paths: list[str] = Field(default_factory=list)
+    rejected_candidates: list[WikiRejectedCandidate] = Field(default_factory=list)
     reason: str = ""
     stop_reason: str = ""
 
@@ -179,6 +188,7 @@ class WikiSearchResponse(BaseModel):
     answer_scope: WikiAnswerScope = Field(default_factory=WikiAnswerScope)
     answer_set: WikiAnswerSet = Field(default_factory=WikiAnswerSet)
     evidence_coverage: WikiEvidenceCoverage = Field(default_factory=WikiEvidenceCoverage)
+    rejected_candidates: list[WikiRejectedCandidate] = Field(default_factory=list)
     context_pack: str
     answer_guidance: list[str] = Field(default_factory=list)
     gap_suggestions: list[WikiQueryGapSuggestion] = Field(default_factory=list)

@@ -32,15 +32,18 @@ class ChatEvidencePlanner:
         answer_set: dict[str, Any],
         evidence_coverage: dict[str, Any],
         primary_page: dict[str, Any] | None,
+        primary_pages: list[dict[str, Any]],
         supporting_pages: list[dict[str, Any]],
         source_pages: list[dict[str, Any]],
         results: list[dict[str, Any]],
         warnings: list[str],
     ) -> ChatEvidencePack:
+        primary_pages = primary_pages or ([primary_page] if primary_page else [])
         action = self._recommended_action(evidence_coverage, primary_page)
         evidence_paths: set[str] = set()
-        if primary_page and primary_page.get("path"):
-            evidence_paths.add(str(primary_page["path"]))
+        for page in primary_pages:
+            if page and page.get("path"):
+                evidence_paths.add(str(page["path"]))
         for page in [*supporting_pages, *source_pages]:
             if page.get("path"):
                 evidence_paths.add(str(page["path"]))
@@ -55,6 +58,7 @@ class ChatEvidencePlanner:
             "evidence_coverage": evidence_coverage,
             "recommended_action": action,
             "primary_page": self._primary_payload(primary_page),
+            "primary_pages": [self._primary_payload(page) for page in primary_pages if page],
             "supporting_pages": [self._supporting_payload(page) for page in supporting_pages],
             "source_pages": [self._source_payload(page) for page in source_pages],
             "further_results": [self._result_payload(item) for item in results if item.get("path") not in evidence_paths][:5],
@@ -109,7 +113,7 @@ class ChatEvidencePlanner:
         instructions = [
             "Answer from the evidence pack, using the primary page as the anchor.",
             "Follow synthesis_outline when it is present; it expresses the wiki-first answer structure for the current question.",
-            "Use supporting pages only to add complementary mechanisms, caveats, comparisons, or follow-up topics.",
+            "Use supporting pages as additional maintained wiki pages, not as disposable snippets.",
             "Keep citations aligned with the evidence pages used in the answer.",
         ]
         if action == "answer_with_gap":
@@ -135,7 +139,7 @@ class ChatEvidencePlanner:
             return [
                 "Start with a direct definition or answer from the primary page.",
                 "Explain the core mechanism or decision points from that maintained page.",
-                "Use supporting pages only for extensions, comparisons, or implementation details.",
+                "Use supporting pages for extensions, comparisons, implementation details, and missing facets.",
                 "End with concise related topics when they help the user continue.",
             ]
         support_types = sorted({str(page.get("type") or "") for page in supporting_pages if page.get("type")})
@@ -176,7 +180,7 @@ class ChatEvidencePlanner:
             "relevance": page.get("relevance"),
             "summary": page.get("summary"),
             "key_points": page.get("key_points", []),
-            "content_excerpt": compact_inline_text(str(page.get("content_excerpt") or ""), 2400),
+            "content": compact_inline_text(str(page.get("content") or ""), 18000),
             "content_truncated": bool(page.get("content_truncated")),
             "vault_id": page.get("vault_id"),
             "vault_name": page.get("vault_name"),

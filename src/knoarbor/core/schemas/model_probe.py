@@ -15,6 +15,7 @@ ModelProbeStatus = Literal["ok", "warning", "error"]
 
 class ModelProviderSummary(ModelProbeBase):
     name: str
+    adapter: str = "openai_compatible"
     base_url: str | None = None
     model: str | None = None
     json_mode: bool = True

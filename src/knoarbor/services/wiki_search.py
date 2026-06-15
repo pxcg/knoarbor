@@ -90,6 +90,7 @@ class WikiSearchService:
         answer_set = _merge_answer_set(primary_pages, supporting_pages, source_pages, responses)
         evidence_coverage = _merge_evidence_coverage(primary_pages, supporting_pages, source_pages, responses)
         context_pack = _merge_context_packs(responses)
+        rejected_candidates = _merge_unique_rejected([item for response in responses for item in response.rejected_candidates])
         return WikiSearchResponse(
             query=request.query,
             retrieval_mode=request.mode,
@@ -100,6 +101,7 @@ class WikiSearchService:
             answer_scope=answer_scope,
             answer_set=answer_set,
             evidence_coverage=evidence_coverage,
+            rejected_candidates=rejected_candidates,
             context_pack=context_pack,
             answer_guidance=_merge_unique([item for response in responses for item in response.answer_guidance]),
             gap_suggestions=[item for response in responses for item in response.gap_suggestions],
@@ -246,12 +248,16 @@ def _merge_answer_set(
     further_reading_paths = _merge_unique(
         [path for response in responses for path in response.answer_set.further_reading_paths]
     )
+    rejected_candidates = _merge_unique_rejected(
+        [item for response in responses for item in response.answer_set.rejected_candidates]
+    )
     return WikiAnswerSet(
         kind="multi_page" if len(primary_paths) + len(supporting_paths) > 1 else "single_page",
         primary_paths=primary_paths,
         supporting_paths=supporting_paths,
         source_paths=source_paths,
         further_reading_paths=further_reading_paths[:6],
+        rejected_candidates=rejected_candidates,
         reason="Merged per-vault answer sets while preserving page roles.",
         stop_reason="multi_vault_merge",
     )
@@ -287,6 +293,18 @@ def _merge_unique(items: list[str]) -> list[str]:
         if item in seen:
             continue
         seen.add(item)
+        output.append(item)
+    return output
+
+
+def _merge_unique_rejected(items: list) -> list:
+    seen: set[tuple[str, str | None]] = set()
+    output: list = []
+    for item in items:
+        key = (item.path, item.role_hint)
+        if key in seen:
+            continue
+        seen.add(key)
         output.append(item)
     return output
 

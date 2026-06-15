@@ -252,12 +252,74 @@ class QueryPipelineTests(unittest.TestCase):
             )
 
         self.assertEqual(response.primary_pages[0].path, "concepts/Agent-Loop.md")
+        self.assertEqual([page.path for page in response.source_pages], ["sources/Agent-Loop-Source.md"])
+        self.assertEqual(response.answer_set.source_paths, ["sources/Agent-Loop-Source.md"])
         primary_index = response.context_pack.index("Agent Loop (concepts/Agent-Loop.md")
         source_index = response.context_pack.index("Agent Loop Source (sources/Agent-Loop-Source.md")
         self.assertLess(primary_index, source_index)
         self.assertNotIn("是什么", response.evidence_coverage.missing_facets)
 
-    def test_compact_query_context_keeps_primary_body_and_structures_supporting_pages(self) -> None:
+    def test_source_query_can_use_source_digest_as_primary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            (vault / "concepts").mkdir()
+            (vault / "sources").mkdir()
+            (vault / "concepts" / "Agent-Loop.md").write_text(
+                "# Agent Loop\n\n## Summary\n\nAgent loop explains reasoning and tool execution.\n",
+                encoding="utf-8",
+            )
+            (vault / "sources" / "Agent-Loop-Source.md").write_text(
+                "# Agent Loop Source\n\n## Summary\n\nSource digest for agent loop notes.\n",
+                encoding="utf-8",
+            )
+
+            response = search_query(
+                WikiSearchRequest(
+                    vault_path=str(vault),
+                    query="Agent Loop 的来源是什么",
+                    mode="balanced",
+                    max_results=5,
+                    record_query=False,
+                )
+            )
+
+        self.assertEqual(response.primary_pages[0].path, "sources/Agent-Loop-Source.md")
+        self.assertEqual(response.answer_set.stop_reason, "source_intent_selected")
+
+    def test_redundant_candidate_is_reported_without_entering_answer_set(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            (vault / "concepts").mkdir()
+            (vault / "concepts" / "Agent-Loop.md").write_text(
+                "# Agent Loop\n\n## Summary\n\nAgent loop explains reasoning and tool execution patterns.\n\n## Tags\n\n- agent\n- loop\n",
+                encoding="utf-8",
+            )
+            (vault / "concepts" / "Agent-Loop-Notes.md").write_text(
+                "# Agent Loop Notes\n\n## Summary\n\nAgent loop explains reasoning and tool execution patterns.\n\n## Tags\n\n- agent\n- loop\n",
+                encoding="utf-8",
+            )
+            (vault / "entities" ).mkdir()
+            (vault / "entities" / "OpenClaw.md").write_text(
+                "# OpenClaw\n\n## Summary\n\nOpenClaw implements production agent loop infrastructure.\n\n## Tags\n\n- implementation\n",
+                encoding="utf-8",
+            )
+
+            response = search_query(
+                WikiSearchRequest(
+                    vault_path=str(vault),
+                    query="Agent Loop 架构和模式有哪些",
+                    mode="balanced",
+                    max_results=6,
+                    record_query=False,
+                )
+            )
+
+        rejected_paths = {item.path for item in response.rejected_candidates}
+        self.assertIn("concepts/Agent-Loop-Notes.md", rejected_paths)
+        self.assertNotIn("concepts/Agent-Loop-Notes.md", response.answer_set.primary_paths)
+        self.assertIn("rejected_candidates", response.trace)
+
+    def test_query_context_preserves_answer_bearing_wiki_pages(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
             (vault / "concepts").mkdir()
@@ -294,9 +356,9 @@ class QueryPipelineTests(unittest.TestCase):
         self.assertIn("Primary maintained page body should stay intact", primary.content or "")
         self.assertIn("Full page body:", response.context_pack)
         self.assertIn("Primary maintained page body should stay intact", response.context_pack)
-        self.assertIsNone(supporting.content)
+        self.assertIn("Supporting implementation details should remain structured evidence", supporting.content or "")
         self.assertIn("OpenClaw supports production agent loop execution", response.context_pack)
-        self.assertNotIn("Supporting implementation details should remain structured evidence", response.context_pack)
+        self.assertIn("Supporting implementation details should remain structured evidence", response.context_pack)
 
     def test_primary_page_body_is_preserved_even_when_context_budget_is_small(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
