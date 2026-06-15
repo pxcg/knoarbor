@@ -7,7 +7,10 @@ from knoarbor.core.schemas.chat import (
     ChatSessionListResponse,
     ChatSessionRecord,
     ChatSessionSummary,
+    ChatToolCall,
+    ChatToolPlan,
     ChatToolTraceItem,
+    ChatTurnRecord,
 )
 from knoarbor.core.schemas.connectors import ConnectorDiscoverResponse, ConnectorRunRequest
 from knoarbor.core.schemas.events import KnowledgeEvent
@@ -117,7 +120,10 @@ __all__ = [
     "ChatSessionListResponse",
     "ChatSessionRecord",
     "ChatSessionSummary",
+    "ChatToolCall",
+    "ChatToolPlan",
     "ChatToolTraceItem",
+    "ChatTurnRecord",
     "KnowledgeExtract",
     "KnowledgeSource",
     "ContentUnit",

@@ -9,6 +9,7 @@ from knoarbor.core.schemas.memory import MemoryCandidate, MemoryRecord
 
 ChatRole = Literal["user", "assistant", "tool"]
 ChatToolStatus = Literal["ok", "error", "skipped"]
+ChatToolName = Literal["query_wiki", "read_wiki_page", "reuse_context", "answer_directly"]
 ChatCitationKind = Literal["page", "report", "run", "source"]
 ChatSessionStatus = Literal["active", "closed"]
 ChatEventType = Literal[
@@ -80,6 +81,23 @@ class ChatToolTraceItem(BaseModel):
     result: dict[str, Any] = Field(default_factory=dict)
 
 
+class ChatToolCall(BaseModel):
+    name: ChatToolName
+    arguments: dict[str, Any] = Field(default_factory=dict)
+
+
+class ChatToolPlan(BaseModel):
+    tool_calls: list[ChatToolCall] = Field(default_factory=list, max_length=4)
+    reason: str = Field(default="", max_length=1000)
+    confidence: float = Field(default=0.0, ge=0, le=1)
+
+    @model_validator(mode="after")
+    def require_action(self) -> "ChatToolPlan":
+        if not self.tool_calls:
+            self.tool_calls = [ChatToolCall(name="query_wiki", arguments={})]
+        return self
+
+
 class ChatRunLink(BaseModel):
     flow: Literal["ingest", "lint", "query"]
     run_id: str
@@ -104,6 +122,22 @@ class ChatResponse(BaseModel):
     session_id: str | None = None
     answer: str
     messages: list[ChatMessageItem] = Field(default_factory=list)
+    citations: list[ChatCitation] = Field(default_factory=list)
+    tool_trace: list[ChatToolTraceItem] = Field(default_factory=list)
+    events: list[ChatEvent] = Field(default_factory=list)
+    run_links: list[ChatRunLink] = Field(default_factory=list)
+    memory_used: list[MemoryRecord] = Field(default_factory=list)
+    memory_candidates: list[MemoryCandidate] = Field(default_factory=list)
+    memory_writes: list[MemoryRecord] = Field(default_factory=list)
+    stats: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class ChatTurnRecord(BaseModel):
+    index: int = Field(..., ge=0)
+    created_at: str
+    user_message: ChatMessageItem
+    assistant_message: ChatMessageItem
     citations: list[ChatCitation] = Field(default_factory=list)
     tool_trace: list[ChatToolTraceItem] = Field(default_factory=list)
     events: list[ChatEvent] = Field(default_factory=list)
@@ -141,6 +175,7 @@ class ChatSessionRecord(BaseModel):
     last_ingest_run_id: str | None = None
     last_ingested_at: str | None = None
     messages: list[ChatMessageItem] = Field(default_factory=list)
+    turns: list[ChatTurnRecord] = Field(default_factory=list)
     citations: list[ChatCitation] = Field(default_factory=list)
     tool_trace: list[ChatToolTraceItem] = Field(default_factory=list)
     events: list[ChatEvent] = Field(default_factory=list)

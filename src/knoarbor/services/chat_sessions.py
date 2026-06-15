@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from knoarbor.audit.token_ledger import current_timestamp
 from knoarbor.core.errors import UserInputError
-from knoarbor.core.schemas.chat import ChatMessageItem, ChatResponse, ChatSessionListResponse, ChatSessionRecord
+from knoarbor.core.schemas.chat import ChatMessageItem, ChatResponse, ChatSessionListResponse, ChatSessionRecord, ChatTurnRecord
 from knoarbor.core.schemas.sources import SourceContent, SourceDocument, SourceFingerprint, SourceOrigin
 
 
@@ -66,6 +66,10 @@ class ChatSessionStore:
         existing = self.load_existing(vault_path, response.session_id)
         session_id = response.session_id or _new_session_id()
         messages = _merge_messages(existing.messages if existing else [], response.messages or request_messages)
+        turns = list(existing.turns if existing else [])
+        turn = _turn_from_response(response, len(turns), now)
+        if turn is not None and not _turn_already_recorded(turns, turn):
+            turns.append(turn)
         title = existing.title if existing else _title_from_messages(messages)
         record = ChatSessionRecord(
             session_id=session_id,
@@ -80,6 +84,7 @@ class ChatSessionStore:
             last_ingest_run_id=existing.last_ingest_run_id if existing else None,
             last_ingested_at=existing.last_ingested_at if existing else None,
             messages=messages,
+            turns=turns,
             citations=response.citations,
             tool_trace=response.tool_trace,
             events=response.events,
@@ -237,7 +242,57 @@ def _source_payload(record: ChatSessionRecord) -> dict[str, object]:
             }
             for index, message in enumerate(record.messages)
         ],
+        "turns": [
+            {
+                "index": turn.index,
+                "created_at": turn.created_at,
+                "user": turn.user_message.content,
+                "assistant": turn.assistant_message.content,
+                "citations": [citation.model_dump(mode="json") for citation in turn.citations],
+                "warnings": turn.warnings,
+            }
+            for turn in record.turns
+        ],
         "citations": [citation.model_dump(mode="json") for citation in record.citations],
         "run_links": [link.model_dump(mode="json") for link in record.run_links],
         "warnings": record.warnings,
     }
+
+
+def _turn_from_response(response: ChatResponse, index: int, created_at: str) -> ChatTurnRecord | None:
+    user_message = _last_message_with_role(response.messages, "user")
+    assistant_message = _last_message_with_role(response.messages, "assistant")
+    if user_message is None or assistant_message is None:
+        return None
+    return ChatTurnRecord(
+        index=index,
+        created_at=created_at,
+        user_message=user_message,
+        assistant_message=assistant_message,
+        citations=response.citations,
+        tool_trace=response.tool_trace,
+        events=response.events,
+        run_links=response.run_links,
+        memory_used=response.memory_used,
+        memory_candidates=response.memory_candidates,
+        memory_writes=response.memory_writes,
+        stats=response.stats,
+        warnings=response.warnings,
+    )
+
+
+def _last_message_with_role(messages: list[ChatMessageItem], role: str) -> ChatMessageItem | None:
+    for message in reversed(messages):
+        if message.role == role:
+            return message
+    return None
+
+
+def _turn_already_recorded(turns: list[ChatTurnRecord], turn: ChatTurnRecord) -> bool:
+    if not turns:
+        return False
+    latest = turns[-1]
+    return (
+        latest.user_message.content == turn.user_message.content
+        and latest.assistant_message.content == turn.assistant_message.content
+    )

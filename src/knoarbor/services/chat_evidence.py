@@ -68,7 +68,7 @@ class ChatEvidencePlanner:
         return ChatEvidencePack(payload=payload)
 
     def project_tool_observation(self, tool: str, status: str, summary: str, result: dict[str, Any]) -> dict[str, Any]:
-        if tool == "search_wiki" and isinstance(result.get("evidence_pack"), dict):
+        if tool in {"query_wiki", "search_wiki", "reuse_context"} and isinstance(result.get("evidence_pack"), dict):
             return {
                 "tool": tool,
                 "status": status,
