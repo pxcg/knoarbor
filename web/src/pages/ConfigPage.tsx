@@ -309,6 +309,8 @@ function normalizeConfigForm(form: ConfigForm): ConfigForm {
     providers: (form.providers || []).map((provider) => ({
       ...provider,
       adapter: provider.adapter || "openai_compatible",
+      verify_tls: provider.verify_tls ?? true,
+      tls_ca_file: provider.tls_ca_file || "",
       extra_body: provider.extra_body || {},
     })),
     enabled_connectors: form.enabled_connectors || [],

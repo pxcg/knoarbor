@@ -129,6 +129,8 @@ class OpenAICompatibleChatClient:
     model: str
     timeout_seconds: float = 60.0
     json_mode: bool = True
+    verify_tls: bool = True
+    tls_ca_file: str | None = None
     configured_context_window: int | None = None
     configured_max_output_tokens: int | None = None
     extra_body: dict[str, object] | None = None
@@ -155,6 +157,8 @@ class OpenAICompatibleChatClient:
             model=model,
             timeout_seconds=timeout_seconds,
             json_mode=config.json_mode,
+            verify_tls=config.verify_tls,
+            tls_ca_file=str(config.tls_ca_file) if config.tls_ca_file else None,
             configured_context_window=config.context_window,
             configured_max_output_tokens=config.max_output_tokens,
             extra_body=config.extra_body,
@@ -181,7 +185,7 @@ class OpenAICompatibleChatClient:
         )
         started = time.perf_counter()
         try:
-            with urllib.request.urlopen(http_request, timeout=self.timeout_seconds, context=_ssl_context()) as response:  # noqa: S310
+            with urllib.request.urlopen(http_request, timeout=self.timeout_seconds, context=_ssl_context(self.verify_tls, self.tls_ca_file)) as response:  # noqa: S310
                 raw_text = response.read().decode("utf-8")
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
@@ -276,7 +280,7 @@ class OpenAICompatibleChatClient:
             method="GET",
         )
         try:
-            with urllib.request.urlopen(request, timeout=min(self.timeout_seconds, 5.0), context=_ssl_context()) as response:  # noqa: S310
+            with urllib.request.urlopen(request, timeout=min(self.timeout_seconds, 5.0), context=_ssl_context(self.verify_tls, self.tls_ca_file)) as response:  # noqa: S310
                 body = response.read().decode("utf-8", errors="replace")
                 status_code = getattr(response, "status", 200)
         except urllib.error.HTTPError as exc:
@@ -340,7 +344,7 @@ class OpenAICompatibleChatClient:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=min(self.timeout_seconds, 5.0), context=_ssl_context()) as response:  # noqa: S310
+            with urllib.request.urlopen(request, timeout=min(self.timeout_seconds, 5.0), context=_ssl_context(self.verify_tls, self.tls_ca_file)) as response:  # noqa: S310
                 body = response.read().decode("utf-8", errors="replace")
                 status_code = getattr(response, "status", 200)
         except urllib.error.HTTPError as exc:
@@ -371,6 +375,8 @@ class OllamaNativeChatClient:
     model: str
     timeout_seconds: float = 60.0
     json_mode: bool = True
+    verify_tls: bool = True
+    tls_ca_file: str | None = None
     configured_context_window: int | None = None
     configured_max_output_tokens: int | None = None
     extra_body: dict[str, object] | None = None
@@ -395,6 +401,8 @@ class OllamaNativeChatClient:
             model=model,
             timeout_seconds=timeout_seconds,
             json_mode=config.json_mode,
+            verify_tls=config.verify_tls,
+            tls_ca_file=str(config.tls_ca_file) if config.tls_ca_file else None,
             configured_context_window=config.context_window,
             configured_max_output_tokens=config.max_output_tokens,
             extra_body=config.extra_body,
@@ -424,7 +432,7 @@ class OllamaNativeChatClient:
         )
         started = time.perf_counter()
         try:
-            with urllib.request.urlopen(http_request, timeout=self.timeout_seconds, context=_ssl_context()) as response:  # noqa: S310
+            with urllib.request.urlopen(http_request, timeout=self.timeout_seconds, context=_ssl_context(self.verify_tls, self.tls_ca_file)) as response:  # noqa: S310
                 raw_text = response.read().decode("utf-8")
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
@@ -504,7 +512,7 @@ class OllamaNativeChatClient:
             method="GET",
         )
         try:
-            with urllib.request.urlopen(request, timeout=min(self.timeout_seconds, 5.0), context=_ssl_context()) as response:  # noqa: S310
+            with urllib.request.urlopen(request, timeout=min(self.timeout_seconds, 5.0), context=_ssl_context(self.verify_tls, self.tls_ca_file)) as response:  # noqa: S310
                 body = response.read().decode("utf-8", errors="replace")
                 status_code = getattr(response, "status", 200)
         except urllib.error.HTTPError as exc:
@@ -555,7 +563,7 @@ class OllamaNativeChatClient:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=min(self.timeout_seconds, 5.0), context=_ssl_context()) as response:  # noqa: S310
+            with urllib.request.urlopen(request, timeout=min(self.timeout_seconds, 5.0), context=_ssl_context(self.verify_tls, self.tls_ca_file)) as response:  # noqa: S310
                 body = response.read().decode("utf-8", errors="replace")
                 status_code = getattr(response, "status", 200)
         except urllib.error.HTTPError as exc:
@@ -578,8 +586,13 @@ class OllamaNativeChatClient:
         }
 
 
-def _ssl_context() -> ssl.SSLContext:
-    return ssl.create_default_context(cafile=certifi.where())
+def _ssl_context(verify_tls: bool, tls_ca_file: str | None = None) -> ssl.SSLContext:
+    if not verify_tls:
+        context = ssl.create_default_context()
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+        return context
+    return ssl.create_default_context(cafile=tls_ca_file or certifi.where())
 
 
 def _deep_merge_payload(base: dict[str, object], extra: dict[str, object]) -> dict[str, object]:

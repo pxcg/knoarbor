@@ -47,6 +47,8 @@ models:
       api_key_env: DEEPSEEK_API_KEY
       model: deepseek-v4-flash
       json_mode: true
+      verify_tls: true
+      tls_ca_file:
     # Local presets. Keep only one default provider selected above; uncomment
     # and edit one of these when using a local runtime.
     # ollama:
@@ -55,6 +57,11 @@ models:
     #   api_key_env:
     #   model: qwen3.6:27b-q4_K_M
     #   json_mode: true
+    #   # Keep TLS verification on by default. For an internal HTTPS endpoint
+    #   # with a private CA, set tls_ca_file to that CA bundle. Only set
+    #   # verify_tls: false for a trusted internal endpoint you control.
+    #   verify_tls: true
+    #   tls_ca_file:
     #   context_window: 262144
     #   max_output_tokens: 8000
     #   extra_body:

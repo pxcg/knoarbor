@@ -41,6 +41,8 @@ class ModelProbeService:
                 json_mode=provider.json_mode,
                 api_key_env=provider.api_key_env,
                 api_key_configured=_provider_credentials_ready(provider),
+                verify_tls=provider.verify_tls,
+                tls_ca_file=str(provider.tls_ca_file) if provider.tls_ca_file else None,
                 local_or_private=is_local_or_private_model_endpoint(provider.base_url),
                 context_window=provider.context_window,
                 max_output_tokens=provider.max_output_tokens,

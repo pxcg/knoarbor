@@ -87,6 +87,8 @@ models:
       api_key_env: DEEPSEEK_API_KEY
       model: deepseek-v4-flash
       json_mode: true
+      verify_tls: true
+      tls_ca_file:
       context_window:
       max_output_tokens:
 ```
@@ -102,6 +104,7 @@ Configuration design follows the common shape used by AI workflow projects:
 - Secrets referenced by environment variable name instead of being stored in YAML.
 - Runtime limits such as output tokens and request timeout exposed as first-class configuration.
 - Prompt caching remains provider-owned and does not require a KnoArbor config switch. KnoArbor keeps semantic contract prompts stable and puts dynamic source/wiki payloads in later user-message content. It also records provider cache usage when returned by the API.
+- TLS verification is provider-scoped. Keep `verify_tls: true` for hosted APIs. For an internal HTTPS endpoint with a private CA, set `tls_ca_file` to the CA bundle path. Use `verify_tls: false` only for a trusted endpoint you control.
 
 Semantic model retries are an explicit runner policy, not a hidden downstream fallback. `SemanticRunner` may retry retryable provider failures and invalid structured model output before the result reaches ingest or lint. Page writes still happen only after a full source or reviewed maintenance batch is approved, so a retried model call cannot partially commit a page by itself.
 
@@ -131,6 +134,8 @@ models:
       api_key_env:
       model: qwen3.6:27b-q4_K_M
       json_mode: true
+      verify_tls: true
+      tls_ca_file:
       context_window: 262144
       max_output_tokens: 8000
       extra_body:

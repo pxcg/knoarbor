@@ -53,6 +53,8 @@ class UiModelProviderForm(BaseModel):
     api_key_env: str = ""
     model: str = ""
     json_mode: bool = True
+    verify_tls: bool = True
+    tls_ca_file: str = ""
     context_window: int | None = None
     max_output_tokens: int | None = None
     extra_body: dict[str, object] = Field(default_factory=dict)

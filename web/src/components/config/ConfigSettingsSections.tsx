@@ -27,6 +27,8 @@ const PROVIDER_PRESETS: ConfigFormProvider[] = [
     api_key_env: "DEEPSEEK_API_KEY",
     model: "deepseek-v4-flash",
     json_mode: true,
+    verify_tls: true,
+    tls_ca_file: "",
     context_window: null,
     max_output_tokens: null,
     api_key_configured: false,
@@ -38,6 +40,8 @@ const PROVIDER_PRESETS: ConfigFormProvider[] = [
     api_key_env: "OPENAI_API_KEY",
     model: "gpt-4.1",
     json_mode: true,
+    verify_tls: true,
+    tls_ca_file: "",
     context_window: null,
     max_output_tokens: null,
     api_key_configured: false,
@@ -49,6 +53,8 @@ const PROVIDER_PRESETS: ConfigFormProvider[] = [
     api_key_env: "",
     model: "local-model",
     json_mode: true,
+    verify_tls: true,
+    tls_ca_file: "",
     context_window: 32768,
     max_output_tokens: 8000,
     api_key_configured: true,
@@ -60,6 +66,8 @@ const PROVIDER_PRESETS: ConfigFormProvider[] = [
     api_key_env: "",
     model: "qwen3.6:27b-q4_K_M",
     json_mode: true,
+    verify_tls: true,
+    tls_ca_file: "",
     context_window: 262144,
     max_output_tokens: 8000,
     extra_body: { think: false },
@@ -463,6 +471,8 @@ export function ConfigModelProvidersSection({
       api_key_env: "",
       model: "",
       json_mode: true,
+      verify_tls: true,
+      tls_ca_file: "",
       context_window: null,
       max_output_tokens: null,
       extra_body: {},
@@ -554,12 +564,17 @@ export function ConfigModelProvidersSection({
               <PathField label={t("model")} value={active.model} onChange={(value) => updateProvider(activeProvider, { model: value })} />
               <PathField label={t("baseUrl")} value={active.base_url} onChange={(value) => updateProvider(activeProvider, { base_url: value })} />
               <PathField label={t("apiKeyEnv")} value={active.api_key_env} onChange={(value) => updateProvider(activeProvider, { api_key_env: value })} />
+              <PathField label={t("tlsCaFile")} value={active.tls_ca_file || ""} onChange={(value) => updateProvider(activeProvider, { tls_ca_file: value })} />
               <NumberField label={t("contextWindow")} value={active.context_window ?? null} onChange={(value) => updateProvider(activeProvider, { context_window: value })} />
               <NumberField label={t("maxOutputTokens")} value={active.max_output_tokens ?? null} onChange={(value) => updateProvider(activeProvider, { max_output_tokens: value })} />
             </div>
             <label className="checkbox-field">
               <input type="checkbox" checked={active.json_mode} onChange={(event) => updateProvider(activeProvider, { json_mode: event.target.checked })} />
               <span>{t("jsonMode")}</span>
+            </label>
+            <label className="checkbox-field">
+              <input type="checkbox" checked={active.verify_tls ?? true} onChange={(event) => updateProvider(activeProvider, { verify_tls: event.target.checked })} />
+              <span>{t("verifyTls")}</span>
             </label>
             <div className="provider-actions">
               <button className="button secondary" onClick={() => onDiscover(active.name)} disabled={!active.name || pendingAction === `${active.name}:discover`} type="button">

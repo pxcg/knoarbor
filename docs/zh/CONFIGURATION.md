@@ -51,6 +51,8 @@ models:
       api_key_env: DEEPSEEK_API_KEY
       model: deepseek-v4-flash
       json_mode: true
+      verify_tls: true
+      tls_ca_file:
       context_window:
       max_output_tokens:
 ```
@@ -61,6 +63,7 @@ models:
 单次 CLI/API 请求传入的 `max_tokens` 优先级最高；未传入时使用选中 provider 的 `max_output_tokens`；provider 未配置时再使用 `models.default_max_tokens`。
 Ollama、vLLM 等本地模型建议先使用 `json_mode: false`，待该模型通过 KnoArbor 结构化流程验证后再开启 JSON mode。
 Prompt caching 由模型供应商实现，不需要在 KnoArbor 中单独开启。KnoArbor 只保证语义契约 prompt 的稳定前缀，并在供应商返回缓存命中指标时写入运行指标和报告；未返回缓存字段的供应商会显示为未提供该遥测，而不是配置错误。
+TLS 校验按模型供应商单独配置。托管 API 保持 `verify_tls: true`；内网 HTTPS 端点如果使用私有 CA，可以通过 `tls_ca_file` 指定 CA 证书文件。只有在受信任且自己控制的内网端点上，才建议设置 `verify_tls: false`。
 
 Ollama 原生适配器示例：
 
@@ -74,6 +77,8 @@ models:
       api_key_env:
       model: qwen3.6:27b-q4_K_M
       json_mode: true
+      verify_tls: true
+      tls_ca_file:
       context_window: 262144
       max_output_tokens: 8000
       extra_body:

@@ -99,6 +99,8 @@ export type ConfigFormProvider = {
   api_key_env: string;
   model: string;
   json_mode: boolean;
+  verify_tls: boolean;
+  tls_ca_file: string;
   context_window?: number | null;
   max_output_tokens?: number | null;
   extra_body?: Record<string, unknown>;

@@ -70,9 +70,16 @@ class ModelProviderConfig(BaseModel):
     api_key_env: str | None = None
     model: str | None = None
     json_mode: bool = True
+    verify_tls: bool = True
+    tls_ca_file: Path | None = None
     context_window: int | None = Field(default=None, ge=1)
     max_output_tokens: int | None = Field(default=None, ge=1)
     extra_body: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("tls_ca_file")
+    @classmethod
+    def expand_tls_ca_file(cls, value: Path | None) -> Path | None:
+        return value.expanduser() if value is not None else None
 
     def api_key(self, env: Mapping[str, str] | None = None) -> str | None:
         if not self.api_key_env:
