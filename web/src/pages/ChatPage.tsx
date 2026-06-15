@@ -3,7 +3,9 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import {
+  closeChatSession,
   deleteChatSession,
+  ingestChatSession,
   listChatSessions,
   readChatSession,
   sendChatMessage,
@@ -27,13 +29,12 @@ const exampleKeys = ["chatExampleAgentLoop", "chatExampleLint", "chatExampleRag"
 
 export function ChatPage({ context }: Props) {
   const [input, setInput] = useState("");
-  const [mode, setMode] = useState<"quick" | "balanced" | "deep">("balanced");
-  const [scope, setScope] = useState<"current" | "all">("current");
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [recentSessions, setRecentSessions] = useState<ChatSessionSummary[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
 
   const apiMessages = useMemo<ChatMessageItem[]>(
     () => turns
@@ -117,6 +118,42 @@ export function ChatPage({ context }: Props) {
     }
   }
 
+  async function archiveCurrentSession() {
+    if (!sessionId || isSending || isArchiving) return;
+    setIsArchiving(true);
+    try {
+      const response = await ingestChatSession(context.activeVaultSelector, sessionId);
+      context.setNotice({
+        message: response.run_id ? `${context.t("chatIngestQueued")} ${response.run_id}` : context.t("chatIngestQueued"),
+      });
+      await refreshSessions();
+      context.navigate("runs");
+    } catch (error) {
+      context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
+    } finally {
+      setIsArchiving(false);
+    }
+  }
+
+  async function closeCurrentSession() {
+    if (!sessionId || isSending || isArchiving) return;
+    setIsArchiving(true);
+    try {
+      const response = await closeChatSession(context.activeVaultSelector, sessionId);
+      context.setNotice({
+        message: response.ingest_started && response.run_id
+          ? `${context.t("chatClosedAndIngestQueued")} ${response.run_id}`
+          : context.t("chatClosed"),
+      });
+      await refreshSessions();
+      if (response.ingest_started) context.navigate("runs");
+    } catch (error) {
+      context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
+    } finally {
+      setIsArchiving(false);
+    }
+  }
+
   async function submit(nextInput = input) {
     const content = nextInput.trim();
     if (!content || isSending) return;
@@ -131,8 +168,7 @@ export function ChatPage({ context }: Props) {
         [...apiMessages, { role: "user", content }],
         {
           session_id: sessionId,
-          mode,
-          all_vaults: scope === "all" || context.activeVaultId === "all",
+          all_vaults: context.activeVaultId === "all",
           max_turns: 6,
         },
       );
@@ -243,26 +279,14 @@ export function ChatPage({ context }: Props) {
               rows={3}
             />
             <div className="chat-composer-actions">
-              <details className="chat-advanced">
-                <summary>{context.t("chatAdvanced")}</summary>
-                <div className="chat-advanced-grid">
-                  <label className="field compact-field">
-                    <span>{context.t("chatMode")}</span>
-                    <select value={mode} onChange={(event) => setMode(event.target.value as "quick" | "balanced" | "deep")}>
-                      <option value="quick">{context.t("quickQuery")}</option>
-                      <option value="balanced">{context.t("balancedQuery")}</option>
-                      <option value="deep">{context.t("deepQuery")}</option>
-                    </select>
-                  </label>
-                  <label className="field compact-field">
-                    <span>{context.t("chatScope")}</span>
-                    <select value={scope} onChange={(event) => setScope(event.target.value as "current" | "all")}>
-                      <option value="current">{context.t("queryCurrentVault")}</option>
-                      <option value="all">{context.t("queryAllVaults")}</option>
-                    </select>
-                  </label>
-                </div>
-              </details>
+              <div className="chat-session-actions">
+                <button className="button ghost" type="button" onClick={() => void archiveCurrentSession()} disabled={!sessionId || isSending || isArchiving}>
+                  {isArchiving ? context.t("chatArchiving") : context.t("chatIngestSession")}
+                </button>
+                <button className="button ghost" type="button" onClick={() => void closeCurrentSession()} disabled={!sessionId || isSending || isArchiving}>
+                  {context.t("chatCloseSession")}
+                </button>
+              </div>
               <button className="button primary" type="button" onClick={() => void submit()} disabled={isSending || !input.trim()}>
                 {isSending ? context.t("chatSending") : context.t("chatSend")}
               </button>

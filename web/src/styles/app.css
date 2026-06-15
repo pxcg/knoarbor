@@ -2567,6 +2567,53 @@ button.action-card {
   padding: 24px;
 }
 
+.loading-block {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: linear-gradient(135deg, #ffffff 0%, #f7fafc 100%);
+  color: var(--muted-strong);
+  padding: 14px 16px;
+}
+
+.loading-block.compact {
+  padding: 12px 14px;
+}
+
+.loading-block strong {
+  display: block;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.loading-block p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.loading-spinner {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border: 2px solid #d7e5e2;
+  border-top-color: var(--accent);
+  border-radius: 999px;
+  animation: knoarbor-spin 0.8s linear infinite;
+}
+
+@keyframes knoarbor-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .route-error-panel {
   align-items: start;
   display: grid;
@@ -5337,6 +5384,19 @@ blockquote {
   padding-top: 10px;
 }
 
+.chat-session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.chat-session-actions .button {
+  min-height: 34px;
+  padding: 7px 12px;
+  font-size: 0.86rem;
+}
+
 .compact-field {
   width: 168px;
   margin: 0;
@@ -5548,8 +5608,17 @@ blockquote {
   }
 
   .chat-advanced,
+  .chat-session-actions,
   .chat-composer-actions .button {
     width: 100%;
+  }
+
+  .chat-session-actions {
+    align-items: stretch;
+  }
+
+  .chat-session-actions .button {
+    flex: 1;
   }
 
   .chat-advanced-grid,

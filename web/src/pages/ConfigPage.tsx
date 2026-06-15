@@ -306,7 +306,11 @@ function normalizeConfigForm(form: ConfigForm): ConfigForm {
               active: true,
             },
           ],
-    providers: form.providers || [],
+    providers: (form.providers || []).map((provider) => ({
+      ...provider,
+      adapter: provider.adapter || "openai_compatible",
+      extra_body: provider.extra_body || {},
+    })),
     enabled_connectors: form.enabled_connectors || [],
     markdown_roots: form.markdown_roots || [],
     generic_chat_enabled: Boolean(form.generic_chat_enabled),

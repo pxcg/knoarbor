@@ -4,6 +4,7 @@ import { getPage, type PageDetail, type PageLink, type PageSummary } from "../ap
 import type { AppContext } from "../App";
 import { AsyncMarkdownPreview } from "../components/AsyncMarkdownPreview";
 import { DelayedTooltip } from "../components/DelayedTooltip";
+import { LoadingBlock } from "../components/LoadingBlock";
 import { PagePathLinks } from "../components/PagePathLinks";
 
 type Props = {
@@ -133,7 +134,7 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
               </div>
             )}
           </div>
-          {loading && <p className="panel-copy">{context.t("loading")}</p>}
+          {loading && <LoadingBlock title={context.t("wikiPageLoading")} copy={context.t("wikiPageLoadingCopy")} />}
           {!loading && selectedDetail ? (
             <>
               <PageMetadata detail={selectedDetail} t={context.t} />

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { getQueryTrends, searchWiki } from "../api/client";
 import type { AppContext } from "../App";
 import type { QueryResult } from "../api/client";
+import { LoadingBlock } from "../components/LoadingBlock";
 import type { VaultOption } from "../vaultRuntime";
 
 type Props = {
@@ -17,12 +18,16 @@ export function QueryPage({ context, embedded = false }: Props) {
   const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([context.activeVaultId]);
   const [pageDirs, setPageDirs] = useState("");
   const [scopedResults, setScopedResults] = useState<ScopedQueryResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   async function handleSearch() {
+    if (isSearching) return;
     if (!query.trim()) {
       context.setNotice({ message: context.t("queryCannotBeEmpty"), error: true });
       return;
     }
+    setIsSearching(true);
+    context.setNotice(null);
     try {
       const targetVaults = resolveQueryVaults(context.vaultOptions, context.activeVaultId, vaultScope, selectedVaultIds);
       const pageDirsValue = pageDirs
@@ -48,6 +53,8 @@ export function QueryPage({ context, embedded = false }: Props) {
       }
     } catch (error) {
       context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
+    } finally {
+      setIsSearching(false);
     }
   }
 
@@ -67,8 +74,8 @@ export function QueryPage({ context, embedded = false }: Props) {
             <h2>{context.t("queryTitle")}</h2>
             <p className="panel-copy">{context.t("querySubtitle")}</p>
           </div>
-          <button className="button primary" onClick={handleSearch}>
-            {context.t("search")}
+          <button className="button primary" onClick={handleSearch} disabled={isSearching}>
+            {isSearching ? context.t("querySearching") : context.t("search")}
           </button>
         </div>
         <label className="field">
@@ -145,8 +152,10 @@ export function QueryPage({ context, embedded = false }: Props) {
             </div>
           </aside>
         )}
-        <div className="result-list">
-          {hasQueryResults ? (
+        <div className="result-list" aria-busy={isSearching}>
+          {isSearching ? (
+            <LoadingBlock title={context.t("querySearching")} copy={context.t("querySearchingCopy")} />
+          ) : hasQueryResults ? (
             visibleResults.map(({ vault, result }) => (
               <article className="result-item" key={`${vault.id}:${result.path}`}>
                 <div className="result-item-header">
@@ -222,7 +231,11 @@ export function QueryPage({ context, embedded = false }: Props) {
             {context.t("copy")}
           </button>
         </div>
-        <pre className={`output light ${hasContextPack ? "" : "output-empty"}`}>{context.queryContextPack || context.t("runSearchForContext")}</pre>
+        {isSearching ? (
+          <LoadingBlock title={context.t("queryContextBuilding")} copy={context.t("queryContextBuildingCopy")} compact />
+        ) : (
+          <pre className={`output light ${hasContextPack ? "" : "output-empty"}`}>{context.queryContextPack || context.t("runSearchForContext")}</pre>
+        )}
       </article>
     </section>
   );

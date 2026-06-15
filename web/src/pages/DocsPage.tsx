@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getProjectDoc } from "../api/client";
 import type { AppContext } from "../App";
 import { AsyncMarkdownPreview } from "../components/AsyncMarkdownPreview";
+import { LoadingBlock } from "../components/LoadingBlock";
 
 type Props = {
   context: AppContext;
@@ -121,7 +122,7 @@ export function DocsPage({ context }: Props) {
             </div>
           </div>
           {loading ? (
-            <p className="panel-copy">{context.t("loading")}</p>
+            <LoadingBlock title={context.t("docsLoading")} copy={context.t("docsLoadingCopy")} />
           ) : (
             <AsyncMarkdownPreview content={content} currentDocPath={selectedPath} onOpenDocLink={setSelectedPath} />
           )}

@@ -22,6 +22,7 @@ type ProviderRuntimeStatus = {
 const PROVIDER_PRESETS: ConfigFormProvider[] = [
   {
     name: "deepseek",
+    adapter: "openai_compatible",
     base_url: "https://api.deepseek.com",
     api_key_env: "DEEPSEEK_API_KEY",
     model: "deepseek-v4-flash",
@@ -32,6 +33,7 @@ const PROVIDER_PRESETS: ConfigFormProvider[] = [
   },
   {
     name: "openai",
+    adapter: "openai_compatible",
     base_url: "https://api.openai.com/v1",
     api_key_env: "OPENAI_API_KEY",
     model: "gpt-4.1",
@@ -42,6 +44,7 @@ const PROVIDER_PRESETS: ConfigFormProvider[] = [
   },
   {
     name: "vllm",
+    adapter: "openai_compatible",
     base_url: "http://localhost:8001/v1",
     api_key_env: "",
     model: "local-model",
@@ -52,12 +55,14 @@ const PROVIDER_PRESETS: ConfigFormProvider[] = [
   },
   {
     name: "ollama",
-    base_url: "http://localhost:11434/v1",
+    adapter: "ollama",
+    base_url: "http://localhost:11434",
     api_key_env: "",
-    model: "qwen2.5:14b",
-    json_mode: false,
-    context_window: 32768,
+    model: "qwen3.6:27b-q4_K_M",
+    json_mode: true,
+    context_window: 262144,
     max_output_tokens: 8000,
+    extra_body: { think: false },
     api_key_configured: true,
   },
 ];
@@ -454,11 +459,13 @@ export function ConfigModelProvidersSection({
     const template = preset || {
       name: "",
       base_url: "",
+      adapter: "openai_compatible",
       api_key_env: "",
       model: "",
       json_mode: true,
       context_window: null,
       max_output_tokens: null,
+      extra_body: {},
       api_key_configured: false,
     };
     const existingNames = new Set(form.providers.map((provider) => provider.name));
@@ -537,6 +544,13 @@ export function ConfigModelProvidersSection({
             <p className={`provider-status-message ${activeRuntimeStatus.tone}`}>{activeRuntimeStatus.detail}</p>
             <div className="form-grid provider-form-grid">
               <PathField label={t("name")} value={active.name} onChange={(value) => updateProvider(activeProvider, { name: value })} />
+              <label className="field">
+                <span>{t("modelAdapter")}</span>
+                <select value={active.adapter || "openai_compatible"} onChange={(event) => updateProvider(activeProvider, { adapter: event.target.value as ConfigFormProvider["adapter"] })}>
+                  <option value="openai_compatible">{t("adapterOpenAICompatible")}</option>
+                  <option value="ollama">{t("adapterOllamaNative")}</option>
+                </select>
+              </label>
               <PathField label={t("model")} value={active.model} onChange={(value) => updateProvider(activeProvider, { model: value })} />
               <PathField label={t("baseUrl")} value={active.base_url} onChange={(value) => updateProvider(activeProvider, { base_url: value })} />
               <PathField label={t("apiKeyEnv")} value={active.api_key_env} onChange={(value) => updateProvider(activeProvider, { api_key_env: value })} />

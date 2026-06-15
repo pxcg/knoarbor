@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getPage, getReport, getRunEvents, type ReportDetail, type ReportSummary, type VaultSelector } from "../api/client";
 import type { AppContext } from "../App";
+import { LoadingBlock } from "../components/LoadingBlock";
 import { ReportReadableView } from "../components/report/ReportReadableView";
 import { ReportSummaryCard } from "../components/report/ReportSummaryCard";
 import { parseReportRunId } from "../components/report/reportParser";
@@ -17,6 +18,7 @@ type Props = {
 export function ReportsPage({ context, focusedReportPath = null }: Props) {
   const [selected, setSelected] = useState<ReportDetail | null>(null);
   const [selectedRunEvents, setSelectedRunEvents] = useState<RunEvent[]>([]);
+  const [loadingReportPath, setLoadingReportPath] = useState<string | null>(null);
   const [activeKind, setActiveKind] = useState<"ingest" | "lint" | "query">("lint");
   const [activeVaultFilter, setActiveVaultFilter] = useState("all");
   const allReports = useMemo(() => {
@@ -54,6 +56,7 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
   }
 
   const loadReport = useCallback(async (reportSummary: ReportSummary) => {
+    setLoadingReportPath(reportKey(reportSummary));
     try {
       const vault = vaultForReport(context, reportSummary);
       const selector = selectorForReport(context, reportSummary, vault);
@@ -72,6 +75,8 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
       }
     } catch (error) {
       context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
+    } finally {
+      setLoadingReportPath(null);
     }
   }, [context]);
 
@@ -173,7 +178,9 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
             <h2>{context.t("reportDetail")}</h2>
             {selected && <span className="pill">{localizeReportKind(selected.summary.kind, context.t)}</span>}
           </div>
-          {selected ? (
+          {loadingReportPath ? (
+            <LoadingBlock title={context.t("reportLoading")} copy={context.t("reportLoadingCopy")} />
+          ) : selected ? (
             <>
               <ReportSummaryCard
                 title={localizeReportTitle(selected.summary.title || selected.path, selected.summary.kind, context.t)}

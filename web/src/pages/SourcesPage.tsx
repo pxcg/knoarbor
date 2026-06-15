@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { AppContext } from "../App";
 import { getConfigDiagnostics, getSourceCatalog, type ConfigDiagnosticItem, type SourceConnectorCatalogItem } from "../api/client";
 import { BrandIcon, type BrandIconName } from "../components/BrandIcon";
+import { LoadingBlock } from "../components/LoadingBlock";
 import { queryKeys } from "../queryKeys";
 import { sortSourceConnectors, sourceDescription, sourceIconName, sourceSettingsFields, sourceTitle } from "../sourceCatalog";
 
@@ -36,7 +37,7 @@ export function SourcesPage({ context }: Props) {
   return (
     <section className="view active">
       <div className="source-grid">
-        {catalogQuery.isLoading && !connectors.length && <div className="empty-state">{context.t("sourceCatalogLoading")}</div>}
+        {catalogQuery.isLoading && !connectors.length && <LoadingBlock title={context.t("sourceCatalogLoading")} copy={context.t("sourceCatalogLoadingCopy")} />}
         {connectors.map((source) => {
           const diagnostic = connectorDiagnostics.get(source.name);
           const isEnabled = diagnostic?.enabled ?? source.enabled ?? enabled.has(source.name);

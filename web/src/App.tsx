@@ -34,6 +34,7 @@ import {
   type VaultSelector,
 } from "./api/client";
 import { AppShell } from "./components/AppShell";
+import { LoadingBlock } from "./components/LoadingBlock";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
 import { WorkspaceSettingsModal } from "./components/WorkspaceSettingsModal";
 import { detectLanguage, translate } from "./i18n";
@@ -661,7 +662,7 @@ export function App() {
           fallbackCopy={t("routeLoadFailedCopy")}
           reloadLabel={t("reloadPage")}
         >
-          <Suspense fallback={<section className="panel page-loading">{t("loading")}</section>}>
+          <Suspense fallback={<section className="panel page-loading"><LoadingBlock title={t("pageLoading")} copy={t("pageLoadingCopy")} /></section>}>
             {activeView === "chat" && <ChatPage context={context} />}
             {activeView === "overview" && <OverviewPage context={context} onNavigate={setActiveView} />}
             {activeView === "runs" && <RunsPage context={context} />}
@@ -678,7 +679,7 @@ export function App() {
           </Suspense>
         </RouteErrorBoundary>
         <WorkspaceSettingsModal isOpen={workspaceSettingsOpen} t={t} onClose={() => setWorkspaceSettingsOpen(false)}>
-          <Suspense fallback={<section className="panel page-loading">{t("loading")}</section>}>
+          <Suspense fallback={<section className="panel page-loading"><LoadingBlock title={t("pageLoading")} copy={t("pageLoadingCopy")} /></section>}>
             <ConfigPage context={context} embedded />
           </Suspense>
         </WorkspaceSettingsModal>

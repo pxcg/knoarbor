@@ -94,12 +94,14 @@ export type SourceCatalogResponse = {
 
 export type ConfigFormProvider = {
   name: string;
+  adapter: "openai_compatible" | "ollama";
   base_url: string;
   api_key_env: string;
   model: string;
   json_mode: boolean;
   context_window?: number | null;
   max_output_tokens?: number | null;
+  extra_body?: Record<string, unknown>;
   api_key_configured: boolean;
 };
 
@@ -329,8 +331,6 @@ export type ChatMessageItem = {
   tool_name?: string | null;
 };
 
-export type ChatExecutionMode = "auto" | "agentic" | "retrieval_first";
-
 export type ChatCitation = {
   kind: "page" | "report" | "run" | "source";
   role?: "primary" | "supporting" | "source" | "further_reading" | null;
@@ -405,6 +405,10 @@ export type ChatSessionRecord = {
   vault_id?: string | null;
   vault_name?: string | null;
   vault_path?: string | null;
+  status?: "active" | "closed";
+  closed_at?: string | null;
+  last_ingest_run_id?: string | null;
+  last_ingested_at?: string | null;
   messages: ChatMessageItem[];
   citations: ChatCitation[];
   tool_trace: ChatToolTraceItem[];
@@ -424,6 +428,23 @@ export type ChatSessionListResponse = {
 export type ChatSessionDeleteResponse = {
   deleted: boolean;
   session_id: string;
+};
+
+export type WorkflowResponse = {
+  flow: "ingest" | "lint" | "query";
+  execution: "direct" | "queued";
+  status: string;
+  run_id?: string | null;
+  run?: import("../types").RunRecord | null;
+  result?: Record<string, unknown> | null;
+};
+
+export type ChatSessionWorkflowResponse = {
+  session: ChatSessionRecord;
+  ingest_started: boolean;
+  run_id?: string | null;
+  status?: string | null;
+  reason: string;
 };
 
 export type PageSummary = {
@@ -788,8 +809,6 @@ export async function sendChatMessage(
   selector: VaultSelector,
   messages: ChatMessageItem[],
   options: {
-    mode?: "quick" | "balanced" | "deep";
-    execution_mode?: ChatExecutionMode;
     vault_ids?: string[];
     all_vaults?: boolean;
     max_turns?: number;
@@ -807,8 +826,6 @@ export async function sendChatMessage(
       vault_ids: options.vault_ids || [],
       all_vaults: options.all_vaults || false,
       messages,
-      mode: options.mode || "balanced",
-      execution_mode: options.execution_mode || "auto",
       max_turns: options.max_turns || 6,
       include_trace: true,
     },
@@ -838,6 +855,34 @@ export async function deleteChatSession(selector: VaultSelector, sessionId: stri
   if (selector.vault_id) params.set("vault_id", selector.vault_id);
   if (!selector.vault_id && selector.vault_path) params.set("vault_path", selector.vault_path);
   return requestJson(`/chat/sessions/${encodeURIComponent(sessionId)}?${params.toString()}`, { method: "DELETE" });
+}
+
+export async function ingestChatSession(selector: VaultSelector, sessionId: string): Promise<WorkflowResponse> {
+  return requestJson(`/chat/sessions/${encodeURIComponent(sessionId)}/ingest`, {
+    method: "POST",
+    body: {
+      config_path: selector.config_path,
+      vault_id: selector.vault_id,
+      vault_path: selector.vault_id ? undefined : selector.vault_path,
+      write: true,
+      write_report: true,
+      append_ledger: true,
+    },
+  });
+}
+
+export async function closeChatSession(selector: VaultSelector, sessionId: string): Promise<ChatSessionWorkflowResponse> {
+  return requestJson(`/chat/sessions/${encodeURIComponent(sessionId)}/close`, {
+    method: "POST",
+    body: {
+      config_path: selector.config_path,
+      vault_id: selector.vault_id,
+      vault_path: selector.vault_id ? undefined : selector.vault_path,
+      write: true,
+      write_report: true,
+      append_ledger: true,
+    },
+  });
 }
 
 export async function sendQueryFeedback(

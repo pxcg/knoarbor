@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { getTokenAnalysis, type TokenAnalysis, type TokenCallRecord, type TokenMetricGroup, type TokenPayloadFieldGroup } from "../api/client";
 import { BarChart } from "../components/BarChart";
+import { LoadingBlock } from "../components/LoadingBlock";
 import { MetricCard } from "../components/MetricCard";
 import type { AppContext } from "../App";
 
@@ -41,7 +42,7 @@ export function TokensPage({ context }: Props) {
   const topCall = analysis?.top_calls?.[0];
 
   if (loading && !analysis) {
-    return <section className="panel"><p className="panel-copy">{context.t("loading")}</p></section>;
+    return <section className="panel"><LoadingBlock title={context.t("tokensLoading")} copy={context.t("tokensLoadingCopy")} /></section>;
   }
 
   if (error) {
