@@ -309,7 +309,8 @@ keeping all actions inside KnoArbor-owned boundaries.
 
 ```text
 chat request
-  -> deterministic wiki retrieval
+  -> bounded chat tool planning
+  -> guarded KnoArbor tool execution
   -> canonical evidence package
   -> answer synthesis
   -> answer with citations and evidence trace
@@ -318,9 +319,13 @@ chat request
 Responsibilities:
 
 - synthesize answers inside the management console;
-- search maintained wiki pages through existing services;
+- plan and execute bounded KnoArbor tools such as `query_wiki`,
+  `read_wiki_page`, `reuse_context`, and `answer_directly`;
+- enforce code-owned guardrails so knowledge questions use wiki evidence;
 - build a canonical page-first evidence package before model synthesis;
 - expose citations and evidence trace to the UI.
+- persist each assistant turn with its own citations, tool trace, events,
+  memory metadata, and stats;
 - convert an explicitly selected stored chat session into a `knoarbor_chat`
   source document and queue ingest through the shared run manager.
 

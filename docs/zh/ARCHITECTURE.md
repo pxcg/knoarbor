@@ -298,7 +298,8 @@ KnoArbor 自有边界内。
 
 ```text
 chat request
-  -> deterministic wiki retrieval
+  -> bounded chat tool planning
+  -> guarded KnoArbor tool execution
   -> canonical evidence package
   -> answer synthesis
   -> answer with citations and evidence trace
@@ -307,9 +308,13 @@ chat request
 职责：
 
 - 在管理控制台内综合回答。
-- 通过现有服务搜索已维护 Wiki 页面。
+- 规划并执行受限的 KnoArbor 工具，例如 `query_wiki`、`read_wiki_page`、
+  `reuse_context` 和 `answer_directly`。
+- 通过代码层守卫确保知识类问题使用 Wiki 证据。
 - 在模型综合前构建页面优先的标准 evidence pack。
 - 向前端展示引用和证据轨迹。
+- 按轮次保存每个助手回答自己的引用、工具轨迹、事件、记忆元数据和
+  统计信息。
 - 把用户明确选择的已保存会话转换为 `knoarbor_chat` source document，
   并通过共享 run manager 排队进入 ingest。
 

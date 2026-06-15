@@ -133,6 +133,6 @@ Acceptance criteria:
 - The console home page is a chat interface backed by `/chat`.
 - Evidence traces are visible but not overwhelming.
 - Chat uses existing model gateway, retry, error codes, and token metrics.
-- Unit tests cover deterministic retrieval, invalid model output, answer
-  synthesis, citations, and session persistence.
+- Unit tests cover chat tool planning, direct-answer guardrails, invalid model
+  output, answer synthesis, citations, and turn-level session persistence.
 - UI tests or screenshots cover the home chat view and a successful evidence trace.

@@ -80,9 +80,10 @@ POST /chat
 ```
 
 Asks the selected vault through the KnoArbor Wiki Chat Agent. Chat is a
-page-first wiki QA surface: KnoArbor builds a canonical evidence package from
-maintained wiki pages, then asks the configured model to synthesize an answer
-with citations. Retrieval policy is internal to the service; callers select the
+page-first wiki QA surface: KnoArbor plans bounded wiki tools, executes them
+inside service guardrails, builds a canonical evidence package from maintained
+wiki pages, then asks the configured model to synthesize an answer with
+citations. Retrieval controls are internal to the service; callers select the
 vault and send messages, but do not choose a retrieval mode or execution style.
 
 Example request:
@@ -110,16 +111,16 @@ Example response:
     {"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}
   ],
   "tool_trace": [
-    {"tool": "search_wiki", "status": "ok", "summary": "Found 3 wiki result(s)."}
+    {"tool": "query_wiki", "status": "ok", "summary": "Found 3 wiki result(s)."}
   ],
   "run_links": [],
   "memory_used": [],
   "memory_candidates": [],
   "memory_writes": [],
   "stats": {
-    "retrieval_strategy": "canonical_evidence",
-    "retrieval_policy": {"mode": "balanced", "max_results": 5, "reason": "focused_question"},
-    "model_calls": 1,
+    "retrieval_strategy": "model_planned_tools",
+    "tool_plan": {"tool_calls": [{"name": "query_wiki", "arguments": {"query": "Agent Loop 是什么？"}}]},
+    "model_calls": 2,
     "tool_calls": 1,
     "memory_used": 0,
     "memory_writes": 0,

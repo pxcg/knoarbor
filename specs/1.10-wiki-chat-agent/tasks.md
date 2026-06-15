@@ -7,7 +7,7 @@
 - [x] Add `ChatContextEngine` for prompt/context assembly.
 - [x] Add `ChatSessionStore` for vault-scoped persisted chat records.
 - [x] Add chat answer schema validation.
-- [x] Add deterministic first-pass wiki retrieval and evidence planning.
+- [x] Add bounded model-planned chat tools and page-first evidence planning.
 - [x] Add `POST /chat`.
 - [x] Add chat session list/read APIs.
 - [x] Add manual chat-session ingest API.
@@ -20,7 +20,8 @@
 - [x] Add unit tests for invalid model output.
 - [x] Remove user-facing retrieval depth controls from Chat.
 - [x] Remove `execution_mode` from the public chat contract.
-- [x] Add tests for internal chat retrieval policy.
+- [x] Add tests for internal chat tool planning and direct-answer guardrails.
+- [x] Persist citations and tool traces per assistant turn.
 
 ## P1 Console Home Chat
 

@@ -36,7 +36,7 @@ Local reference systems:
 
 Adopted ideas:
 
-- deterministic first-pass wiki retrieval;
+- bounded model-planned KnoArbor tools with deterministic answer-set selection;
 - explicit event/evidence trace;
 - model answer synthesis separated from evidence selection;
 - stable context package before model calls;
@@ -102,13 +102,13 @@ Response:
     {"kind": "page", "path": "concepts/Agent-Loop-and-Control-Patterns.md", "title": "Agent Loop and Control Patterns", "vault_id": "default"}
   ],
   "tool_trace": [
-    {"tool": "search_wiki", "arguments": {}, "status": "ok", "summary": "..."}
+    {"tool": "query_wiki", "arguments": {}, "status": "ok", "summary": "..."}
   ],
   "run_links": [],
   "stats": {
-    "retrieval_strategy": "canonical_evidence",
-    "retrieval_policy": {"mode": "balanced", "max_results": 5, "reason": "focused_question"},
-    "model_calls": 1,
+    "retrieval_strategy": "model_planned_tools",
+    "tool_plan": {"tool_calls": [{"name": "query_wiki", "arguments": {"query": "Agent Loop 是什么？"}}]},
+    "model_calls": 2,
     "tool_calls": 1,
     "total_tokens": 1234
   },
@@ -163,19 +163,30 @@ stable system prompt
 This keeps prompt assembly out of the loop executor and makes later prompt
 cache, token-budget, and memory improvements local to one layer.
 
-## Retrieval Policy
+## Tool Planning And Retrieval Policy
 
 Chat does not expose `quick`, `balanced`, or `deep` as user-facing modes. The
-service applies an internal retrieval policy from the current user question:
+service asks a bounded tool planner to decide whether the current turn needs
+wiki search, page reads, prior evidence reuse, or a direct non-wiki answer.
 
-- focused questions use a compact evidence budget;
-- ordinary explanation questions use the standard evidence budget;
-- broad, comparative, architectural, or "explain in detail" questions use an
-  expanded evidence budget.
+Available chat tools are intentionally narrow:
 
-This policy remains deterministic and runs before the model call. The model can
-shape the final answer, but it does not decide the first-pass search query,
-vault scope, retrieval depth, or result count.
+- `query_wiki`: search maintained wiki pages for a topic.
+- `read_wiki_page`: read one known maintained page by path.
+- `reuse_context`: reuse prior evidence in the same chat when a follow-up stays
+  within the previously retrieved pages.
+- `answer_directly`: answer greetings, UI/help questions, or other turns that
+  do not need wiki evidence.
+
+The planner may choose the wiki query text and tool sequence, but the service
+keeps code-owned guardrails:
+
+- knowledge questions must use wiki evidence, even when the planner requests a
+  direct answer;
+- direct answers are limited to greetings, help, and UI-style questions;
+- every returned citation must be supported by a tool trace;
+- query results still pass through the deterministic page-level answer-set
+  selector before answer synthesis.
 
 The lower-level `/query` API may continue exposing retrieval controls for tools,
 debugging, and host-AI integrations. Chat is the product-facing question-answer
@@ -187,7 +198,7 @@ KnoArbor wiki pages are already curated knowledge units. Chat retrieval should
 therefore treat pages as answer-bearing objects, not as interchangeable RAG
 chunks.
 
-`search_wiki` returns:
+`query_wiki` returns:
 
 - `answer_scope`: whether the query is narrow, broad, or exploratory;
 - `answer_set`: the recommended answer-bearing page set by path;
@@ -223,7 +234,8 @@ Default chain:
 ```text
 system prompt
   -> user/history messages
-  -> deterministic wiki retrieval
+  -> bounded chat tool planning
+  -> guarded KnoArbor tool execution
   -> canonical evidence package
   -> model answer synthesis
   -> validated answer draft
@@ -231,7 +243,10 @@ system prompt
 
 Rules:
 
-- Chat performs one evidence retrieval step before answer synthesis.
+- Chat performs one planning step before answer synthesis.
+- The planner can use `query_wiki`, `read_wiki_page`, `reuse_context`, or
+  `answer_directly`; it cannot access shell, browser, arbitrary files, or
+  external workflow tools.
 - The model receives the evidence package and produces only an answer draft
   with citations.
 - Evidence packages include stable IDs, paths, vault labels, and openable links.
@@ -240,6 +255,14 @@ Rules:
 - Chat answer synthesis does not write wiki pages. A persisted chat session can
   be handed to `/ingest` as a `knoarbor_chat` source document through explicit
   session ingest or the close-session auto-ingest policy.
+
+## Session Turn Records
+
+Chat sessions are stored as ordered turn records. Each assistant turn owns its
+own citations, tool trace, events, run links, memory metadata, stats, and
+warnings. Session-level fields may expose the latest turn for summaries, but UI
+restore and context reuse read from turn records so one answer's citations do
+not leak into other answers.
 
 ## Context Strategy
 

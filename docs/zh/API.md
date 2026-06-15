@@ -79,9 +79,10 @@ POST /chat
 ```
 
 通过 KnoArbor Wiki Chat Agent 询问选中的知识库。Chat 是页面优先的
-Wiki 问答入口：KnoArbor 会先从已维护 Wiki 页面中构建标准 evidence pack，
-再让配置的模型基于证据综合回答并给出引用。检索策略由服务内部决定；调用方
-只需要选择知识库并发送消息，不需要选择检索模式或执行方式。
+Wiki 问答入口：KnoArbor 会先规划受限的 Wiki 工具，在服务守卫内执行，
+再从已维护 Wiki 页面中构建标准 evidence pack，让配置的模型基于证据综合回答
+并给出引用。检索控制由服务内部决定；调用方只需要选择知识库并发送消息，
+不需要选择检索模式或执行方式。
 
 请求示例：
 
@@ -108,16 +109,16 @@ Wiki 问答入口：KnoArbor 会先从已维护 Wiki 页面中构建标准 evide
     {"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}
   ],
   "tool_trace": [
-    {"tool": "search_wiki", "status": "ok", "summary": "Found 3 wiki result(s)."}
+    {"tool": "query_wiki", "status": "ok", "summary": "Found 3 wiki result(s)."}
   ],
   "run_links": [],
   "memory_used": [],
   "memory_candidates": [],
   "memory_writes": [],
   "stats": {
-    "retrieval_strategy": "canonical_evidence",
-    "retrieval_policy": {"mode": "balanced", "max_results": 5, "reason": "focused_question"},
-    "model_calls": 1,
+    "retrieval_strategy": "model_planned_tools",
+    "tool_plan": {"tool_calls": [{"name": "query_wiki", "arguments": {"query": "Agent Loop 是什么？"}}]},
+    "model_calls": 2,
     "tool_calls": 1,
     "memory_used": 0,
     "memory_writes": 0,
