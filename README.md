@@ -50,7 +50,7 @@ This makes the wiki a reusable artifact, not a transient retrieval result.
 - **Query pipeline**: returns ranked pages, excerpts, source pointers, graph context, and a context pack for external AI tools.
 - **Source provenance**: separates raw sources, source digest pages, and generated knowledge pages.
 - **Multi-vault profiles**: manage multiple named local knowledge bases from one configuration and query one or many vaults.
-- **OpenAI-compatible models**: works with DeepSeek, OpenAI, OpenRouter, Ollama, LM Studio, vLLM-compatible endpoints, and similar providers.
+- **Model adapters**: works with DeepSeek, OpenAI, OpenRouter, LM Studio, vLLM-compatible endpoints, and native Ollama.
 - **CLI, API, and local console**: run from terminal, HTTP API, or the bundled web UI served at `/` with `/ui` kept as a compatibility alias.
 - **Skill integration**: includes a generic local wiki skill template for AI tools that can call a local HTTP service.
 
@@ -116,7 +116,7 @@ Requirements:
 
 - Python 3.12
 - [uv](https://docs.astral.sh/uv/)
-- One OpenAI-compatible model provider
+- One model provider, either OpenAI-compatible or native Ollama
 
 ```bash
 git clone https://github.com/pxcg/knoarbor.git
@@ -335,7 +335,7 @@ models:
       model: deepseek-v4-flash
 ```
 
-All model providers currently use OpenAI-compatible Chat Completions APIs through the ModelGateway boundary. Local endpoints such as Ollama or vLLM can run without `api_key_env`. See [Configuration](docs/CONFIGURATION.md) for provider examples and connector settings.
+Model providers run through the ModelGateway boundary. OpenAI-compatible endpoints work by default; Ollama can also use a native `/api/chat` adapter for local thinking models. Local endpoints such as Ollama or vLLM can run without `api_key_env`. See [Configuration](docs/CONFIGURATION.md) for provider examples and connector settings.
 
 ## Architecture
 

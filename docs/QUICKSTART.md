@@ -8,7 +8,7 @@ Requirements:
 
 - Python 3.12
 - `uv`
-- One OpenAI-compatible model provider, such as DeepSeek, OpenAI, OpenRouter, Ollama, LM Studio, or vLLM
+- One model provider, such as DeepSeek, OpenAI, OpenRouter, LM Studio, vLLM, or native Ollama
 
 Install dependencies:
 

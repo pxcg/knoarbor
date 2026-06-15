@@ -36,8 +36,9 @@ tests, and release notes.
 | 1.7.x | [CLI/API/Skill Closure](1.7-cli-api-skill-closure/requirements.md) | Public surface parity, response envelopes, skill operation maturity before 2.0. |
 | 1.8.x | [Model Capability Probe](1.8-model-capability-probe/requirements.md) | Provider discovery, bounded probes, local-model capability detection, explicit config writes. |
 | 1.9.x | [Vault Workspaces](1.9-vault-workspaces/requirements.md) | Vault registry, vault ID selection, multi-vault UX, workspace identity. |
-| 1.10.x | [Wiki Chat Agent](1.10-wiki-chat-agent/requirements.md) | Console chat surface, bounded KnoArbor Agent Loop, tool registry, and `/chat` contract. |
+| 1.10.x | [Wiki Chat Agent](1.10-wiki-chat-agent/requirements.md) | Console chat surface, page-first evidence retrieval, answer synthesis, and `/chat` contract. |
 | 1.11.x | [Chat Memory](1.11-chat-memory/requirements.md) | Vault-scoped chat preferences, memory recall, explicit memory capture, and memory audit events. |
+| 1.12.x | [Answer Set Selection](1.12-answer-set-selection/requirements.md) | Page-level primary/supporting/source selection, rejected candidates, and evidence-set quality. |
 
 ## Spec Lifecycle
 

@@ -28,8 +28,9 @@ server:
 
 models:
   # Pick one provider as the default model for all semantic workflows. Add more
-  # providers only when you need them; each provider uses an OpenAI-compatible
-  # Chat Completions endpoint.
+  # providers only when you need them. Most providers use the
+  # OpenAI-compatible Chat Completions adapter; Ollama can also use its native
+  # /api/chat adapter for thinking models.
   default_provider: deepseek
   # Wiki ingest/lint runs can be long because they compile or review multiple
   # pages. Keep these defaults larger than short chat-tool calls.
@@ -41,9 +42,19 @@ models:
       api_key_env: DEEPSEEK_API_KEY
       model: deepseek-v4-flash
       json_mode: true
-    # Local OpenAI-compatible presets. Keep only one default provider selected
-    # above; uncomment and edit one of these when using a local runtime.
+    # Local presets. Keep only one default provider selected above; uncomment
+    # and edit one of these when using a local runtime.
     # ollama:
+    #   adapter: ollama
+    #   base_url: http://127.0.0.1:11434
+    #   api_key_env:
+    #   model: qwen3.6:27b-q4_K_M
+    #   json_mode: true
+    #   context_window: 262144
+    #   max_output_tokens: 8000
+    #   extra_body:
+    #     think: false
+    # ollama-openai-compatible:
     #   base_url: http://127.0.0.1:11434/v1
     #   api_key_env:
     #   model: qwen3:14b
@@ -177,6 +188,18 @@ memory:
   enabled: true
   auto_write_explicit_low_risk: true
   max_recalled_records: 12
+
+chat:
+  auto_ingest:
+    # Manual chat-session ingest is always available through the chat API/UI.
+    # This policy controls whether closing a KnoArbor chat automatically queues
+    # that session into the normal ingest pipeline.
+    enabled: false
+    trigger: on_session_close
+    min_user_turns: 2
+    write: true
+    write_report: true
+    append_ledger: true
 
 ingest:
   candidate_limit: 8

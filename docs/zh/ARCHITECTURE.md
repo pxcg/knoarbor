@@ -36,7 +36,7 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 | Connector / Source | 将 Markdown、聊天记录、文档和未来外部系统转换成 `SourceDocument`。 | Wiki 页面规划或页面生命周期治理。 |
 | Document Processing | 在共享 ingest 前把富文档转换成 Markdown。 | 知识对象分类或 Wiki 写入。 |
 | Semantic | 窄功能 LLM 契约、prompt、schema 校验和语义步骤。 | 读取本地文件、写页面、执行操作或管理进度。 |
-| Model Gateway | 稳定模型边界、ProviderAdapter 选择、OpenAI-compatible 调用、JSON mode、端点检测、retry 和 token 指标。 | ingest/lint/query 的业务决策。 |
+| Model Gateway | 稳定模型边界、ProviderAdapter 选择、OpenAI 兼容调用、Ollama 原生调用、JSON mode、端点检测、retry 和 token 指标。 | ingest/lint/query 的业务决策。 |
 | Storage / Writer | Markdown 渲染、patch 应用、索引更新、checkpoint 和底层 vault 文件原语。 | 判断某个知识对象是否应该存在，或汇总报告。 |
 | Retrieval / Index | 页面元数据、字段加权 BM25 排序、链接图谱、相关扩展、query context pack 和未来持久/vector provider。 | 修改 Wiki 页面。 |
 | Maintenance | 确定性扫描、语义 lint 候选、operation 执行和验证。 | 原始来源摄入或审计制品归属。 |
@@ -129,6 +129,16 @@ IndexProvider
 ```
 
 工作流代码应依赖稳定 retrieval payload，而不是依赖 `index.md` 的物理格式。
+
+### 答案页面选择层
+
+答案页面选择层把已排序的页面候选转换为回答计划。它选择主答案页面、
+补充页面、来源页面、延伸阅读和被排除的候选，并记录原因。该层是确定性
+逻辑，不调用模型。
+
+选择器位于页面级 BM25/链接扩展之后、context pack 或 chat evidence pack
+之前。它是避免 RAG 式噪声的关键边界：召回可以适度放宽，但默认回答只由
+被选中的答案承载页面构成。
 
 ### 治理层
 
@@ -261,14 +271,14 @@ scan
 query
   -> page retrieval
   -> related expansion
-  -> primary page body plus supporting structure
+  -> answer-bearing page bodies plus provenance structure
   -> page-first context pack
   -> trace and gap signals
 ```
 
 职责：
 
-- 返回排序页面、主页面正文、辅助页面摘录、来源指针、相关上下文和页面优先 context pack。
+- 返回排序页面、答案相关页面正文、来源指针、相关上下文和页面优先 context pack。
 - 通过匹配原因、关键词和 trace 解释检索过程。
 - 不修改 Wiki 页面。
 - 不声称 related 页面比 direct 页面更弱或更强；`match_kind` 只解释检索来源。
@@ -279,7 +289,7 @@ query
 - 尽量保留技术标识符和中文短语片段作为查询信号。
 - 通过出站 wikilink、反向链接、来源关系和图谱邻近度进行相关页扩展。
 - 对同源页面和同类型页面给予可解释的图谱相关性加权。
-- 面向宿主 AI 组装页面优先 context pack：primary 页面保留正文，supporting/source 页面保留结构化摘要和摘录。
+- 面向宿主 AI 组装页面优先 context pack：primary/supporting 页面保留已维护正文，source 页面保留结构化摘要和溯源信息。
 
 ### Wiki Chat Agent / 对话
 
@@ -288,27 +298,26 @@ KnoArbor 自有边界内。
 
 ```text
 chat request
-  -> execution mode selection
-  -> retrieval-first evidence pack OR bounded agent loop
-  -> answer synthesis OR model tool decision
-  -> KnoArbor tool registry
-  -> query / wiki pages / reports / runs / sources / explicit workflows
-  -> answer with citations, trace, and run links
+  -> deterministic wiki retrieval
+  -> canonical evidence package
+  -> answer synthesis
+  -> answer with citations and evidence trace
 ```
 
 职责：
 
 - 在管理控制台内综合回答。
-- 通过现有服务搜索和读取已维护 Wiki 页面。
-- 默认让本地 Ollama/vLLM 供应商使用 retrieval-first 回答，避免小型本地模型承担工具决策规划。
-- 通过现有服务查看报告和运行记录。
-- 仅在用户意图明确时排队启动知识编译或校验维护。
-- 向前端展示引用和工具轨迹。
+- 通过现有服务搜索已维护 Wiki 页面。
+- 在模型综合前构建页面优先的标准 evidence pack。
+- 向前端展示引用和证据轨迹。
+- 把用户明确选择的已保存会话转换为 `knoarbor_chat` source document，
+  并通过共享 run manager 排队进入 ingest。
 
 边界：
 
 - `/query` 仍然是面向宿主 AI 的无模型证据检索。
 - Chat 不获得任意 shell、浏览器、文件系统或网络工具。
+- Chat 不直接写入 Wiki Markdown。
 - 工作流行为仍由 ingest/lint service 和 run manager 管理。
 
 ## 本地运行基础设施

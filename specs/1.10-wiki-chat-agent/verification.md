@@ -26,22 +26,18 @@ scripts/release-check.sh
 ## Required Test Cases
 
 - Search-only question returns a final answer with page citations.
-- Search then read page returns a final answer grounded in the read page.
-- Recent run/report question reads a report and explains it.
-- Ambiguous ingest request asks for clarification instead of starting a run.
-- Explicit lint request queues a run and returns run ID.
-- Unknown tool decision is rejected.
+- Search question returns a final answer grounded in the canonical evidence
+  package.
 - Invalid JSON model output raises a structured model-output error.
-- Max-turn exhaustion returns a partial grounded response and warning.
+- Chat retrieval policy expands evidence for broad or comparative questions.
 - Multi-vault query labels each cited page with vault information.
 
 ## Manual UI Checks
 
 - Home page opens directly into Chat.
 - Active vault change affects new chat requests.
-- Tool trace can be expanded without overwhelming the conversation.
+- Evidence trace can be expanded without overwhelming the conversation.
 - Page citations open the Knowledge Base.
-- Run cards open Runs or Reports.
 - Model errors are readable and do not blank the page.
 
 ## Non-Regression Checks
@@ -53,8 +49,7 @@ scripts/release-check.sh
 
 ## Known Risks
 
-- Small local models may fail JSON decision contracts.
-- Long page reads can make answers slow unless tool result projection is
+- Small local models may fail JSON answer contracts.
+- Long primary pages can make answers slow unless evidence projection is
   bounded.
-- Side-effect tools need conservative intent checks to avoid surprising users.
 - Streaming may require a separate compatibility decision later.

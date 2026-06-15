@@ -78,13 +78,10 @@ http://127.0.0.1:8000
 POST /chat
 ```
 
-运行受限的 KnoArbor Wiki Chat Agent。Chat 支持两种执行方式：`agentic`
-让强模型决定调用哪个 KnoArbor 工具；`retrieval_first` 由 KnoArbor 先检索
-Wiki，再让模型只基于 evidence pack 综合回答。`auto` 会对本地 Ollama/vLLM
-供应商使用 `retrieval_first`，对其他供应商使用 `agentic`。Chat 可以搜索
-已维护 Wiki 页面、读取页面、查看报告和运行记录、列出资料来源，也可以在
-用户明确要求时排队启动知识编译或校验维护。它不会暴露任意 shell、浏览器、
-文件系统或网络工具。
+通过 KnoArbor Wiki Chat Agent 询问选中的知识库。Chat 是页面优先的
+Wiki 问答入口：KnoArbor 会先从已维护 Wiki 页面中构建标准 evidence pack，
+再让配置的模型基于证据综合回答并给出引用。检索策略由服务内部决定；调用方
+只需要选择知识库并发送消息，不需要选择检索模式或执行方式。
 
 请求示例：
 
@@ -96,8 +93,6 @@ Wiki，再让模型只基于 evidence pack 综合回答。`auto` 会对本地 Ol
   "messages": [
     {"role": "user", "content": "Agent Loop 是什么？"}
   ],
-  "mode": "balanced",
-  "execution_mode": "auto",
   "max_turns": 6,
   "include_trace": true
 }
@@ -119,13 +114,52 @@ Wiki，再让模型只基于 evidence pack 综合回答。`auto` 会对本地 Ol
   "memory_used": [],
   "memory_candidates": [],
   "memory_writes": [],
-  "stats": {"execution_mode": "retrieval_first", "model_calls": 1, "tool_calls": 1, "memory_used": 0, "memory_writes": 0, "total_tokens": 1200},
+  "stats": {
+    "retrieval_strategy": "canonical_evidence",
+    "retrieval_policy": {"mode": "balanced", "max_results": 5, "reason": "focused_question"},
+    "model_calls": 1,
+    "tool_calls": 1,
+    "memory_used": 0,
+    "memory_writes": 0,
+    "total_tokens": 1200
+  },
   "warnings": []
 }
 ```
 
 当需要 KnoArbor 在控制台内综合回答时使用 `/chat`；当另一个宿主 AI
-需要拿到证据并自行生成最终回答时使用 `/query`。
+需要拿到证据并自行生成最终回答时使用 `/query`。写入和维护工作流应直接
+调用 `/ingest` 与 `/lint`。
+
+Chat 会话默认保存在已维护 Wiki 页面之外。当某次对话需要沉淀为持久 Wiki
+知识时，调用会话入库入口：
+
+```http
+POST /chat/sessions/{session_id}/ingest
+```
+
+该入口会把已保存会话转换为 `knoarbor_chat` `SourceDocument`，然后排队进入
+标准 `/ingest` document 流程。响应结构与其他长任务 ingest 请求一致，都是
+queued workflow envelope。
+
+```json
+{
+  "config_path": "/path/to/config.yaml",
+  "vault_id": "personal",
+  "write": true,
+  "write_report": true,
+  "append_ledger": true
+}
+```
+
+如果需要结束会话并按配置策略决定是否自动入库：
+
+```http
+POST /chat/sessions/{session_id}/close
+```
+
+`chat.auto_ingest.enabled` 控制关闭会话时是否自动排队进入 ingest。手动
+`/ingest` 某个 chat session 始终可用。
 
 ## 知识库选择
 
@@ -306,7 +340,7 @@ POST /models/apply-capabilities
 
 `GET /models/providers` 只读取当前模型配置，不访问模型运行时。返回内容会隐藏 API Key，只标注环境变量是否已配置。
 
-`POST /models/discover` 调用供应商的模型列表接口，例如 OpenAI 兼容的 `/models`。对于 Ollama 风格端点，KnoArbor 还会尝试 `/api/show` 探测上下文长度。该接口不触发模型生成，因此不消耗生成 token。
+`POST /models/discover` 调用适配器对应的模型列表接口。OpenAI 兼容供应商使用 `/models`；Ollama 原生供应商使用 `/api/tags` 和 `/api/show` 探测模型可用性与上下文长度。该接口不触发模型生成，因此不消耗生成 token。
 
 ```json
 {
@@ -486,10 +520,9 @@ Query 采用页面优先的检索语义，而不是 chunk 优先语义。返回�
 `source_pages`。调用方可以自由引用任意返回页面；普通回答通常应优先基于
 primary 页面的结构化内容，再按需要使用 supporting/source 页面。
 
-返回的 context pack 是页面优先，而不是 chunk 优先：它会保留 primary
-页面的正文作为主要答案单元，同时把 supporting/source 页面作为结构化摘要、
-Key Points、摘录和来源线索返回。调用方需要读取某个辅助页面全文时，使用
-`/wiki/pages/content`。
+返回的 context pack 是页面优先，而不是 chunk 优先：当页面进入答案集合后，
+primary 和 supporting 页面都会尽量保留已维护的 Wiki 正文。source 页面和
+延伸阅读候选默认保留摘要级溯源与导航信息。
 
 响应还会包含：
 
@@ -497,6 +530,8 @@ Key Points、摘录和来源线索返回。调用方需要读取某个辅助页�
   使用的知识库和目录范围。
 - `answer_set`：按路径组织的推荐答案集合。窄问题通常以一个主页面为核心；
   广泛问题可以包含多个补充页面，因为 Wiki 页面本身就是已维护的知识单元。
+- `rejected_candidates`：答案页面选择器考虑过但未放入默认回答证据的候选页，
+  会记录 `redundant_facet`、`weak_score` 或 `source_not_requested` 等原因。
 - `evidence_coverage`：用 strong、adequate 或 weak 表示本地页面对问题的
   覆盖程度。
 

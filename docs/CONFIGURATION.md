@@ -91,14 +91,14 @@ models:
       max_output_tokens:
 ```
 
-All providers currently use OpenAI-compatible Chat Completions APIs through the `ModelGateway` boundary. You do not need to configure a provider `type`. Hosted providers usually need `api_key_env`; local or private endpoints such as Ollama and vLLM may set `api_key_env: null`.
+Model calls pass through the `ModelGateway` boundary. Providers use the `openai_compatible` adapter by default. Ollama can use `adapter: ollama` to call the native `/api/chat` endpoint; this is recommended for Ollama thinking models because KnoArbor can send `think: false` and avoid reasoning-only responses. Hosted providers usually need `api_key_env`; local or private endpoints such as Ollama and vLLM may set `api_key_env: null`.
 
 `default_max_tokens` and `request_timeout_seconds` are intentionally generous. Ingest and lint are wiki compilation tasks, not short chat replies; relation planning, page drafting, and maintenance review often need longer outputs and more time. A provider can override the global output limit with `max_output_tokens`. `context_window` records the model's usable context window for diagnostics and budget checks. Runtime diagnostics try to detect context length from vLLM `/v1/models` metadata and Ollama `/api/show`; when detection is unavailable, KnoArbor falls back to the configured `context_window`.
 
 Configuration design follows the common shape used by AI workflow projects:
 
 - One global default model for most users.
-- A provider registry for users who need to switch between DeepSeek, OpenAI-compatible gateways, local servers, or hosted providers.
+- A provider registry for users who need to switch between DeepSeek, OpenAI-compatible gateways, Ollama native, local servers, or hosted providers.
 - Secrets referenced by environment variable name instead of being stored in YAML.
 - Runtime limits such as output tokens and request timeout exposed as first-class configuration.
 - Prompt caching remains provider-owned and does not require a KnoArbor config switch. KnoArbor keeps semantic contract prompts stable and puts dynamic source/wiki payloads in later user-message content. It also records provider cache usage when returned by the API.
@@ -126,10 +126,20 @@ models:
       api_key_env: OPENROUTER_API_KEY
       model: deepseek/deepseek-chat-v3.1
     ollama:
+      adapter: ollama
+      base_url: http://localhost:11434
+      api_key_env:
+      model: qwen3.6:27b-q4_K_M
+      json_mode: true
+      context_window: 262144
+      max_output_tokens: 8000
+      extra_body:
+        think: false
+    ollama-openai-compatible:
       base_url: http://localhost:11434/v1
       api_key_env:
-      model: qwen2.5:14b
-      json_mode: false
+      model: qwen3:14b
+      json_mode: true
       context_window: 32768
       max_output_tokens: 8000
     vllm:
@@ -144,10 +154,11 @@ models:
 `max_tokens` passed from CLI or API has the highest priority for a single run. If it is omitted, KnoArbor uses the selected provider's `max_output_tokens`; if that is also omitted, it uses `models.default_max_tokens`.
 
 For local providers, run `uv run knoar doctor --json` after starting the
-runtime. Doctor checks that `/models` is reachable and that the configured model
-is exposed by the endpoint. Keep `json_mode: false` until the local model has
-been verified with structured KnoArbor workflows; hosted providers with stable
-JSON object output can keep `json_mode: true`.
+runtime. Doctor checks the adapter-specific discovery endpoint: OpenAI-compatible
+providers use `/models`, while native Ollama uses `/api/tags` and `/api/show`.
+Keep `json_mode: false` until the local model has been verified with structured
+KnoArbor workflows; hosted providers and verified Ollama models with stable JSON
+object output can keep `json_mode: true`.
 
 Model capability checks are also available through the stable API:
 
@@ -166,6 +177,30 @@ Temporary CLI override:
 uv run knoar ingest --provider openrouter --write
 uv run knoar lint --provider deepseek --mode quality
 ```
+
+## Chat Session Ingest
+
+KnoArbor chat sessions are stored under `.knoarbor/chat/` in the selected
+vault. They are not maintained wiki pages by default. A session can be
+manually queued into the normal ingest pipeline from the console or API.
+
+Closing a chat session can also trigger ingest automatically when the policy is
+enabled:
+
+```yaml
+chat:
+  auto_ingest:
+    enabled: false
+    trigger: on_session_close
+    min_user_turns: 2
+    write: true
+    write_report: true
+    append_ledger: true
+```
+
+The automatic path converts the closed session into a `knoarbor_chat`
+`SourceDocument`, then uses the same segmentation, semantic ingest, write,
+report, and checkpoint pipeline as other document inputs.
 
 ## Chat Memory
 

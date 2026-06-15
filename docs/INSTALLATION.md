@@ -8,7 +8,7 @@ starting the FastAPI service, and opening the UI in a browser.
 
 - Python 3.12
 - `uv`
-- One OpenAI-compatible model provider
+- One model provider, either OpenAI-compatible or native Ollama
 - Optional: Node.js 20+ only when rebuilding the web UI from source
 
 ## Local Installation
@@ -76,8 +76,9 @@ directory, such as `vaults/default/`.
 ## Model Providers
 
 Model providers are configured in `config.yaml`; secrets stay in `.env`.
-DeepSeek, OpenAI, OpenRouter, Ollama, LM Studio, vLLM, and other
-OpenAI-compatible endpoints can use the same provider shape:
+DeepSeek, OpenAI, OpenRouter, LM Studio, vLLM, and other OpenAI-compatible
+endpoints can use the same provider shape. Ollama can either use its OpenAI
+compatibility layer or KnoArbor's native `adapter: ollama`:
 
 ```yaml
 models:
@@ -94,6 +95,22 @@ Local providers such as Ollama or vLLM may use `api_key_env: null`. Run
 that the configured model is visible. For local models, set provider-level
 `context_window` and `max_output_tokens` to match the model runtime, for example
 `context_window: 32768` and `max_output_tokens: 8000`.
+
+Native Ollama example:
+
+```yaml
+models:
+  default_provider: ollama
+  providers:
+    ollama:
+      adapter: ollama
+      base_url: http://127.0.0.1:11434
+      api_key_env:
+      model: qwen3.6:27b-q4_K_M
+      json_mode: true
+      context_window: 262144
+      max_output_tokens: 8000
+```
 
 ## Rich Document Processing
 

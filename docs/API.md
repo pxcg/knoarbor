@@ -79,14 +79,11 @@ results directly.
 POST /chat
 ```
 
-Runs the bounded KnoArbor Wiki Chat Agent. Chat supports two execution styles:
-`agentic` lets a strong model decide which KnoArbor tool to call, while
-`retrieval_first` lets KnoArbor search the wiki first and asks the model only to
-synthesize an answer from the evidence pack. `auto` uses `retrieval_first` for
-local Ollama/vLLM providers and `agentic` for other providers. Chat can search
-maintained wiki pages, read pages, inspect reports and runs, list sources, and
-queue explicitly requested ingest or lint workflows. It does not expose
-arbitrary shell, browser, filesystem, or network tools.
+Asks the selected vault through the KnoArbor Wiki Chat Agent. Chat is a
+page-first wiki QA surface: KnoArbor builds a canonical evidence package from
+maintained wiki pages, then asks the configured model to synthesize an answer
+with citations. Retrieval policy is internal to the service; callers select the
+vault and send messages, but do not choose a retrieval mode or execution style.
 
 Example request:
 
@@ -98,8 +95,6 @@ Example request:
   "messages": [
     {"role": "user", "content": "Agent Loop 是什么？"}
   ],
-  "mode": "balanced",
-  "execution_mode": "auto",
   "max_turns": 6,
   "include_trace": true
 }
@@ -121,14 +116,53 @@ Example response:
   "memory_used": [],
   "memory_candidates": [],
   "memory_writes": [],
-  "stats": {"execution_mode": "retrieval_first", "model_calls": 1, "tool_calls": 1, "memory_used": 0, "memory_writes": 0, "total_tokens": 1200},
+  "stats": {
+    "retrieval_strategy": "canonical_evidence",
+    "retrieval_policy": {"mode": "balanced", "max_results": 5, "reason": "focused_question"},
+    "model_calls": 1,
+    "tool_calls": 1,
+    "memory_used": 0,
+    "memory_writes": 0,
+    "total_tokens": 1200
+  },
   "warnings": []
 }
 ```
 
 Use `/chat` when KnoArbor should synthesize an answer inside the console. Use
 `/query` when another host AI should receive evidence and generate the final
-answer itself.
+answer itself. Use `/ingest` and `/lint` directly for write or maintenance
+workflows.
+
+Chat sessions are stored outside maintained wiki pages. When a conversation
+should become durable wiki knowledge, use the chat-session ingest endpoint:
+
+```http
+POST /chat/sessions/{session_id}/ingest
+```
+
+This converts the persisted session into a `knoarbor_chat` `SourceDocument` and
+queues the normal `/ingest` document pipeline. The response is the same queued
+workflow envelope used by other long-running ingest requests.
+
+```json
+{
+  "config_path": "/path/to/config.yaml",
+  "vault_id": "personal",
+  "write": true,
+  "write_report": true,
+  "append_ledger": true
+}
+```
+
+To close a session and optionally trigger the configured auto-ingest policy:
+
+```http
+POST /chat/sessions/{session_id}/close
+```
+
+`chat.auto_ingest.enabled` controls whether close events queue ingest
+automatically. Manual `/ingest` for a chat session is always available.
 
 ## Vault Selection
 
@@ -322,9 +356,10 @@ Apifox, scripts, and the local UI.
 model endpoint. It hides API keys and reports only whether the configured key
 environment variable is available.
 
-`POST /models/discover` calls the provider model-list endpoint, such as
-OpenAI-compatible `/models`. For Ollama-style endpoints, KnoArbor also attempts
-`/api/show` to detect context length. Discovery does not generate model tokens.
+`POST /models/discover` calls the adapter-specific model-list endpoint.
+OpenAI-compatible providers use `/models`; native Ollama providers use
+`/api/tags` and `/api/show` to detect model availability and context length.
+Discovery does not generate model tokens.
 
 ```json
 {
@@ -515,11 +550,10 @@ The response also groups those same result objects as `primary_pages`,
 ordinary answers should usually start from the primary page's structured wiki
 content and use supporting/source pages as needed.
 
-The context pack is page-first, not chunk-first: it preserves the primary page
-body as the maintained answer unit, while supporting and source pages are
-returned as structured summaries, key points, excerpts, and source pointers.
-Call `/wiki/pages/content` when the caller needs to read the full body of a
-specific supporting page.
+The context pack is page-first, not chunk-first: it preserves primary and
+supporting answer-bearing pages as maintained wiki bodies whenever they are
+selected for the answer set. Source pages and further-reading candidates remain
+summary-level provenance and navigation signals by default.
 
 The response also includes:
 
@@ -528,6 +562,9 @@ The response also includes:
 - `answer_set`: path-level grouping for the recommended answer set. Narrow
   questions often use one primary page; broad questions can include several
   supporting pages because each wiki page is a curated knowledge unit.
+- `rejected_candidates`: candidate pages considered by the answer-set selector
+  but excluded from the default answer evidence, with reasons such as
+  `redundant_facet`, `weak_score`, or `source_not_requested`.
 - `evidence_coverage`: a compact signal for whether the returned pages provide
   strong, adequate, or weak local coverage.
 

@@ -7,14 +7,14 @@ and host-AI skills. The console still requires users to choose the right page
 and endpoint before asking natural questions about the vault.
 
 The home surface should become a conversation-first KnoArbor interface: users
-can ask about their maintained wiki, inspect pages, understand reports, and
-start supported workflows from one place. This is a KnoArbor product capability,
-not a general-purpose agent platform.
+can ask about their maintained wiki and inspect cited pages from one place.
+This is a KnoArbor product capability, not a general-purpose agent platform.
 
 ## Goals
 
 - Replace the console home page with a Wiki Chat interface.
-- Add a bounded Agent Loop that can reason over KnoArbor-specific tools.
+- Add a bounded wiki answer service that retrieves canonical page evidence
+  before model answer synthesis.
 - Persist chat sessions so follow-up questions can resume prior user turns,
   answers, citations, traces, and usage.
 - Separate chat context assembly from loop execution so prompt layering,
@@ -22,21 +22,28 @@ not a general-purpose agent platform.
 - Keep final answer generation inside KnoArbor Chat only for console usage; the
   host-AI skill remains evidence-first and can still let the host AI answer.
 - Support active-vault and multi-vault context explicitly.
-- Make tool usage inspectable through UI trace, API response, and optional run
-  events.
+- Make evidence selection inspectable through UI trace, API response, and token
+  metrics.
 - Keep the same model gateway and provider abstraction used by ingest and lint.
-- Reuse existing query, wiki page, report, run, source, and workflow services.
-- Preserve SDD layer boundaries: prompts decide next actions; services execute
-  tools; storage, reports, and lifecycle remain outside prompts.
+- Reuse existing query and wiki page services for evidence selection and page
+  navigation.
+- Allow a persisted KnoArbor chat session to become a normal ingest source
+  through explicit user action or the configured close-session policy.
+- Preserve SDD layer boundaries: services select evidence; prompts synthesize
+  answers; storage, reports, and lifecycle remain outside prompts.
 
 ## Non-Goals
 
-- Do not expose arbitrary shell, browser, filesystem, or network tools.
+- Do not expose arbitrary shell, browser, filesystem, network, or workflow tools
+  through chat.
 - Do not build a generic assistant framework that competes with Hermes,
   Claude Code, Codex, OpenClaw, or opencode.
 - Do not duplicate ingest, lint, query, or wiki-read logic in the chat service.
+- Do not let the chat page write wiki pages directly; chat-session ingest must
+  go through the shared ingest document pipeline.
 - Do not make chat required for existing CLI, API, skill, or workflow usage.
-- Do not replace the host-AI skill's retrieval-first behavior.
+- Do not require host-AI skills to expose retrieval tuning. Skills can reuse
+  chat for answer synthesis or use `/query` for raw evidence retrieval.
 - Do not implement long-term user accounts, multi-user sessions, or TLS in this
   feature.
 
@@ -50,7 +57,7 @@ refresh the page without losing the previous exchange.
 Acceptance criteria:
 
 - The response includes a stable `session_id`.
-- The service stores messages, citations, tool traces, events, memory metadata,
+- The service stores messages, citations, evidence traces, events, memory metadata,
   and usage for the session.
 - A later request with the same `session_id` can continue from the persisted
   session without relying only on front-end state.
@@ -64,8 +71,7 @@ the selected KnoArbor vault.
 
 Acceptance criteria:
 
-- The agent searches the active vault before answering unless the conversation
-  already contains sufficient cited context.
+- The service searches the active vault before answering.
 - The response shows which pages or reports were used.
 - The user can open referenced pages from the answer.
 
@@ -76,34 +82,11 @@ page content or a readable summary when the page is long.
 
 Acceptance criteria:
 
-- The agent can search for candidate pages, then read a selected page.
+- The service can search for candidate pages and cite the selected maintained
+  page.
 - The UI shows the page reference and provides a direct Knowledge Base link.
 - Long page handling is explicit: the agent can summarize, ask whether to read
   more, or read sections.
-
-### Explain A Run Or Report
-
-As a user, I can ask "刚才的 lint 为什么没有修复？" and get an explanation based
-on run records and reports.
-
-Acceptance criteria:
-
-- The agent can list recent runs and read a report.
-- It explains status, applied operations, rejected operations, and next actions
-  using report content.
-- It does not invent report details that are not present.
-
-### Start A Supported Workflow
-
-As a user, I can ask "编译 Codex 最新记录" or "运行一次结构校验".
-
-Acceptance criteria:
-
-- Side-effect workflows are explicit tool categories.
-- Safe workflows can be started when the intent is clear.
-- The answer returns run ID, status, and report/runs links.
-- Dangerous or ambiguous requests are converted into a clarification question,
-  not hidden execution.
 
 ### Multi-Vault Awareness
 
@@ -114,16 +97,42 @@ Acceptance criteria:
 
 - The request includes selected vault context.
 - Multi-vault results label vault ID/name/path.
-- The agent can ask the user to choose a vault when a side-effect operation is
-  ambiguous.
+- The answer and citations preserve which vault each cited page came from.
+
+### Preserve A Useful Chat As Wiki Knowledge
+
+As a console user, I can manually compile the current chat session into the
+selected wiki when the conversation contains reusable knowledge.
+
+Acceptance criteria:
+
+- The manual action converts the stored session into a `knoarbor_chat`
+  `SourceDocument`.
+- The action queues the same ingest document workflow used by other source
+  documents.
+- The session record stores the queued ingest `run_id`.
+
+### Close-Session Auto Ingest
+
+As a user who opts into automation, I can close a chat session and let
+KnoArbor queue ingest when the configured policy matches.
+
+Acceptance criteria:
+
+- Auto ingest is disabled by default.
+- The policy uses `chat.auto_ingest.enabled`, `trigger`, and `min_user_turns`.
+- The auto path shares the same source document and ingest workflow as manual
+  chat-session ingest.
 
 ## Release Criteria
 
 - `POST /chat` has a stable request and response schema.
 - Chat session list/read APIs expose persisted session summaries and records.
+- Chat session ingest and close APIs expose queued run metadata when a session
+  is sent to ingest.
 - The console home page is a chat interface backed by `/chat`.
-- Tool traces are visible but not overwhelming.
+- Evidence traces are visible but not overwhelming.
 - Chat uses existing model gateway, retry, error codes, and token metrics.
-- Unit tests cover loop control, tool dispatch, invalid model output, and
-  multi-step search/read/final flows.
-- UI tests or screenshots cover the home chat view and a successful tool trace.
+- Unit tests cover deterministic retrieval, invalid model output, answer
+  synthesis, citations, and session persistence.
+- UI tests or screenshots cover the home chat view and a successful evidence trace.

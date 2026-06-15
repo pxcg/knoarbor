@@ -3,21 +3,24 @@
 ## P0 Contract And Backend Loop
 
 - [x] Add chat request/response schemas.
-- [x] Add `WikiChatAgentService` with bounded loop control.
+- [x] Add chat answer service with bounded model calls.
 - [x] Add `ChatContextEngine` for prompt/context assembly.
 - [x] Add `ChatSessionStore` for vault-scoped persisted chat records.
-- [x] Add chat decision schema validation.
-- [x] Add read-only tool registry: search wiki, read page, list pages, read
-  report, list runs, list sources.
-- [x] Add workflow tool registry: start ingest, start lint, cancel run.
+- [x] Add chat answer schema validation.
+- [x] Add deterministic first-pass wiki retrieval and evidence planning.
 - [x] Add `POST /chat`.
 - [x] Add chat session list/read APIs.
+- [x] Add manual chat-session ingest API.
+- [x] Add close-session API with optional auto-ingest policy.
+- [x] Convert stored chat sessions into `knoarbor_chat` `SourceDocument`
+  values for the shared ingest document pipeline.
 - [x] Consume query result roles: primary pages, supporting pages, and source
   pages.
-- [x] Add unit tests for tool-call -> observation -> final answer.
-- [x] Add unit tests for invalid model output, unknown tool, and repeated tool
-  calls.
-- [x] Add unit tests for max turns and side-effect ambiguity.
+- [x] Add unit tests for search -> evidence package -> final answer.
+- [x] Add unit tests for invalid model output.
+- [x] Remove user-facing retrieval depth controls from Chat.
+- [x] Remove `execution_mode` from the public chat contract.
+- [x] Add tests for internal chat retrieval policy.
 
 ## P1 Console Home Chat
 
@@ -29,13 +32,15 @@
   duplicating it on Chat.
 - [x] Restore recent chat sessions from the backend instead of front-end state
   only.
+- [x] Add console actions for manual chat-session ingest and close-session
+  policy evaluation.
 
 ## P2 Observability And Reports
 
 - [x] Record model call metrics in token ledger with `flow=chat`.
 - [x] Emit lightweight chat events for tool calls and failures.
-- [x] Add readable error states for model unavailable, no results, ambiguous
-  workflow, and max turns.
+- [x] Add readable error states for model unavailable, no results, retrieval
+  failure, and invalid answer output.
 - [ ] Add optional chat transcript export only after privacy review.
 
 ## P3 Docs And Release Surface

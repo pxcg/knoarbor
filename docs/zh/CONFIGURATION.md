@@ -56,11 +56,29 @@ models:
 ```
 
 推荐默认只配置一个模型供应商。需要备用模型、本地模型或特殊端点时，再添加新的 provider。
-所有模型供应商都通过 `ModelGateway` 进入 OpenAI 兼容 Chat Completions 接口；不需要配置 provider `type`。托管供应商通常需要 `api_key_env`，本地或内网端点（如 Ollama、vLLM）可以设置为 `api_key_env: null`。
-本地供应商启动后，运行 `uv run knoar doctor --json` 可以检查 `/models` 是否可达，以及配置的模型是否已经由端点暴露。Ollama、vLLM 等本地模型建议显式配置 `context_window` 和 `max_output_tokens`，例如 32K 上下文模型可以先设置为 `context_window: 32768`、`max_output_tokens: 8000`。运行时诊断会尝试从 vLLM `/v1/models` 元数据和 Ollama `/api/show` 自动探测上下文长度；探测不到时回退到配置中的 `context_window`。
+模型调用统一经过 `ModelGateway`。provider 默认使用 `openai_compatible` 适配器；Ollama 可以设置 `adapter: ollama`，直接调用原生 `/api/chat`。对于 Qwen 等 thinking 模型，原生 Ollama 适配器会默认发送 `think: false`，避免 OpenAI 兼容层出现 reasoning 很长、正文为空或返回过慢的问题。托管供应商通常需要 `api_key_env`，本地或内网端点（如 Ollama、vLLM）可以设置为 `api_key_env: null`。
+本地供应商启动后，运行 `uv run knoar doctor --json` 可以检查模型是否可用。OpenAI 兼容适配器会检查 `/models`；Ollama 原生适配器会检查 `/api/tags` 和 `/api/show`。Ollama、vLLM 等本地模型建议显式配置 `context_window` 和 `max_output_tokens`，例如 32K 上下文模型可以先设置为 `context_window: 32768`、`max_output_tokens: 8000`。运行时诊断会尝试从 vLLM `/v1/models` 元数据和 Ollama `/api/show` 自动探测上下文长度；探测不到时回退到配置中的 `context_window`。
 单次 CLI/API 请求传入的 `max_tokens` 优先级最高；未传入时使用选中 provider 的 `max_output_tokens`；provider 未配置时再使用 `models.default_max_tokens`。
 Ollama、vLLM 等本地模型建议先使用 `json_mode: false`，待该模型通过 KnoArbor 结构化流程验证后再开启 JSON mode。
 Prompt caching 由模型供应商实现，不需要在 KnoArbor 中单独开启。KnoArbor 只保证语义契约 prompt 的稳定前缀，并在供应商返回缓存命中指标时写入运行指标和报告；未返回缓存字段的供应商会显示为未提供该遥测，而不是配置错误。
+
+Ollama 原生适配器示例：
+
+```yaml
+models:
+  default_provider: ollama
+  providers:
+    ollama:
+      adapter: ollama
+      base_url: http://127.0.0.1:11434
+      api_key_env:
+      model: qwen3.6:27b-q4_K_M
+      json_mode: true
+      context_window: 262144
+      max_output_tokens: 8000
+      extra_body:
+        think: false
+```
 
 模型能力检查也可以通过稳定 API 执行：
 
@@ -70,6 +88,28 @@ Prompt caching 由模型供应商实现，不需要在 KnoArbor 中单独开启�
 - `POST /models/apply-capabilities`：显式把 `context_window`、`max_output_tokens` 和 `json_mode` 写回 `config.yaml`。
 
 发现和探测不会自动修改配置。建议先查看探测结果，再在确认模型能力后写回配置。
+
+## 对话入库
+
+KnoArbor 自己的 Chat 会话保存在当前知识库的 `.knoarbor/chat/`。它们默认
+不是已维护 Wiki 页面。用户可以在控制台或 API 中手动把某个会话排队进入
+标准 ingest 流程。
+
+关闭会话时也可以按策略自动触发入库：
+
+```yaml
+chat:
+  auto_ingest:
+    enabled: false
+    trigger: on_session_close
+    min_user_turns: 2
+    write: true
+    write_report: true
+    append_ledger: true
+```
+
+自动路径会把关闭后的会话转换为 `knoarbor_chat` `SourceDocument`，随后复用
+与其他 document 输入相同的分段、语义编译、写入、报告和断点链路。
 
 ## 对话记忆
 

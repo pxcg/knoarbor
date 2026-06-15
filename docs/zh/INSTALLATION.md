@@ -7,7 +7,7 @@ KnoArbor 是本地优先的 Python 服务，并内置管理界面。首次部署
 
 - Python 3.12
 - `uv`
-- 一个 OpenAI 兼容模型供应商
+- 一个模型供应商，可以是 OpenAI 兼容端点或 Ollama 原生端点
 - 可选：只有在重新构建前端时才需要 Node.js 20+
 
 ## 本地安装
@@ -74,8 +74,9 @@ uv run knoar query "Agent Loop 是什么？"
 ## 模型供应商
 
 模型供应商配置在 `config.yaml`；密钥保存在 `.env`。DeepSeek、OpenAI、
-OpenRouter、Ollama、LM Studio、vLLM 和其他 OpenAI 兼容端点都使用同一种
-provider 结构：
+OpenRouter、LM Studio、vLLM 和其他 OpenAI 兼容端点都使用同一种 provider
+结构。Ollama 可以使用 OpenAI 兼容层，也可以使用 KnoArbor 的原生
+`adapter: ollama`：
 
 ```yaml
 models:
@@ -91,6 +92,22 @@ Ollama 或 vLLM 等本地端点可以使用 `api_key_env: null`。启动本地�
 运行 `uv run knoar doctor --json`，确认配置中的模型已经暴露出来。本地模型还应配置
 provider 级 `context_window` 和 `max_output_tokens`，例如 `context_window: 32768`、
 `max_output_tokens: 8000`。
+
+Ollama 原生示例：
+
+```yaml
+models:
+  default_provider: ollama
+  providers:
+    ollama:
+      adapter: ollama
+      base_url: http://127.0.0.1:11434
+      api_key_env:
+      model: qwen3.6:27b-q4_K_M
+      json_mode: true
+      context_window: 262144
+      max_output_tokens: 8000
+```
 
 ## 富文档处理
 

@@ -8,7 +8,7 @@
 
 - Python 3.12
 - `uv`
-- 一个 OpenAI 兼容模型供应商，例如 DeepSeek、OpenAI、OpenRouter、Ollama、LM Studio 或 vLLM
+- 一个模型供应商，例如 DeepSeek、OpenAI、OpenRouter、LM Studio、vLLM 或 Ollama 原生端点
 
 安装依赖：
 

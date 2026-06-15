@@ -38,7 +38,7 @@ leaking into each other.
 | Connector / Source | Converting Markdown, chats, documents, and future external systems into `SourceDocument`. | Wiki page planning or page lifecycle governance. |
 | Document Processing | Converting rich documents into Markdown before shared ingest. | Knowledge-object classification or wiki writes. |
 | Semantic | Narrow LLM contracts, prompts, schema validation, and semantic workflow steps. | Reading local files, writing pages, executing operations, or managing progress. |
-| Model Gateway | Stable model boundary, ProviderAdapter selection, OpenAI-compatible calls, JSON mode, endpoint checks, retry, and token metrics. | Ingest/lint/query decisions. |
+| Model Gateway | Stable model boundary, ProviderAdapter selection, OpenAI-compatible and Ollama-native calls, JSON mode, endpoint checks, retry, and token metrics. | Ingest/lint/query decisions. |
 | Storage / Writer | Markdown rendering, patch application, index updates, checkpoints, and low-level vault file primitives. | Deciding whether a knowledge object should exist or how reports are summarized. |
 | Retrieval / Index | Page metadata, field-weighted BM25 ranking, link graph, related expansion, query context packs, and future durable/vector providers. | Mutating the wiki. |
 | Maintenance | Deterministic scans, semantic lint candidates, operation execution, and verification. | Raw source ingestion or audit artifact ownership. |
@@ -133,6 +133,18 @@ IndexProvider
 ```
 
 Workflow code should depend on stable retrieval payloads, not on the physical format of `index.md`.
+
+### Answer Set Selection
+
+The answer set selection layer turns ranked page candidates into an answer
+plan. It selects primary pages, supporting pages, source pages, further reading,
+and rejected candidates with reasons. This layer is deterministic and does not
+call a model.
+
+The selector sits after page-level BM25/link expansion and before context pack
+or chat evidence packaging. It is the main guard against RAG-style noise: the
+retriever may recall broadly, but only selected answer-bearing pages shape the
+default response.
 
 ### Governance Layer
 
@@ -269,14 +281,14 @@ Goal: return wiki context for a host AI, not generate the final answer.
 query
   -> page retrieval
   -> related expansion
-  -> primary page body plus supporting structure
+  -> answer-bearing page bodies plus provenance structure
   -> page-first context pack
   -> trace and gap signals
 ```
 
 Responsibilities:
 
-- return ranked pages, primary-page body content, supporting excerpts, source pointers, related context, and a page-first context pack;
+- return ranked pages, answer-bearing page bodies, source pointers, related context, and a page-first context pack;
 - explain retrieval through match reasons, matched terms, and trace data;
 - never mutate wiki pages;
 - never claim that related pages are weaker or stronger evidence than direct pages; `match_kind` only explains retrieval origin.
@@ -297,28 +309,26 @@ keeping all actions inside KnoArbor-owned boundaries.
 
 ```text
 chat request
-  -> execution mode selection
-  -> retrieval-first evidence pack OR bounded agent loop
-  -> answer synthesis OR model tool decision
-  -> KnoArbor tool registry
-  -> query / wiki pages / reports / runs / sources / explicit workflows
-  -> answer with citations, trace, and run links
+  -> deterministic wiki retrieval
+  -> canonical evidence package
+  -> answer synthesis
+  -> answer with citations and evidence trace
 ```
 
 Responsibilities:
 
 - synthesize answers inside the management console;
-- search and read maintained wiki pages through existing services;
-- default local Ollama/vLLM providers to retrieval-first answering so small
-  local models do not need to perform tool-decision planning;
-- inspect reports and run records through existing services;
-- queue ingest or lint only when the user intent is explicit;
-- expose citations and tool trace to the UI.
+- search maintained wiki pages through existing services;
+- build a canonical page-first evidence package before model synthesis;
+- expose citations and evidence trace to the UI.
+- convert an explicitly selected stored chat session into a `knoarbor_chat`
+  source document and queue ingest through the shared run manager.
 
 Boundaries:
 
 - `/query` remains model-free evidence retrieval for host AI tools;
 - Chat does not receive arbitrary shell, browser, filesystem, or network tools;
+- Chat does not write wiki markdown directly;
 - workflow behavior remains in ingest/lint services and run manager.
 
 ## Local Runtime Infrastructure
