@@ -5147,9 +5147,23 @@ blockquote {
   min-height: 0;
   display: grid;
   align-content: start;
-  gap: 5px;
+  gap: 12px;
   overflow: auto;
   padding-right: 2px;
+}
+
+.chat-session-group {
+  display: grid;
+  gap: 5px;
+}
+
+.chat-session-group h3 {
+  margin: 6px 7px 2px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .chat-session-row {
@@ -5160,6 +5174,11 @@ blockquote {
   gap: 2px;
   min-height: 32px;
   border-radius: 10px;
+}
+
+.chat-session-row.renaming {
+  grid-template-columns: minmax(0, 1fr);
+  background: #eef5f0;
 }
 
 .chat-session-row:hover,
@@ -5213,6 +5232,11 @@ blockquote {
 .chat-session-badge.success {
   background: #e8f1ff;
   color: #2456a6;
+}
+
+.chat-session-badge.warning {
+  background: #fff4dc;
+  color: #8a5a0a;
 }
 
 .chat-session-badge.muted {
@@ -5310,6 +5334,49 @@ blockquote {
   font-size: 12px;
   line-height: 1.5;
   padding: 8px 6px;
+}
+
+.chat-session-rename {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px;
+  padding: 5px;
+}
+
+.chat-session-rename input {
+  min-width: 0;
+  height: 28px;
+  border: 1px solid #c8ddcf;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  outline: none;
+  padding: 0 8px;
+}
+
+.chat-session-rename input:focus {
+  border-color: #7aa88a;
+  box-shadow: 0 0 0 3px rgba(32, 119, 78, 0.1);
+}
+
+.chat-session-rename button {
+  min-height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: #17311f;
+  color: #fff;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 0 9px;
+}
+
+.chat-session-rename button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .chat-thread-panel {

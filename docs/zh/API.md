@@ -151,6 +151,20 @@ Wiki 问答入口：KnoArbor 会先规划受限的 Wiki 工具，在服务守卫
 Chat 会话默认保存在已维护 Wiki 页面之外。当某次对话需要沉淀为持久 Wiki
 知识时，调用会话入库入口：
 
+如果需要重命名已保存的 Chat 会话：
+
+```http
+PATCH /chat/sessions/{session_id}
+```
+
+```json
+{
+  "config_path": "/path/to/config.yaml",
+  "vault_id": "personal",
+  "title": "Agent Loop 架构讨论"
+}
+```
+
 如果需要重新生成当前会话的最后一条 assistant 回答：
 
 ```http

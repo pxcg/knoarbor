@@ -680,6 +680,25 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(record.turns[1].citations[0].path, "concepts/Second.md")
         self.assertEqual(record.citations[0].path, "concepts/Second.md")
 
+    def test_session_title_can_be_updated(self) -> None:
+        store = ChatSessionStore()
+        with tempfile.TemporaryDirectory() as tmp:
+            response = ChatResponse(
+                session_id="chat_title1234",
+                answer="回答。",
+                messages=[
+                    ChatMessageItem(role="user", content="原始问题"),
+                    ChatMessageItem(role="assistant", content="回答。"),
+                ],
+            )
+            store.persist_response(tmp, response=response, request_messages=response.messages, vault_id="test", vault_name="Test")
+            updated = store.update_title(tmp, "chat_title1234", "  新标题  ")
+            reread = store.read_session(tmp, "chat_title1234")
+
+        self.assertEqual(updated.title, "新标题")
+        self.assertEqual(reread.title, "新标题")
+        self.assertEqual(reread.messages[0].content, "原始问题")
+
     def test_followup_can_reuse_prior_evidence(self) -> None:
         client = FakeChatClient(
             [

@@ -927,6 +927,18 @@ export async function deleteChatSession(selector: VaultSelector, sessionId: stri
   return requestJson(`/chat/sessions/${encodeURIComponent(sessionId)}?${params.toString()}`, { method: "DELETE" });
 }
 
+export async function updateChatSession(selector: VaultSelector, sessionId: string, title: string): Promise<ChatSessionRecord> {
+  return requestJson(`/chat/sessions/${encodeURIComponent(sessionId)}`, {
+    method: "PATCH",
+    body: {
+      config_path: selector.config_path,
+      vault_id: selector.vault_id,
+      vault_path: selector.vault_id ? undefined : selector.vault_path,
+      title,
+    },
+  });
+}
+
 export async function ingestChatSession(selector: VaultSelector, sessionId: string): Promise<WorkflowResponse> {
   return requestJson(`/chat/sessions/${encodeURIComponent(sessionId)}/ingest`, {
     method: "POST",

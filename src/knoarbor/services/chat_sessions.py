@@ -45,6 +45,15 @@ class ChatSessionStore:
         path.unlink()
         return True
 
+    def update_title(self, vault_path: str | Path, session_id: str, title: str) -> ChatSessionRecord:
+        record = self.read_session(vault_path, session_id)
+        clean_title = _compact_title(title)
+        if not clean_title:
+            raise UserInputError("Chat session title cannot be empty.")
+        updated = record.model_copy(update={"title": clean_title[:160], "updated_at": current_timestamp()})
+        self._write_record(vault_path, updated)
+        return updated
+
     def load_existing(self, vault_path: str | Path, session_id: str | None) -> ChatSessionRecord | None:
         if not session_id:
             return None

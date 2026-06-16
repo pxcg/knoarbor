@@ -236,6 +236,21 @@ class ChatSessionDeleteResponse(BaseModel):
     session_id: str
 
 
+class ChatSessionUpdateRequest(BaseModel):
+    config_path: str | None = None
+    vault_path: str | None = Field(default=None, min_length=1)
+    vault_id: str | None = None
+    title: str = Field(..., min_length=1, max_length=160)
+
+    @field_validator("title")
+    @classmethod
+    def strip_title(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("chat session title cannot be empty")
+        return text
+
+
 class ChatSessionIngestRequest(BaseModel):
     config_path: str | None = None
     vault_path: str | None = None

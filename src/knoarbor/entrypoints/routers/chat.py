@@ -12,6 +12,7 @@ from knoarbor.core.schemas.chat import (
     ChatSessionListResponse,
     ChatSessionRecord,
     ChatSessionRetryRequest,
+    ChatSessionUpdateRequest,
     ChatSessionWorkflowResponse,
 )
 from knoarbor.core.schemas.execution import WorkflowResponse
@@ -57,6 +58,14 @@ def create_chat_router(services: ApplicationServices) -> APIRouter:
     ) -> ChatSessionDeleteResponse:
         target = session_target(ChatRequest(config_path=config_path, vault_path=vault_path, vault_id=vault_id, messages=[{"role": "user", "content": "delete session"}]))
         return ChatSessionDeleteResponse(deleted=services.chat_sessions.delete_session(target.path, session_id), session_id=session_id)
+
+    @router.patch("/chat/sessions/{session_id}", response_model=ChatSessionRecord)
+    async def update_chat_session(
+        session_id: str,
+        request: ChatSessionUpdateRequest,
+    ) -> ChatSessionRecord:
+        target = session_target(ChatRequest(config_path=request.config_path, vault_path=request.vault_path, vault_id=request.vault_id, messages=[{"role": "user", "content": "update session"}]))
+        return services.chat_sessions.update_title(target.path, session_id, request.title)
 
     @router.post("/chat/sessions/{session_id}/ingest", response_model=WorkflowResponse)
     async def ingest_chat_session(

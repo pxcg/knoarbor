@@ -155,6 +155,20 @@ directly for write or maintenance workflows.
 Chat sessions are stored outside maintained wiki pages. When a conversation
 should become durable wiki knowledge, use the chat-session ingest endpoint:
 
+To rename a saved chat session:
+
+```http
+PATCH /chat/sessions/{session_id}
+```
+
+```json
+{
+  "config_path": "/path/to/config.yaml",
+  "vault_id": "personal",
+  "title": "Agent Loop architecture discussion"
+}
+```
+
 To regenerate the latest assistant answer in an active session:
 
 ```http
