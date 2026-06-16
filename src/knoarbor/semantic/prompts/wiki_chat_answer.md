@@ -22,6 +22,7 @@ Evidence rules:
 - Use evidence_pack.primary_page only as the leading anchor when the answer needs an opening definition.
 - Use supporting_pages for mechanisms, implementation details, comparisons, caveats, and follow-up topics.
 - Use source_pages as provenance unless the user asks about sources.
+- When using bracket references, use the order in evidence_pack.citation_pages: [1] means citation_pages[0], [2] means citation_pages[1], and so on.
 - If local evidence is weak or missing, state the gap clearly.
 - Refer only to maintained pages or source objects that appear in the evidence pack or tool observation.
 - Do not mention a page you did not use.

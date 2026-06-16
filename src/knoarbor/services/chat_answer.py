@@ -187,7 +187,7 @@ def _normalize_answer_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return {**payload, "citations": normalized}
 
 
-def final_citations(decision_citations: list[ChatCitation], trace: list[ChatToolTraceItem]) -> list[ChatCitation]:
+def final_citations(decision_citations: list[ChatCitation], trace: list[ChatToolTraceItem], *, answer: str = "") -> list[ChatCitation]:
     trace_citations = [citation for item in trace for citation in item.citations]
     if decision_citations:
         if not trace_citations:
@@ -196,7 +196,28 @@ def final_citations(decision_citations: list[ChatCitation], trace: list[ChatTool
         validated = [citation for citation in validated if _citation_is_trace_supported(citation, trace_citations)]
         if validated:
             return _unique_citations(validated)
-    return _unique_citations(trace_citations[:4])
+    evidence_citations = _evidence_pack_citations(trace)
+    referenced = _referenced_citations(answer, evidence_citations)
+    if referenced:
+        return _unique_citations(referenced)
+    primary = [citation for citation in evidence_citations if citation.role == "primary"]
+    if primary:
+        return _unique_citations(primary[:4])
+    return _unique_citations(evidence_citations[:4])
+
+
+def answer_cleanup_citations(trace: list[ChatToolTraceItem], final_answer_citations: list[ChatCitation]) -> list[ChatCitation]:
+    """Return every observed page citation that may appear as a raw path in the answer.
+
+    Final answer citations are intentionally narrow. Cleanup needs the wider
+    observed evidence set so model-written paths can be rendered as page titles
+    without re-expanding the public citation list.
+    """
+
+    observed = [citation for item in trace for citation in item.citations]
+    observed.extend(_evidence_pack_citations(trace))
+    observed.extend(final_answer_citations)
+    return _unique_citations(observed)
 
 
 def clean_answer_citation_paths(answer: str, citations: list[ChatCitation], *, latest_user_text: str) -> str:
@@ -263,6 +284,60 @@ def _enrich_citation(citation: ChatCitation, trace_citations: list[ChatCitation]
                 }
             )
     return citation
+
+
+def _referenced_citations(answer: str, citations: list[ChatCitation]) -> list[ChatCitation]:
+    indexes = []
+    for match in re.finditer(r"\[(\d{1,2})\]", answer):
+        number = int(match.group(1))
+        if number < 1 or number > len(citations) or number in indexes:
+            continue
+        indexes.append(number)
+    return [citations[index - 1] for index in indexes]
+
+
+def _evidence_pack_citations(trace: list[ChatToolTraceItem]) -> list[ChatCitation]:
+    citations: list[ChatCitation] = []
+    for item in trace:
+        pack = item.result.get("evidence_pack")
+        if isinstance(pack, dict):
+            citations.extend(_pack_citations(pack))
+            continue
+        if item.tool == "read_wiki_page" and item.citations:
+            citations.extend(item.citations)
+    return _unique_citations(citations)
+
+
+def _pack_citations(pack: dict[str, Any]) -> list[ChatCitation]:
+    citation_pages = pack.get("citation_pages")
+    if isinstance(citation_pages, list) and citation_pages:
+        return [_page_payload_citation(page) for page in citation_pages if isinstance(page, dict) and page.get("path")]
+    pages: list[tuple[str, dict[str, Any]]] = []
+    for role, key in (("primary", "primary_pages"), ("supporting", "supporting_pages"), ("source", "source_pages")):
+        value = pack.get(key)
+        if isinstance(value, list):
+            pages.extend((role, page) for page in value if isinstance(page, dict) and page.get("path"))
+    primary_page = pack.get("primary_page")
+    if isinstance(primary_page, dict) and primary_page.get("path"):
+        pages.insert(0, ("primary", primary_page))
+    return [_page_payload_citation(page, role=role) for role, page in pages]
+
+
+def _page_payload_citation(page: dict[str, Any], *, role: str | None = None) -> ChatCitation:
+    return ChatCitation(
+        kind="page",
+        role=_citation_role(str(page.get("role") or role or "supporting")),
+        path=str(page.get("path")),
+        title=str(page.get("title") or ""),
+        vault_id=str(page.get("vault_id")) if page.get("vault_id") else None,
+        vault_name=str(page.get("vault_name")) if page.get("vault_name") else None,
+        vault_path=str(page.get("vault_path")) if page.get("vault_path") else None,
+        reason=str(page.get("reason") or page.get("summary") or ""),
+    )
+
+
+def _citation_role(role: str) -> str:
+    return role if role in {"primary", "supporting", "source", "further_reading"} else "supporting"
 
 
 def _answer_allows_file_paths(latest_user_text: str) -> bool:

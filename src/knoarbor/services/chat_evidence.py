@@ -62,6 +62,7 @@ class ChatEvidencePlanner:
             "primary_pages": [self._primary_payload(page) for page in primary_pages if page],
             "supporting_pages": [self._supporting_payload(page) for page in supporting_pages],
             "source_pages": [self._source_payload(page) for page in source_pages],
+            "citation_pages": _citation_pages(primary_pages, supporting_pages, source_pages),
             "further_results": [self._result_payload(item) for item in results if item.get("path") not in evidence_paths][:5],
             "warnings": warnings,
             "instructions": self._instructions(action, evidence_coverage, primary_page),
@@ -147,6 +148,7 @@ class ChatEvidencePlanner:
             "primary_pages": primary_pages,
             "supporting_pages": supporting_pages,
             "source_pages": source_pages,
+            "citation_pages": _citation_pages(primary_pages, supporting_pages, source_pages),
             "further_results": [],
             "warnings": [],
             "instructions": [
@@ -367,6 +369,31 @@ def _unique_pages(pages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         seen.add(identity)
         unique.append(page)
     return unique
+
+
+def _citation_pages(
+    primary_pages: list[dict[str, Any]],
+    supporting_pages: list[dict[str, Any]],
+    source_pages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    pages: list[dict[str, Any]] = []
+    for role, group in (("primary", primary_pages), ("supporting", supporting_pages), ("source", source_pages)):
+        for page in group:
+            if not page.get("path"):
+                continue
+            pages.append(
+                {
+                    "index": len(pages) + 1,
+                    "role": role,
+                    "path": page.get("path"),
+                    "title": page.get("title"),
+                    "vault_id": page.get("vault_id"),
+                    "vault_name": page.get("vault_name"),
+                    "vault_path": page.get("vault_path"),
+                    "reason": page.get("summary") or page.get("reason") or "",
+                }
+            )
+    return _unique_pages(pages)
 
 
 def _unique_strings(values: list[str]) -> list[str]:

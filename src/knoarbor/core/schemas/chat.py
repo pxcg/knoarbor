@@ -168,6 +168,19 @@ class ChatSessionSummary(BaseModel):
     vault_path: str | None = None
     message_count: int = 0
     last_message: str = ""
+    last_ingest_run_id: str | None = None
+    last_ingested_at: str | None = None
+    ingest_candidate: "ChatIngestCandidate | None" = None
+
+
+class ChatIngestCandidate(BaseModel):
+    should_ingest: bool
+    reason: str
+    user_turns: int = 0
+    assistant_turns: int = 0
+    citation_count: int = 0
+    signal_count: int = 0
+    signals: list[str] = Field(default_factory=list)
 
 
 class ChatSessionRecord(BaseModel):
@@ -183,6 +196,7 @@ class ChatSessionRecord(BaseModel):
     closed_at: str | None = None
     last_ingest_run_id: str | None = None
     last_ingested_at: str | None = None
+    ingest_candidate: ChatIngestCandidate | None = None
     messages: list[ChatMessageItem] = Field(default_factory=list)
     turns: list[ChatTurnRecord] = Field(default_factory=list)
     citations: list[ChatCitation] = Field(default_factory=list)
@@ -207,6 +221,9 @@ class ChatSessionRecord(BaseModel):
             vault_path=self.vault_path,
             message_count=len(self.messages),
             last_message=last_message[:240],
+            last_ingest_run_id=self.last_ingest_run_id,
+            last_ingested_at=self.last_ingested_at,
+            ingest_candidate=self.ingest_candidate,
         )
 
 
@@ -228,6 +245,9 @@ class ChatSessionIngestRequest(BaseModel):
     write: bool = True
     write_report: bool = True
     append_ledger: bool = True
+    auto_scoped_lint: bool | None = None
+    auto_apply_safe_lint_fixes: bool | None = None
+    scoped_lint_include_related: bool | None = None
 
 
 class ChatSessionCloseRequest(ChatSessionIngestRequest):

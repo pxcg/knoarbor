@@ -23,11 +23,12 @@ from knoarbor.core.schemas.chat import (
     ChatToolTraceItem,
 )
 from knoarbor.core.schemas.memory import MemoryCandidate, MemoryRecord
-from knoarbor.services.chat_answer import ChatAnswerSynthesizer, clean_answer_citation_paths, final_citations, messages_chars, parse_json_object
+from knoarbor.services.chat_answer import ChatAnswerSynthesizer, answer_cleanup_citations, clean_answer_citation_paths, final_citations, messages_chars, parse_json_object
 from knoarbor.services.chat_context import ChatContextEngine, latest_user_text, memory_target, session_target
 from knoarbor.services.chat_model_call import run_chat_model_call
 from knoarbor.services.chat_retrieval_policy import ChatPlanAdjustment, ChatRetrievalPolicy
 from knoarbor.services.chat_tools import ChatToolExecutor
+from knoarbor.runtime import runtime_logger
 from knoarbor.semantic.contracts import load_prompt
 from knoarbor.semantic.llm import ChatClient, ChatCompletionRequest, ChatMessage, ModelGateway
 
@@ -37,6 +38,7 @@ if TYPE_CHECKING:
 
 ANSWER_SYNTHESIS_PROMPT = load_prompt("wiki_chat_answer.md")
 TOOL_PLAN_PROMPT = load_prompt("wiki_chat_tool_plan.md")
+LOGGER = runtime_logger(__name__)
 
 
 @dataclass
@@ -241,8 +243,8 @@ class _ChatLoop:
         return adjusted
 
     def _answer_response(self, draft: ChatAnswerDraft, turns: int) -> ChatResponse:
-        citations = final_citations(draft.citations, self.trace)
-        answer = clean_answer_citation_paths(draft.answer, citations, latest_user_text=latest_user_text(self.current_messages))
+        citations = final_citations(draft.citations, self.trace, answer=draft.answer)
+        answer = clean_answer_citation_paths(draft.answer, answer_cleanup_citations(self.trace, citations), latest_user_text=latest_user_text(self.current_messages))
         self._capture_memory()
         self._event("final_answer_ready", message="Final chat answer is ready.", turn=turns, payload={"citation_count": len(citations)})
         return ChatResponse(
@@ -297,16 +299,25 @@ class _ChatLoop:
         status: str | None = None,
         payload: dict[str, Any] | None = None,
     ) -> None:
-        self.events.append(
-            ChatEvent(
-                event_type=event_type,  # type: ignore[arg-type]
-                created_at=current_timestamp(),
-                message=message,
-                tool=tool,
-                turn=turn,
-                status=status,  # type: ignore[arg-type]
-                payload=payload or {},
-            )
+        event = ChatEvent(
+            event_type=event_type,  # type: ignore[arg-type]
+            created_at=current_timestamp(),
+            message=message,
+            tool=tool,
+            turn=turn,
+            status=status,  # type: ignore[arg-type]
+            payload=payload or {},
+        )
+        self.events.append(event)
+        LOGGER.info(
+            "chat_event chat_id=%s event=%s turn=%s tool=%s status=%s usage=%s elapsed_seconds=%s",
+            self.chat_id,
+            event_type,
+            turn,
+            tool or "-",
+            status or "-",
+            _event_usage(payload),
+            _event_elapsed(payload),
         )
 
     def _tool_event(self, event_type: str, message: str, tool: str | None, turn: int | None, status: str | None) -> None:
@@ -350,6 +361,26 @@ def _append_chat_ledger(request: ChatRequest, response: ChatResponse, calls: lis
             "tool_trace": [item.model_dump() for item in response.tool_trace],
         },
     )
+
+
+def _event_usage(payload: dict[str, Any] | None) -> str:
+    if not payload:
+        return "-"
+    usage = payload.get("usage")
+    if not isinstance(usage, dict):
+        return "-"
+    total = usage.get("total_tokens")
+    prompt = usage.get("prompt_tokens")
+    completion = usage.get("completion_tokens")
+    if total is None and prompt is None and completion is None:
+        return "-"
+    return f"total={total or 0},prompt={prompt or 0},completion={completion or 0}"
+
+
+def _event_elapsed(payload: dict[str, Any] | None) -> str:
+    if not payload or payload.get("elapsed_seconds") is None:
+        return "-"
+    return str(payload.get("elapsed_seconds"))
 
 
 def _parse_tool_plan(content: str) -> ChatToolPlan:

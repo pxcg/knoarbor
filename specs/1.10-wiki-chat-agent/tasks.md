@@ -12,6 +12,7 @@
 - [x] Add chat session list/read APIs.
 - [x] Add manual chat-session ingest API.
 - [x] Add close-session API with optional auto-ingest policy.
+- [x] Record deterministic ingest-candidate summaries when chat sessions close.
 - [x] Convert stored chat sessions into `knoarbor_chat` `SourceDocument`
   values for the shared ingest document pipeline.
 - [x] Consume query result roles: primary pages, supporting pages, and source
@@ -38,8 +39,7 @@
   duplicating it on Chat.
 - [x] Restore recent chat sessions from the backend instead of front-end state
   only.
-- [x] Add console actions for manual chat-session ingest and close-session
-  policy evaluation.
+- [x] Add console actions for manual chat-session ingest.
 
 ## P2 Observability And Reports
 

@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from knoarbor.audit.token_ledger import current_timestamp
 from knoarbor.core.errors import UserInputError
-from knoarbor.core.schemas.chat import ChatMessageItem, ChatResponse, ChatSessionListResponse, ChatSessionRecord, ChatTurnRecord
+from knoarbor.core.schemas.chat import ChatIngestCandidate, ChatMessageItem, ChatResponse, ChatSessionListResponse, ChatSessionRecord, ChatTurnRecord
 from knoarbor.core.schemas.sources import SourceContent, SourceDocument, SourceFingerprint, SourceOrigin
 
 
@@ -102,7 +102,14 @@ class ChatSessionStore:
 
     def close_session(self, vault_path: str | Path, session_id: str) -> ChatSessionRecord:
         record = self.read_session(vault_path, session_id)
-        closed = record.model_copy(update={"status": "closed", "closed_at": current_timestamp(), "updated_at": current_timestamp()})
+        closed = record.model_copy(
+            update={
+                "status": "closed",
+                "closed_at": current_timestamp(),
+                "updated_at": current_timestamp(),
+                "ingest_candidate": build_ingest_candidate(record),
+            }
+        )
         self._write_record(vault_path, closed)
         return closed
 
@@ -257,6 +264,59 @@ def _source_payload(record: ChatSessionRecord) -> dict[str, object]:
         "run_links": [link.model_dump(mode="json") for link in record.run_links],
         "warnings": record.warnings,
     }
+
+
+def build_ingest_candidate(record: ChatSessionRecord) -> ChatIngestCandidate:
+    user_turns = sum(1 for message in record.messages if message.role == "user")
+    assistant_turns = sum(1 for message in record.messages if message.role == "assistant")
+    citation_count = len({(citation.vault_id or "", citation.path or citation.run_id or citation.title or "") for citation in record.citations})
+    turn_count = len(record.turns)
+    signals: list[str] = []
+
+    if user_turns >= 2:
+        signals.append("multi_turn")
+    if citation_count >= 2:
+        signals.append("uses_wiki_sources")
+    if any(turn.memory_candidates for turn in record.turns) or record.memory_candidates:
+        signals.append("memory_candidates")
+    if any(_contains_durable_knowledge(message.content) for message in record.messages):
+        signals.append("durable_knowledge_language")
+    if turn_count >= 2 and any(turn.citations for turn in record.turns):
+        signals.append("grounded_followup")
+
+    should_ingest = len(signals) >= 2 or (user_turns >= 3 and citation_count >= 1)
+    reason = "Chat session contains durable knowledge signals." if should_ingest else "Chat session does not have enough durable knowledge signals yet."
+    return ChatIngestCandidate(
+        should_ingest=should_ingest,
+        reason=reason,
+        user_turns=user_turns,
+        assistant_turns=assistant_turns,
+        citation_count=citation_count,
+        signal_count=len(signals),
+        signals=signals,
+    )
+
+
+def _contains_durable_knowledge(text: str) -> bool:
+    lowered = text.lower()
+    signals = (
+        "decision",
+        "architecture",
+        "design",
+        "workflow",
+        "implementation",
+        "tradeoff",
+        "root cause",
+        "结论",
+        "决策",
+        "架构",
+        "设计",
+        "流程",
+        "实现",
+        "根因",
+        "方案",
+    )
+    return any(signal in lowered for signal in signals)
 
 
 def _turn_from_response(response: ChatResponse, index: int, created_at: str) -> ChatTurnRecord | None:

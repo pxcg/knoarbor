@@ -121,6 +121,8 @@ Acceptance criteria:
 
 - Auto ingest is disabled by default.
 - The policy uses `chat.auto_ingest.enabled`, `trigger`, and `min_user_turns`.
+- Closing a session records an ingest-candidate summary even when auto ingest
+  remains disabled.
 - The auto path shares the same source document and ingest workflow as manual
   chat-session ingest.
 

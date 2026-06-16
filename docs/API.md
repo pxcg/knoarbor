@@ -160,8 +160,10 @@ POST /chat/sessions/{session_id}/ingest
 ```
 
 This converts the persisted session into a `knoarbor_chat` `SourceDocument` and
-queues the normal `/ingest` document pipeline. The response is the same queued
-workflow envelope used by other long-running ingest requests.
+queues the normal `/ingest` document pipeline. The ingest run uses the standard
+document path, including segmentation, page review, write/report generation, and
+scoped lint when enabled by ingest configuration. The response is the same
+queued workflow envelope used by other long-running ingest requests.
 
 ```json
 {
@@ -179,8 +181,10 @@ To close a session and optionally trigger the configured auto-ingest policy:
 POST /chat/sessions/{session_id}/close
 ```
 
-`chat.auto_ingest.enabled` controls whether close events queue ingest
-automatically. Manual `/ingest` for a chat session is always available.
+The close endpoint records an ingest-candidate summary on the session. It does
+not write wiki pages unless `chat.auto_ingest.enabled` is explicitly enabled and
+the configured policy matches. Manual `/ingest` for a chat session is always
+available.
 
 ## Vault Selection
 

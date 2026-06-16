@@ -156,7 +156,8 @@ POST /chat/sessions/{session_id}/ingest
 ```
 
 该入口会把已保存会话转换为 `knoarbor_chat` `SourceDocument`，然后排队进入
-标准 `/ingest` document 流程。响应结构与其他长任务 ingest 请求一致，都是
+标准 `/ingest` document 流程，包括分段、页面评审、写入/报告生成，以及在
+ingest 配置启用时执行局部 lint。响应结构与其他长任务 ingest 请求一致，都是
 queued workflow envelope。
 
 ```json
@@ -175,8 +176,9 @@ queued workflow envelope。
 POST /chat/sessions/{session_id}/close
 ```
 
-`chat.auto_ingest.enabled` 控制关闭会话时是否自动排队进入 ingest。手动
-`/ingest` 某个 chat session 始终可用。
+关闭入口会在 session 上记录可沉淀候选摘要。除非显式启用
+`chat.auto_ingest.enabled` 且满足配置策略，否则关闭会话不会写入 Wiki 页面。
+手动 `/ingest` 某个 chat session 始终可用。
 
 ## 知识库选择
 

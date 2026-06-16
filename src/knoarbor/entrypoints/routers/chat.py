@@ -97,6 +97,9 @@ def _start_chat_session_ingest(services: ApplicationServices, session_id: str, r
         write=request.write,
         write_report=request.write_report,
         append_ledger=request.append_ledger,
+        auto_scoped_lint=request.auto_scoped_lint,
+        auto_apply_safe_lint_fixes=request.auto_apply_safe_lint_fixes,
+        scoped_lint_include_related=request.scoped_lint_include_related,
     )
     started = services.runs.start_ingest_document(ingest_request, services.ingest.run_document)
     services.chat_sessions.mark_ingest_started(target.path, session_id, started.run_id)

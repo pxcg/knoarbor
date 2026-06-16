@@ -348,14 +348,17 @@ POST /chat/sessions/{session_id}/close
 ```
 
 The close endpoint marks the session closed and evaluates
-`chat.auto_ingest`. If the policy matches, it queues the same document ingest
-workflow and stores the resulting `run_id` on the session record.
+`chat.auto_ingest`. It always records a deterministic ingest-candidate summary
+on the session record. If the policy matches, it queues the same document
+ingest workflow and stores the resulting `run_id` on the session record.
 
 Design rules:
 
 - the chat page never writes wiki markdown directly;
 - chat-session ingest uses `knoarbor_chat` as the source type;
 - chat sessions use turn-based segmentation and session checkpoints;
+- candidate detection records durable knowledge signals only; it does not write
+  pages and does not call an additional model;
 - auto ingest is off by default and starts only on an explicit close event;
 - manual ingest remains available regardless of the auto policy.
 
