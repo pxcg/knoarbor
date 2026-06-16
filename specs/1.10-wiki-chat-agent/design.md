@@ -362,6 +362,29 @@ Design rules:
 - auto ingest is off by default and starts only on an explicit close event;
 - manual ingest remains available regardless of the auto policy.
 
+## Chat Answer Regeneration
+
+Regeneration is a turn-level retry for the latest completed assistant answer.
+It is not a new user message and it does not create a forked session in the
+first product version.
+
+```text
+POST /chat/sessions/{session_id}/retry
+  -> ChatSessionStore.prepare_retry_latest_turn
+  -> trim latest user+assistant turn
+  -> run normal /chat loop with the same user message
+  -> persist replacement answer
+  -> restore previous session if regeneration fails
+```
+
+Design rules:
+
+- retry is available only for active sessions with at least one completed turn;
+- the backend owns turn trimming so the UI cannot duplicate user messages;
+- the normal chat agent loop, retrieval, citations, memory, and ledger paths are
+  reused;
+- failed retry restores the previous answer.
+
 ## Failure Handling
 
 Failures use existing error envelopes and codes.

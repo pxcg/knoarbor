@@ -618,6 +618,37 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(second_answer_state["latest_user_message"], "第二轮问题")
         self.assertEqual(second_answer_state["conversation_context"][0]["assistant_answer"], "第一轮回答。")
 
+    def test_retry_latest_turn_replaces_answer_without_duplicating_user_message(self) -> None:
+        client = FakeChatClient(
+            [
+                {"answer": "第一版回答。", "citations": []},
+                {"answer": "重新生成的回答。", "citations": []},
+            ]
+        )
+        service = ChatAgentService(client_factory=lambda _request: client)
+        with tempfile.TemporaryDirectory() as tmp:
+            services = FakeServices()
+            first = service.chat(
+                ChatRequest(messages=[ChatMessageItem(role="user", content="Agent Loop 是什么？")], vault_path=tmp, append_ledger=False),
+                services,  # type: ignore[arg-type]
+            )
+            previous, retry_user_message = services.chat_sessions.prepare_retry_latest_turn(tmp, first.session_id or "")
+            self.assertEqual(retry_user_message.content, "Agent Loop 是什么？")
+            trimmed = services.chat_sessions.read_session(tmp, first.session_id or "")
+            self.assertEqual(trimmed.messages, [])
+            self.assertEqual(trimmed.turns, [])
+
+            retry = service.chat(
+                ChatRequest(session_id=first.session_id, messages=[retry_user_message], vault_path=tmp, append_ledger=False),
+                services,  # type: ignore[arg-type]
+            )
+            record = services.chat_sessions.read_session(tmp, retry.session_id or "")
+
+        self.assertEqual(previous.messages[-1].content, "第一版回答。")
+        self.assertEqual([message.content for message in record.messages], ["Agent Loop 是什么？", "重新生成的回答。"])
+        self.assertEqual(len(record.turns), 1)
+        self.assertEqual(record.turns[0].assistant_message.content, "重新生成的回答。")
+
     def test_session_turns_keep_per_answer_citations(self) -> None:
         store = ChatSessionStore()
         with tempfile.TemporaryDirectory() as tmp:

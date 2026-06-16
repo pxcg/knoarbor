@@ -943,6 +943,31 @@ export async function ingestChatSession(selector: VaultSelector, sessionId: stri
   });
 }
 
+export async function retryChatSession(
+  selector: VaultSelector,
+  sessionId: string,
+  options: {
+    all_vaults?: boolean;
+    max_turns?: number;
+    provider?: string | null;
+  } = {},
+  signal?: AbortSignal,
+): Promise<ChatResponse> {
+  return requestJson(`/chat/sessions/${encodeURIComponent(sessionId)}/retry`, {
+    method: "POST",
+    signal,
+    body: {
+      config_path: selector.config_path,
+      vault_id: selector.vault_id,
+      vault_path: selector.vault_id ? undefined : selector.vault_path,
+      all_vaults: options.all_vaults || false,
+      max_turns: options.max_turns || 6,
+      include_trace: true,
+      provider: options.provider || undefined,
+    },
+  });
+}
+
 export async function closeChatSession(selector: VaultSelector, sessionId: string): Promise<ChatSessionWorkflowResponse> {
   return requestJson(`/chat/sessions/${encodeURIComponent(sessionId)}/close`, {
     method: "POST",

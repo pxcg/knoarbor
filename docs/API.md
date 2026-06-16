@@ -155,6 +155,16 @@ directly for write or maintenance workflows.
 Chat sessions are stored outside maintained wiki pages. When a conversation
 should become durable wiki knowledge, use the chat-session ingest endpoint:
 
+To regenerate the latest assistant answer in an active session:
+
+```http
+POST /chat/sessions/{session_id}/retry
+```
+
+The retry endpoint removes the latest completed chat turn, reuses the same user
+message, and runs the normal `/chat` loop again. If regeneration fails, the
+previous answer is restored.
+
 ```http
 POST /chat/sessions/{session_id}/ingest
 ```

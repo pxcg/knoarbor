@@ -7,6 +7,7 @@ import {
   ingestChatSession,
   listChatSessions,
   readChatSession,
+  retryChatSession,
   sendChatMessage,
   type ChatCitation,
   type ChatMessageItem,
@@ -41,6 +42,7 @@ export function ChatPage({ context }: Props) {
   const [recentSessions, setRecentSessions] = useState<ChatSessionSummary[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const activeChatAbortRef = useRef<AbortController | null>(null);
   const chatModelProviders = useMemo(() => context.modelProviders?.providers || [], [context.modelProviders]);
@@ -206,7 +208,57 @@ export function ChatPage({ context }: Props) {
     activeChatAbortRef.current?.abort();
   }
 
+  async function regenerateLatestAnswer() {
+    if (!sessionId || isSending || isRegenerating || !chatVaultReady) return;
+    const latestAssistantIndex = latestAssistantTurnIndex(turns);
+    if (latestAssistantIndex < 0) return;
+    const previousTurns = turns;
+    const nextTurns = turns.slice(0, latestAssistantIndex);
+    setTurns(nextTurns);
+    setIsRegenerating(true);
+    setIsSending(true);
+    const controller = new AbortController();
+    activeChatAbortRef.current = controller;
+    try {
+      const response = await retryChatSession(
+        context.activeVaultSelector,
+        sessionId,
+        {
+          all_vaults: context.activeVaultId === "all",
+          max_turns: 6,
+          provider: activeChatProvider || undefined,
+        },
+        controller.signal,
+      );
+      setSessionId(response.session_id || sessionId);
+      setTurns((current) => [
+        ...current,
+        {
+          role: "assistant",
+          content: response.answer,
+          citations: response.citations || [],
+        },
+      ]);
+      void refreshSessions();
+    } catch (error) {
+      setTurns(previousTurns);
+      if (error instanceof DOMException && error.name === "AbortError") {
+        context.setNotice({ message: context.t("chatStopped") });
+        return;
+      }
+      const rawMessage = error instanceof Error ? error.message : String(error);
+      context.setNotice({ message: readableChatError(rawMessage, context), error: true });
+    } finally {
+      if (activeChatAbortRef.current === controller) {
+        activeChatAbortRef.current = null;
+      }
+      setIsSending(false);
+      setIsRegenerating(false);
+    }
+  }
+
   const hasConversation = turns.length > 0 || isSending;
+  const latestAssistantIndex = latestAssistantTurnIndex(turns);
 
   return (
     <section className="view active chat-page">
@@ -283,6 +335,18 @@ export function ChatPage({ context }: Props) {
                     <ChatMarkdownAnswer content={turn.content} citations={turn.citations || []} context={context} />
                   ) : (
                     <p>{turn.content}</p>
+                  )}
+                  {turn.role === "assistant" && index === latestAssistantIndex && (
+                    <div className="chat-message-actions">
+                      <button
+                        type="button"
+                        onClick={() => void regenerateLatestAnswer()}
+                        disabled={isSending || isRegenerating}
+                        title={context.t("chatRegenerate")}
+                      >
+                        {context.t("chatRegenerate")}
+                      </button>
+                    </div>
                   )}
                   {!!turn.citations?.length && <CitationList citations={turn.citations} context={context} />}
                   {turn.role === "assistant" && !!turn.citations?.length && (
@@ -435,6 +499,13 @@ function sessionRecordToTurns(record: Awaited<ReturnType<typeof readChatSession>
       content: message.content,
       citations: message.role === "assistant" ? record.citations : undefined,
     }));
+}
+
+function latestAssistantTurnIndex(turns: ChatTurn[]) {
+  for (let index = turns.length - 1; index >= 0; index -= 1) {
+    if (turns[index].role === "assistant") return index;
+  }
+  return -1;
 }
 
 function formatSessionDate(value: string) {

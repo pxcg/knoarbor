@@ -151,6 +151,15 @@ Wiki 问答入口：KnoArbor 会先规划受限的 Wiki 工具，在服务守卫
 Chat 会话默认保存在已维护 Wiki 页面之外。当某次对话需要沉淀为持久 Wiki
 知识时，调用会话入库入口：
 
+如果需要重新生成当前会话的最后一条 assistant 回答：
+
+```http
+POST /chat/sessions/{session_id}/retry
+```
+
+该入口会移除最后一个已完成对话轮次，复用同一条用户问题重新进入标准
+`/chat` loop。如果重新生成失败，会恢复上一版回答。
+
 ```http
 POST /chat/sessions/{session_id}/ingest
 ```

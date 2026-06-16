@@ -11,6 +11,7 @@ from knoarbor.core.schemas.chat import (
     ChatSessionIngestRequest,
     ChatSessionListResponse,
     ChatSessionRecord,
+    ChatSessionRetryRequest,
     ChatSessionWorkflowResponse,
 )
 from knoarbor.core.schemas.execution import WorkflowResponse
@@ -80,6 +81,34 @@ def create_chat_router(services: ApplicationServices) -> APIRouter:
         started = _start_chat_session_ingest(services, session_id, policy_request)
         updated = services.chat_sessions.mark_ingest_started(target.path, session_id, started.run_id)
         return ChatSessionWorkflowResponse(session=updated, ingest_started=True, run_id=started.run_id, status=started.status, reason=reason)
+
+    @router.post("/chat/sessions/{session_id}/retry", response_model=ChatResponse)
+    async def retry_chat_session_turn(
+        session_id: str,
+        request: ChatSessionRetryRequest | None = None,
+    ) -> ChatResponse:
+        request = request or ChatSessionRetryRequest()
+        target = session_target(ChatRequest(config_path=request.config_path, vault_path=request.vault_path, vault_id=request.vault_id, messages=[{"role": "user", "content": "retry session"}]))
+        previous, user_message = services.chat_sessions.prepare_retry_latest_turn(target.path, session_id)
+        retry_request = ChatRequest(
+            session_id=session_id,
+            config_path=request.config_path,
+            vault_path=str(target.path),
+            vault_id=target.vault_id,
+            vault_ids=request.vault_ids,
+            all_vaults=request.all_vaults,
+            messages=[user_message],
+            max_turns=request.max_turns,
+            include_trace=request.include_trace,
+            append_ledger=request.append_ledger,
+            provider=request.provider,
+            max_tokens=request.max_tokens,
+        )
+        try:
+            return services.chat.chat(retry_request, services)
+        except Exception:
+            services.chat_sessions.restore_record(target.path, previous)
+            raise
 
     return router
 

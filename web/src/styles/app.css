@@ -5547,6 +5547,37 @@ blockquote {
   font-weight: 700;
 }
 
+.chat-message-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 10px;
+}
+
+.chat-message-actions button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--muted-strong);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 750;
+  min-height: 28px;
+  padding: 4px 9px;
+}
+
+.chat-message-actions button:hover:not(:disabled) {
+  background: #edf6f1;
+  border-color: #cfe2d6;
+  color: var(--accent-strong);
+}
+
+.chat-message-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .chat-inline-citation {
   display: inline-flex;
   align-items: center;

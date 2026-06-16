@@ -12,6 +12,7 @@
 - [x] Add chat session list/read APIs.
 - [x] Add manual chat-session ingest API.
 - [x] Add close-session API with optional auto-ingest policy.
+- [x] Add latest-turn answer regeneration API.
 - [x] Record deterministic ingest-candidate summaries when chat sessions close.
 - [x] Convert stored chat sessions into `knoarbor_chat` `SourceDocument`
   values for the shared ingest document pipeline.
@@ -28,6 +29,7 @@
   assistant prose.
 - [x] Pass bounded recent conversation context to answer synthesis for natural
   follow-up questions while keeping wiki evidence as the grounding source.
+- [x] Restore the previous answer if latest-turn regeneration fails.
 
 ## P1 Console Home Chat
 

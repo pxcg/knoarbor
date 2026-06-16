@@ -250,6 +250,20 @@ class ChatSessionIngestRequest(BaseModel):
     scoped_lint_include_related: bool | None = None
 
 
+class ChatSessionRetryRequest(BaseModel):
+    schema_version: Literal["chat_session_retry_request.v1"] = "chat_session_retry_request.v1"
+    config_path: str | None = None
+    vault_path: str | None = Field(default=None, min_length=1)
+    vault_id: str | None = None
+    vault_ids: list[str] = Field(default_factory=list)
+    all_vaults: bool = False
+    max_turns: int = Field(default=6, ge=1, le=12)
+    include_trace: bool = True
+    append_ledger: bool = True
+    provider: str | None = None
+    max_tokens: int | None = Field(default=None, ge=1)
+
+
 class ChatSessionCloseRequest(ChatSessionIngestRequest):
     auto_ingest: bool | None = None
 

@@ -119,6 +119,39 @@ class ChatSessionStore:
         self._write_record(vault_path, updated)
         return updated
 
+    def prepare_retry_latest_turn(self, vault_path: str | Path, session_id: str) -> tuple[ChatSessionRecord, ChatMessageItem]:
+        record = self.read_session(vault_path, session_id)
+        if record.status != "active":
+            raise UserInputError("Only active chat sessions can regenerate an answer.")
+        if not record.turns:
+            raise UserInputError("Chat session has no completed turn to regenerate.")
+        retry_turn = record.turns[-1]
+        messages = _trim_latest_turn_messages(record.messages, retry_turn)
+        trimmed_turns = record.turns[:-1]
+        previous_turn = trimmed_turns[-1] if trimmed_turns else None
+        updated = record.model_copy(
+            update={
+                "updated_at": current_timestamp(),
+                "messages": messages,
+                "turns": trimmed_turns,
+                "citations": previous_turn.citations if previous_turn else [],
+                "tool_trace": previous_turn.tool_trace if previous_turn else [],
+                "events": previous_turn.events if previous_turn else [],
+                "run_links": previous_turn.run_links if previous_turn else [],
+                "memory_used": previous_turn.memory_used if previous_turn else [],
+                "memory_candidates": previous_turn.memory_candidates if previous_turn else [],
+                "memory_writes": previous_turn.memory_writes if previous_turn else [],
+                "stats": previous_turn.stats if previous_turn else {},
+                "warnings": previous_turn.warnings if previous_turn else [],
+                "ingest_candidate": None,
+            }
+        )
+        self._write_record(vault_path, updated)
+        return record, retry_turn.user_message
+
+    def restore_record(self, vault_path: str | Path, record: ChatSessionRecord) -> None:
+        self._write_record(vault_path, record)
+
     def to_source_document(self, vault_path: str | Path, session_id: str) -> SourceDocument:
         record = self.read_session(vault_path, session_id)
         path = _session_path(vault_path, session_id)
@@ -214,6 +247,15 @@ def _merge_messages(existing: list[ChatMessageItem], latest: list[ChatMessageIte
 
 def _message_key(message: ChatMessageItem) -> tuple[str, str, str | None]:
     return (message.role, message.content, message.tool_name)
+
+
+def _trim_latest_turn_messages(messages: list[ChatMessageItem], turn: ChatTurnRecord) -> list[ChatMessageItem]:
+    if len(messages) >= 2 and _message_key(messages[-2]) == _message_key(turn.user_message) and _message_key(messages[-1]) == _message_key(turn.assistant_message):
+        return messages[:-2]
+    for index in range(len(messages) - 2, -1, -1):
+        if _message_key(messages[index]) == _message_key(turn.user_message):
+            return messages[:index]
+    raise UserInputError("Could not locate the latest chat turn in session messages.")
 
 
 def _title_from_messages(messages: list[ChatMessageItem]) -> str:
