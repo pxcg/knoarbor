@@ -1,6 +1,17 @@
 # Quickstart
 
-This guide gets a local KnoArbor vault running from a fresh clone.
+This guide gets a fresh KnoArbor clone to a first successful local wiki chat.
+It uses the bundled Markdown example first. After that works, add your own
+sources in the same vault.
+
+## Recommended First Path
+
+For the first run, keep the setup narrow:
+
+- use the bundled `agent-loop.md` example;
+- use one OpenAI-compatible provider such as DeepSeek, OpenAI, OpenRouter, LM Studio, or vLLM, or native Ollama;
+- run `doctor` before semantic workflows;
+- verify the result in the local Chat page.
 
 ## 1. Install
 
@@ -8,7 +19,7 @@ Requirements:
 
 - Python 3.12
 - `uv`
-- One model provider, such as DeepSeek, OpenAI, OpenRouter, LM Studio, vLLM, or native Ollama
+- one model provider
 
 Install dependencies:
 
@@ -16,10 +27,10 @@ Install dependencies:
 uv sync
 ```
 
-## 2. First Run
+## 2. Initialize A Vault
 
-Create local configuration, initialize the vault, and install the bundled
-example source:
+Create local configuration, initialize the default vault, and install the
+bundled example source:
 
 ```bash
 uv run knoar first-run --vault ./vaults/default
@@ -41,16 +52,6 @@ Load the variables into the current shell before running semantic commands:
 set -a && source .env && set +a
 ```
 
-Edit `config.yaml` if needed:
-
-```yaml
-vault:
-  path: ./vaults/default
-
-models:
-  default_provider: deepseek
-```
-
 Run the read-only readiness check:
 
 ```bash
@@ -61,30 +62,9 @@ uv run knoar doctor
 enabled connectors, optional document preprocessing, and recent run state
 without calling the model or writing wiki pages.
 
-## 3. Run The API
+## 3. Compile The Example
 
-```bash
-uv run knoar serve
-```
-
-If port `8000` is already in use, the server will choose the next available
-local port and print the actual URL.
-
-Health check:
-
-```bash
-curl http://127.0.0.1:8000/health
-```
-
-Open the local management console:
-
-```text
-http://127.0.0.1:8000
-```
-
-## 4. Run The Built-In Example
-
-Compile it into wiki pages:
+Compile the bundled Markdown source into maintained wiki pages:
 
 ```bash
 uv run knoar ingest --connector markdown --write
@@ -96,15 +76,60 @@ Run structural maintenance:
 uv run knoar lint --mode structural
 ```
 
-Query the generated wiki:
+The generated wiki pages are written under:
+
+```text
+vaults/default/pages/
+```
+
+Open this `pages/` directory in Obsidian when you only want the maintained
+Markdown wiki, without raw sources, reports, or machine state.
+
+## 4. Open The Local Console
+
+Start the local service:
+
+```bash
+uv run knoar serve
+```
+
+If port `8000` is already in use, the server chooses the next available local
+port and prints the actual URL.
+
+Open the local console:
+
+```text
+http://127.0.0.1:8000
+```
+
+In the console:
+
+1. Open **Chat**.
+2. Ask `Agent Loop 是什么？`.
+3. Expand the answer sources.
+4. Click a citation to preview the wiki page without leaving the chat.
+
+This verifies the main user path: source -> ingest -> maintained wiki page ->
+cited chat answer.
+
+## 5. Verify From CLI
+
+You can also query the generated wiki from the terminal:
 
 ```bash
 uv run knoar query "Agent Loop 是什么？"
 ```
 
-## 5. Ingest Your Own Sources
+Use `knoarbor` instead of `knoar` if you prefer the full command name:
 
-For connector-based ingest:
+```bash
+uv run knoarbor --help
+```
+
+## 6. Add Your Own Sources
+
+After the bundled example works, add your own source roots in `config.yaml` or
+the local console settings, then run:
 
 ```bash
 uv run knoar ingest --write
@@ -116,7 +141,7 @@ For one prepared `source_document.v1` JSON file:
 uv run knoar ingest --source-document /path/to/source_document.json --write
 ```
 
-## 6. Run Lint
+## 7. Maintain The Wiki
 
 Structural repair:
 
@@ -135,3 +160,9 @@ Apply reviewed semantic maintenance operations:
 ```bash
 uv run knoar lint --mode full --apply-reviewed
 ```
+
+## Next Documents
+
+- [Configuration](CONFIGURATION.md): model providers, vaults, inputs, and document preprocessing.
+- [CLI Reference](CLI.md): full command-line options.
+- [Troubleshooting](TROUBLESHOOTING.md): common setup, model, and runtime issues.

@@ -48,9 +48,10 @@ KnoArbor 提供一层长期知识基础设施，为 Hermes、Codex、Obsidian、
 - **知识编译流程**：把支持的来源转换为 `source_document.v1`，抽取知识、规划页面操作、评审草稿、写入页面并记录报告。
 - **校验维护流程**：扫描确定性问题，诊断结构、溯源和质量问题，评审维护动作，并自动应用通过审核的修复。
 - **知识查询流程**：返回排序页面、摘录、来源线索、图谱上下文和可供外部 AI 使用的上下文包。
+- **Wiki 对话**：基于已维护 Wiki 页面生成带引用的回答，支持来源预览和会话历史。
 - **来源溯源**：区分 raw source、source digest 和生成知识页面。
 - **多知识库配置**：在一份配置中管理多个命名本地知识库，并支持单库或多库查询。
-- **OpenAI 兼容模型**：支持 DeepSeek、OpenAI、OpenRouter、Ollama、LM Studio、vLLM 兼容端点等。
+- **模型适配**：支持 DeepSeek、OpenAI、OpenRouter、LM Studio、vLLM 兼容端点，以及 Ollama 原生端点。
 - **CLI、API 和本地控制台**：可以通过终端、本地 HTTP API 或内置 Web 控制台使用。
 - **Skill 集成**：提供通用本地 Wiki skill 模板，方便接入支持本地技能的 AI 工具。
 
@@ -90,9 +91,9 @@ KnoArbor 提供一层长期知识基础设施，为 Hermes、Codex、Obsidian、
   <img src="docs/assets/knoarbor-console-wiki.png" alt="知识库浏览页面" width="920">
 </p>
 
-### 知识查询
+### Wiki 对话与知识查询
 
-检索 Wiki 页面、摘录、来源线索和上下文包，供宿主 AI 继续生成最终回答。
+可以在本地控制台直接提问、查看回答背后的引用页面，也可以通过 Query 和 Skill 集成为宿主 AI 返回同一套页面优先上下文包。
 
 <p align="center">
   <img src="docs/assets/knoarbor-console-query.png" alt="知识查询页面" width="920">
@@ -116,7 +117,7 @@ KnoArbor 提供一层长期知识基础设施，为 Hermes、Codex、Obsidian、
 
 - Python 3.12
 - [uv](https://docs.astral.sh/uv/)
-- 一个 OpenAI 兼容模型供应商
+- 一个 OpenAI 兼容模型供应商，或 Ollama 原生端点
 
 ```bash
 git clone https://github.com/pxcg/knoarbor.git
@@ -131,11 +132,11 @@ uv sync
 创建本地配置并初始化知识库：
 
 ```bash
-uv run knoar first-run --vault ./wiki
+uv run knoar first-run --vault ./vaults/default
 ```
 
-这会创建 `config.yaml`，初始化 `./wiki`，并把内置 Markdown 示例复制到
-`wiki/raw/notes/agent-loop.md`。
+这会创建 `config.yaml`，初始化 `./vaults/default`，并把内置 Markdown 示例复制到
+`vaults/default/raw/notes/agent-loop.md`。
 
 创建 `.env` 并至少填写一个模型密钥：
 
@@ -150,16 +151,17 @@ DEEPSEEK_API_KEY=your-key
 set -a && source .env && set +a
 ```
 
-将内置示例编译成 Wiki 页面：
-
-```bash
-uv run knoar ingest --connector markdown --write
-```
-
 运行只读诊断：
 
 ```bash
 uv run knoar doctor
+```
+
+将内置示例编译成 Wiki 页面，并运行结构维护：
+
+```bash
+uv run knoar ingest --connector markdown --write
+uv run knoar lint --mode structural
 ```
 
 启动本地服务：
@@ -174,7 +176,13 @@ uv run knoar serve
 http://127.0.0.1:8000
 ```
 
-查询已维护的 Wiki：
+在控制台中打开对话并提问：
+
+```text
+Agent Loop 是什么？
+```
+
+也可以从终端查询已维护的 Wiki：
 
 ```bash
 uv run knoar query "Agent Loop 是什么？"
@@ -191,20 +199,23 @@ uv run knoarbor --help
 KnoArbor 把知识库组织为三层：
 
 ```text
-wiki/
-├── raw/          # 不可变原始资料
-├── sources/      # 来源摘要页面
-├── entities/     # 人物、组织、产品、项目等命名对象
-├── concepts/     # 方法、架构、原则和可复用知识
-├── comparisons/  # 对比型页面
-├── queries/      # 保留问答页面
-├── claims/       # 可验证原子主张
-├── timelines/    # 时间线页面
-├── workflows/    # 可复用流程页面
-└── maintenance/  # 报告、账本和断点
+vaults/
+└── default/
+    ├── pages/        # 面向 Obsidian 的 Wiki 页面；建议只打开这个目录
+    │   ├── sources/      # 来源摘要页面
+    │   ├── entities/     # 人物、组织、产品、项目等命名对象
+    │   ├── concepts/     # 方法、架构、原则和可复用知识
+    │   ├── comparisons/  # 对比型页面
+    │   ├── queries/      # 保留问答页面
+    │   ├── claims/       # 可验证原子主张
+    │   ├── timelines/    # 时间线页面
+    │   └── workflows/    # 可复用流程页面
+    ├── raw/          # 不可变原始资料
+    ├── maintenance/  # 可读运行报告
+    └── .knoarbor/    # 机器状态、索引、账本、锁和运行记录
 ```
 
-运行时 `wiki/` 目录默认不提交到 git，因为它可能包含私人笔记、原始文档和生成页面。
+运行时 `vaults/` 目录默认不提交到 git，因为它可能包含私人笔记、原始文档、生成页面和运行记录。只需要在 Obsidian 中查看维护后的 Wiki 时，建议打开 `vaults/default/pages`。
 
 ## 常用命令
 

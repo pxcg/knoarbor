@@ -48,6 +48,7 @@ This makes the wiki a reusable artifact, not a transient retrieval result.
 - **Ingest pipeline**: converts supported sources into `source_document.v1`, extracts knowledge, plans page operations, reviews drafts, writes pages, and records reports.
 - **Lint pipeline**: scans deterministic wiki issues, diagnoses structural/provenance/quality problems, reviews maintenance actions, and applies approved repairs.
 - **Query pipeline**: returns ranked pages, excerpts, source pointers, graph context, and a context pack for external AI tools.
+- **Wiki chat**: answers from maintained wiki pages with citations, source previews, and session history.
 - **Source provenance**: separates raw sources, source digest pages, and generated knowledge pages.
 - **Multi-vault profiles**: manage multiple named local knowledge bases from one configuration and query one or many vaults.
 - **Model adapters**: works with DeepSeek, OpenAI, OpenRouter, LM Studio, vLLM-compatible endpoints, and native Ollama.
@@ -90,9 +91,9 @@ Browse generated wiki pages, inspect metadata, links, backlinks, and open the ex
   <img src="docs/assets/knoarbor-console-wiki.png" alt="KnoArbor knowledge base browser" width="920">
 </p>
 
-### Query Context
+### Wiki Chat And Query Context
 
-Retrieve wiki pages, excerpts, source pointers, and a context pack for a host AI without turning KnoArbor into another chat UI.
+Ask questions directly in the local console, inspect the cited wiki pages behind an answer, or retrieve the same page-first context pack for a host AI through Query and Skill integrations.
 
 <p align="center">
   <img src="docs/assets/knoarbor-console-query.png" alt="KnoArbor query page" width="920">
@@ -150,16 +151,17 @@ Load environment variables:
 set -a && source .env && set +a
 ```
 
-Compile the bundled example into wiki pages:
-
-```bash
-uv run knoar ingest --connector markdown --write
-```
-
 Check local readiness before running semantic workflows:
 
 ```bash
 uv run knoar doctor
+```
+
+Compile the bundled example into wiki pages:
+
+```bash
+uv run knoar ingest --connector markdown --write
+uv run knoar lint --mode structural
 ```
 
 Start the local service:
@@ -174,7 +176,13 @@ Open the local console:
 http://127.0.0.1:8000
 ```
 
-Query the maintained wiki:
+In the console, open Chat and ask:
+
+```text
+Agent Loop 是什么？
+```
+
+You can also query the maintained wiki from the terminal:
 
 ```bash
 uv run knoar query "Agent Loop 是什么？"
@@ -192,7 +200,7 @@ KnoArbor organizes knowledge into three layers:
 
 ```text
 vaults/
-└── all/
+└── default/
     ├── pages/        # Obsidian-facing wiki; open this directory in Obsidian
     │   ├── sources/      # source digest pages
     │   ├── entities/     # named people, organizations, products, projects

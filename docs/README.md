@@ -8,7 +8,7 @@ Chinese documentation lives in [zh/](zh/). This documentation tree is intended f
 
 - [Showcase](SHOWCASE.md): product tour, end-to-end flow, demo path, and current boundaries.
 - [Installation](INSTALLATION.md): local install, service startup, model setup, UI rebuild, and verification.
-- [Quickstart](QUICKSTART.md): install, configure, initialize a vault, run the service, and try query.
+- [Quickstart](QUICKSTART.md): initialize a vault, compile the bundled example, open the local console, and verify Chat/query.
 - [Configuration](CONFIGURATION.md): model providers, vault paths, connectors, document processing, and privacy redaction.
 - [CLI Reference](CLI.md): command-line usage for ingest, lint, query, service, and debugging.
 - [API Reference](API.md): FastAPI endpoints and boundary rules.
