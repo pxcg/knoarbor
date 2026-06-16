@@ -166,7 +166,7 @@ function WikiPageRow({ page, active, onClick }: { page: PageSummary; active: boo
 
 function askAboutPage(context: AppContext, detail: PageDetail) {
   const title = detail.summary.title || detail.path;
-  context.openChatWithPrompt(`请阅读并解释知识库页面「${title}」（${detail.path}），结合页面内容回答我的后续问题。`, context.activeVaultId);
+  context.openChatWithPrompt(`请阅读并解释「${title}」（${detail.path}），并回答我的后续问题。`, context.activeVaultId);
 }
 
 function PageMetadata({ detail, t }: { detail: PageDetail; t: (key: string) => string }) {

@@ -285,5 +285,5 @@ function openResultGraph(context: AppContext, vault: VaultOption, path: string) 
 
 function askAboutResult(context: AppContext, vault: VaultOption, result: QueryResult) {
   const title = result.title || result.path;
-  context.openChatWithPrompt(`请基于知识库页面「${title}」（${result.path}）回答，并说明它和我当前问题的关系。`, vault.id);
+  context.openChatWithPrompt(`请解释「${title}」（${result.path}），并说明它和我当前问题的关系。`, vault.id);
 }

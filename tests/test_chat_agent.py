@@ -815,7 +815,7 @@ class ChatAgentServiceTest(unittest.TestCase):
                     "reason": "mistaken direct answer",
                     "confidence": 0.9,
                 },
-                {"answer": "Agent Loop 需要基于知识库回答。", "citations": []},
+                {"answer": "Agent Loop 需要查询维护后的 Wiki 页面后回答。", "citations": []},
             ]
         )
         services = FakeServices()
