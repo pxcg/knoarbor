@@ -24,6 +24,13 @@ type ChatTurn = {
   citations?: ChatCitation[];
 };
 
+type ChatFollowup = {
+  kind: "question" | "page";
+  label: string;
+  prompt?: string;
+  citation?: ChatCitation;
+};
+
 const exampleKeys = ["chatExampleAgentLoop", "chatExampleLint", "chatExampleRag", "chatExampleReadPage"];
 
 export function ChatPage({ context }: Props) {
@@ -194,10 +201,13 @@ export function ChatPage({ context }: Props) {
   return (
     <section className="view active chat-page">
       <div className="chat-layout">
-        <aside className="panel chat-session-sidebar">
+        <aside className="chat-session-sidebar">
           <div className="chat-session-sidebar-header">
-            <strong>{context.t("chatSessions")}</strong>
-            <button className="icon-button" type="button" onClick={newSession} disabled={isSending} title={context.t("chatNewSession")}>
+            <span>
+              <strong>{context.t("chatSessions")}</strong>
+              <small>{recentSessions.length ? `${recentSessions.length} ${context.t("chatSessions").toLowerCase()}` : context.t("chatNoSessions")}</small>
+            </span>
+            <button className="icon-button chat-new-button" type="button" onClick={newSession} disabled={isSending} title={context.t("chatNewSession")} aria-label={context.t("chatNewSession")}>
               +
             </button>
           </div>
@@ -207,7 +217,8 @@ export function ChatPage({ context }: Props) {
             {recentSessions.map((session) => (
               <div className={`chat-session-row ${session.session_id === sessionId ? "active" : ""}`} key={session.session_id}>
                 <button type="button" onClick={() => void restoreSession(session.session_id)} disabled={isSending} title={session.title}>
-                  {session.title}
+                  <span className="chat-session-title">{session.title}</span>
+                  <span className="chat-session-preview">{session.last_message || formatSessionDate(session.updated_at)}</span>
                 </button>
                 <details className="chat-session-menu">
                   <summary aria-label={context.t("chatSessionActions")} title={context.t("chatSessionActions")}>⋯</summary>
@@ -233,13 +244,15 @@ export function ChatPage({ context }: Props) {
             ))}
           </div>
         </aside>
-        <article className="panel chat-thread-panel">
+        <article className="chat-thread-panel">
           <div className="chat-thread">
             {!hasConversation && (
               <div className="chat-empty-state">
-                <span className="chat-eyebrow">{context.t("chatIntroEyebrow")}</span>
-                <h2>{context.t("chatIntroTitle")}</h2>
-                <p>{context.t("chatIntroCopy")}</p>
+                <div className="chat-empty-header">
+                  <span className="chat-eyebrow">{context.t("chatIntroEyebrow")}</span>
+                  <h2>{context.t("chatIntroTitle")}</h2>
+                  <p>{context.t("chatIntroCopy")}</p>
+                </div>
                 <div className="chat-suggestion-grid" aria-label={context.t("chatSuggested")}>
                   {exampleKeys.map((key) => {
                     const example = context.t(key);
@@ -262,13 +275,26 @@ export function ChatPage({ context }: Props) {
                     <p>{turn.content}</p>
                   )}
                   {!!turn.citations?.length && <CitationList citations={turn.citations} context={context} />}
+                  {turn.role === "assistant" && !!turn.citations?.length && (
+                    <ChatFollowups
+                      citations={turn.citations}
+                      context={context}
+                      disabled={isSending}
+                      onAsk={(prompt) => void submit(prompt)}
+                    />
+                  )}
                 </div>
               </div>
             ))}
             {isSending && (
               <div className="chat-message assistant">
                 <div className="chat-bubble">
-                  <p className="muted-text">{context.t("chatThinking")}</p>
+                  <div className="chat-thinking">
+                    <span />
+                    <span />
+                    <span />
+                    <p>{context.t("chatThinking")}</p>
+                  </div>
                 </div>
               </div>
             )}
@@ -292,6 +318,7 @@ export function ChatPage({ context }: Props) {
                 type="button"
                 onClick={isSending ? stopSending : () => void submit()}
                 disabled={!isSending && !input.trim()}
+                title={isSending ? context.t("chatStop") : context.t("chatSend")}
               >
                 {isSending ? context.t("chatStop") : context.t("chatSend")}
               </button>
@@ -321,6 +348,13 @@ function sessionRecordToTurns(record: Awaited<ReturnType<typeof readChatSession>
       content: message.content,
       citations: message.role === "assistant" ? record.citations : undefined,
     }));
+}
+
+function formatSessionDate(value: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function ChatMarkdownAnswer({ content, citations, context }: { content: string; citations: ChatCitation[]; context: AppContext }) {
@@ -396,6 +430,115 @@ function CitationList({ citations, context, compact = false }: { citations: Chat
       </div>
     </details>
   );
+}
+
+function ChatFollowups({ citations, context, disabled, onAsk }: { citations: ChatCitation[]; context: AppContext; disabled: boolean; onAsk: (prompt: string) => void }) {
+  const followups = buildChatFollowups(citations, context);
+  if (!followups.length) return null;
+  const questions = followups.filter((item) => item.kind === "question");
+  const pages = followups.filter((item) => item.kind === "page");
+  return (
+    <div className="chat-followups">
+      <span className="chat-followups-title">{context.t("chatFollowups")}</span>
+      {!!questions.length && (
+        <div className="chat-followup-row" aria-label={context.t("chatFollowupQuestions")}>
+          {questions.map((item) => (
+            <button key={item.label} type="button" disabled={disabled} onClick={() => item.prompt && onAsk(item.prompt)}>
+              <span>{context.t("chatAskFollowup")}</span>
+              <strong>{item.label}</strong>
+            </button>
+          ))}
+        </div>
+      )}
+      {!!pages.length && (
+        <div className="chat-followup-row pages" aria-label={context.t("chatFollowupPages")}>
+          {pages.map((item) => (
+            <button key={item.label} type="button" onClick={() => item.citation && openCitation(item.citation, context)}>
+              <span>{context.t("chatOpenPage")}</span>
+              <strong>{item.label}</strong>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function buildChatFollowups(citations: ChatCitation[], context: AppContext): ChatFollowup[] {
+  const pages = uniquePageCitations(citations).filter((citation) => citation.kind === "page" && citation.path);
+  if (!pages.length) return [];
+  const answerPages = pages.filter((citation) => citation.role !== "source" && !citation.path?.startsWith("sources/"));
+  const primary = answerPages.find((citation) => citation.role === "primary") || answerPages[0] || pages[0];
+  const supporting = answerPages.filter((citation) => citation.path !== primary.path).slice(0, 2);
+  const questions = uniqueFollowups([
+    questionForPage(primary, context, "primary"),
+    supporting[0] ? relationQuestion(primary, supporting[0], context) : undefined,
+    supporting[1] ? relationQuestion(primary, supporting[1], context) : undefined,
+  ]).slice(0, 3);
+  const pageSuggestions = [...answerPages, ...pages.filter((citation) => citation.role === "source")]
+    .slice(0, 3)
+    .map((citation) => ({
+      kind: "page" as const,
+      label: citationTitle(citation),
+      citation,
+    }));
+  return [...questions, ...pageSuggestions];
+}
+
+function uniquePageCitations(citations: ChatCitation[]) {
+  const seen = new Set<string>();
+  const unique: ChatCitation[] = [];
+  for (const citation of citations) {
+    const key = `${citation.kind}:${citation.vault_id || ""}:${citation.path || citation.run_id || citation.title || ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(citation);
+  }
+  return unique;
+}
+
+function uniqueFollowups(items: Array<ChatFollowup | undefined>) {
+  const seen = new Set<string>();
+  const unique: ChatFollowup[] = [];
+  for (const item of items) {
+    if (!item || seen.has(item.label)) continue;
+    seen.add(item.label);
+    unique.push(item);
+  }
+  return unique;
+}
+
+function questionForPage(citation: ChatCitation, context: AppContext, role: "primary" | "supporting"): ChatFollowup {
+  const title = citationTitle(citation);
+  const isZh = context.language === "zh";
+  const looksLikeComparison = /vs|versus|compare|comparison|对比|区别/i.test(title);
+  let prompt: string;
+  if (looksLikeComparison) {
+    prompt = isZh ? `详细总结 ${title} 的主要差异和适用场景` : `Summarize the key differences and use cases in ${title}`;
+  } else if (role === "primary") {
+    prompt = isZh ? `进一步解释 ${title} 的关键机制和实践要点` : `Explain the key mechanisms and practical takeaways of ${title}`;
+  } else {
+    prompt = isZh ? `展开讲讲 ${title} 和当前问题的关系` : `Explain how ${title} relates to the current question`;
+  }
+  return { kind: "question", label: prompt, prompt };
+}
+
+function relationQuestion(primary: ChatCitation, supporting: ChatCitation, context: AppContext): ChatFollowup {
+  const primaryTitle = citationTitle(primary);
+  const supportingTitle = citationTitle(supporting);
+  const prompt = context.language === "zh"
+    ? `${primaryTitle} 和 ${supportingTitle} 有什么关系？`
+    : `How are ${primaryTitle} and ${supportingTitle} related?`;
+  return { kind: "question", label: prompt, prompt };
+}
+
+function citationTitle(citation: ChatCitation) {
+  if (citation.title?.trim()) return citation.title.trim();
+  if (citation.path?.trim()) {
+    const name = citation.path.split("/").pop() || citation.path;
+    return name.replace(/\.md$/i, "").replace(/-/g, " ");
+  }
+  return citation.run_id || citation.kind;
 }
 
 function groupCitations(citations: ChatCitation[], context: AppContext) {
