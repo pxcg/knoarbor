@@ -11,6 +11,7 @@ import {
   type ChatCitation,
   type ChatMessageItem,
   type ChatSessionSummary,
+  type ModelProviderSummary,
 } from "../api/client";
 import type { AppContext } from "../App";
 
@@ -42,6 +43,11 @@ export function ChatPage({ context }: Props) {
   const [isSending, setIsSending] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const activeChatAbortRef = useRef<AbortController | null>(null);
+  const chatModelProviders = useMemo(() => context.modelProviders?.providers || [], [context.modelProviders]);
+  const activeChatProvider = useMemo(
+    () => selectedProviderName(context.selectedChatProvider, context.modelProviders?.default_provider, chatModelProviders),
+    [chatModelProviders, context.modelProviders?.default_provider, context.selectedChatProvider],
+  );
   const chatVaultReady = useMemo(() => {
     const selector = context.activeVaultSelector;
     if (!context.configExists || !context.vaultOptions.length) return false;
@@ -134,8 +140,11 @@ export function ChatPage({ context }: Props) {
       const response = await ingestChatSession(context.activeVaultSelector, nextSessionId);
       context.setNotice({
         message: response.run_id ? `${context.t("chatIngestQueued")} ${response.run_id}` : context.t("chatIngestQueued"),
+        actionLabel: context.t("viewRun"),
+        onAction: () => context.navigate("runs"),
       });
       await refreshSessions();
+      await context.refreshAll();
       context.navigate("runs");
     } catch (error) {
       context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
@@ -162,6 +171,7 @@ export function ChatPage({ context }: Props) {
           session_id: sessionId,
           all_vaults: context.activeVaultId === "all",
           max_turns: 6,
+          provider: activeChatProvider || undefined,
         },
         controller.signal,
       );
@@ -218,7 +228,7 @@ export function ChatPage({ context }: Props) {
               <div className={`chat-session-row ${session.session_id === sessionId ? "active" : ""}`} key={session.session_id}>
                 <button type="button" onClick={() => void restoreSession(session.session_id)} disabled={isSending} title={session.title}>
                   <span className="chat-session-title">{session.title}</span>
-                  <span className="chat-session-preview">{session.last_message || formatSessionDate(session.updated_at)}</span>
+                  <SessionLifecycleBadge session={session} context={context} />
                 </button>
                 <details className="chat-session-menu">
                   <summary aria-label={context.t("chatSessionActions")} title={context.t("chatSessionActions")}>⋯</summary>
@@ -313,21 +323,98 @@ export function ChatPage({ context }: Props) {
                 placeholder={context.t("chatPlaceholder")}
                 rows={2}
               />
-              <button
-                className={`button ${isSending ? "secondary" : "primary"} chat-send-button`}
-                type="button"
-                onClick={isSending ? stopSending : () => void submit()}
-                disabled={!isSending && !input.trim()}
-                title={isSending ? context.t("chatStop") : context.t("chatSend")}
-              >
-                {isSending ? context.t("chatStop") : context.t("chatSend")}
-              </button>
+              <div className="chat-input-footer">
+                {!!chatModelProviders.length ? (
+                  <div
+                    className="chat-model-toolbar"
+                    title={chatProviderStatusLabel(activeChatProvider, context)}
+                  >
+                    <select
+                      value={activeChatProvider}
+                      onChange={(event) => context.setSelectedChatProvider(event.target.value)}
+                      disabled={isSending}
+                      aria-label={context.t("model")}
+                    >
+                      {chatModelProviders.map((provider) => (
+                        <option value={provider.name} key={provider.name}>
+                          {modelProviderOptionLabel(provider)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <span />
+                )}
+                <button
+                  className={`button ${isSending ? "secondary" : "primary"} chat-send-button`}
+                  type="button"
+                  onClick={isSending ? stopSending : () => void submit()}
+                  disabled={!isSending && !input.trim()}
+                  title={isSending ? context.t("chatStop") : context.t("chatSend")}
+                >
+                  {isSending ? context.t("chatStop") : context.t("chatSend")}
+                </button>
+              </div>
             </div>
           </div>
         </article>
       </div>
     </section>
   );
+}
+
+function SessionLifecycleBadge({ session, context }: { session: ChatSessionSummary; context: AppContext }) {
+  if (session.last_ingest_run_id) {
+    return <small className="chat-session-badge success">{context.t("chatSessionCompiled")}</small>;
+  }
+  if (session.ingest_candidate?.should_ingest) {
+    return <small className="chat-session-badge">{context.t("chatSessionIngestCandidate")}</small>;
+  }
+  if (session.ingest_candidate) {
+    return <small className="chat-session-badge muted">{context.t("chatSessionCandidateLow")}</small>;
+  }
+  return null;
+}
+
+function selectedProviderName(selected: string, defaultProvider: string | null | undefined, providers: ModelProviderSummary[]) {
+  if (selected && providers.some((provider) => provider.name === selected)) return selected;
+  if (defaultProvider && providers.some((provider) => provider.name === defaultProvider)) return defaultProvider;
+  return providers[0]?.name || "";
+}
+
+function modelProviderOptionLabel(provider: ModelProviderSummary) {
+  return provider.name;
+}
+
+function chatProviderStatus(providerName: string, providers: ModelProviderSummary[], context: AppContext) {
+  const provider = providers.find((item) => item.name === providerName);
+  if (!provider) return "unknown";
+  const result = currentModelProbeResult(provider, context.modelProbeResults[provider.name]);
+  if (!result) return provider.api_key_env && !provider.api_key_configured ? "error" : "unknown";
+  if (result.status === "ok" && result.available) return "ok";
+  if (result.status === "warning" || result.available) return "warning";
+  return "error";
+}
+
+function chatProviderStatusLabel(providerName: string, context: AppContext) {
+  const provider = context.modelProviders?.providers.find((item) => item.name === providerName);
+  if (!provider) return context.t("modelNotChecked");
+  const result = currentModelProbeResult(provider, context.modelProbeResults[provider.name]);
+  if (!result) {
+    if (provider.api_key_env && !provider.api_key_configured) return context.t("envMissing");
+    return context.t("modelNotChecked");
+  }
+  if (result.status === "ok" && result.available) return context.t("modelAvailable");
+  if (result.status === "warning" || result.available) return context.t("modelNeedsAttention");
+  return context.t("modelUnavailable");
+}
+
+function currentModelProbeResult(provider: ModelProviderSummary, result: AppContext["modelProbeResults"][string]) {
+  if (!result) return undefined;
+  if (result.probe?.model === provider.model) return result.probe;
+  const discoveryModels = result.discovery?.model_ids || [];
+  if (result.discovery && (!provider.model || discoveryModels.includes(provider.model))) return result.discovery;
+  return undefined;
 }
 
 function sessionRecordToTurns(record: Awaited<ReturnType<typeof readChatSession>>): ChatTurn[] {

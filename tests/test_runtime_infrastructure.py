@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import io
 import logging
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 
 from knoarbor.runtime import configure_runtime_logging, runtime_logger, vault_write_lock
@@ -35,6 +37,27 @@ class RuntimeInfrastructureTests(unittest.TestCase):
 
             self.assertNotIn("second vault only", first_log.read_text(encoding="utf-8"))
             self.assertIn("second vault only", second_log.read_text(encoding="utf-8"))
+
+    def test_runtime_logging_can_emit_to_console_without_duplicates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            stream = io.StringIO()
+
+            with redirect_stderr(stream):
+                configure_runtime_logging(vault, console=True)
+                configure_runtime_logging(vault, console=True)
+                logger = runtime_logger("unit")
+                logger.info("console log message")
+                for handler in logging.getLogger("knoarbor").handlers:
+                    handler.flush()
+
+            console_handlers = [
+                handler
+                for handler in logging.getLogger("knoarbor").handlers
+                if getattr(handler, "_knoarbor_runtime_console", False)
+            ]
+            self.assertEqual(len(console_handlers), 1)
+            self.assertIn("console log message", stream.getvalue())
 
     def test_vault_write_lock_is_reentrant_in_one_context(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

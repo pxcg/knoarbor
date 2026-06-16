@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import logging
+import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 
-def configure_runtime_logging(vault_path: Path, *, level: int = logging.INFO) -> Path:
+def configure_runtime_logging(vault_path: Path, *, level: int = logging.INFO, console: bool = False) -> Path:
     """Configure process logging for local runtime diagnostics."""
 
     log_path = logs_dir(vault_path) / "knoarbor.log"
@@ -21,6 +22,8 @@ def configure_runtime_logging(vault_path: Path, *, level: int = logging.INFO) ->
         handler.setLevel(level)
         handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
         logger.addHandler(handler)
+    if console:
+        _ensure_console_handler(logger, level=level)
 
     return log_path
 
@@ -57,3 +60,16 @@ def _remove_stale_runtime_handlers(logger: logging.Logger, log_path: Path) -> No
             pass
         logger.removeHandler(handler)
         handler.close()
+
+
+def _ensure_console_handler(logger: logging.Logger, *, level: int) -> None:
+    for handler in list(logger.handlers):
+        if not getattr(handler, "_knoarbor_runtime_console", False):
+            continue
+        logger.removeHandler(handler)
+        handler.close()
+    handler = logging.StreamHandler(sys.stderr)
+    setattr(handler, "_knoarbor_runtime_console", True)
+    handler.setLevel(level)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s", datefmt="%H:%M:%S"))
+    logger.addHandler(handler)

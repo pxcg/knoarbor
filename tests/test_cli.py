@@ -427,6 +427,7 @@ connectors:
         self.assertIn("KnoArbor UI: http://127.0.0.1:8010", output.getvalue())
         self.assertIn("UI alias: http://127.0.0.1:8010/ui", output.getvalue())
         self.assertIn("API docs: http://127.0.0.1:8010/docs", output.getvalue())
+        self.assertIn("Runtime log:", output.getvalue())
         self.assertTrue(user_endpoint_exists)
         uvicorn_run.assert_called_once()
 

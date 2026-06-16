@@ -24,6 +24,7 @@ from knoarbor.services.wiki_linter import WikiLinterService
 from knoarbor.services.wiki_pages import WikiPageService
 from knoarbor.services.wiki_reports import WikiReportService
 from knoarbor.pipelines.lint import WikiLintPipeline, normalize_lint_run_mode
+from knoarbor.runtime import configure_runtime_logging, runtime_logger
 from knoarbor.runtime.run_monitor import list_runs, read_run, read_run_events, request_cancel
 from knoarbor.runtime.endpoint import find_available_port, write_runtime_endpoint
 from knoarbor.semantic import (
@@ -64,8 +65,10 @@ def run_serve(args: argparse.Namespace) -> int:
     port, switched_port = find_available_port(host, preferred_port)
     display_host = "127.0.0.1" if host in {"0.0.0.0", "::"} else host
     base_url = f"http://{display_host}:{port}"
+    config_path = resolve_config_path(args)
+    log_path = configure_runtime_logging(config.vault.path, console=True)
     endpoint_path = write_runtime_endpoint(
-        resolve_config_path(args),
+        config_path,
         host=display_host,
         port=port,
         base_url=base_url,
@@ -80,6 +83,16 @@ def run_serve(args: argparse.Namespace) -> int:
     print(f"UI alias: {base_url}/ui")
     print(f"API docs: {base_url}/docs")
     print(f"Runtime endpoint: {endpoint_path}")
+    print(f"Runtime log: {log_path}")
+    runtime_logger("serve").info(
+        "service_starting host=%s port=%s vault=%s config=%s ui=%s docs=%s",
+        host,
+        port,
+        config.vault.path,
+        config_path,
+        base_url,
+        f"{base_url}/docs",
+    )
     uvicorn.run(create_app(ApplicationServices()), host=host, port=port)
     return 0
 

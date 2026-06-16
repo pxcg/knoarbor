@@ -113,6 +113,28 @@ export type ModelCapabilitySuggestion = {
   json_mode?: boolean | null;
 };
 
+export type ModelProviderSummary = {
+  name: string;
+  adapter: string;
+  base_url?: string | null;
+  model?: string | null;
+  json_mode: boolean;
+  api_key_env?: string | null;
+  api_key_configured: boolean;
+  verify_tls: boolean;
+  tls_ca_file?: string | null;
+  local_or_private: boolean;
+  context_window?: number | null;
+  max_output_tokens?: number | null;
+  default: boolean;
+};
+
+export type ModelProvidersResponse = {
+  schema_version: "model_providers.v1";
+  default_provider?: string | null;
+  providers: ModelProviderSummary[];
+};
+
 export type ModelDiscoveryResponse = {
   schema_version: "model_discovery.v1";
   provider: string;
@@ -158,6 +180,12 @@ export type ModelApplyCapabilitiesResponse = {
   config_path: string;
   saved: boolean;
   applied: Record<string, unknown>;
+};
+
+export type ModelProviderProbeState = {
+  discovery?: ModelDiscoveryResponse;
+  probe?: ModelProbeResponse;
+  lastAction?: "discover" | "minimal" | "structured";
 };
 
 export type ConfigVaultProfile = {
@@ -412,6 +440,19 @@ export type ChatSessionSummary = {
   vault_path?: string | null;
   message_count: number;
   last_message: string;
+  last_ingest_run_id?: string | null;
+  last_ingested_at?: string | null;
+  ingest_candidate?: ChatIngestCandidate | null;
+};
+
+export type ChatIngestCandidate = {
+  should_ingest: boolean;
+  reason: string;
+  user_turns: number;
+  assistant_turns: number;
+  citation_count: number;
+  signal_count: number;
+  signals: string[];
 };
 
 export type ChatSessionRecord = {
@@ -427,6 +468,7 @@ export type ChatSessionRecord = {
   closed_at?: string | null;
   last_ingest_run_id?: string | null;
   last_ingested_at?: string | null;
+  ingest_candidate?: ChatIngestCandidate | null;
   messages: ChatMessageItem[];
   turns: ChatTurnRecord[];
   citations: ChatCitation[];
@@ -623,6 +665,11 @@ export async function saveConfig(configPath: string | null, content: string): Pr
 export async function getConfigForm(configPath?: string | null): Promise<ConfigForm> {
   const suffix = configPath ? `?config_path=${encodeURIComponent(configPath)}` : "";
   return requestJson(`/ui/api/config/form${suffix}`);
+}
+
+export async function getModelProviders(configPath?: string | null): Promise<ModelProvidersResponse> {
+  const suffix = configPath ? `?config_path=${encodeURIComponent(configPath)}` : "";
+  return requestJson(`/models/providers${suffix}`);
 }
 
 export async function getConfigDiagnostics(configPath?: string | null, options: { refreshSourceCounts?: boolean } = {}): Promise<ConfigDiagnostics> {
@@ -832,6 +879,7 @@ export async function sendChatMessage(
     all_vaults?: boolean;
     max_turns?: number;
     session_id?: string | null;
+    provider?: string | null;
   } = {},
   signal?: AbortSignal,
 ): Promise<ChatResponse> {
@@ -849,6 +897,7 @@ export async function sendChatMessage(
       messages,
       max_turns: options.max_turns || 6,
       include_trace: true,
+      provider: options.provider || undefined,
     },
   });
 }
@@ -888,6 +937,8 @@ export async function ingestChatSession(selector: VaultSelector, sessionId: stri
       write: true,
       write_report: true,
       append_ledger: true,
+      auto_scoped_lint: true,
+      auto_apply_safe_lint_fixes: true,
     },
   });
 }

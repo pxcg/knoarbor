@@ -8,12 +8,10 @@ import {
   getConfigForm,
   probeModelProvider,
   saveConfig,
-  saveConfigForm,
-  type ConfigForm,
-  type ModelCapabilitySuggestion,
-  type ModelDiscoveryResponse,
-  type ModelProbeResponse,
-} from "../api/client";
+	  saveConfigForm,
+	  type ConfigForm,
+	  type ModelCapabilitySuggestion,
+	} from "../api/client";
 import type { AppContext } from "../App";
 import { ConfigDiagnosticsPanel } from "../components/config/ConfigDiagnosticsPanel";
 import {
@@ -33,7 +31,6 @@ export function ConfigPage({ context, embedded = false }: Props) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<ConfigForm | null>(null);
   const [activeSection, setActiveSection] = useState<ConfigSectionId>("basic");
-  const [modelProbeResults, setModelProbeResults] = useState<Record<string, ModelProviderProbeState>>({});
 
   const formQuery = useQuery({
     queryKey: ["config-form", context.configPath],
@@ -64,6 +61,7 @@ export function ConfigPage({ context, embedded = false }: Props) {
   async function updateSettingsFromDisk() {
     await queryClient.invalidateQueries({ queryKey: ["config-form"] });
     await queryClient.invalidateQueries({ queryKey: ["config-diagnostics"] });
+    await queryClient.invalidateQueries({ queryKey: ["models", "providers"] });
     await formQuery.refetch();
     await diagnosticsQuery.refetch();
     await context.refreshAll();
@@ -106,6 +104,7 @@ export function ConfigPage({ context, embedded = false }: Props) {
     context.setSummary(response.summary || {});
     await queryClient.invalidateQueries({ queryKey: ["config-form"] });
     await queryClient.invalidateQueries({ queryKey: ["config-diagnostics"] });
+    await queryClient.invalidateQueries({ queryKey: ["models", "providers"] });
     return response.config_path;
   }
 
@@ -115,7 +114,7 @@ export function ConfigPage({ context, embedded = false }: Props) {
       return discoverModelProvider(configPath, provider);
     },
     onSuccess: (result) => {
-      setModelProbeResults((current) => ({
+      context.setModelProbeResults((current) => ({
         ...current,
         [result.provider]: { ...(current[result.provider] || {}), discovery: result, lastAction: "discover" },
       }));
@@ -131,7 +130,7 @@ export function ConfigPage({ context, embedded = false }: Props) {
       return probeModelProvider(configPath, provider, level);
     },
     onSuccess: (result) => {
-      setModelProbeResults((current) => ({
+      context.setModelProbeResults((current) => ({
         ...current,
         [result.provider]: { ...(current[result.provider] || {}), probe: result, lastAction: result.level },
       }));
@@ -193,9 +192,9 @@ export function ConfigPage({ context, embedded = false }: Props) {
               {activeSection === "models" && (
                 <ConfigModelProvidersSection
                   form={form}
-                  setForm={setForm}
-                  t={context.t}
-                  probeResults={modelProbeResults}
+	                  setForm={setForm}
+	                  t={context.t}
+	                  probeResults={context.modelProbeResults}
                   pendingAction={modelActionKey(discoverMutation.variables, "discover", discoverMutation.isPending) || modelActionKey(probeMutation.variables, undefined, probeMutation.isPending) || modelActionKey(applyCapabilitiesMutation.variables, "apply", applyCapabilitiesMutation.isPending)}
                   onDiscover={(provider) => discoverMutation.mutate(provider)}
                   onProbe={(provider, level) => probeMutation.mutate({ provider, level })}
@@ -220,12 +219,6 @@ export function ConfigPage({ context, embedded = false }: Props) {
 }
 
 type ConfigSectionId = "basic" | "inputs" | "preprocessing" | "runtime" | "models" | "diagnostics" | "advanced";
-
-export type ModelProviderProbeState = {
-  discovery?: ModelDiscoveryResponse;
-  probe?: ModelProbeResponse;
-  lastAction?: "discover" | "minimal" | "structured";
-};
 
 function modelActionKey(
   variables: unknown,

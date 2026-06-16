@@ -17,6 +17,7 @@ import {
   getPages,
   getGraph,
   getHealth,
+  getModelProviders,
   getVaults,
   getQueryTrends,
   getActiveRuns,
@@ -26,6 +27,8 @@ import {
   type ConfigSummary,
   type DoctorReport,
   type GraphResponse,
+  type ModelProviderProbeState,
+  type ModelProvidersResponse,
   type PageSummary,
   type QueryTrendResponse,
   type QueryResult,
@@ -122,6 +125,8 @@ export function App() {
   const [pendingChatPrompt, setPendingChatPrompt] = useState("");
   const [focusedReportPath, setFocusedReportPath] = useState<string | null>(null);
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
+  const [modelProbeResults, setModelProbeResultsState] = useState<Record<string, ModelProviderProbeState>>(() => readStoredModelProbeResults());
+  const [selectedChatProvider, setSelectedChatProviderState] = useState(() => localStorage.getItem("knoarbor.chatProvider") || "");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("knoarbor.sidebarCollapsed") === "true");
   const [selectedVaultId, setSelectedVaultId] = useState(() =>
     localStorage.getItem("knoarbor.activeVaultId.userSet") === "true"
@@ -155,6 +160,13 @@ export function App() {
 
   const effectiveConfigPath = configQuery.data?.config_path ?? configPath;
   const effectiveSummary = configQuery.data?.summary || summary;
+  const modelProvidersQuery = useQuery({
+    queryKey: queryKeys.modelProviders(effectiveConfigPath),
+    queryFn: () => getModelProviders(effectiveConfigPath),
+    enabled: configQuery.isSuccess,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
   const vaultsQuery = useQuery({
     queryKey: queryKeys.vaults(effectiveConfigPath),
     queryFn: () => getVaults(effectiveConfigPath),
@@ -256,6 +268,7 @@ export function App() {
   const queryTrend = queryTrendQuery.data || null;
   const activeRuns = activeRunsQuery.data?.runs || [];
   const recentRuns = recentRunsQuery.data?.runs || [];
+  const modelProviders = modelProvidersQuery.data || null;
   const vaultOverviews = vaultOptions.length > 1
     ? concreteOptions.map((vault, index) => {
       const query = vaultOverviewQueries[index];
@@ -297,6 +310,20 @@ export function App() {
     setFocusedPageId(null);
     setFocusedWikiPath(null);
     setFocusedReportPath(null);
+  }, []);
+
+  const setModelProbeResults: Dispatch<SetStateAction<Record<string, ModelProviderProbeState>>> = useCallback((value) => {
+    setModelProbeResultsState((current) => {
+      const next = typeof value === "function" ? value(current) : value;
+      localStorage.setItem("knoarbor.modelProbeResults", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const setSelectedChatProvider = useCallback((next: string) => {
+    if (next) localStorage.setItem("knoarbor.chatProvider", next);
+    else localStorage.removeItem("knoarbor.chatProvider");
+    setSelectedChatProviderState(next);
   }, []);
 
   const loadVaultState = useCallback(async (vault: VaultOption = activeConcreteVault, scope: VaultRefreshScope = {}) => {
@@ -409,6 +436,9 @@ export function App() {
       }
       if (activeView === "query") {
         refreshTasks.push(queryClient.fetchQuery({ queryKey: queryKeys.queryTrends(nextVault.id), queryFn: () => getQueryTrends(nextSelector), staleTime: 0 }));
+      }
+      if (activeView === "chat" || activeView === "settings") {
+        refreshTasks.push(queryClient.fetchQuery({ queryKey: queryKeys.modelProviders(configResult.config_path), queryFn: () => getModelProviders(configResult.config_path), staleTime: 0 }));
       }
       await Promise.all(refreshTasks);
       return true;
@@ -551,6 +581,11 @@ export function App() {
       recentRuns,
       reports,
       serviceOnline,
+      modelProviders,
+      modelProbeResults,
+      selectedChatProvider: selectedChatProvider || modelProviders?.default_provider || effectiveSummary.default_provider || "",
+      setModelProbeResults,
+      setSelectedChatProvider,
       setConfigContent,
       setConfigPath,
       setConfigExists,
@@ -607,6 +642,11 @@ export function App() {
       recentRuns,
       reports,
       serviceOnline,
+      modelProviders,
+      modelProbeResults,
+      selectedChatProvider,
+      setModelProbeResults,
+      setSelectedChatProvider,
       setActiveRunsCached,
       status,
       effectiveSummary,
@@ -656,7 +696,7 @@ export function App() {
       activeVaultId={activeVaultId}
       onSetActiveVault={setActiveVaultId}
     >
-        {notice && (
+        {notice && activeView !== "chat" && activeView !== "settings" && (
           <section className={`notice ${notice.error ? "error" : ""}`}>
             <span>{notice.message}</span>
             {notice.actionLabel && notice.onAction && (
@@ -716,6 +756,11 @@ export type AppContext = {
   recentRuns: RunRecord[];
   reports: ReportSummary[];
   serviceOnline: boolean | null;
+  modelProviders: ModelProvidersResponse | null;
+  modelProbeResults: Record<string, ModelProviderProbeState>;
+  selectedChatProvider: string;
+  setModelProbeResults: Dispatch<SetStateAction<Record<string, ModelProviderProbeState>>>;
+  setSelectedChatProvider: (provider: string) => void;
   setConfigContent: Dispatch<SetStateAction<string>>;
   setConfigPath: Dispatch<SetStateAction<string | null>>;
   setConfigExists: Dispatch<SetStateAction<boolean>>;
@@ -779,4 +824,15 @@ async function fetchVaultOverview(vault: VaultOption, configPath: string | null)
     reports: reportsResult.status === "fulfilled" ? reportsResult.value.reports : [],
     error: error?.status === "rejected" ? String(error.reason instanceof Error ? error.reason.message : error.reason) : null,
   };
+}
+
+function readStoredModelProbeResults(): Record<string, ModelProviderProbeState> {
+  try {
+    const raw = localStorage.getItem("knoarbor.modelProbeResults");
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
 }

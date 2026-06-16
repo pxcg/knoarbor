@@ -1,8 +1,7 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { useState } from "react";
 
-import type { ConfigForm, ConfigFormProvider, ConfigVaultProfile, ModelCapabilitySuggestion } from "../../api/client";
-import type { ModelProviderProbeState } from "../../pages/ConfigPage";
+import type { ConfigForm, ConfigFormProvider, ConfigVaultProfile, ModelCapabilitySuggestion, ModelProviderProbeState } from "../../api/client";
 import { BrandIcon, type BrandIconName } from "../BrandIcon";
 
 type SectionProps = {
@@ -614,7 +613,7 @@ export function ConfigModelProvidersSection({
 }
 
 function providerRuntimeStatus(provider: ConfigFormProvider, result: ModelProviderProbeState | undefined, t: (key: string) => string): ProviderRuntimeStatus {
-  const latest = result?.probe || result?.discovery;
+  const latest = currentModelProbeResult(provider, result);
   if (latest) {
     if (latest.status === "ok" && latest.available) {
       return {
@@ -661,6 +660,14 @@ function providerRuntimeStatus(provider: ConfigFormProvider, result: ModelProvid
     detail: hasMinimumConfig ? `${provider.model} · ${t("modelNotCheckedCopy")}` : t("providerMissingRequiredFields"),
     checked: false,
   };
+}
+
+function currentModelProbeResult(provider: ConfigFormProvider, result: ModelProviderProbeState | undefined) {
+  if (!result) return undefined;
+  if (result.probe?.model === provider.model) return result.probe;
+  const discoveryModels = result.discovery?.model_ids || [];
+  if (result.discovery && (!provider.model || discoveryModels.includes(provider.model))) return result.discovery;
+  return undefined;
 }
 
 function ModelProbeResultPanel({
