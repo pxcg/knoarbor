@@ -30,6 +30,7 @@ env/
 .coverage
 htmlcov/
 eval_results/
+tmp/
 dist/
 build/
 *.egg-info/
