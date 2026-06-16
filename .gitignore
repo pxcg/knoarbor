@@ -39,6 +39,7 @@ web/dist/
 web/*.tsbuildinfo
 web/test-results/
 web/playwright-report/
+.playwright-cli/
 knoarbor_logo_asset_kit/
 n8n/
 
