@@ -29,6 +29,7 @@ env/
 .mypy_cache/
 .coverage
 htmlcov/
+eval_results/
 dist/
 build/
 *.egg-info/
