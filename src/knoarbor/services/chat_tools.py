@@ -111,7 +111,7 @@ class ChatToolExecutor:
                 vault_path=result.vault_path,
                 reason=result.reason,
             )
-            for result in _primary_first_results(response.results, primary_pages)
+            for result in _ordered_chat_citations(response.results, primary_pages, prefer_sources=query_prefers_source_page(query))
         ]
         result = {
             "query": response.query,
@@ -149,6 +149,8 @@ class ChatToolExecutor:
         page_path = str(arguments.get("page_path") or arguments.get("path") or "").strip()
         if not page_path:
             raise UserInputError("read_wiki_page requires page_path")
+        original_page_path = page_path
+        page_path = _answer_page_for_source_read(page_path, latest_user_text(self.request.messages), self.existing_session) or page_path
         requested_vault_id = _concrete_argument_vault_id(arguments, self.request.vault_id)
         if requested_vault_id is None:
             requested_vault_id = _vault_id_for_prior_page(page_path, self.existing_session)
@@ -170,7 +172,10 @@ class ChatToolExecutor:
             "vault_path": str(vault.path),
             "truncated": False,
         }
-        return ChatToolTraceItem(tool="read_wiki_page", arguments=arguments, summary=f"Read wiki page {page.path}.", citations=[citation], result=result)
+        summary = f"Read wiki page {page.path}."
+        if original_page_path != page_path:
+            summary = f"Read wiki page {page.path} instead of source digest {original_page_path}."
+        return ChatToolTraceItem(tool="read_wiki_page", arguments=arguments, summary=summary, citations=[citation], result=result)
 
     def _reuse_context(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
         prior = _latest_reusable_trace(self.existing_session, arguments.get("page_paths"))
@@ -244,12 +249,52 @@ def _vault_id_for_prior_page(page_path: str, existing_session: ChatSessionRecord
     return None
 
 
+def _answer_page_for_source_read(page_path: str, query: str, existing_session: ChatSessionRecord | None) -> str | None:
+    if not page_path.startswith("sources/") or query_prefers_source_page(query) or existing_session is None:
+        return None
+    trace_items = [item for turn in existing_session.turns for item in turn.tool_trace] or existing_session.tool_trace
+    for item in reversed(trace_items):
+        pack = item.result.get("evidence_pack")
+        if not isinstance(pack, dict):
+            continue
+        answer_path = _first_answer_page_path(pack)
+        if answer_path:
+            return answer_path
+    return None
+
+
+def _first_answer_page_path(pack: dict[str, Any]) -> str | None:
+    for key in ("primary_pages", "supporting_pages"):
+        pages = pack.get(key) if isinstance(pack.get(key), list) else []
+        for page in pages:
+            if not isinstance(page, dict) or not page.get("path"):
+                continue
+            path = str(page["path"])
+            if page.get("type") != "source" and not path.startswith("sources/"):
+                return path
+    primary_page = pack.get("primary_page")
+    if isinstance(primary_page, dict) and primary_page.get("path"):
+        path = str(primary_page["path"])
+        if primary_page.get("type") != "source" and not path.startswith("sources/"):
+            return path
+    return None
+
+
 def _primary_first_results(results: list[WikiSearchResult], primary: WikiSearchResult | list[WikiSearchResult] | None) -> list[WikiSearchResult]:
     if primary is None:
         return results
     primary_pages = primary if isinstance(primary, list) else [primary]
     primary_keys = {(result.path, result.vault_id) for result in primary_pages}
     return [*primary_pages, *[result for result in results if (result.path, result.vault_id) not in primary_keys]]
+
+
+def _ordered_chat_citations(results: list[WikiSearchResult], primary: WikiSearchResult | list[WikiSearchResult] | None, *, prefer_sources: bool) -> list[WikiSearchResult]:
+    ordered = _primary_first_results(results, primary)
+    if prefer_sources:
+        return ordered
+    answer_pages = [result for result in ordered if result.type != "source"]
+    source_pages = [result for result in ordered if result.type == "source"]
+    return [*answer_pages, *source_pages]
 
 
 def _fallback_primary_results(results: list[WikiSearchResult], query: str) -> list[WikiSearchResult]:

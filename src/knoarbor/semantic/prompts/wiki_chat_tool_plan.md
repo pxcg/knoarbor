@@ -14,7 +14,7 @@ Return exactly one JSON object. Do not return markdown fences or explanatory pro
 {
   "tool_calls": [
     {
-      "name": "query_wiki | read_wiki_page | reuse_context | answer_directly",
+      "name": "query_wiki | read_wiki_page | reuse_context | answer_directly | finish_answer",
       "arguments": {}
     }
   ],
@@ -33,14 +33,31 @@ Return exactly one JSON object. Do not return markdown fences or explanatory pro
   - arguments: optional `page_paths` array.
 - `answer_directly`: answer without wiki tools only for greetings, UI questions, or questions that do not need wiki evidence.
   - arguments: optional `reason` string.
+- `finish_answer`: stop gathering evidence and let the answer writer synthesize the final response.
+  - arguments: optional `reason` string.
 
 ## Planning Rules
 
-- Prefer `reuse_context` for direct follow-ups such as "继续", "它呢", "两者区别", or "展开第二点" when prior evidence pages cover the topic.
-- Use `query_wiki` when the user introduces a new topic, asks a broad question, or prior evidence is weak.
-- Use `read_wiki_page` when the user asks for a known page, full page details, or exact content from a page path already available in prior evidence.
-- You may combine `reuse_context` with `read_wiki_page` when a follow-up needs one known page in more detail.
+- Use `finish_answer` when current evidence context says `needs_more_evidence` is false. Do not keep searching only to make an already sufficient answer more exhaustive.
+- Use `reuse_context` when the latest message is a direct follow-up and prior evidence covers the same topic, facet, or cited page.
+- Use `read_wiki_page` when the user asks for full detail from a known cited page, or current evidence recommends `read_wiki_page`.
+- Use `query_wiki` when the user introduces a new topic, asks a broader/different facet, current evidence is weak, or current evidence recommends `query_wiki`.
+- When refining a failed or weak search, do not repeat the same query in `executed_queries`; rewrite the query toward the likely canonical wiki topic.
+- Prefer prior `preferred_read_pages` and `answer_page_paths` for follow-up detail. Treat `source_page_paths` as provenance unless the user asks about sources, origin, raw material, citations, or page paths.
+- For relationship/comparison follow-ups, reuse context if both objects are already covered; otherwise query the missing object or comparison.
+- For "展开/详细/举例" follow-ups, prefer `read_wiki_page` for the most relevant known primary page.
+- If current evidence already contains at least one primary page plus useful supporting pages, prefer `finish_answer` unless the user explicitly asks for another object, source, or full page text.
+- If a query returns source digest pages and maintained answer pages, treat the maintained answer pages as the answer target. Read a source digest only for provenance/source questions.
+- Keep query text canonical and concise. Prefer the durable topic name over the user's whole sentence when refining a query.
 - Do not use more than three tool calls.
 - Tool call objects must use the exact field name `name`. Do not use `tool_name`.
 - Use only the tool names listed above.
 - Keep `confidence` between 0 and 1.
+
+## Examples
+
+- User: "它和 OpenClaw 的关系是什么？" with prior Agent Loop evidence that includes OpenClaw -> `reuse_context`, then `finish_answer`.
+- User: "再展开讲一下控制模式" with prior primary page `concepts/Agent-Loop-and-Control-Patterns.md` -> `read_wiki_page` for that page, then `finish_answer`.
+- User: "再展开讲一下它" with both `answer_page_paths` and `source_page_paths` -> read an answer page, not the source digest.
+- Current evidence: no primary page, weak coverage, executed query "agent" -> `query_wiki` with a more specific canonical query such as "Agent Loop control patterns".
+- User: "请给出这个页面全文" with a cited path -> `read_wiki_page`.

@@ -117,7 +117,22 @@ Wiki 问答入口：KnoArbor 会先规划受限的 Wiki 工具，在服务守卫
   "memory_writes": [],
   "stats": {
     "retrieval_strategy": "model_planned_tools",
-    "tool_plan": {"tool_calls": [{"name": "query_wiki", "arguments": {"query": "Agent Loop 是什么？"}}]},
+    "tool_plan": {
+      "tool_calls": [
+        {"name": "query_wiki", "arguments": {"query": "Agent Loop 是什么？"}},
+        {"name": "finish_answer", "arguments": {"reason": "evidence is sufficient"}}
+      ]
+    },
+    "tool_plans": [
+      {
+        "tool_calls": [
+          {"name": "query_wiki", "arguments": {"query": "Agent Loop 是什么？"}},
+          {"name": "finish_answer", "arguments": {"reason": "evidence is sufficient"}}
+        ]
+      }
+    ],
+    "evidence_rounds": 1,
+    "evidence_stop_reason": "evidence_sufficient",
     "model_calls": 2,
     "tool_calls": 1,
     "memory_used": 0,
@@ -128,9 +143,10 @@ Wiki 问答入口：KnoArbor 会先规划受限的 Wiki 工具，在服务守卫
 }
 ```
 
-当需要 KnoArbor 在控制台内综合回答时使用 `/chat`；当另一个宿主 AI
-需要拿到证据并自行生成最终回答时使用 `/query`。写入和维护工作流应直接
-调用 `/ingest` 与 `/lint`。
+当需要 KnoArbor 在控制台内综合回答时使用 `/chat`。Chat 在同一轮用户问题中
+可以执行多轮受限证据收集：先规划 KnoArbor 工具，执行后再判断是否需要继续
+查证，最后生成带引用的回答。当另一个宿主 AI 需要拿到证据并自行生成最终
+回答时使用 `/query`。写入和维护工作流应直接调用 `/ingest` 与 `/lint`。
 
 Chat 会话默认保存在已维护 Wiki 页面之外。当某次对话需要沉淀为持久 Wiki
 知识时，调用会话入库入口：

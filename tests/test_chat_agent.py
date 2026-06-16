@@ -13,6 +13,7 @@ from knoarbor.semantic.llm import ChatCompletionRequest, ChatCompletionResponse
 from knoarbor.services.chat_agent import ChatAgentService
 from knoarbor.services.chat_sessions import ChatSessionStore
 from knoarbor.services.memory import MemoryService
+from knoarbor.services.wiki_pages import WikiPageDetail, WikiPageSummary
 
 
 class FakeChatClient:
@@ -142,9 +143,32 @@ class FakeWikiSearch:
         )
 
 
+class FakeWikiPages:
+    def __init__(self) -> None:
+        self.read_paths: list[str] = []
+
+    def read_page(self, vault_path, relative_path, *, vault_id=None, vault_name=None):
+        self.read_paths.append(relative_path)
+        return WikiPageDetail(
+            path=relative_path,
+            vault_path=str(vault_path),
+            vault_id=vault_id,
+            vault_name=vault_name,
+            content=f"# {relative_path}\n\nMaintained answer page content.",
+            metadata={},
+            summary=WikiPageSummary(
+                path=relative_path,
+                directory=relative_path.split("/", 1)[0],
+                title=relative_path.rsplit("/", 1)[-1].removesuffix(".md"),
+                summary="Maintained answer page summary.",
+            ),
+        )
+
+
 @dataclass
 class FakeServices:
     wiki_search: FakeWikiSearch = field(default_factory=FakeWikiSearch)
+    wiki_pages: FakeWikiPages = field(default_factory=FakeWikiPages)
     memory: MemoryService = field(default_factory=MemoryService)
     chat_sessions: ChatSessionStore = field(default_factory=ChatSessionStore)
 
@@ -189,6 +213,14 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(response.tool_trace[0].result["supporting_pages"][0]["path"], "concepts/Session-Memory-Architecture-for-Agent-Loops.md")
         self.assertIn("production agent loops", response.tool_trace[0].result["supporting_pages"][0]["content"])
         self.assertEqual(response.tool_trace[0].result["evidence_pack"]["recommended_action"], "answer_from_evidence")
+        self.assertEqual(
+            [citation.path for citation in response.tool_trace[0].citations],
+            [
+                "concepts/Agent-Loop.md",
+                "concepts/Session-Memory-Architecture-for-Agent-Loops.md",
+                "sources/Agent-Loop-Source.md",
+            ],
+        )
         self.assertIn('"primary_page"', client.requests[-1].messages[-1].content)
         self.assertIn('"primary_pages"', client.requests[-1].messages[-1].content)
         self.assertIn('"supporting_pages"', client.requests[-1].messages[-1].content)
@@ -285,6 +317,62 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(pack["recommended_action"], "answer_with_gap")
         self.assertEqual(pack["evidence_coverage"]["status"], "weak")
         self.assertIn("answer_with_gap", client.requests[-1].messages[-1].content)
+
+    def test_weak_evidence_can_trigger_second_retrieval_round(self) -> None:
+        class RefiningWikiSearch(FakeWikiSearch):
+            def search(self, request):
+                if request.query == "unclear agent topic":
+                    self.requests.append(request)
+                    return WikiSearchResponse(
+                        query=request.query,
+                        retrieval_mode=request.mode,
+                        results=[],
+                        answer_set=WikiAnswerSet(reason="No maintained answer page was selected.", stop_reason="no_results"),
+                        evidence_coverage=WikiEvidenceCoverage(status="weak", gap_count=1, missing_facets=["topic"]),
+                        context_pack="No results",
+                        warnings=[],
+                    )
+                return super().search(request)
+
+        @dataclass
+        class RefiningServices(FakeServices):
+            wiki_search: RefiningWikiSearch = field(default_factory=RefiningWikiSearch)
+
+        client = FakeChatClient(
+            [
+                {
+                    "tool_calls": [{"name": "query_wiki", "arguments": {"query": "unclear agent topic", "mode": "balanced", "max_results": 3}}],
+                    "reason": "start with the user's wording",
+                    "confidence": 0.8,
+                },
+                {
+                    "tool_calls": [{"name": "query_wiki", "arguments": {"query": "Agent Loop", "mode": "deep", "max_results": 6}}],
+                    "reason": "current evidence is weak, refine the search",
+                    "confidence": 0.85,
+                },
+                {"answer": "第二轮检索找到了 Agent Loop 维护页面。", "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}]},
+            ]
+        )
+        services = RefiningServices()
+        response = ChatAgentService(client_factory=lambda _request: client).chat(
+            ChatRequest(messages=[ChatMessageItem(role="user", content="unclear agent topic")], vault_path="/tmp/vault", append_ledger=False),
+            services,  # type: ignore[arg-type]
+        )
+
+        self.assertEqual([request.query for request in services.wiki_search.requests], ["unclear agent topic", "Agent Loop"])
+        self.assertEqual([item.tool for item in response.tool_trace], ["query_wiki", "query_wiki"])
+        self.assertEqual(response.stats["model_calls"], 3)
+        self.assertEqual(response.stats["tool_calls"], 2)
+        self.assertEqual(response.stats["evidence_rounds"], 2)
+        self.assertEqual(response.stats["evidence_stop_reason"], "evidence_sufficient")
+        self.assertEqual(len(response.stats["tool_plans"]), 2)
+        self.assertEqual(response.citations[0].path, "concepts/Agent-Loop.md")
+        second_plan_messages = client.requests[1].messages
+        current_context = [message.content for message in second_plan_messages if message.content.startswith("Current turn evidence context:")]
+        self.assertEqual(len(current_context), 1)
+        self.assertIn('"needs_more_evidence": true', current_context[0])
+        self.assertIn('"recommended_next_step": "query_wiki"', current_context[0])
+        self.assertIn('"executed_queries": ["unclear agent topic"]', current_context[0])
 
     def test_source_question_can_use_source_digest_as_primary_page(self) -> None:
         client = FakeChatClient(
@@ -475,6 +563,45 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(len(services.wiki_search.requests), 1)
         self.assertEqual(second.tool_trace[0].tool, "reuse_context")
         self.assertEqual(second.stats["tool_plan"]["tool_calls"][0]["name"], "reuse_context")
+        second_plan_messages = client.requests[-2].messages
+        prior_context = [message.content for message in second_plan_messages if message.content.startswith("Prior evidence context:")]
+        self.assertEqual(len(prior_context), 1)
+        self.assertIn('"answer_page_paths": ["concepts/Agent-Loop.md", "concepts/Session-Memory-Architecture-for-Agent-Loops.md"]', prior_context[0])
+        self.assertIn('"source_page_paths": ["sources/Agent-Loop-Source.md"]', prior_context[0])
+        self.assertIn('"preferred_read_pages": ["concepts/Agent-Loop.md", "concepts/Session-Memory-Architecture-for-Agent-Loops.md"]', prior_context[0])
+
+    def test_followup_source_digest_read_prefers_prior_answer_page(self) -> None:
+        client = FakeChatClient(
+            [
+                {"answer": "Agent Loop 是推理、行动和观察的循环。", "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}]},
+                {
+                    "tool_calls": [
+                        {
+                            "name": "read_wiki_page",
+                            "arguments": {"page_path": "sources/Agent-Loop-Source.md"},
+                        }
+                    ],
+                    "reason": "model picked the source digest by mistake",
+                    "confidence": 0.8,
+                },
+                {"answer": "控制模式来自维护后的概念页面。", "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}]},
+            ]
+        )
+        service = ChatAgentService(client_factory=lambda _request: client)
+        with tempfile.TemporaryDirectory() as tmp:
+            services = FakeServices()
+            first = service.chat(
+                ChatRequest(messages=[ChatMessageItem(role="user", content="Agent Loop 是什么？")], vault_path=tmp, append_ledger=False),
+                services,  # type: ignore[arg-type]
+            )
+            second = service.chat(
+                ChatRequest(session_id=first.session_id, messages=[ChatMessageItem(role="user", content="再展开讲一下控制模式")], vault_path=tmp, append_ledger=False),
+                services,  # type: ignore[arg-type]
+            )
+
+        self.assertEqual(services.wiki_pages.read_paths, ["concepts/Agent-Loop.md"])
+        self.assertIn("instead of source digest sources/Agent-Loop-Source.md", second.tool_trace[0].summary)
+        self.assertEqual(second.tool_trace[0].citations[0].path, "concepts/Agent-Loop.md")
 
     def test_answer_directly_is_guarded_for_knowledge_questions(self) -> None:
         client = FakeChatClient(

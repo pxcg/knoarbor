@@ -298,9 +298,9 @@ KnoArbor 自有边界内。
 
 ```text
 chat request
-  -> bounded chat tool planning
+  -> bounded evidence planning loop
   -> guarded KnoArbor tool execution
-  -> canonical evidence package
+  -> canonical evidence packages
   -> answer synthesis
   -> answer with citations and evidence trace
 ```
@@ -309,7 +309,9 @@ chat request
 
 - 在管理控制台内综合回答。
 - 规划并执行受限的 KnoArbor 工具，例如 `query_wiki`、`read_wiki_page`、
-  `reuse_context` 和 `answer_directly`。
+  `reuse_context`、`answer_directly` 和 `finish_answer`。
+- 当证据覆盖较弱、缺少主页面或已知页面需要全文细节时，在 `max_turns`
+  边界内继续收集证据。
 - 通过代码层守卫确保知识类问题使用 Wiki 证据。
 - 在模型综合前构建页面优先的标准 evidence pack。
 - 向前端展示引用和证据轨迹。

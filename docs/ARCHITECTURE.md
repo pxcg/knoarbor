@@ -309,9 +309,9 @@ keeping all actions inside KnoArbor-owned boundaries.
 
 ```text
 chat request
-  -> bounded chat tool planning
+  -> bounded evidence planning loop
   -> guarded KnoArbor tool execution
-  -> canonical evidence package
+  -> canonical evidence packages
   -> answer synthesis
   -> answer with citations and evidence trace
 ```
@@ -320,7 +320,9 @@ Responsibilities:
 
 - synthesize answers inside the management console;
 - plan and execute bounded KnoArbor tools such as `query_wiki`,
-  `read_wiki_page`, `reuse_context`, and `answer_directly`;
+  `read_wiki_page`, `reuse_context`, `answer_directly`, and `finish_answer`;
+- repeat evidence gathering within `max_turns` when coverage is weak, a primary
+  page is missing, or a known page needs full detail;
 - enforce code-owned guardrails so knowledge questions use wiki evidence;
 - build a canonical page-first evidence package before model synthesis;
 - expose citations and evidence trace to the UI.

@@ -103,9 +103,7 @@
       ],
       "reason": "The query is narrow enough to anchor on concepts/Agent-Loop.md. Source digest pages are kept for provenance.",
       "rejected_candidates": [],
-      "source_paths": [
-        "sources/Agent-Loop-Source.md"
-      ],
+      "source_paths": [],
       "stop_reason": "answer_set_selected",
       "supporting_paths": [
         "entities/OpenClaw.md"

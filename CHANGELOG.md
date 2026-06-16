@@ -6,11 +6,24 @@ This project follows a simple release-note format for public releases.
 
 ## Unreleased
 
+### Changed
+
+- Tightened chat tool-planning and answer-synthesis prompts so chat answers
+  prefer sufficient page evidence, avoid redundant searches, and answer before
+  offering follow-up pages.
+- Clarified branch and release discipline for keeping `main` aligned to public
+  version tags while active work continues on `dev`.
+
+## 1.3.0 - 2026-06-15
+
 ### Added
 
 - Added a first-class vault registry API and CLI surface: `GET /vaults` and
   `knoar vaults list`.
 - Added read-only CLI drilldown commands for maintained wiki pages and workflow reports: `knoar pages ...` and `knoar reports ...`.
+- Added wiki-first chat planning so the assistant can query maintained pages,
+  reuse prior evidence, read known pages, and synthesize grounded answers.
+- Added model discovery improvements for local and OpenAI-compatible providers.
 
 ### Changed
 
@@ -24,6 +37,10 @@ This project follows a simple release-note format for public releases.
 - Clarified that `/query` remains a direct retrieval endpoint returning `wiki_query.v1`, while `/ingest` and `/lint` use the workflow envelope.
 - Updated CLI and API documentation for page/report read commands and workflow response contracts.
 - Synchronized the Python package runtime version with `pyproject.toml`.
+- Refined page-first retrieval so source digest pages are treated as provenance
+  unless the user asks for source details.
+- Refined the management console around chat, vault selection, query, and model
+  settings.
 
 ### Validation
 

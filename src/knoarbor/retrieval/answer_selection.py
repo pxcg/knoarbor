@@ -52,11 +52,11 @@ class AnswerSetSelector:
         )
         selected_paths = {page.path for page in [*selected_primary, *selected_supporting]}
         source_limit = 1 if scope.kind == "narrow" else 3
-        source_paths = [page.path for page in source_pages[:source_limit]]
+        provenance_source_paths = [page.path for page in source_pages[:source_limit]]
         further_reading = [
             result.path
             for result in results
-            if result.path not in selected_paths and result.path not in set(source_paths)
+            if result.path not in selected_paths and result.path not in set(provenance_source_paths)
         ][:3]
         rejected = [*primary_rejections, *supporting_rejections]
         rejected.extend(
@@ -64,17 +64,16 @@ class AnswerSetSelector:
             for result in source_pages[source_limit:]
         )
         selected_answer_paths = {page.path for page in [*selected_primary, *selected_supporting]}
-        selected_answer_paths.update(source_paths)
         rejected = [item for item in rejected if item.path not in selected_answer_paths]
         rejected = _unique_rejections(rejected)
         answer_set = WikiAnswerSet(
             kind="multi_page" if len(selected_primary) + len(selected_supporting) > 1 and scope.kind in {"broad", "exploratory"} else "single_page",
             primary_paths=[page.path for page in selected_primary],
             supporting_paths=[page.path for page in selected_supporting],
-            source_paths=source_paths,
+            source_paths=[],
             further_reading_paths=further_reading,
             rejected_candidates=rejected,
-            reason=selection_reason(scope.kind, selected_primary, selected_supporting, source_paths),
+            reason=selection_reason(scope.kind, selected_primary, selected_supporting, provenance_source_paths),
             stop_reason="answer_set_selected",
         )
         return AnswerSelectionResult(answer_set=answer_set, rejected_candidates=rejected)

@@ -119,7 +119,22 @@ Example response:
   "memory_writes": [],
   "stats": {
     "retrieval_strategy": "model_planned_tools",
-    "tool_plan": {"tool_calls": [{"name": "query_wiki", "arguments": {"query": "Agent Loop 是什么？"}}]},
+    "tool_plan": {
+      "tool_calls": [
+        {"name": "query_wiki", "arguments": {"query": "Agent Loop 是什么？"}},
+        {"name": "finish_answer", "arguments": {"reason": "evidence is sufficient"}}
+      ]
+    },
+    "tool_plans": [
+      {
+        "tool_calls": [
+          {"name": "query_wiki", "arguments": {"query": "Agent Loop 是什么？"}},
+          {"name": "finish_answer", "arguments": {"reason": "evidence is sufficient"}}
+        ]
+      }
+    ],
+    "evidence_rounds": 1,
+    "evidence_stop_reason": "evidence_sufficient",
     "model_calls": 2,
     "tool_calls": 1,
     "memory_used": 0,
@@ -130,10 +145,12 @@ Example response:
 }
 ```
 
-Use `/chat` when KnoArbor should synthesize an answer inside the console. Use
-`/query` when another host AI should receive evidence and generate the final
-answer itself. Use `/ingest` and `/lint` directly for write or maintenance
-workflows.
+Use `/chat` when KnoArbor should synthesize an answer inside the console. Chat
+may run multiple bounded evidence-gathering rounds in one user turn: it plans
+KnoArbor tools, runs them, asks the planner whether more evidence is needed, and
+then writes the final answer. Use `/query` when another host AI should receive
+evidence and generate the final answer itself. Use `/ingest` and `/lint`
+directly for write or maintenance workflows.
 
 Chat sessions are stored outside maintained wiki pages. When a conversation
 should become durable wiki knowledge, use the chat-session ingest endpoint:

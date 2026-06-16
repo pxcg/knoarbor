@@ -120,23 +120,58 @@ class _ChatLoop:
     def run(self) -> ChatResponse:
         self._event("chat_started", message="Chat request started.")
         query = latest_user_text(self.current_messages)
-        plan = self._plan_tools(query)
         executor = ChatToolExecutor(
             request=self.request,
             services=self.services,
             existing_session=self.existing_session,
             event_callback=self._tool_event,
         )
-        observations = executor.execute(plan, query)
-        self.trace.extend(observations)
-        self._event("model_call_started", message="Calling chat answer model.", turn=2, payload={"phase": "answer"})
+        observations: list[ChatToolTraceItem] = []
+        plans: list[ChatToolPlan] = []
+        executed_signatures: set[str] = set()
+        stop_reason = "max_turns"
+        max_evidence_rounds = max(1, self.request.max_turns - 1)
+        evidence_round = 0
+        for evidence_round in range(1, max_evidence_rounds + 1):
+            plan = self._plan_tools(query, observations=observations, turn=evidence_round)
+            plans.append(plan)
+            if _plan_is_finish(plan):
+                if observations or _query_allows_direct_answer(query):
+                    stop_reason = "planner_finished"
+                    break
+                plan = ChatToolPlan(
+                    tool_calls=[{"name": "query_wiki", "arguments": {"query": query, "mode": "balanced", "max_results": 6}}],
+                    reason="Planner tried to finish without evidence; KnoArbor requires wiki evidence for knowledge questions.",
+                    confidence=min(plan.confidence, 0.5),
+                )
+                plans[-1] = plan
+            executable_plan = _executable_plan(plan)
+            if not executable_plan.tool_calls:
+                stop_reason = "no_executable_tools"
+                break
+            signatures = [_tool_signature(call.name, call.arguments) for call in executable_plan.tool_calls]
+            if all(signature in executed_signatures for signature in signatures):
+                stop_reason = "repeated_tool_plan"
+                break
+            executed_signatures.update(signatures)
+            round_observations = executor.execute(executable_plan, query)
+            observations.extend(round_observations)
+            self.trace.extend(round_observations)
+            if _plan_contains_direct_answer(executable_plan):
+                stop_reason = "direct_answer"
+                break
+            if not _needs_more_evidence(round_observations):
+                stop_reason = "evidence_sufficient"
+                break
+        answer_turn = evidence_round + 1
+        self._event("model_call_started", message="Calling chat answer model.", turn=answer_turn, payload={"phase": "answer"})
         answer_result = self.answer_synthesizer.synthesize(
             client=self.client,
             request=self.request,
             initial_messages=self.initial_messages,
             current_messages=self.current_messages,
             observations=observations,
-            turn=2,
+            turn=answer_turn,
             max_tokens=_max_tokens(self.request),
         )
         self.model_calls += 1
@@ -144,20 +179,23 @@ class _ChatLoop:
         self._event(
             "model_call_finished",
             message="Chat answer model call finished.",
-            turn=2,
+            turn=answer_turn,
             payload={"usage": answer_result.completion.usage, "elapsed_seconds": answer_result.completion.elapsed_seconds},
         )
         self.call_records.append(answer_result.call_record)
-        response = self._answer_response(answer_result.draft, turns=2)
+        response = self._answer_response(answer_result.draft, turns=answer_turn)
         response.stats["retrieval_strategy"] = "model_planned_tools"
-        response.stats["tool_plan"] = plan.model_dump()
+        response.stats["tool_plan"] = plans[0].model_dump() if plans else {}
+        response.stats["tool_plans"] = [plan.model_dump() for plan in plans]
+        response.stats["evidence_rounds"] = len(plans)
+        response.stats["evidence_stop_reason"] = stop_reason
         return response
 
-    def _plan_tools(self, query: str) -> ChatToolPlan:
-        messages = _tool_plan_messages(self.initial_messages, self.existing_session)
+    def _plan_tools(self, query: str, *, observations: list[ChatToolTraceItem], turn: int) -> ChatToolPlan:
+        messages = _tool_plan_messages(self.initial_messages, self.existing_session, observations)
         prompt_chars = messages_chars(messages)
         call_started = time.perf_counter()
-        self._event("model_call_started", message="Calling chat tool planner.", turn=1, payload={"phase": "tool_plan"})
+        self._event("model_call_started", message="Calling chat tool planner.", turn=turn, payload={"phase": "tool_plan"})
         completion = self.client.complete(
             ChatCompletionRequest(
                 messages=messages,
@@ -170,7 +208,7 @@ class _ChatLoop:
         self._event(
             "model_call_finished",
             message="Chat tool planner finished.",
-            turn=1,
+            turn=turn,
             payload={"usage": completion.usage, "elapsed_seconds": completion.elapsed_seconds},
         )
         self.call_records.append(
@@ -178,7 +216,7 @@ class _ChatLoop:
                 **completion.usage,
                 "provider": completion.provider,
                 "model": completion.model,
-                "turn": 1,
+                "turn": turn,
                 "phase": "tool_plan",
                 "prompt_chars": prompt_chars,
                 "elapsed_seconds": completion.elapsed_seconds or round(time.perf_counter() - call_started, 3),
@@ -310,18 +348,23 @@ def _parse_tool_plan(content: str) -> ChatToolPlan:
         raise ModelOutputError(f"Chat tool planner returned invalid JSON: {exc}") from exc
 
 
-def _tool_plan_messages(initial_messages: list[ChatMessage], existing_session: ChatSessionRecord | None) -> list[ChatMessage]:
+def _tool_plan_messages(initial_messages: list[ChatMessage], existing_session: ChatSessionRecord | None, observations: list[ChatToolTraceItem] | None = None) -> list[ChatMessage]:
     messages = [ChatMessage(role="system", content=TOOL_PLAN_PROMPT), *initial_messages[1:]]
     prior = _prior_evidence_context(existing_session)
     if prior:
         messages.insert(2, ChatMessage(role="system", content=f"Prior evidence context:\n{json.dumps(prior, ensure_ascii=False)}"))
+    current = _current_evidence_context(observations or [])
+    if current:
+        messages.insert(2, ChatMessage(role="system", content=f"Current turn evidence context:\n{json.dumps(current, ensure_ascii=False)}"))
     return messages
 
 
 def _guard_tool_plan(plan: ChatToolPlan, query: str) -> ChatToolPlan:
     if not plan.tool_calls:
         return plan
-    if any(call.name != "answer_directly" for call in plan.tool_calls):
+    if any(call.name not in {"answer_directly", "finish_answer"} for call in plan.tool_calls):
+        return plan
+    if any(call.name == "finish_answer" for call in plan.tool_calls):
         return plan
     if _query_allows_direct_answer(query):
         return plan
@@ -330,6 +373,130 @@ def _guard_tool_plan(plan: ChatToolPlan, query: str) -> ChatToolPlan:
         reason=f"Planner selected answer_directly for a knowledge request; KnoArbor requires wiki evidence. {plan.reason}".strip(),
         confidence=min(plan.confidence, 0.5),
     )
+
+
+def _plan_is_finish(plan: ChatToolPlan) -> bool:
+    return bool(plan.tool_calls) and all(call.name == "finish_answer" for call in plan.tool_calls)
+
+
+def _plan_contains_direct_answer(plan: ChatToolPlan) -> bool:
+    return any(call.name == "answer_directly" for call in plan.tool_calls)
+
+
+def _executable_plan(plan: ChatToolPlan) -> ChatToolPlan:
+    return plan.model_copy(update={"tool_calls": [call for call in plan.tool_calls if call.name != "finish_answer"]})
+
+
+def _tool_signature(name: str, arguments: dict[str, Any]) -> str:
+    return json.dumps({"name": name, "arguments": arguments}, ensure_ascii=False, sort_keys=True)
+
+
+def _needs_more_evidence(observations: list[ChatToolTraceItem]) -> bool:
+    if not observations:
+        return True
+    if any(item.status == "error" for item in observations):
+        return True
+    if any(item.tool == "read_wiki_page" and item.status == "ok" for item in observations):
+        return False
+    for item in observations:
+        pack = item.result.get("evidence_pack")
+        if not isinstance(pack, dict):
+            continue
+        coverage = pack.get("evidence_coverage") if isinstance(pack.get("evidence_coverage"), dict) else {}
+        if pack.get("recommended_action") != "answer_from_evidence":
+            return True
+        if coverage.get("status") == "weak":
+            return True
+        if not pack.get("primary_pages") and not pack.get("primary_page"):
+            return True
+    return False
+
+
+def _current_evidence_context(observations: list[ChatToolTraceItem]) -> dict[str, object]:
+    if not observations:
+        return {}
+    items = []
+    primary_paths: list[str] = []
+    coverage_statuses: list[str] = []
+    recommended_actions: list[str] = []
+    missing_facets: list[str] = []
+    executed_queries: list[str] = []
+    failed_tools: list[str] = []
+    for item in observations[-6:]:
+        pack = item.result.get("evidence_pack")
+        coverage = pack.get("evidence_coverage") if isinstance(pack, dict) and isinstance(pack.get("evidence_coverage"), dict) else {}
+        item_primary_paths = [str(page.get("path")) for page in pack.get("primary_pages", []) if page.get("path")] if isinstance(pack, dict) else []
+        if isinstance(pack, dict) and pack.get("primary_page") and isinstance(pack.get("primary_page"), dict) and pack["primary_page"].get("path"):
+            item_primary_paths.append(str(pack["primary_page"]["path"]))
+        primary_paths.extend(item_primary_paths)
+        if item.status == "error":
+            failed_tools.append(item.tool)
+        if isinstance(coverage, dict) and coverage.get("status"):
+            coverage_statuses.append(str(coverage["status"]))
+        if isinstance(coverage, dict):
+            missing_facets.extend(str(facet) for facet in coverage.get("missing_facets", []) if str(facet).strip())
+        if isinstance(pack, dict) and pack.get("recommended_action"):
+            recommended_actions.append(str(pack["recommended_action"]))
+        if item.tool == "query_wiki" and item.arguments.get("query"):
+            executed_queries.append(str(item.arguments["query"]))
+        items.append(
+            {
+                "tool": item.tool,
+                "status": item.status,
+                "summary": item.summary,
+                "arguments": item.arguments,
+                "citation_paths": [citation.path for citation in item.citations if citation.path],
+                "recommended_action": pack.get("recommended_action") if isinstance(pack, dict) else None,
+                "coverage_status": coverage.get("status") if isinstance(coverage, dict) else None,
+                "primary_paths": item_primary_paths,
+            }
+        )
+    return {
+        "summary": {
+            "has_primary_page": bool(primary_paths),
+            "primary_paths": _unique_strings(primary_paths),
+            "coverage_statuses": _unique_strings(coverage_statuses),
+            "recommended_actions": _unique_strings(recommended_actions),
+            "missing_facets": _unique_strings(missing_facets),
+            "executed_queries": _unique_strings(executed_queries),
+            "failed_tools": _unique_strings(failed_tools),
+            "needs_more_evidence": _needs_more_evidence(observations),
+            "recommended_next_step": _recommended_next_evidence_step(observations),
+        },
+        "observations": items,
+    }
+
+
+def _recommended_next_evidence_step(observations: list[ChatToolTraceItem]) -> str:
+    if not observations:
+        return "query_wiki"
+    if any(item.status == "error" for item in observations):
+        return "retry_or_refine_tool"
+    if not _needs_more_evidence(observations):
+        return "finish_answer"
+    for item in observations:
+        pack = item.result.get("evidence_pack")
+        if not isinstance(pack, dict):
+            continue
+        primary_pages = pack.get("primary_pages") if isinstance(pack.get("primary_pages"), list) else []
+        if primary_pages:
+            first = primary_pages[0]
+            if isinstance(first, dict) and first.get("path"):
+                return "read_wiki_page"
+        if pack.get("recommended_action") == "read_primary_if_detail_needed":
+            return "read_wiki_page"
+    return "query_wiki"
+
+
+def _unique_strings(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    output: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        output.append(value)
+    return output
 
 
 def _query_allows_direct_answer(query: str) -> bool:
@@ -363,12 +530,18 @@ def _prior_evidence_context(existing_session: ChatSessionRecord | None) -> dict[
     turn_citations = [citation for turn in recent_turns for citation in turn.citations]
     citations = [citation.model_dump(mode="json") for citation in (turn_citations or existing_session.citations)[:8]]
     reusable_tools = []
+    answer_page_paths: list[str] = []
+    source_page_paths: list[str] = []
     trace_items = [item for turn in recent_turns for item in turn.tool_trace] or existing_session.tool_trace
     for item in trace_items[-4:]:
         if item.status != "ok":
             continue
         if item.tool not in {"query_wiki", "search_wiki", "read_wiki_page", "reuse_context"}:
             continue
+        pack = item.result.get("evidence_pack")
+        tool_answer_paths, tool_source_paths = _evidence_page_roles(pack)
+        answer_page_paths.extend(tool_answer_paths)
+        source_page_paths.extend(tool_source_paths)
         reusable_tools.append(
             {
                 "tool": item.tool,
@@ -376,13 +549,47 @@ def _prior_evidence_context(existing_session: ChatSessionRecord | None) -> dict[
                 "arguments": item.arguments,
                 "citation_paths": [citation.path for citation in item.citations if citation.path],
                 "has_evidence_pack": isinstance(item.result.get("evidence_pack"), dict),
+                "answer_page_paths": tool_answer_paths,
+                "source_page_paths": tool_source_paths,
             }
         )
     return {
         "session_id": existing_session.session_id,
         "citations": citations,
+        "answer_page_paths": _unique_strings(answer_page_paths),
+        "source_page_paths": _unique_strings(source_page_paths),
+        "preferred_read_pages": _unique_strings(answer_page_paths),
         "reusable_tools": reusable_tools,
     }
+
+
+def _evidence_page_roles(pack: object) -> tuple[list[str], list[str]]:
+    if not isinstance(pack, dict):
+        return [], []
+    answer_paths: list[str] = []
+    source_paths: list[str] = []
+    for key in ("primary_pages", "supporting_pages"):
+        pages = pack.get(key) if isinstance(pack.get(key), list) else []
+        for page in pages:
+            if not isinstance(page, dict) or not page.get("path"):
+                continue
+            path = str(page["path"])
+            if page.get("type") == "source" or path.startswith("sources/"):
+                source_paths.append(path)
+            else:
+                answer_paths.append(path)
+    primary_page = pack.get("primary_page")
+    if isinstance(primary_page, dict) and primary_page.get("path"):
+        path = str(primary_page["path"])
+        if primary_page.get("type") == "source" or path.startswith("sources/"):
+            source_paths.append(path)
+        else:
+            answer_paths.append(path)
+    pages = pack.get("source_pages") if isinstance(pack.get("source_pages"), list) else []
+    for page in pages:
+        if isinstance(page, dict) and page.get("path"):
+            source_paths.append(str(page["path"]))
+    return _unique_strings(answer_paths), _unique_strings(source_paths)
 
 
 def _merge_usage(target: dict[str, int], usage: dict[str, int]) -> None:

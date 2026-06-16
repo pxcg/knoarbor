@@ -253,11 +253,12 @@ class QueryPipelineTests(unittest.TestCase):
 
         self.assertEqual(response.primary_pages[0].path, "concepts/Agent-Loop.md")
         self.assertEqual([page.path for page in response.source_pages], ["sources/Agent-Loop-Source.md"])
-        self.assertEqual(response.answer_set.source_paths, ["sources/Agent-Loop-Source.md"])
+        self.assertEqual(response.answer_set.source_paths, [])
         primary_index = response.context_pack.index("Agent Loop (concepts/Agent-Loop.md")
         source_index = response.context_pack.index("Agent Loop Source (sources/Agent-Loop-Source.md")
         self.assertLess(primary_index, source_index)
         self.assertNotIn("是什么", response.evidence_coverage.missing_facets)
+        self.assertIn("Source digest pages are kept for provenance.", response.answer_set.reason)
 
     def test_source_query_can_use_source_digest_as_primary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
