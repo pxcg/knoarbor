@@ -7,7 +7,7 @@ from knoarbor.core.errors import UserInputError
 from knoarbor.core.schemas.chat import ChatCitation, ChatRequest, ChatSessionRecord, ChatToolPlan, ChatToolTraceItem
 from knoarbor.core.schemas.wiki_query import WikiSearchRequest, WikiSearchResult
 from knoarbor.core.vaults import VIRTUAL_ALL_VAULT_ID
-from knoarbor.entrypoints.vault_selection import resolve_single_vault
+from knoarbor.entrypoints.vault_selection import resolve_single_vault, resolve_vault_group
 from knoarbor.retrieval.answer_selection import query_prefers_source_page
 from knoarbor.services.chat_context import latest_user_text
 from knoarbor.services.chat_evidence import ChatEvidencePlanner, search_result_to_chat_payload
@@ -41,8 +41,14 @@ class ChatToolExecutor:
             try:
                 if tool_name == "query_wiki":
                     observation = self._query_wiki(_with_default_query(call.arguments, query))
+                elif tool_name == "list_wiki_pages":
+                    observation = self._list_wiki_pages(call.arguments)
                 elif tool_name == "read_wiki_page":
                     observation = self._read_wiki_page(call.arguments)
+                elif tool_name == "inspect_wiki_links":
+                    observation = self._inspect_wiki_links(call.arguments)
+                elif tool_name == "list_vaults":
+                    observation = self._list_vaults(call.arguments)
                 elif tool_name == "reuse_context":
                     observation = self._reuse_context(call.arguments)
                 else:
@@ -145,6 +151,51 @@ class ChatToolExecutor:
         ).payload
         return ChatToolTraceItem(tool="query_wiki", arguments=arguments, summary=f"Found {len(response.results)} wiki result(s).", citations=citations, result=result)
 
+    def _list_wiki_pages(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
+        query = str(arguments.get("query") or "").strip().lower()
+        page_dirs = {str(item).strip() for item in arguments.get("page_dirs", []) if str(item).strip()}
+        max_results = _bounded_int(arguments.get("max_results"), default=40, minimum=1, maximum=120)
+        vaults = self._resolve_tool_vaults(arguments)
+        grouped_pages: list[dict[str, Any]] = []
+        citations: list[ChatCitation] = []
+        total_pages = 0
+        for vault in vaults:
+            response = self.services.wiki_pages.list_pages(vault.path, vault_id=vault.vault_id, vault_name=vault.vault_name)
+            pages = [_page_summary_payload(page) for page in response.pages]
+            total_pages += len(pages)
+            filtered = [_with_vault_identity(page, vault) for page in pages if _page_matches(page, query=query, page_dirs=page_dirs)]
+            grouped_pages.extend(filtered[:max(0, max_results - len(grouped_pages))])
+            citations.extend(
+                ChatCitation(
+                    kind="page",
+                    role="supporting",
+                    path=str(page.get("path")),
+                    title=str(page.get("title") or ""),
+                    vault_id=vault.vault_id,
+                    vault_name=vault.vault_name,
+                    vault_path=str(vault.path),
+                    reason="Listed as a maintained wiki page.",
+                )
+                for page in filtered[: max(0, max_results - len(citations))]
+                if page.get("path")
+            )
+            if len(grouped_pages) >= max_results:
+                break
+        result = {
+            "query": query,
+            "page_dirs": sorted(page_dirs),
+            "total_pages": total_pages,
+            "returned_pages": len(grouped_pages),
+            "pages": grouped_pages,
+        }
+        return ChatToolTraceItem(
+            tool="list_wiki_pages",
+            arguments=arguments,
+            summary=f"Listed {len(grouped_pages)} wiki page(s).",
+            citations=citations,
+            result=result,
+        )
+
     def _read_wiki_page(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
         page_path = str(arguments.get("page_path") or arguments.get("path") or "").strip()
         if not page_path:
@@ -177,7 +228,67 @@ class ChatToolExecutor:
             summary = f"Read wiki page {page.path} instead of source digest {original_page_path}."
         return ChatToolTraceItem(tool="read_wiki_page", arguments=arguments, summary=summary, citations=[citation], result=result)
 
+    def _inspect_wiki_links(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
+        page_path = str(arguments.get("page_path") or arguments.get("path") or "").strip()
+        if not page_path:
+            raise UserInputError("inspect_wiki_links requires page_path")
+        requested_vault_id = _concrete_argument_vault_id(arguments, self.request.vault_id)
+        if requested_vault_id is None:
+            requested_vault_id = _vault_id_for_prior_page(page_path, self.existing_session)
+        vault = resolve_single_vault(self.request.vault_path, requested_vault_id, self.request.config_path)
+        links = self.services.wiki_pages.page_links(vault.path, page_path, vault_id=vault.vault_id, vault_name=vault.vault_name)
+        outbound = [_link_payload(link) for link in links.outbound_links]
+        backlinks = [_link_payload(link) for link in links.backlinks]
+        citations = [
+            ChatCitation(
+                kind="page",
+                role="supporting",
+                path=path,
+                title=path.rsplit("/", 1)[-1].removesuffix(".md"),
+                vault_id=vault.vault_id,
+                vault_name=vault.vault_name,
+                vault_path=str(vault.path),
+                reason="Linked page discovered from page relationship inspection.",
+            )
+            for path in _unique_strings([str(item.get("target_path") or item.get("source") or "") for item in [*outbound, *backlinks]])
+            if path
+        ]
+        result = {
+            "path": links.path,
+            "vault_id": vault.vault_id,
+            "vault_name": vault.vault_name,
+            "vault_path": str(vault.path),
+            "outbound_links": outbound,
+            "backlinks": backlinks,
+        }
+        return ChatToolTraceItem(
+            tool="inspect_wiki_links",
+            arguments=arguments,
+            summary=f"Inspected links for {links.path}: {len(outbound)} outbound, {len(backlinks)} backlinks.",
+            citations=citations,
+            result=result,
+        )
+
+    def _list_vaults(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
+        response = self.services.vaults.list_vaults(config_path=str(arguments.get("config_path") or self.request.config_path or "").strip() or None)
+        vaults = [vault.model_dump() for vault in response.vaults]
+        return ChatToolTraceItem(
+            tool="list_vaults",
+            arguments=arguments,
+            summary=f"Listed {len(vaults)} configured vault(s).",
+            result={
+                "schema_version": response.schema_version,
+                "config_path": response.config_path,
+                "default_vault_id": response.default_vault_id,
+                "vaults": vaults,
+            },
+        )
+
     def _reuse_context(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
+        if not arguments.get("page_paths"):
+            combined = _combined_reusable_trace(self.existing_session, self.evidence_planner)
+            if combined is not None:
+                return combined
         prior = _latest_reusable_trace(self.existing_session, arguments.get("page_paths"))
         if prior is None:
             return self._query_wiki(_with_default_query(arguments, latest_user_text(self.request.messages)))
@@ -196,6 +307,18 @@ class ChatToolExecutor:
             summary=str(arguments.get("reason") or "No wiki lookup requested."),
             status="skipped",
             result={"evidence_pack": {"schema_version": "chat_evidence_pack.v1", "kind": "direct_answer", "warnings": ["No wiki evidence was requested by the planner."]}},
+        )
+
+    def _resolve_tool_vaults(self, arguments: dict[str, Any]):
+        vault_id = _concrete_argument_vault_id(arguments, self.request.vault_id)
+        vault_ids = [str(item) for item in arguments.get("vault_ids", self.request.vault_ids) or [] if str(item).strip()]
+        all_vaults = bool(arguments.get("all_vaults", self.request.all_vaults or self.request.vault_id == VIRTUAL_ALL_VAULT_ID))
+        return resolve_vault_group(
+            vault_path=self.request.vault_path,
+            vault_id=vault_id,
+            vault_ids=vault_ids,
+            all_vaults=all_vaults,
+            config_path=self.request.config_path,
         )
 
     def _event(self, event_type: str, message: str, tool: str | None, turn: int | None, status: str | None) -> None:
@@ -221,6 +344,45 @@ def _latest_reusable_trace(existing_session: ChatSessionRecord | None, page_path
                 continue
         return item
     return None
+
+
+def _combined_reusable_trace(existing_session: ChatSessionRecord | None, evidence_planner: ChatEvidencePlanner) -> ChatToolTraceItem | None:
+    if existing_session is None:
+        return None
+    trace_items = [item for turn in existing_session.turns[-6:] for item in turn.tool_trace]
+    reusable = [
+        item
+        for item in trace_items
+        if item.status == "ok"
+        and (
+            (item.tool in {"query_wiki", "reuse_context"} and isinstance(item.result.get("evidence_pack"), dict))
+            or item.tool == "read_wiki_page"
+        )
+    ]
+    if not reusable:
+        return None
+    session_pack = evidence_planner.build_session_pack(reusable)
+    if session_pack is None:
+        return None
+    return ChatToolTraceItem(
+        tool="reuse_context",
+        arguments={"scope": "recent_session_evidence"},
+        summary=f"Reused recent session evidence from {len(reusable)} tool result(s).",
+        citations=_unique_citations([citation for item in reusable for citation in item.citations]),
+        result={"evidence_pack": session_pack.payload},
+    )
+
+
+def _unique_citations(citations: list[ChatCitation]) -> list[ChatCitation]:
+    seen: set[tuple[str, str, str]] = set()
+    unique: list[ChatCitation] = []
+    for citation in citations:
+        identity = (citation.kind, citation.vault_id or citation.vault_path or "", citation.path or citation.run_id or "")
+        if identity in seen:
+            continue
+        seen.add(identity)
+        unique.append(citation)
+    return unique
 
 
 def _with_default_query(arguments: dict[str, Any], query: str) -> dict[str, Any]:
@@ -348,6 +510,55 @@ def _chat_primary_page_payload(item: WikiSearchResult) -> dict[str, object]:
     }
 
 
+def _page_summary_payload(page) -> dict[str, object]:
+    return {
+        "path": page.path,
+        "directory": page.directory,
+        "title": page.title,
+        "type": page.page_type,
+        "status": page.status,
+        "updated": page.updated,
+        "source": page.source,
+        "tags": page.tags,
+        "summary": page.summary,
+        "headings": page.headings,
+    }
+
+
+def _with_vault_identity(page: dict[str, object], vault) -> dict[str, object]:
+    output = dict(page)
+    output["vault_id"] = vault.vault_id
+    output["vault_name"] = vault.vault_name
+    output["vault_path"] = str(vault.path)
+    return output
+
+
+def _page_matches(page: dict[str, object], *, query: str, page_dirs: set[str]) -> bool:
+    if page_dirs and str(page.get("directory") or "") not in page_dirs:
+        return False
+    if not query:
+        return True
+    haystack = " ".join(
+        [
+            str(page.get("path") or ""),
+            str(page.get("title") or ""),
+            str(page.get("summary") or ""),
+            " ".join(str(tag) for tag in page.get("tags", []) if isinstance(tag, str)),
+            " ".join(str(heading) for heading in page.get("headings", []) if isinstance(heading, str)),
+        ]
+    ).lower()
+    return query in haystack
+
+
+def _link_payload(link) -> dict[str, object]:
+    return {
+        "source": link.source,
+        "target": link.target,
+        "target_path": link.target_path,
+        "resolved": link.resolved,
+    }
+
+
 def _required_text(arguments: dict[str, Any], key: str) -> str:
     value = str(arguments.get(key) or "").strip()
     if not value:
@@ -369,3 +580,14 @@ def _concrete_argument_vault_id(arguments: dict[str, Any], fallback: str | None)
     if not vault_id or vault_id == VIRTUAL_ALL_VAULT_ID:
         return None
     return vault_id
+
+
+def _unique_strings(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    unique: list[str] = []
+    for value in values:
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        unique.append(value)
+    return unique

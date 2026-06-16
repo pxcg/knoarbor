@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from knoarbor.core.markdown import compact_inline_text
+from knoarbor.core.schemas.chat import ChatToolTraceItem
 from knoarbor.core.schemas.wiki_query import WikiSearchResult
 
 
@@ -67,6 +68,94 @@ class ChatEvidencePlanner:
         }
         return ChatEvidencePack(payload=payload)
 
+    def build_session_pack(self, observations: list[ChatToolTraceItem]) -> ChatEvidencePack | None:
+        primary_pages: list[dict[str, Any]] = []
+        supporting_pages: list[dict[str, Any]] = []
+        source_pages: list[dict[str, Any]] = []
+        queries: list[str] = []
+        for item in observations:
+            if item.tool == "read_wiki_page":
+                page_payload = {
+                    "path": item.result.get("path"),
+                    "title": item.result.get("title"),
+                    "type": str(item.result.get("path") or "").split("/", 1)[0].removesuffix("s"),
+                    "role": "primary",
+                    "score": None,
+                    "relevance": "high",
+                    "summary": item.result.get("summary"),
+                    "key_points": [],
+                    "content": item.result.get("content") or "",
+                    "content_truncated": item.result.get("truncated", False),
+                    "vault_id": item.result.get("vault_id"),
+                    "vault_name": item.result.get("vault_name"),
+                }
+                if page_payload["path"]:
+                    primary_pages.append(page_payload)
+                continue
+            pack = item.result.get("evidence_pack")
+            if not isinstance(pack, dict):
+                continue
+            if pack.get("query"):
+                queries.append(str(pack["query"]))
+            primary_pages.extend(_pack_pages(pack, "primary_pages"))
+            primary_page = pack.get("primary_page")
+            if isinstance(primary_page, dict):
+                primary_pages.append(primary_page)
+            supporting_pages.extend(_pack_pages(pack, "supporting_pages"))
+            source_pages.extend(_pack_pages(pack, "source_pages"))
+        primary_pages = _unique_pages(primary_pages)
+        primary_paths = {page.get("path") for page in primary_pages}
+        supporting_pages = _unique_pages([page for page in supporting_pages if page.get("path") not in primary_paths])
+        source_pages = _unique_pages(source_pages)
+        if not primary_pages and not supporting_pages:
+            return None
+        answer_paths = [str(page["path"]) for page in primary_pages if page.get("path")]
+        supporting_paths = [str(page["path"]) for page in supporting_pages if page.get("path")]
+        source_paths = [str(page["path"]) for page in source_pages if page.get("path")]
+        payload = {
+            "schema_version": "chat_evidence_pack.v1",
+            "kind": "session_evidence",
+            "query": " / ".join(_unique_strings(queries[-4:])) or "prior session evidence",
+            "result_count": len(primary_pages) + len(supporting_pages) + len(source_pages),
+            "answer_scope": {
+                "kind": "broad",
+                "vault_ids": _unique_strings([str(page.get("vault_id")) for page in [*primary_pages, *supporting_pages] if page.get("vault_id")]),
+                "reason": "Aggregated from recent chat evidence.",
+            },
+            "answer_set": {
+                "kind": "multi_page" if len(answer_paths) + len(supporting_paths) > 1 else "single_page",
+                "primary_paths": answer_paths,
+                "supporting_paths": supporting_paths,
+                "source_paths": source_paths,
+                "reason": "Recent chat evidence reused for a follow-up synthesis request.",
+                "stop_reason": "session_context",
+            },
+            "synthesis_outline": [
+                "Answer from the maintained pages already used in this chat session.",
+                "Synthesize across recent evidence instead of starting a new broad search.",
+                "Use source pages only as provenance unless the user asks about sources.",
+            ],
+            "evidence_coverage": {
+                "status": "strong" if primary_pages else "adequate",
+                "primary_count": len(primary_pages),
+                "supporting_count": len(supporting_pages),
+                "source_count": len(source_pages),
+                "gap_count": 0,
+            },
+            "recommended_action": "answer_from_evidence",
+            "primary_page": primary_pages[0] if primary_pages else None,
+            "primary_pages": primary_pages,
+            "supporting_pages": supporting_pages,
+            "source_pages": source_pages,
+            "further_results": [],
+            "warnings": [],
+            "instructions": [
+                "This pack aggregates prior session evidence for a direct follow-up.",
+                "Use it to summarize, reorganize, compare, or produce a design artifact from prior discussion.",
+            ],
+        }
+        return ChatEvidencePack(payload=payload)
+
     def project_tool_observation(self, tool: str, status: str, summary: str, result: dict[str, Any]) -> dict[str, Any]:
         if tool in {"query_wiki", "search_wiki", "reuse_context"} and isinstance(result.get("evidence_pack"), dict):
             return {
@@ -87,6 +176,43 @@ class ChatEvidencePlanner:
                     "content": compact_inline_text(str(result.get("content") or ""), 18000),
                     "truncated": bool(result.get("truncated")),
                 },
+            }
+        if tool == "list_wiki_pages":
+            return {
+                "tool": tool,
+                "status": status,
+                "summary": summary,
+                "pages": [
+                    {
+                        "path": page.get("path"),
+                        "title": page.get("title"),
+                        "type": page.get("type"),
+                        "summary": page.get("summary"),
+                        "vault_id": page.get("vault_id"),
+                        "vault_name": page.get("vault_name"),
+                    }
+                    for page in result.get("pages", [])
+                    if isinstance(page, dict)
+                ][:80],
+                "total_pages": result.get("total_pages"),
+                "returned_pages": result.get("returned_pages"),
+            }
+        if tool == "inspect_wiki_links":
+            return {
+                "tool": tool,
+                "status": status,
+                "summary": summary,
+                "path": result.get("path"),
+                "outbound_links": result.get("outbound_links", []),
+                "backlinks": result.get("backlinks", []),
+            }
+        if tool == "list_vaults":
+            return {
+                "tool": tool,
+                "status": status,
+                "summary": summary,
+                "default_vault_id": result.get("default_vault_id"),
+                "vaults": result.get("vaults", []),
             }
         return {
             "tool": tool,
@@ -221,6 +347,37 @@ def search_result_to_chat_payload(item: WikiSearchResult) -> dict[str, Any]:
         "vault_name": item.vault_name,
         "is_primary": item.role == "primary",
     }
+
+
+def _pack_pages(pack: dict[str, Any], key: str) -> list[dict[str, Any]]:
+    pages = pack.get(key)
+    return [page for page in pages if isinstance(page, dict) and page.get("path")] if isinstance(pages, list) else []
+
+
+def _unique_pages(pages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: set[tuple[str, str]] = set()
+    unique: list[dict[str, Any]] = []
+    for page in pages:
+        path = str(page.get("path") or "")
+        if not path:
+            continue
+        identity = (str(page.get("vault_id") or ""), path)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        unique.append(page)
+    return unique
+
+
+def _unique_strings(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    unique: list[str] = []
+    for value in values:
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        unique.append(value)
+    return unique
 
 
 def _compact_value(value: Any, *, max_chars: int) -> Any:

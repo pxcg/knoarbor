@@ -8,12 +8,14 @@ from pathlib import Path
 
 from knoarbor.core.schemas.chat import ChatCitation, ChatMessageItem, ChatRequest, ChatResponse
 from knoarbor.core.errors import ModelOutputError
+from knoarbor.core.schemas.vaults import VaultListResponse, VaultProfile
 from knoarbor.core.schemas.wiki_query import WikiAnswerScope, WikiAnswerSet, WikiEvidenceCoverage, WikiSearchResponse, WikiSearchResult
 from knoarbor.semantic.llm import ChatCompletionRequest, ChatCompletionResponse
+from knoarbor.services.chat_answer import parse_answer_draft
 from knoarbor.services.chat_agent import ChatAgentService
 from knoarbor.services.chat_sessions import ChatSessionStore
 from knoarbor.services.memory import MemoryService
-from knoarbor.services.wiki_pages import WikiPageDetail, WikiPageSummary
+from knoarbor.services.wiki_pages import WikiPageBacklinksResponse, WikiPageDetail, WikiPageLink, WikiPageSummary, WikiPagesResponse
 
 
 class FakeChatClient:
@@ -146,6 +148,36 @@ class FakeWikiSearch:
 class FakeWikiPages:
     def __init__(self) -> None:
         self.read_paths: list[str] = []
+        self.list_calls = 0
+        self.link_paths: list[str] = []
+
+    def list_pages(self, vault_path, *, vault_id=None, vault_name=None):
+        self.list_calls += 1
+        return WikiPagesResponse(
+            vault_path=str(vault_path),
+            vault_id=vault_id,
+            vault_name=vault_name,
+            pages=[
+                WikiPageSummary(
+                    path="concepts/Agent-Loop.md",
+                    directory="concepts",
+                    title="Agent Loop",
+                    page_type="concept",
+                    summary="Agent loop alternates reasoning, action, and observation.",
+                    tags=["agent"],
+                    headings=["Summary", "Control patterns"],
+                ),
+                WikiPageSummary(
+                    path="entities/OpenClaw.md",
+                    directory="entities",
+                    title="OpenClaw",
+                    page_type="entity",
+                    summary="OpenClaw is an engineering agent platform.",
+                    tags=["agent"],
+                    headings=["Summary"],
+                ),
+            ],
+        )
 
     def read_page(self, vault_path, relative_path, *, vault_id=None, vault_name=None):
         self.read_paths.append(relative_path)
@@ -164,16 +196,59 @@ class FakeWikiPages:
             ),
         )
 
+    def page_links(self, vault_path, relative_path, *, vault_id=None, vault_name=None):
+        self.link_paths.append(relative_path)
+        return WikiPageBacklinksResponse(
+            path=relative_path,
+            vault_path=str(vault_path),
+            vault_id=vault_id,
+            vault_name=vault_name,
+            outbound_links=[
+                WikiPageLink(source=relative_path, target="OpenClaw", target_path="entities/OpenClaw.md", resolved=True),
+            ],
+            backlinks=[
+                WikiPageLink(source="concepts/Agent-Engineering.md", target="Agent Loop", target_path=relative_path, resolved=True),
+            ],
+        )
+
+
+class FakeVaults:
+    def list_vaults(self, *, config_path=None):
+        return VaultListResponse(
+            config_path=config_path,
+            default_vault_id="agent-engineering",
+            vaults=[
+                VaultProfile(id="agent-engineering", name="Agent Engineering", path="/tmp/vault", active=True, exists=True),
+                VaultProfile(id="rag", name="RAG Notes", path="/tmp/rag", active=False, exists=True),
+            ],
+        )
+
 
 @dataclass
 class FakeServices:
     wiki_search: FakeWikiSearch = field(default_factory=FakeWikiSearch)
     wiki_pages: FakeWikiPages = field(default_factory=FakeWikiPages)
+    vaults: FakeVaults = field(default_factory=FakeVaults)
     memory: MemoryService = field(default_factory=MemoryService)
     chat_sessions: ChatSessionStore = field(default_factory=ChatSessionStore)
 
 
 class ChatAgentServiceTest(unittest.TestCase):
+    def test_answer_citation_page_types_are_normalized_to_page_kind(self) -> None:
+        draft = parse_answer_draft(
+            json.dumps(
+                {
+                    "answer": "Agent Loop answer.",
+                    "citations": [
+                        {"kind": "concept", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"},
+                        {"kind": "entity", "path": "entities/OpenClaw.md", "title": "OpenClaw"},
+                    ],
+                }
+            )
+        )
+
+        self.assertEqual([citation.kind for citation in draft.citations], ["page", "page"])
+
     def test_search_then_final_answer(self) -> None:
         client = FakeChatClient(
             [
@@ -570,6 +645,43 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertIn('"source_page_paths": ["sources/Agent-Loop-Source.md"]', prior_context[0])
         self.assertIn('"preferred_read_pages": ["concepts/Agent-Loop.md", "concepts/Session-Memory-Architecture-for-Agent-Loops.md"]', prior_context[0])
 
+    def test_synthesis_followup_overrides_new_search_to_reuse_session_evidence(self) -> None:
+        client = FakeChatClient(
+            [
+                {"answer": "Agent Loop 是推理、行动和观察的循环。", "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}]},
+                {
+                    "tool_calls": [
+                        {
+                            "name": "query_wiki",
+                            "arguments": {"query": "技术设计文档大纲", "mode": "balanced", "max_results": 6},
+                        }
+                    ],
+                    "reason": "model tried a broad literal search",
+                    "confidence": 0.8,
+                },
+                {"answer": "这是基于前面证据整理的设计文档大纲。", "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}]},
+            ]
+        )
+        service = ChatAgentService(client_factory=lambda _request: client)
+        with tempfile.TemporaryDirectory() as tmp:
+            services = FakeServices()
+            first = service.chat(
+                ChatRequest(messages=[ChatMessageItem(role="user", content="Agent Loop 是什么？")], vault_path=tmp, append_ledger=False),
+                services,  # type: ignore[arg-type]
+            )
+            second = service.chat(
+                ChatRequest(session_id=first.session_id, messages=[ChatMessageItem(role="user", content="最后，请把前面整个方案整理成技术设计文档大纲。")], vault_path=tmp, append_ledger=False),
+                services,  # type: ignore[arg-type]
+            )
+
+        self.assertEqual(len(services.wiki_search.requests), 1)
+        self.assertEqual(second.tool_trace[0].tool, "reuse_context")
+        self.assertEqual(second.stats["tool_plan"]["tool_calls"][0]["name"], "reuse_context")
+        self.assertEqual(second.stats["plan_adjustments"][0]["kind"], "context_synthesis_reuse")
+        answer_prompt = client.requests[-1].messages[-1].content
+        self.assertIn('"kind": "session_evidence"', answer_prompt)
+        self.assertIn("Session memory supporting page content for production agent loops", answer_prompt)
+
     def test_followup_source_digest_read_prefers_prior_answer_page(self) -> None:
         client = FakeChatClient(
             [
@@ -694,6 +806,205 @@ class ChatAgentServiceTest(unittest.TestCase):
 
         self.assertTrue(services.wiki_search.requests[0].all_vaults)
         self.assertIsNone(services.wiki_search.requests[0].vault_id)
+
+    def test_chat_can_list_wiki_pages(self) -> None:
+        client = FakeChatClient(
+            [
+                {
+                    "tool_calls": [{"name": "list_wiki_pages", "arguments": {"query": "Agent", "page_dirs": ["concepts"], "max_results": 10}}],
+                    "reason": "user asks for available pages",
+                    "confidence": 0.9,
+                },
+                {"answer": "当前有 Agent Loop 页面。", "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}]},
+            ]
+        )
+        services = FakeServices()
+        response = ChatAgentService(client_factory=lambda _request: client).chat(
+            ChatRequest(messages=[ChatMessageItem(role="user", content="Agent 相关页面有哪些？")], vault_path="/tmp/vault", append_ledger=False),
+            services,  # type: ignore[arg-type]
+        )
+
+        self.assertEqual(services.wiki_pages.list_calls, 1)
+        self.assertEqual(response.tool_trace[0].tool, "list_wiki_pages")
+        self.assertEqual(response.tool_trace[0].result["returned_pages"], 1)
+        self.assertEqual(response.tool_trace[0].result["pages"][0]["path"], "concepts/Agent-Loop.md")
+        self.assertIn('"pages"', client.requests[-1].messages[-1].content)
+
+    def test_chat_can_inspect_wiki_links(self) -> None:
+        client = FakeChatClient(
+            [
+                {
+                    "tool_calls": [{"name": "inspect_wiki_links", "arguments": {"page_path": "concepts/Agent-Loop.md"}}],
+                    "reason": "user asks for page relationships",
+                    "confidence": 0.9,
+                },
+                {"answer": "Agent Loop 关联 OpenClaw 和 Agent Engineering。", "citations": []},
+            ]
+        )
+        services = FakeServices()
+        response = ChatAgentService(client_factory=lambda _request: client).chat(
+            ChatRequest(messages=[ChatMessageItem(role="user", content="Agent Loop 这个页面和哪些页面有关？")], vault_path="/tmp/vault", append_ledger=False),
+            services,  # type: ignore[arg-type]
+        )
+
+        self.assertEqual(services.wiki_pages.link_paths, ["concepts/Agent-Loop.md"])
+        self.assertEqual(response.tool_trace[0].tool, "inspect_wiki_links")
+        self.assertEqual(response.tool_trace[0].result["outbound_links"][0]["target_path"], "entities/OpenClaw.md")
+        self.assertIn('"outbound_links"', client.requests[-1].messages[-1].content)
+
+    def test_chat_can_list_vaults(self) -> None:
+        client = FakeChatClient(
+            [
+                {
+                    "tool_calls": [{"name": "list_vaults", "arguments": {}}],
+                    "reason": "user asks for configured vaults",
+                    "confidence": 0.9,
+                },
+                {"answer": "当前有 Agent Engineering 和 RAG Notes。", "citations": []},
+            ]
+        )
+        response = ChatAgentService(client_factory=lambda _request: client).chat(
+            ChatRequest(messages=[ChatMessageItem(role="user", content="我现在有哪些知识库？")], vault_path="/tmp/vault", append_ledger=False),
+            FakeServices(),  # type: ignore[arg-type]
+        )
+
+        self.assertEqual(response.tool_trace[0].tool, "list_vaults")
+        self.assertEqual(response.tool_trace[0].result["default_vault_id"], "agent-engineering")
+        self.assertEqual(response.tool_trace[0].result["vaults"][0]["name"], "Agent Engineering")
+        self.assertIn('"vaults"', client.requests[-1].messages[-1].content)
+
+    def test_complex_agent_design_chat_uses_query_read_links_list_and_reuse(self) -> None:
+        client = FakeChatClient(
+            [
+                {
+                    "tool_calls": [
+                        {
+                            "name": "query_wiki",
+                            "arguments": {
+                                "query": "Agent Loop multi-agent orchestration memory architecture",
+                                "mode": "deep",
+                                "max_results": 8,
+                            },
+                        }
+                    ],
+                    "reason": "start from the broad architecture topic",
+                    "confidence": 0.9,
+                },
+                {
+                    "answer": "Agent Loop 架构需要把循环控制、记忆和编排分层处理。",
+                    "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}],
+                },
+                {
+                    "tool_calls": [
+                        {
+                            "name": "read_wiki_page",
+                            "arguments": {"page_path": "concepts/Session-Memory-Architecture-for-Agent-Loops.md"},
+                        }
+                    ],
+                    "reason": "follow-up asks for memory details from a known supporting page",
+                    "confidence": 0.9,
+                },
+                {
+                    "answer": "记忆层应覆盖短期会话、压缩摘要和可恢复状态。",
+                    "citations": [
+                        {
+                            "kind": "page",
+                            "path": "concepts/Session-Memory-Architecture-for-Agent-Loops.md",
+                            "title": "Session Memory Architecture for Agent Loops",
+                        }
+                    ],
+                },
+                {
+                    "tool_calls": [
+                        {
+                            "name": "inspect_wiki_links",
+                            "arguments": {"page_path": "concepts/Agent-Loop.md"},
+                        }
+                    ],
+                    "reason": "user asks for related implementation pages",
+                    "confidence": 0.9,
+                },
+                {
+                    "answer": "Agent Loop 页面关联 OpenClaw 和 Agent Engineering，可作为实现参考。",
+                    "citations": [{"kind": "page", "path": "entities/OpenClaw.md", "title": "OpenClaw"}],
+                },
+                {
+                    "tool_calls": [
+                        {
+                            "name": "list_wiki_pages",
+                            "arguments": {"query": "Agent", "page_dirs": ["concepts", "entities"], "max_results": 20},
+                        }
+                    ],
+                    "reason": "user asks for available agent pages before final synthesis",
+                    "confidence": 0.9,
+                },
+                {
+                    "answer": "可参考 Agent Loop 与 OpenClaw 两类页面组织方案。",
+                    "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}],
+                },
+                {
+                    "tool_calls": [
+                        {
+                            "name": "query_wiki",
+                            "arguments": {"query": "agent architecture design document", "mode": "deep", "max_results": 8},
+                        }
+                    ],
+                    "reason": "model attempted a broad final search",
+                    "confidence": 0.8,
+                },
+                {
+                    "answer": "最终方案应分为入口层、循环控制层、工具层、记忆层和治理层，并基于前面页面证据综合。",
+                    "citations": [
+                        {"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"},
+                        {
+                            "kind": "page",
+                            "path": "concepts/Session-Memory-Architecture-for-Agent-Loops.md",
+                            "title": "Session Memory Architecture for Agent Loops",
+                        },
+                    ],
+                },
+            ]
+        )
+        service = ChatAgentService(client_factory=lambda _request: client)
+        with tempfile.TemporaryDirectory() as tmp:
+            services = FakeServices()
+            first = service.chat(
+                ChatRequest(messages=[ChatMessageItem(role="user", content="基于我的 Agent 相关页面，设计一个生产级工程 Agent 架构。")], vault_path=tmp, append_ledger=False),
+                services,  # type: ignore[arg-type]
+            )
+            second = service.chat(
+                ChatRequest(session_id=first.session_id, messages=[ChatMessageItem(role="user", content="继续展开它的会话记忆和上下文管理。")], vault_path=tmp, append_ledger=False),
+                services,  # type: ignore[arg-type]
+            )
+            third = service.chat(
+                ChatRequest(session_id=first.session_id, messages=[ChatMessageItem(role="user", content="Agent Loop 页面还关联哪些实现页面？")], vault_path=tmp, append_ledger=False),
+                services,  # type: ignore[arg-type]
+            )
+            fourth = service.chat(
+                ChatRequest(session_id=first.session_id, messages=[ChatMessageItem(role="user", content="列出还能参考的 Agent 相关页面。")], vault_path=tmp, append_ledger=False),
+                services,  # type: ignore[arg-type]
+            )
+            fifth = service.chat(
+                ChatRequest(session_id=first.session_id, messages=[ChatMessageItem(role="user", content="最后，把前面内容整理成一份工程 Agent 技术设计方案。")], vault_path=tmp, append_ledger=False),
+                services,  # type: ignore[arg-type]
+            )
+
+        self.assertEqual(first.tool_trace[0].tool, "query_wiki")
+        self.assertEqual(first.tool_trace[0].arguments["mode"], "deep")
+        self.assertEqual(second.tool_trace[0].tool, "read_wiki_page")
+        self.assertEqual(services.wiki_pages.read_paths, ["concepts/Session-Memory-Architecture-for-Agent-Loops.md"])
+        self.assertEqual(third.tool_trace[0].tool, "inspect_wiki_links")
+        self.assertEqual(services.wiki_pages.link_paths, ["concepts/Agent-Loop.md"])
+        self.assertEqual(fourth.tool_trace[0].tool, "list_wiki_pages")
+        self.assertEqual(services.wiki_pages.list_calls, 1)
+        self.assertEqual(fifth.tool_trace[0].tool, "reuse_context")
+        self.assertEqual(fifth.stats["tool_plan"]["tool_calls"][0]["name"], "reuse_context")
+        self.assertEqual(fifth.stats["plan_adjustments"][0]["kind"], "context_synthesis_reuse")
+        self.assertEqual([request.query for request in services.wiki_search.requests], ["Agent Loop multi-agent orchestration memory architecture"])
+        self.assertIn('"kind": "session_evidence"', client.requests[-1].messages[-1].content)
+        self.assertIn("Session-Memory-Architecture-for-Agent-Loops.md", client.requests[-1].messages[-1].content)
+        self.assertIn("入口层、循环控制层、工具层、记忆层和治理层", fifth.answer)
+        self.assertEqual([citation.path for citation in fifth.citations], ["concepts/Agent-Loop.md", "concepts/Session-Memory-Architecture-for-Agent-Loops.md"])
 
     def test_chat_retrieval_policy_uses_deep_for_broad_questions(self) -> None:
         client = FakeChatClient([{"answer": "系统回答。", "citations": []}])

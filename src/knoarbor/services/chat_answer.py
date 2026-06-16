@@ -86,6 +86,7 @@ class ChatAnswerSynthesizer:
 
 def parse_answer_draft(content: str) -> ChatAnswerDraft:
     payload = parse_json_object(content)
+    payload = _normalize_answer_payload(payload)
     try:
         return ChatAnswerDraft.model_validate(payload)
     except (ValidationError, ValueError) as exc:
@@ -112,6 +113,23 @@ def parse_json_object(content: str) -> dict[str, Any]:
 
 def messages_chars(messages: list[ChatMessage]) -> int:
     return sum(len(message.content) for message in messages)
+
+
+def _normalize_answer_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    citations = payload.get("citations")
+    if not isinstance(citations, list):
+        return payload
+    normalized = []
+    for citation in citations:
+        if not isinstance(citation, dict):
+            normalized.append(citation)
+            continue
+        item = dict(citation)
+        kind = str(item.get("kind") or "").strip().lower()
+        if kind in {"concept", "entity", "comparison", "query", "workflow", "source_digest"}:
+            item["kind"] = "page"
+        normalized.append(item)
+    return {**payload, "citations": normalized}
 
 
 def final_citations(decision_citations: list[ChatCitation], trace: list[ChatToolTraceItem]) -> list[ChatCitation]:

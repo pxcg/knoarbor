@@ -9,7 +9,16 @@ from knoarbor.core.schemas.memory import MemoryCandidate, MemoryRecord
 
 ChatRole = Literal["user", "assistant", "tool"]
 ChatToolStatus = Literal["ok", "error", "skipped"]
-ChatToolName = Literal["query_wiki", "read_wiki_page", "reuse_context", "answer_directly", "finish_answer"]
+ChatToolName = Literal[
+    "query_wiki",
+    "list_wiki_pages",
+    "read_wiki_page",
+    "inspect_wiki_links",
+    "list_vaults",
+    "reuse_context",
+    "answer_directly",
+    "finish_answer",
+]
 ChatCitationKind = Literal["page", "report", "run", "source"]
 ChatSessionStatus = Literal["active", "closed"]
 ChatEventType = Literal[

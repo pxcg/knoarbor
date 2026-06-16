@@ -16,6 +16,12 @@ Return exactly one JSON object:
   ]
 }
 
+Citation contract:
+- `kind` is the citation object kind, not the wiki page type.
+- Use `kind: "page"` for all maintained wiki pages, including concepts, entities, comparisons, queries, workflows, and sources when they are cited as pages.
+- Use `kind: "source"` only for raw/source provenance objects that are not maintained wiki pages.
+- Do not use `kind: "concept"`, `kind: "entity"`, `kind: "comparison"`, or `kind: "query"`.
+
 Evidence rules:
 - Use evidence_pack.primary_pages as the maintained wiki answer set when present.
 - Treat primary_pages and supporting_pages as structured wiki pages, not short RAG chunks.

@@ -298,7 +298,6 @@ Retrieval signals:
 - field-weighted BM25 page ranking across title, path, tags, summary, key points, headings, and body;
 - query terms preserve technical identifiers and CJK phrase fragments when possible;
 - related page expansion through outbound links, backlinks, source relationships, and graph proximity;
-- related-page expansion through outbound wikilinks and backlinks;
 - graph relevance boosts for shared source and page type affinity;
 - bounded context assembly for host AI tools.
 
@@ -310,6 +309,7 @@ keeping all actions inside KnoArbor-owned boundaries.
 ```text
 chat request
   -> bounded evidence planning loop
+  -> retrieval policy adjustment
   -> guarded KnoArbor tool execution
   -> canonical evidence packages
   -> answer synthesis
@@ -324,6 +324,9 @@ Responsibilities:
 - repeat evidence gathering within `max_turns` when coverage is weak, a primary
   page is missing, or a known page needs full detail;
 - enforce code-owned guardrails so knowledge questions use wiki evidence;
+- treat model tool plans as proposals and apply `ChatRetrievalPolicy` before
+  execution, so context-synthesis follow-ups reuse prior session evidence
+  instead of drifting into broad literal searches;
 - build a canonical page-first evidence package before model synthesis;
 - expose citations and evidence trace to the UI.
 - persist each assistant turn with its own citations, tool trace, events,

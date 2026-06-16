@@ -25,6 +25,7 @@ from knoarbor.core.schemas.chat import (
 from knoarbor.core.schemas.memory import MemoryCandidate, MemoryRecord
 from knoarbor.services.chat_answer import ChatAnswerSynthesizer, clean_answer_citation_paths, final_citations, messages_chars, parse_json_object
 from knoarbor.services.chat_context import ChatContextEngine, latest_user_text, memory_target, session_target
+from knoarbor.services.chat_retrieval_policy import ChatPlanAdjustment, ChatRetrievalPolicy
 from knoarbor.services.chat_tools import ChatToolExecutor
 from knoarbor.semantic.contracts import load_prompt
 from knoarbor.semantic.llm import ChatClient, ChatCompletionRequest, ChatMessage, ModelGateway
@@ -116,6 +117,8 @@ class _ChatLoop:
     memory_used: list[MemoryRecord] = field(default_factory=list)
     memory_candidates: list[MemoryCandidate] = field(default_factory=list)
     memory_writes: list[MemoryRecord] = field(default_factory=list)
+    retrieval_policy: ChatRetrievalPolicy = field(default_factory=ChatRetrievalPolicy)
+    plan_adjustments: list[ChatPlanAdjustment] = field(default_factory=list)
 
     def run(self) -> ChatResponse:
         self._event("chat_started", message="Chat request started.")
@@ -189,6 +192,7 @@ class _ChatLoop:
         response.stats["tool_plans"] = [plan.model_dump() for plan in plans]
         response.stats["evidence_rounds"] = len(plans)
         response.stats["evidence_stop_reason"] = stop_reason
+        response.stats["plan_adjustments"] = [adjustment.__dict__ for adjustment in self.plan_adjustments]
         return response
 
     def _plan_tools(self, query: str, *, observations: list[ChatToolTraceItem], turn: int) -> ChatToolPlan:
@@ -200,7 +204,7 @@ class _ChatLoop:
             ChatCompletionRequest(
                 messages=messages,
                 temperature=0,
-                max_tokens=min(_max_tokens(self.request) or 1024, 1024),
+                max_tokens=min(_max_tokens(self.request) or 4096, 4096),
             )
         )
         self.model_calls += 1
@@ -226,7 +230,16 @@ class _ChatLoop:
         plan = _parse_tool_plan(completion.content)
         if not plan.tool_calls:
             return ChatToolPlan(tool_calls=[{"name": "query_wiki", "arguments": {"query": query}}], reason="Planner returned no action.", confidence=0.0)
-        return _guard_tool_plan(plan, query)
+        guarded = _guard_tool_plan(plan, query)
+        adjusted, adjustment = self.retrieval_policy.adjust_plan(
+            guarded,
+            query=query,
+            existing_session=self.existing_session,
+            observations=observations,
+        )
+        if adjustment:
+            self.plan_adjustments.append(adjustment)
+        return adjusted
 
     def _answer_response(self, draft: ChatAnswerDraft, turns: int) -> ChatResponse:
         citations = final_citations(draft.citations, self.trace)
