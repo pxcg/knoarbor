@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Callable
 from pydantic import ValidationError
 
 from knoarbor.audit.token_ledger import append_chat_token_records, current_timestamp
-from knoarbor.core.config import default_config_path, load_config
+from knoarbor.core.config import ModelRetryConfig, default_config_path, load_config
 from knoarbor.core.errors import ModelOutputError, UserInputError
 from knoarbor.core.schemas.chat import (
     ChatAnswerDraft,
@@ -25,6 +25,7 @@ from knoarbor.core.schemas.chat import (
 from knoarbor.core.schemas.memory import MemoryCandidate, MemoryRecord
 from knoarbor.services.chat_answer import ChatAnswerSynthesizer, clean_answer_citation_paths, final_citations, messages_chars, parse_json_object
 from knoarbor.services.chat_context import ChatContextEngine, latest_user_text, memory_target, session_target
+from knoarbor.services.chat_model_call import run_chat_model_call
 from knoarbor.services.chat_retrieval_policy import ChatPlanAdjustment, ChatRetrievalPolicy
 from knoarbor.services.chat_tools import ChatToolExecutor
 from knoarbor.semantic.contracts import load_prompt
@@ -63,12 +64,13 @@ class ChatAgentService:
         effective_request = request.model_copy(update={"messages": context.conversation_messages, "session_id": chat_id})
         loop = _ChatLoop(
             request=effective_request,
-            current_messages=request.messages,
+            current_messages=context.conversation_messages,
             services=services,
             client=client,
             chat_id=chat_id,
             initial_messages=context.model_messages,
             existing_session=existing_session,
+            model_retry=load_config(Path(request.config_path).expanduser().resolve() if request.config_path else default_config_path()).models.retry,
             memory_used=context.memory_used,
             warnings=context.warnings,
         )
@@ -106,6 +108,7 @@ class _ChatLoop:
     chat_id: str
     initial_messages: list[ChatMessage]
     existing_session: ChatSessionRecord | None = None
+    model_retry: ModelRetryConfig = field(default_factory=ModelRetryConfig)
     answer_synthesizer: ChatAnswerSynthesizer = field(default_factory=ChatAnswerSynthesizer)
     trace: list[ChatToolTraceItem] = field(default_factory=list)
     events: list[ChatEvent] = field(default_factory=list)
@@ -173,9 +176,11 @@ class _ChatLoop:
             request=self.request,
             initial_messages=self.initial_messages,
             current_messages=self.current_messages,
+            existing_session=self.existing_session,
             observations=observations,
             turn=answer_turn,
             max_tokens=_max_tokens(self.request),
+            retry=self.model_retry,
         )
         self.model_calls += 1
         _merge_usage(self.total_usage, answer_result.completion.usage)
@@ -196,17 +201,22 @@ class _ChatLoop:
         return response
 
     def _plan_tools(self, query: str, *, observations: list[ChatToolTraceItem], turn: int) -> ChatToolPlan:
-        messages = _tool_plan_messages(self.initial_messages, self.existing_session, observations)
+        messages = _tool_plan_messages(self.initial_messages, self.existing_session, observations, query=query)
         prompt_chars = messages_chars(messages)
-        call_started = time.perf_counter()
         self._event("model_call_started", message="Calling chat tool planner.", turn=turn, payload={"phase": "tool_plan"})
-        completion = self.client.complete(
-            ChatCompletionRequest(
+        call = run_chat_model_call(
+            client=self.client,
+            request=ChatCompletionRequest(
                 messages=messages,
                 temperature=0,
                 max_tokens=min(_max_tokens(self.request) or 4096, 4096),
-            )
+            ),
+            retry=self.model_retry,
+            phase="tool_plan",
+            turn=turn,
+            prompt_chars=prompt_chars,
         )
+        completion = call.completion
         self.model_calls += 1
         _merge_usage(self.total_usage, completion.usage)
         self._event(
@@ -215,18 +225,7 @@ class _ChatLoop:
             turn=turn,
             payload={"usage": completion.usage, "elapsed_seconds": completion.elapsed_seconds},
         )
-        self.call_records.append(
-            {
-                **completion.usage,
-                "provider": completion.provider,
-                "model": completion.model,
-                "turn": turn,
-                "phase": "tool_plan",
-                "prompt_chars": prompt_chars,
-                "elapsed_seconds": completion.elapsed_seconds or round(time.perf_counter() - call_started, 3),
-                "tokens_per_second": completion.tokens_per_second,
-            }
-        )
+        self.call_records.append(call.call_record)
         plan = _parse_tool_plan(completion.content)
         if not plan.tool_calls:
             return ChatToolPlan(tool_calls=[{"name": "query_wiki", "arguments": {"query": query}}], reason="Planner returned no action.", confidence=0.0)
@@ -361,15 +360,84 @@ def _parse_tool_plan(content: str) -> ChatToolPlan:
         raise ModelOutputError(f"Chat tool planner returned invalid JSON: {exc}") from exc
 
 
-def _tool_plan_messages(initial_messages: list[ChatMessage], existing_session: ChatSessionRecord | None, observations: list[ChatToolTraceItem] | None = None) -> list[ChatMessage]:
-    messages = [ChatMessage(role="system", content=TOOL_PLAN_PROMPT), *initial_messages[1:]]
-    prior = _prior_evidence_context(existing_session)
-    if prior:
-        messages.insert(2, ChatMessage(role="system", content=f"Prior evidence context:\n{json.dumps(prior, ensure_ascii=False)}"))
-    current = _current_evidence_context(observations or [])
-    if current:
-        messages.insert(2, ChatMessage(role="system", content=f"Current turn evidence context:\n{json.dumps(current, ensure_ascii=False)}"))
-    return messages
+def _tool_plan_messages(
+    initial_messages: list[ChatMessage],
+    existing_session: ChatSessionRecord | None,
+    observations: list[ChatToolTraceItem] | None = None,
+    *,
+    query: str,
+) -> list[ChatMessage]:
+    planning_state = {
+        "latest_user_message": query,
+        "recent_user_messages": _recent_user_messages(initial_messages),
+        "recent_turns": _planner_recent_turns(existing_session),
+        "workspace_context": _workspace_planning_context(initial_messages),
+        "prior_evidence_context": _prior_evidence_context(existing_session),
+        "current_turn_evidence_context": _current_evidence_context(observations or []),
+    }
+    return [
+        ChatMessage(role="system", content=TOOL_PLAN_PROMPT),
+        ChatMessage(role="user", content=json.dumps({"planning_state": planning_state}, ensure_ascii=False)),
+    ]
+
+
+def _recent_user_messages(messages: list[ChatMessage]) -> list[str]:
+    return _unique_strings([message.content for message in messages if message.role == "user"])[-6:]
+
+
+def _planner_recent_turns(existing_session: ChatSessionRecord | None) -> list[dict[str, object]]:
+    if existing_session is None:
+        return []
+    turns = []
+    for turn in existing_session.turns[-4:]:
+        answer_paths, source_paths = _turn_evidence_page_roles(turn.tool_trace)
+        turns.append(
+            {
+                "index": turn.index,
+                "user_message": _compact_text(turn.user_message.content, 500),
+                "citation_paths": [citation.path for citation in turn.citations if citation.path],
+                "answer_page_paths": answer_paths,
+                "source_page_paths": source_paths,
+                "tool_summaries": _unique_strings([item.summary for item in turn.tool_trace if item.summary])[-4:],
+            }
+        )
+    return turns
+
+
+def _turn_evidence_page_roles(trace: list[ChatToolTraceItem]) -> tuple[list[str], list[str]]:
+    answer_page_paths: list[str] = []
+    source_page_paths: list[str] = []
+    for item in trace:
+        tool_answer_paths, tool_source_paths = _evidence_page_roles(item.result.get("evidence_pack"))
+        answer_page_paths.extend(tool_answer_paths)
+        source_page_paths.extend(tool_source_paths)
+        if item.tool == "read_wiki_page" and item.result.get("path"):
+            path = str(item.result["path"])
+            if path.startswith("sources/"):
+                source_page_paths.append(path)
+            else:
+                answer_page_paths.append(path)
+    return _unique_strings(answer_page_paths), _unique_strings(source_page_paths)
+
+
+def _compact_text(text: str, max_chars: int) -> str:
+    cleaned = " ".join(text.split())
+    if len(cleaned) <= max_chars:
+        return cleaned
+    return cleaned[: max(0, max_chars - 1)].rstrip() + "…"
+
+
+def _workspace_planning_context(messages: list[ChatMessage]) -> dict[str, object]:
+    for message in messages:
+        if message.role != "system" or not message.content.startswith("Workspace context:"):
+            continue
+        _, _, raw = message.content.partition("\n")
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+        return payload if isinstance(payload, dict) else {}
+    return {}
 
 
 def _guard_tool_plan(plan: ChatToolPlan, query: str) -> ChatToolPlan:

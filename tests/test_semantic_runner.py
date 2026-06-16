@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import http.client
 import json
+import ssl
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -662,6 +663,14 @@ class SemanticRunnerTests(unittest.TestCase):
         )
 
         with patch("urllib.request.urlopen", side_effect=http.client.IncompleteRead(b"")):
+            with self.assertRaisesRegex(ExternalServiceError, "response was interrupted"):
+                client.complete(ChatCompletionRequest(messages=[{"role": "user", "content": "hello"}]))
+
+        with patch("urllib.request.urlopen", side_effect=ssl.SSLError("tls alert")):
+            with self.assertRaisesRegex(ExternalServiceError, "response was interrupted"):
+                client.complete(ChatCompletionRequest(messages=[{"role": "user", "content": "hello"}]))
+
+        with patch("urllib.request.urlopen", side_effect=http.client.RemoteDisconnected("closed")):
             with self.assertRaisesRegex(ExternalServiceError, "response was interrupted"):
                 client.complete(ChatCompletionRequest(messages=[{"role": "user", "content": "hello"}]))
 

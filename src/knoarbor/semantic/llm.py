@@ -28,6 +28,7 @@ class ChatCompletionRequest(BaseModel):
     messages: list[ChatMessage] = Field(..., min_length=1)
     temperature: float = Field(default=0.1, ge=0, le=2)
     max_tokens: int | None = Field(default=None, ge=1)
+    structured_output: bool = True
 
 
 class ChatCompletionResponse(BaseModel):
@@ -172,7 +173,7 @@ class OpenAICompatibleChatClient:
         }
         if request.max_tokens is not None:
             payload["max_tokens"] = request.max_tokens
-        if self.json_mode:
+        if self.json_mode and request.structured_output:
             payload["response_format"] = {"type": "json_object"}
         if self.extra_body:
             payload.update(self.extra_body)
@@ -192,7 +193,7 @@ class OpenAICompatibleChatClient:
             raise ExternalServiceError(f"Model provider {self.provider} returned HTTP {exc.code}: {body}") from exc
         except urllib.error.URLError as exc:
             raise ExternalServiceError(f"Model provider {self.provider} request failed: {exc.reason}") from exc
-        except (http.client.IncompleteRead, TimeoutError, socket.timeout) as exc:
+        except (http.client.IncompleteRead, http.client.RemoteDisconnected, TimeoutError, socket.timeout, ssl.SSLError) as exc:
             raise ExternalServiceError(f"Model provider {self.provider} response was interrupted: {exc}") from exc
 
         try:
@@ -296,7 +297,7 @@ class OpenAICompatibleChatClient:
                 message=f"Provider endpoint request failed: {exc.reason}",
                 details={"elapsed_seconds": round(time.perf_counter() - started, 3)},
             )
-        except (http.client.IncompleteRead, TimeoutError, socket.timeout) as exc:
+        except (http.client.IncompleteRead, http.client.RemoteDisconnected, TimeoutError, socket.timeout) as exc:
             return ProviderModelDiscovery(
                 available=False,
                 message=f"Provider endpoint check was interrupted: {exc}",
@@ -356,7 +357,7 @@ class OpenAICompatibleChatClient:
             }
         except urllib.error.URLError as exc:
             return {"ollama_show_available": False, "ollama_show_error": str(exc.reason)}
-        except (http.client.IncompleteRead, TimeoutError, socket.timeout) as exc:
+        except (http.client.IncompleteRead, http.client.RemoteDisconnected, TimeoutError, socket.timeout) as exc:
             return {"ollama_show_available": False, "ollama_show_error": str(exc)}
 
         context_window = _extract_ollama_context_window(body)
@@ -419,7 +420,7 @@ class OllamaNativeChatClient:
             "think": False,
             "options": options,
         }
-        if self.json_mode:
+        if self.json_mode and request.structured_output:
             payload["format"] = "json"
         if self.extra_body:
             payload = _deep_merge_payload(payload, self.extra_body)
@@ -439,7 +440,7 @@ class OllamaNativeChatClient:
             raise ExternalServiceError(f"Model provider {self.provider} returned HTTP {exc.code}: {body}") from exc
         except urllib.error.URLError as exc:
             raise ExternalServiceError(f"Model provider {self.provider} request failed: {exc.reason}") from exc
-        except (http.client.IncompleteRead, TimeoutError, socket.timeout) as exc:
+        except (http.client.IncompleteRead, http.client.RemoteDisconnected, TimeoutError, socket.timeout, ssl.SSLError) as exc:
             raise ExternalServiceError(f"Model provider {self.provider} response was interrupted: {exc}") from exc
 
         try:
@@ -528,7 +529,7 @@ class OllamaNativeChatClient:
                 message=f"Ollama endpoint request failed: {exc.reason}",
                 details={"elapsed_seconds": round(time.perf_counter() - started, 3)},
             )
-        except (http.client.IncompleteRead, TimeoutError, socket.timeout) as exc:
+        except (http.client.IncompleteRead, http.client.RemoteDisconnected, TimeoutError, socket.timeout) as exc:
             return ProviderModelDiscovery(
                 available=False,
                 message=f"Ollama endpoint check was interrupted: {exc}",
@@ -575,7 +576,7 @@ class OllamaNativeChatClient:
             }
         except urllib.error.URLError as exc:
             return {"ollama_show_available": False, "ollama_show_error": str(exc.reason)}
-        except (http.client.IncompleteRead, TimeoutError, socket.timeout) as exc:
+        except (http.client.IncompleteRead, http.client.RemoteDisconnected, TimeoutError, socket.timeout) as exc:
             return {"ollama_show_available": False, "ollama_show_error": str(exc)}
 
         return {

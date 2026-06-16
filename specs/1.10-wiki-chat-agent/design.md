@@ -163,6 +163,23 @@ stable system prompt
 This keeps prompt assembly out of the loop executor and makes later prompt
 cache, token-budget, and memory improvements local to one layer.
 
+The persisted session is the authority for conversation history. UI requests
+may send the current user message and a small display window, but the backend
+merges it with the stored session before planning and answering.
+
+Conversation history is passed to the model in two different forms:
+
+- tool planning receives structured turn metadata: recent user messages,
+  citation paths, answer page paths, source page paths, and tool summaries;
+- answer synthesis receives a bounded recent conversation context with user
+  messages, assistant answer excerpts, and citation paths.
+
+Planner input does not include raw assistant prose. This keeps JSON tool
+planning stable and prevents prior answer wording from becoming a new tool
+instruction. Answer synthesis can see bounded assistant excerpts so follow-up
+questions such as "展开第二点" or "它和上面方案的关系是什么" remain natural.
+The evidence package remains the only grounding source for factual claims.
+
 ## Tool Planning And Retrieval Policy
 
 Chat does not expose `quick`, `balanced`, or `deep` as user-facing modes. The
@@ -249,6 +266,8 @@ Rules:
   external workflow tools.
 - The model receives the evidence package and produces only an answer draft
   with citations.
+- The answer model also receives bounded conversation context for continuity,
+  but it treats that context as dialogue state rather than factual evidence.
 - Evidence packages include stable IDs, paths, vault labels, and openable links.
 - Invalid model JSON is reported as a model output error with enough context for
   the caller to retry through the normal request boundary.

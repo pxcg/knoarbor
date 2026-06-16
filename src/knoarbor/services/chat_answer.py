@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import json
 import re
-import time
 from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic import ValidationError
 
+from knoarbor.core.config import ModelRetryConfig
 from knoarbor.core.errors import ModelOutputError
-from knoarbor.core.schemas.chat import ChatAnswerDraft, ChatCitation, ChatMessageItem, ChatRequest, ChatToolTraceItem
+from knoarbor.core.markdown import compact_inline_text
+from knoarbor.core.schemas.chat import ChatAnswerDraft, ChatCitation, ChatMessageItem, ChatRequest, ChatSessionRecord, ChatToolTraceItem
 from knoarbor.services.chat_context import latest_user_text
 from knoarbor.services.chat_evidence import ChatEvidencePlanner
+from knoarbor.services.chat_model_call import run_chat_model_call
 from knoarbor.semantic.llm import ChatClient, ChatCompletionRequest, ChatCompletionResponse, ChatMessage
 
 
@@ -35,37 +37,39 @@ class ChatAnswerSynthesizer:
         request: ChatRequest,
         initial_messages: list[ChatMessage],
         current_messages: list[ChatMessageItem],
+        existing_session: ChatSessionRecord | None,
         observations: list[ChatToolTraceItem],
         turn: int,
         max_tokens: int | None,
+        retry: ModelRetryConfig,
     ) -> ChatAnswerResult:
-        messages = list(initial_messages)
-        messages.append(ChatMessage(role="user", content=self._evidence_prompt(current_messages, observations)))
+        messages = _answer_messages(initial_messages, self._answer_prompt(current_messages, observations, existing_session))
         prompt_chars = messages_chars(messages)
-        call_started = time.perf_counter()
-        completion = client.complete(
-            ChatCompletionRequest(
+        call = run_chat_model_call(
+            client=client,
+            request=ChatCompletionRequest(
                 messages=messages,
                 temperature=0.1,
                 max_tokens=max_tokens,
-            )
+                structured_output=False,
+            ),
+            retry=retry,
+            phase="answer",
+            turn=turn,
+            prompt_chars=prompt_chars,
         )
         return ChatAnswerResult(
-            draft=parse_answer_draft(completion.content),
-            completion=completion,
-            call_record={
-                **completion.usage,
-                "provider": completion.provider,
-                "model": completion.model,
-                "turn": turn,
-                "phase": "answer",
-                "prompt_chars": prompt_chars,
-                "elapsed_seconds": completion.elapsed_seconds or round(time.perf_counter() - call_started, 3),
-                "tokens_per_second": completion.tokens_per_second,
-            },
+            draft=ChatAnswerDraft(answer=call.completion.content.strip(), citations=[]),
+            completion=call.completion,
+            call_record=call.call_record,
         )
 
-    def _evidence_prompt(self, current_messages: list[ChatMessageItem], observations: list[ChatToolTraceItem]) -> str:
+    def _answer_prompt(
+        self,
+        current_messages: list[ChatMessageItem],
+        observations: list[ChatToolTraceItem],
+        existing_session: ChatSessionRecord | None,
+    ) -> str:
         payloads = [
             self.evidence_planner.project_tool_observation(
                 observation.tool,
@@ -75,13 +79,64 @@ class ChatAnswerSynthesizer:
             )
             for observation in observations
         ]
+        latest_user = latest_user_text(current_messages)
         return json.dumps(
             {
-                "user_question": latest_user_text(current_messages),
+                "answer_state": {
+                "latest_user_message": latest_user,
+                "recent_user_messages": _recent_user_messages(current_messages, latest_user),
+                "conversation_context": _conversation_context(existing_session),
                 "tool_observations": payloads,
-            },
+            }
+        },
             ensure_ascii=False,
         )
+
+
+def _answer_messages(initial_messages: list[ChatMessage], answer_prompt: str) -> list[ChatMessage]:
+    """Build the answer call with stable instructions and structured state.
+
+    Previous dialogue is passed inside the answer_state as bounded conversation
+    context. It helps resolve follow-ups, while wiki tool observations remain
+    the only grounding source for factual claims.
+    """
+
+    system_messages = [message for message in initial_messages if message.role == "system"]
+    if not system_messages:
+        raise ModelOutputError("Chat answer synthesis requires a system prompt.")
+    return [*system_messages, ChatMessage(role="user", content=answer_prompt)]
+
+
+def _conversation_context(existing_session: ChatSessionRecord | None) -> list[dict[str, object]]:
+    if existing_session is None:
+        return []
+    context: list[dict[str, object]] = []
+    for turn in existing_session.turns[-4:]:
+        context.append(
+            {
+                "index": turn.index,
+                "user_message": compact_inline_text(turn.user_message.content, 900),
+                "assistant_answer": compact_inline_text(turn.assistant_message.content, 1800),
+                "citation_paths": [citation.path for citation in turn.citations if citation.path],
+            }
+        )
+    return context
+
+
+def _recent_user_messages(current_messages: list[ChatMessageItem], latest_user: str) -> list[str]:
+    seen: set[str] = set()
+    items: list[str] = []
+    for message in current_messages:
+        if message.role != "user":
+            continue
+        content = message.content.strip()
+        if not content or content in seen:
+            continue
+        seen.add(content)
+        items.append(content)
+    if latest_user and latest_user not in seen:
+        items.append(latest_user)
+    return items[-6:]
 
 
 def parse_answer_draft(content: str) -> ChatAnswerDraft:

@@ -22,6 +22,11 @@
 - [x] Remove `execution_mode` from the public chat contract.
 - [x] Add tests for internal chat tool planning and direct-answer guardrails.
 - [x] Persist citations and tool traces per assistant turn.
+- [x] Use persisted session history as the backend authority for chat turns.
+- [x] Pass structured recent turn metadata to the tool planner without raw
+  assistant prose.
+- [x] Pass bounded recent conversation context to answer synthesis for natural
+  follow-up questions while keeping wiki evidence as the grounding source.
 
 ## P1 Console Home Chat
 
