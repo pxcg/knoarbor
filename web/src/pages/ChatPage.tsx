@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 
 import {
   deleteChatSession,
+  getPage,
   ingestChatSession,
   listChatSessions,
   readChatSession,
@@ -11,8 +12,10 @@ import {
   sendChatMessage,
   type ChatCitation,
   type ChatMessageItem,
+  type PageDetail,
   type ChatSessionSummary,
   type ModelProviderSummary,
+  type VaultSelector,
 } from "../api/client";
 import type { AppContext } from "../App";
 
@@ -36,6 +39,13 @@ type ChatFollowup = {
 
 type ChatRequestStage = "idle" | "preparing" | "retrieving" | "generating" | "waiting_model" | "regenerating";
 
+type ChatCitationPreview = {
+  citation: ChatCitation;
+  page: PageDetail | null;
+  loading: boolean;
+  error: string | null;
+};
+
 const exampleKeys = ["chatExampleAgentLoop", "chatExampleLint", "chatExampleRag", "chatExampleReadPage"];
 
 export function ChatPage({ context }: Props) {
@@ -48,6 +58,7 @@ export function ChatPage({ context }: Props) {
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [requestStage, setRequestStage] = useState<ChatRequestStage>("idle");
+  const [citationPreview, setCitationPreview] = useState<ChatCitationPreview | null>(null);
   const activeChatAbortRef = useRef<AbortController | null>(null);
   const stageTimersRef = useRef<number[]>([]);
   const chatModelProviders = useMemo(() => context.modelProviders?.providers || [], [context.modelProviders]);
@@ -219,6 +230,25 @@ export function ChatPage({ context }: Props) {
     activeChatAbortRef.current?.abort();
   }
 
+  async function openCitationPreview(citation: ChatCitation) {
+    if (citation.kind !== "page" || !citation.path) {
+      openCitationTarget(citation, context);
+      return;
+    }
+    setCitationPreview({ citation, page: null, loading: true, error: null });
+    try {
+      const page = await getPage(citationSelector(citation, context), citation.path);
+      setCitationPreview({ citation, page, loading: false, error: null });
+    } catch (error) {
+      setCitationPreview({
+        citation,
+        page: null,
+        loading: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   async function regenerateLatestAnswer() {
     if (!sessionId || isSending || isRegenerating || !chatVaultReady) return;
     const latestAssistantIndex = latestAssistantTurnIndex(turns);
@@ -373,7 +403,7 @@ export function ChatPage({ context }: Props) {
                   ) : turn.kind === "status" ? (
                     <ChatStatusMessage message={turn.content} />
                   ) : turn.role === "assistant" ? (
-                    <ChatMarkdownAnswer content={turn.content} citations={turn.citations || []} context={context} />
+                    <ChatMarkdownAnswer content={turn.content} citations={turn.citations || []} context={context} onOpenCitation={(citation) => void openCitationPreview(citation)} />
                   ) : (
                     <p>{turn.content}</p>
                   )}
@@ -389,7 +419,7 @@ export function ChatPage({ context }: Props) {
                       </button>
                     </div>
                   )}
-                  {!!turn.citations?.length && <CitationList citations={turn.citations} context={context} />}
+                  {!!turn.citations?.length && <CitationList citations={turn.citations} context={context} onOpenCitation={(citation) => void openCitationPreview(citation)} />}
                   {turn.role === "assistant" && !!turn.citations?.length && (
                     <ChatFollowups
                       citations={turn.citations}
@@ -463,6 +493,17 @@ export function ChatPage({ context }: Props) {
             </div>
           </div>
         </article>
+        {citationPreview && (
+          <ChatCitationPreviewPanel
+            context={context}
+            preview={citationPreview}
+            onClose={() => setCitationPreview(null)}
+            onAsk={(prompt) => {
+              setCitationPreview(null);
+              void submit(prompt);
+            }}
+          />
+        )}
       </div>
     </section>
   );
@@ -580,7 +621,17 @@ function formatSessionDate(value: string) {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function ChatMarkdownAnswer({ content, citations, context }: { content: string; citations: ChatCitation[]; context: AppContext }) {
+function ChatMarkdownAnswer({
+  content,
+  citations,
+  context,
+  onOpenCitation,
+}: {
+  content: string;
+  citations: ChatCitation[];
+  context: AppContext;
+  onOpenCitation: (citation: ChatCitation) => void;
+}) {
   return (
     <div className="chat-answer-markdown">
       <ReactMarkdown
@@ -596,7 +647,7 @@ function ChatMarkdownAnswer({ content, citations, context }: { content: string; 
                   className="chat-inline-citation"
                   type="button"
                   disabled={!citation}
-                  onClick={() => citation && openCitation(citation, context)}
+                  onClick={() => citation && onOpenCitation(citation)}
                 >
                   {props.children}
                 </button>
@@ -621,12 +672,22 @@ function renderInlineCitations(content: string, citationCount: number) {
   });
 }
 
-function CitationList({ citations, context, compact = false }: { citations: ChatCitation[]; context: AppContext; compact?: boolean }) {
+function CitationList({
+  citations,
+  context,
+  compact = false,
+  onOpenCitation,
+}: {
+  citations: ChatCitation[];
+  context: AppContext;
+  compact?: boolean;
+  onOpenCitation: (citation: ChatCitation) => void;
+}) {
   const groups = groupCitations(citations, context);
   return (
     <details className={`chat-citations ${compact ? "compact" : ""}`}>
       <summary>
-        <span>{context.t("chatSources")}</span>
+        <span>{context.t("chatSourcesCompact")}</span>
         <strong>{citations.length}</strong>
       </summary>
       <div className="chat-citation-list">
@@ -637,7 +698,7 @@ function CitationList({ citations, context, compact = false }: { citations: Chat
               <button
                 key={`${citation.kind}-${citation.path || citation.run_id}-${index}`}
                 type="button"
-                onClick={() => openCitation(citation, context)}
+                onClick={() => onOpenCitation(citation)}
                 className="chat-citation-card"
               >
                 <span className="chat-citation-index">{index + 1}</span>
@@ -655,11 +716,20 @@ function CitationList({ citations, context, compact = false }: { citations: Chat
   );
 }
 
-function ChatFollowups({ citations, context, disabled, onAsk }: { citations: ChatCitation[]; context: AppContext; disabled: boolean; onAsk: (prompt: string) => void }) {
+function ChatFollowups({
+  citations,
+  context,
+  disabled,
+  onAsk,
+}: {
+  citations: ChatCitation[];
+  context: AppContext;
+  disabled: boolean;
+  onAsk: (prompt: string) => void;
+}) {
   const followups = buildChatFollowups(citations, context);
   if (!followups.length) return null;
   const questions = followups.filter((item) => item.kind === "question");
-  const pages = followups.filter((item) => item.kind === "page");
   return (
     <div className="chat-followups">
       <span className="chat-followups-title">{context.t("chatFollowups")}</span>
@@ -673,17 +743,77 @@ function ChatFollowups({ citations, context, disabled, onAsk }: { citations: Cha
           ))}
         </div>
       )}
-      {!!pages.length && (
-        <div className="chat-followup-row pages" aria-label={context.t("chatFollowupPages")}>
-          {pages.map((item) => (
-            <button key={item.label} type="button" onClick={() => item.citation && openCitation(item.citation, context)}>
-              <span>{context.t("chatOpenPage")}</span>
-              <strong>{item.label}</strong>
-            </button>
-          ))}
+    </div>
+  );
+}
+
+function ChatCitationPreviewPanel({
+  context,
+  preview,
+  onAsk,
+  onClose,
+}: {
+  context: AppContext;
+  preview: ChatCitationPreview;
+  onAsk: (prompt: string) => void;
+  onClose: () => void;
+}) {
+  const title = preview.page?.summary.title || citationTitle(preview.citation);
+  const path = preview.citation.path || preview.page?.path || "";
+  return (
+    <aside className="chat-preview-panel" aria-label={context.t("chatSourcePreview")}>
+      <div className="chat-preview-header">
+        <div>
+          <span className="eyebrow">{context.t("chatSourcePreview")}</span>
+          <h3>{title}</h3>
+          {path && <code>{path}</code>}
+        </div>
+        <button className="icon-button" type="button" onClick={onClose} aria-label={context.t("close")}>×</button>
+      </div>
+      {preview.loading && (
+        <div className="chat-preview-state">
+          <strong>{context.t("wikiPageLoading")}</strong>
+          <p>{context.t("wikiPageLoadingCopy")}</p>
         </div>
       )}
-    </div>
+      {!preview.loading && preview.error && (
+        <div className="chat-error-card">
+          <strong>{context.t("chatSourcePreviewFailed")}</strong>
+          <p>{preview.error}</p>
+          <div className="chat-error-actions">
+            <button type="button" onClick={() => openCitationTarget(preview.citation, context)}>
+              {context.t("viewInKnowledgeBase")}
+            </button>
+          </div>
+        </div>
+      )}
+      {!preview.loading && preview.page && (
+        <>
+          <div className="chat-preview-summary">
+            <p>{preview.page.summary.summary || context.t("noSummary")}</p>
+          </div>
+          <div className="chat-preview-actions">
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() => onAsk(followupPromptForCitation(preview.citation, context))}
+            >
+              {context.t("chatAskAboutThisPage")}
+            </button>
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() => openCitationTarget(preview.citation, context)}
+            >
+              {context.t("viewInKnowledgeBase")}
+            </button>
+          </div>
+          <div className="chat-preview-content">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{preview.page.content}</ReactMarkdown>
+          </div>
+        </>
+      )}
+    </aside>
   );
 }
 
@@ -698,14 +828,7 @@ function buildChatFollowups(citations: ChatCitation[], context: AppContext): Cha
     supporting[0] ? relationQuestion(primary, supporting[0], context) : undefined,
     supporting[1] ? relationQuestion(primary, supporting[1], context) : undefined,
   ]).slice(0, 3);
-  const pageSuggestions = [...answerPages, ...pages.filter((citation) => citation.role === "source")]
-    .slice(0, 3)
-    .map((citation) => ({
-      kind: "page" as const,
-      label: citationTitle(citation),
-      citation,
-    }));
-  return [...questions, ...pageSuggestions];
+  return questions;
 }
 
 function uniquePageCitations(citations: ChatCitation[]) {
@@ -783,7 +906,22 @@ function groupCitations(citations: ChatCitation[], context: AppContext) {
   return groups;
 }
 
-function openCitation(citation: ChatCitation, context: AppContext) {
+function citationSelector(citation: ChatCitation, context: AppContext): VaultSelector {
+  return {
+    config_path: context.activeVaultSelector.config_path,
+    vault_id: citation.vault_id || context.activeVaultSelector.vault_id,
+    vault_path: citation.vault_id ? undefined : citation.vault_path || context.activeVaultSelector.vault_path,
+  };
+}
+
+function followupPromptForCitation(citation: ChatCitation, context: AppContext) {
+  const title = citationTitle(citation);
+  return context.language === "zh"
+    ? `围绕 ${title} 继续展开，结合这页内容讲清楚关键机制和实践要点`
+    : `Continue with ${title}; explain the key mechanisms and practical takeaways from this page.`;
+}
+
+function openCitationTarget(citation: ChatCitation, context: AppContext) {
   if (citation.kind === "page" && citation.path) {
     context.openWikiPageInVault(citation.vault_id, citation.path);
     return;

@@ -5100,6 +5100,10 @@ blockquote {
   overflow: hidden;
 }
 
+.chat-layout:has(.chat-preview-panel) {
+  grid-template-columns: 248px minmax(0, 1fr) minmax(300px, 360px);
+}
+
 .chat-session-sidebar {
   min-height: 0;
   display: grid;
@@ -5810,9 +5814,9 @@ blockquote {
 
 .chat-citation-list {
   display: grid;
-  gap: 8px;
-  max-width: min(760px, 100%);
-  margin-top: 10px;
+  gap: 7px;
+  max-width: min(700px, 100%);
+  margin-top: 8px;
 }
 
 .chat-citation-group {
@@ -5831,7 +5835,7 @@ blockquote {
 .chat-citation-card {
   width: 100%;
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) minmax(0, 180px);
+  grid-template-columns: 22px minmax(0, 1fr);
   gap: 8px;
   align-items: center;
   text-align: left;
@@ -5840,7 +5844,127 @@ blockquote {
   background: #fff;
   color: var(--text);
   cursor: pointer;
-  padding: 8px 10px;
+  padding: 7px 9px;
+}
+
+.chat-citation-card code {
+  grid-column: 2;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-preview-panel {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  gap: 14px;
+  border-left: 1px solid rgba(31, 54, 40, 0.1);
+  background: #fbfcfb;
+  padding: 18px 16px;
+  overflow: hidden;
+}
+
+.chat-preview-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  gap: 10px;
+  align-items: start;
+}
+
+.chat-preview-header h3 {
+  margin: 3px 0 5px;
+  color: #17231c;
+  font-size: 16px;
+  line-height: 1.28;
+}
+
+.chat-preview-header code {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-preview-state,
+.chat-preview-summary {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  padding: 12px;
+}
+
+.chat-preview-state strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.chat-preview-state p,
+.chat-preview-summary p {
+  margin: 4px 0 0;
+  color: var(--muted-strong);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.chat-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chat-preview-actions .button {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.chat-preview-content {
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid rgba(31, 54, 40, 0.1);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.68;
+  padding: 14px;
+}
+
+.chat-preview-content > :first-child {
+  margin-top: 0;
+}
+
+.chat-preview-content h1,
+.chat-preview-content h2,
+.chat-preview-content h3 {
+  color: #17231c;
+  line-height: 1.25;
+}
+
+.chat-preview-content h1 {
+  font-size: 20px;
+}
+
+.chat-preview-content h2 {
+  font-size: 16px;
+}
+
+.chat-preview-content h3 {
+  font-size: 14px;
+}
+
+.chat-preview-content pre,
+.chat-preview-content table {
+  max-width: 100%;
+  overflow: auto;
 }
 
 .chat-thinking {
@@ -6071,6 +6195,16 @@ blockquote {
 
   .chat-thread-panel {
     min-height: auto;
+  }
+
+  .chat-layout:has(.chat-preview-panel) {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-preview-panel {
+    max-height: 520px;
+    border-top: 1px solid rgba(31, 54, 40, 0.1);
+    border-left: 0;
   }
 }
 
