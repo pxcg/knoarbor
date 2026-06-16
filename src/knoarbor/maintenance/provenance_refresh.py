@@ -1,19 +1,15 @@
 from __future__ import annotations
 
 import ast
-import difflib
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from knoarbor.core.markdown import extract_list_items, extract_section, parse_frontmatter
 from knoarbor.core.schemas.wiki_write import WikiDraftBatchWriteItem, WikiDraftBatchWriteRequest, WikiDraftBatchWriteResponse, WikiDraftInput
-from knoarbor.maintenance.wiki_links import reconcile_expected_related_pages
+from knoarbor.maintenance.related_pages_repair import reconcile_related_pages
 from knoarbor.pipelines.write import WikiWritePipeline
 from knoarbor.storage.wiki_index import relative_wiki_path, update_index
 from knoarbor.storage.wiki_paths import content_root, normalize_source_digest_title, resolve_existing_target
-
-
-MAX_REFRESH_DIFF_LINES = 220
 
 
 @dataclass
@@ -36,12 +32,12 @@ class ProvenanceRefreshExecutor:
         self.write_pipeline = write_pipeline or WikiWritePipeline()
 
     def apply(self, *, vault_path: Path, queued_actions: list[dict[str, object]]) -> ProvenanceRefreshResult:
-        source_targets, warnings = self._collect_source_targets(vault_path, queued_actions)
+        digest_by_source = _source_digest_by_source(vault_path)
+        source_targets, warnings = self._collect_source_targets(vault_path, queued_actions, digest_by_source)
         result = ProvenanceRefreshResult(warnings=warnings)
         if not source_targets:
             return result
 
-        digest_by_source = _source_digest_by_source(vault_path)
         index_changed = False
         for source, targets in source_targets.items():
             existing_digest = digest_by_source.get(source)
@@ -70,6 +66,7 @@ class ProvenanceRefreshExecutor:
         self,
         vault_path: Path,
         queued_actions: list[dict[str, object]],
+        digest_by_source: dict[str, str],
     ) -> tuple[dict[str, set[str]], list[str]]:
         source_targets: dict[str, set[str]] = {}
         warnings: list[str] = []
@@ -91,7 +88,7 @@ class ProvenanceRefreshExecutor:
                 continue
             for source in sources:
                 raw_path = (vault_path / source).resolve()
-                if not raw_path.exists() or not raw_path.is_file():
+                if (not raw_path.exists() or not raw_path.is_file()) and source not in digest_by_source:
                     warnings.append(f"refresh_request skipped missing raw source for {target_page}: {source}")
                     continue
                 source_targets.setdefault(source, set()).add(relative_wiki_path(vault_path, target_path))
@@ -160,7 +157,7 @@ class ProvenanceRefreshExecutor:
         applied: list[dict[str, object]] = []
         digest_path = resolve_existing_target(vault_path, digest_page)
         if digest_path is not None and digest_path.exists():
-            operation = _reconcile_page(vault_path, digest_path, target_pages, "source_digest_missing_related_pages")
+            operation = reconcile_related_pages(vault_path, digest_path, target_pages, "source_digest_missing_related_pages")
             if operation:
                 operation.update(
                     {
@@ -177,7 +174,7 @@ class ProvenanceRefreshExecutor:
             target_path = resolve_existing_target(vault_path, target_page)
             if target_path is None or not target_path.exists():
                 continue
-            operation = _reconcile_page(vault_path, target_path, [digest_page], "knowledge_missing_source_digest_link")
+            operation = reconcile_related_pages(vault_path, target_path, [digest_page], "knowledge_missing_source_digest_link")
             if operation:
                 operation.update(
                     {
@@ -202,8 +199,9 @@ def _source_digest_by_source(vault_path: Path) -> dict[str, str]:
         metadata = parse_frontmatter(content)
         candidates = [*_source_values(metadata.get("source")), *_source_values_from_section(content)]
         for source in candidates:
-            if source.startswith("raw/"):
-                mapping[source] = relative_wiki_path(vault_path, page_path)
+            digest_page = relative_wiki_path(vault_path, page_path)
+            for alias in _source_aliases(source):
+                mapping.setdefault(alias, digest_page)
     return mapping
 
 
@@ -213,6 +211,7 @@ def _raw_sources_for_action(vault_path: Path, target_path: Path, action: dict[st
     params = action.get("params") if isinstance(action.get("params"), dict) else {}
     candidates = [
         _optional_str(params.get("source_file")) if isinstance(params, dict) else None,
+        _optional_str(params.get("source")) if isinstance(params, dict) else None,
         *_source_values(metadata.get("source")),
         *_source_values_from_section(content),
     ]
@@ -224,6 +223,38 @@ def _raw_sources_for_action(vault_path: Path, target_path: Path, action: dict[st
         seen.add(source)
         sources.append(source)
     return sources
+
+
+def _source_aliases(source: str) -> list[str]:
+    text = source.strip()
+    if not text:
+        return []
+
+    aliases = [text]
+    path = Path(text)
+    suffix = path.suffix
+    stem = path.stem
+    name = path.name
+    if name:
+        aliases.append(name)
+    if stem:
+        aliases.append(stem)
+        aliases.append(f"raw/notes/{stem}.md")
+        aliases.append(f"raw/documents/markdown/{stem}.md")
+        aliases.append(f"raw/chats/{stem}.json")
+        aliases.append(f"raw/chats/{stem}.jsonl")
+    if suffix and stem:
+        aliases.append(f"raw/notes/{stem}{suffix}")
+        aliases.append(f"raw/chats/{stem}{suffix}")
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for alias in aliases:
+        item = alias.strip()
+        if item and item not in seen:
+            seen.add(item)
+            normalized.append(item)
+    return normalized
 
 
 def _source_values(value: object) -> list[str]:
@@ -246,34 +277,6 @@ def _source_values(value: object) -> list[str]:
 
 def _source_values_from_section(content: str) -> list[str]:
     return [item.strip("`").strip() for item in extract_list_items(extract_section(content, "Source")) if item.strip()]
-
-
-def _reconcile_page(vault_path: Path, page_path: Path, expected_pages: list[str], issue_type: str) -> dict[str, object] | None:
-    before = page_path.read_text(encoding="utf-8")
-    stats = reconcile_expected_related_pages(vault_path, page_path, expected_pages)
-    after = page_path.read_text(encoding="utf-8")
-    if before == after:
-        return None
-    diff_lines = list(
-        difflib.unified_diff(
-            before.splitlines(),
-            after.splitlines(),
-            fromfile=relative_wiki_path(vault_path, page_path),
-            tofile=relative_wiki_path(vault_path, page_path),
-            lineterm="",
-        )
-    )
-    return {
-        "status": "applied",
-        "issue_type": issue_type,
-        "related_pages": expected_pages,
-        "write_details": {
-            "patched_sections": ["Related Pages"],
-            "semantic_related_links": stats,
-            "diff": "\n".join(diff_lines[:MAX_REFRESH_DIFF_LINES]),
-            "diff_truncated": len(diff_lines) > MAX_REFRESH_DIFF_LINES,
-        },
-    }
 
 
 def _written_page_paths(vault_path: Path, response: WikiDraftBatchWriteResponse) -> list[str]:

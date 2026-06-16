@@ -9,6 +9,7 @@ from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
 from knoarbor.core.schemas.wiki_lint import LintRunRequest
 from knoarbor.core.schemas.wiki_operation import WikiOperationApplyRequest, WikiOperationInput
 from knoarbor.core.schemas.wiki_write import WikiDraftBatchWriteItem, WikiDraftBatchWriteRequest, WikiDraftBatchWriteResponse, WikiDraftInput
+from knoarbor.maintenance.graph_repair import GraphRepairExecutor, GraphRepairResult
 from knoarbor.maintenance.provenance_refresh import ProvenanceRefreshExecutor, ProvenanceRefreshResult
 from knoarbor.pipelines.operation import WikiOperationPipeline
 from knoarbor.pipelines.write import WikiWritePipeline
@@ -24,12 +25,14 @@ class LintExecutionRouter:
         operation_pipeline: WikiOperationPipeline | None = None,
         write_pipeline: WikiWritePipeline | None = None,
         provenance_refresh: ProvenanceRefreshExecutor | None = None,
+        graph_repair: GraphRepairExecutor | None = None,
         privacy_config: PrivacyConfig | None = None,
     ) -> None:
         self.privacy_config = privacy_config or PrivacyConfig()
         self.operation_pipeline = operation_pipeline or WikiOperationPipeline(privacy_config=self.privacy_config)
         self.write_pipeline = write_pipeline or WikiWritePipeline()
         self.provenance_refresh = provenance_refresh or ProvenanceRefreshExecutor(self.write_pipeline)
+        self.graph_repair = graph_repair or GraphRepairExecutor()
 
     def apply_wiki_operations(
         self,
@@ -108,10 +111,13 @@ class LintExecutionRouter:
             if decision.operation_index >= len(candidates.candidates):
                 continue
             candidate = candidates.candidates[decision.operation_index]
+            queue_type = "refresh_request" if decision.executor_fit == "supported_by_refresh_request" else "report_only"
+            if queue_type == "report_only" and _is_safe_graph_repair_candidate(candidate, decision):
+                queue_type = "graph_repair"
             queued.append(
                 {
                     "operation_index": decision.operation_index,
-                    "queue_type": "refresh_request" if decision.executor_fit == "supported_by_refresh_request" else "report_only",
+                    "queue_type": queue_type,
                     "action": candidate.recommended_action.action,
                     "target_page": candidate.target_page,
                     "issue_type": candidate.issue_type,
@@ -134,6 +140,16 @@ class LintExecutionRouter:
         queued_actions: list[dict[str, object]],
     ) -> ProvenanceRefreshResult:
         return self.provenance_refresh.apply(
+            vault_path=Path(request.vault_path).expanduser().resolve(),
+            queued_actions=queued_actions,
+        )
+
+    def apply_graph_repairs(
+        self,
+        request: LintRunRequest,
+        queued_actions: list[dict[str, object]],
+    ) -> GraphRepairResult:
+        return self.graph_repair.apply(
             vault_path=Path(request.vault_path).expanduser().resolve(),
             queued_actions=queued_actions,
         )
@@ -232,6 +248,17 @@ def _candidate_to_wiki_operation(
     if action not in _WIKI_OPERATION_ACTIONS:
         return None
     return _build_wiki_operation(request, candidate, decision, action)
+
+
+def _is_safe_graph_repair_candidate(
+    candidate: MaintenanceCandidate,
+    decision: LintMaintenanceReviewDecision,
+) -> bool:
+    if candidate.issue_type not in {"weak_link_graph", "source_without_knowledge_links"}:
+        return False
+    if candidate.recommended_action.action not in {"queue_graph_review", "report_only"}:
+        return False
+    return decision.risk_level in {"safe", "low"} and candidate.risk_hint in {"safe", "low"}
 
 
 def _build_wiki_operation(

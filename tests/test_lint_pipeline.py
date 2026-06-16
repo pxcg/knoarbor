@@ -928,6 +928,85 @@ class WikiLintPipelineTests(unittest.TestCase):
         self.assertIsNotNone(response.rescan)
         self.assertNotIn("knowledge_without_source_digest", {issue.code for issue in response.rescan.issues})
 
+    def test_run_maintenance_executes_refresh_request_with_existing_source_digest_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            (vault / "concepts").mkdir()
+            (vault / "sources").mkdir()
+            target = vault / "concepts" / "Agent.md"
+            target.write_text(
+                "---\ncreated: 2026-05-01\nupdated: 2026-05-01\ntype: concept\nstatus: draft\nsource: raw/notes/agent.md\ncontent_hash: a\n---\n"
+                "# Agent\n\n## Summary\n\nAgent loop notes.\n\n## Answer\n\nAgent loop answer.\n\n## Key Points\n\n- Agent loop.\n\n## Related Pages\n\n- 暂无关联知识\n\n## Tags\n\n- agent\n\n## Source\n\n- raw/notes/agent.md\n",
+                encoding="utf-8",
+            )
+            digest = vault / "sources" / "Agent-Source.md"
+            digest.write_text(
+                "---\ncreated: 2026-05-01\nupdated: 2026-05-01\ntype: source\nstatus: draft\nsource: /Users/example/Documents/agent.md\ncontent_hash: s\n---\n"
+                "# Agent Source\n\n## Summary\n\nSource digest.\n\n## Related Pages\n\n- 暂无关联知识\n\n## Source\n\n- /Users/example/Documents/agent.md\n",
+                encoding="utf-8",
+            )
+
+            response = WikiLintPipeline(RefreshRequestWorkflow()).run_maintenance(
+                LintRunRequest(
+                    vault_path=str(vault),
+                    scope=MaintenanceScope(
+                        scope_id="manual:test",
+                        trigger="manual",
+                        source=MaintenanceScopeSource(kind="test"),
+                        changed_pages=["concepts/Agent.md"],
+                    ),
+                    mode="semantic_structural",
+                    auto_apply_reviewed_changes=True,
+                    auto_retry_deferred_actions=False,
+                )
+            )
+            source_pages = sorted((vault / "sources").glob("*.md"))
+            source_content = digest.read_text(encoding="utf-8")
+            target_content = target.read_text(encoding="utf-8")
+
+        self.assertEqual(len(source_pages), 1)
+        self.assertFalse(response.written_pages)
+        self.assertTrue(any(operation["action"] == "attach_source_digest" for operation in response.applied_operations))
+        self.assertIn("[[concepts/Agent|Agent]]", source_content)
+        self.assertIn("[[sources/Agent-Source|Agent Source]]", target_content)
+
+    def test_run_maintenance_executes_safe_graph_repair_queue(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            (vault / "concepts").mkdir()
+            target = vault / "concepts" / "JSON-RPC.md"
+            target.write_text(
+                "---\ncreated: 2026-05-01\nupdated: 2026-05-01\ntype: concept\nstatus: draft\nsource: raw/notes/mcp.md\ncontent_hash: a\n---\n"
+                "# JSON RPC\n\n## Summary\n\nJSON RPC protocol for MCP tools.\n\n## Answer\n\nJSON RPC is used by MCP tool servers.\n\n## Key Points\n\n- MCP transport.\n\n## Related Pages\n\n- 暂无关联知识\n\n## Tags\n\n- mcp\n\n## Source\n\n- raw/notes/mcp.md\n",
+                encoding="utf-8",
+            )
+            related = vault / "concepts" / "MCP.md"
+            related.write_text(
+                "---\ncreated: 2026-05-01\nupdated: 2026-05-01\ntype: concept\nstatus: draft\nsource: raw/notes/mcp.md\ncontent_hash: b\n---\n"
+                "# MCP\n\n## Summary\n\nModel Context Protocol and JSON RPC tool transport.\n\n## Related Pages\n\n- 暂无关联知识\n",
+                encoding="utf-8",
+            )
+
+            response = WikiLintPipeline(GraphRepairWorkflow()).run_maintenance(
+                LintRunRequest(
+                    vault_path=str(vault),
+                    scope=MaintenanceScope(
+                        scope_id="manual:test",
+                        trigger="manual",
+                        source=MaintenanceScopeSource(kind="test"),
+                        changed_pages=["concepts/JSON-RPC.md"],
+                    ),
+                    mode="semantic_structural",
+                    auto_apply_reviewed_changes=True,
+                    auto_retry_deferred_actions=False,
+                )
+            )
+            target_content = target.read_text(encoding="utf-8")
+
+        self.assertEqual(response.queued_actions[0]["queue_type"], "graph_repair")
+        self.assertTrue(any(operation["action"] == "attach_related_pages" for operation in response.applied_operations))
+        self.assertIn("[[concepts/MCP|MCP]]", target_content)
+
     def test_run_maintenance_retries_report_only_queue_with_enriched_context(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
@@ -1739,6 +1818,61 @@ class RefreshRequestWorkflow(FakeLintSemanticWorkflow):
                     }
                 ],
                 "summary": "Approved refresh.",
+                "warnings": [],
+            }
+        )
+
+
+class GraphRepairWorkflow(FakeLintSemanticWorkflow):
+    def diagnose_structural(self, scan_payload, *, max_tokens=None):
+        return MaintenanceCandidates.model_validate(
+            {
+                "schema_version": "maintenance_candidates.v1",
+                "candidates": [
+                    {
+                        "candidate_id": "graph:concepts/JSON-RPC.md:weak_link_graph:0",
+                        "source": "graph",
+                        "target_page": "concepts/JSON-RPC.md",
+                        "issue_type": "weak_link_graph",
+                        "severity": "low",
+                        "confidence": 0.9,
+                        "risk_hint": "safe",
+                        "executor_hint": "report_only",
+                        "evidence": [{"kind": "scan_issue", "ref": "concepts/JSON-RPC.md", "quote": "No links"}],
+                        "recommended_action": {
+                            "action": "queue_graph_review",
+                            "params": {},
+                        },
+                        "related_pages": ["concepts/MCP.md"],
+                        "expected_effect": "Attach related pages to integrate the page into the graph.",
+                        "review_notes": "Only related-page links are changed.",
+                    }
+                ],
+                "summary": "One graph repair candidate.",
+                "warnings": [],
+            }
+        )
+
+    def review(self, review_payload, *, max_tokens=None):
+        return LintMaintenanceReview.model_validate(
+            {
+                "schema_version": "lint_maintenance_review.v1",
+                "decisions": [
+                    {
+                        "operation_index": 0,
+                        "decision": "approve",
+                        "necessity": "necessary",
+                        "correctness": "correct",
+                        "completeness": "complete",
+                        "executor_fit": "supported_by_report_only",
+                        "risk_level": "safe",
+                        "confidence": 0.9,
+                        "reason": "Weak graph page can be safely repaired by attaching explicit related pages.",
+                        "constraints": [],
+                        "required_followups": [],
+                    }
+                ],
+                "summary": "Approved graph repair.",
                 "warnings": [],
             }
         )

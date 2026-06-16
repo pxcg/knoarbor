@@ -204,6 +204,7 @@ class WikiLintPipeline:
         verifications: list[dict[str, object]] = []
         deferred_retries: list[dict[str, object]] = []
         refresh_warnings: list[str] = []
+        graph_repair_warnings: list[str] = []
         rescan: WikiLintResponse | None = None
         draft_batch = None
         draft_write_response = None
@@ -288,6 +289,27 @@ class WikiLintPipeline:
                     )
                 )
             refresh_warnings.extend(refresh_result.warnings)
+            graph_result = self.execution_router.apply_graph_repairs(request, queued_actions)
+            if graph_result.applied_operations:
+                applied_operations.extend(graph_result.applied_operations)
+                if monitor:
+                    monitor.event(
+                        "graph_repairs_applied",
+                        status="linting",
+                        stage="execute",
+                        message=f"Applied {len(graph_result.applied_operations)} graph repair operation(s).",
+                        payload={"applied_operations": len(graph_result.applied_operations)},
+                    )
+                rescan = self.lint(
+                    WikiLintRequest(
+                        vault_path=request.vault_path,
+                        write_report=False,
+                        apply_safe_fixes=False,
+                        scope_pages=_scope_pages(request),
+                        include_related=request.include_related,
+                    )
+                )
+            graph_repair_warnings.extend(graph_result.warnings)
         result = LintRunResult(
             scope=request.scope,
             mode=mode,
@@ -303,7 +325,7 @@ class WikiLintPipeline:
             applied_operations=applied_operations,
             verifications=verifications,
             rescan=rescan,
-            warnings=[*_verification_warnings(verifications), *refresh_warnings],
+            warnings=[*_verification_warnings(verifications), *refresh_warnings, *graph_repair_warnings],
             metrics=_lint_run_metrics(started, self.semantic_workflow, semantic_history_start),
         )
         return _write_lint_run_artifacts_if_requested(request, result)
