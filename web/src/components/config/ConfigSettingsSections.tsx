@@ -696,6 +696,7 @@ function ModelProbeResultPanel({
           {probe?.status || discovery?.status || t("unknown")}
         </span>
       </div>
+      <p className="settings-action-note">{t("modelProbeResultCopy")}</p>
       <p className="panel-copy">{probe?.message || discovery?.message}</p>
       <dl className="model-probe-grid">
         <div>
