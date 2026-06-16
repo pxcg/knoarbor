@@ -158,7 +158,8 @@ Branch roles:
 
 - `main`: public release branch. It should always represent the latest public
   release line or a release-ready documentation update. It must stay buildable,
-  documented, and suitable for tagging.
+  documented, and suitable for tagging. Every non-trivial movement of `main`
+  must correspond to a public version tag and GitHub release.
 - `dev`: daily integration branch for the next minor or patch release. Feature
   work is merged here first. `dev` may move faster than `main`, but it should
   still pass the normal development gate before being pushed.
@@ -195,6 +196,12 @@ Release flow:
 8. Merge `main` back into `dev` if release notes, version metadata, or hotfixes
    changed on `main`.
 
+If development commits are accidentally pushed to `main` after a previous
+public tag, prefer creating the missing version tag and release when the branch
+is releasable. Do not rewrite public history unless the commit contains secrets,
+private runtime data, or another release-blocking leak. After the tag is
+created, move ongoing work back to `dev`.
+
 Hotfix flow:
 
 1. Branch `fix/<issue>` from `main` only when the released version needs an
@@ -211,6 +218,8 @@ Hard rules:
 - Do not rewrite public release tags after they have been announced, except to
   correct a release process failure before users have consumed the artifact.
 - Do not use `main` as the normal daily development branch after `dev` exists.
+- Do not leave `main` ahead of the latest public tag without an explicit release
+  decision.
 
 ## Spec-Driven Development Flow
 

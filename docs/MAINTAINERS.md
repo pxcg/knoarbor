@@ -127,6 +127,11 @@ In short:
 If a change is committed directly to `main` for documentation or release
 metadata, merge `main` back into `dev` before continuing feature work.
 
+`main` should not drift ahead of the latest public tag. When it does and the
+content is releasable, create the missing version tag and release notes instead
+of rewriting public history. Rewriting `main` is reserved for secrets, private
+runtime data, or another leak that cannot be safely published.
+
 ## Architecture Change Process
 
 Before adding or moving a capability, identify the owning layer:

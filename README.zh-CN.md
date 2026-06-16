@@ -9,7 +9,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-3776AB.svg" alt="Python 3.12+">
-  <img src="https://img.shields.io/badge/status-1.2%20multi--vault%20release-0f766e.svg" alt="1.2 multi-vault release status">
+  <img src="https://img.shields.io/badge/status-1.3%20wiki--chat%20release-0f766e.svg" alt="1.3 wiki chat release status">
   <a href="docs/zh/QUICKSTART.md"><img src="https://img.shields.io/badge/docs-quickstart-111827.svg" alt="Quickstart"></a>
 </p>
 
