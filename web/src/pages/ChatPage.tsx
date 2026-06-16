@@ -24,6 +24,7 @@ type ChatTurn = {
   role: "user" | "assistant";
   content: string;
   citations?: ChatCitation[];
+  kind?: "answer" | "error" | "status";
 };
 
 type ChatFollowup = {
@@ -32,6 +33,8 @@ type ChatFollowup = {
   prompt?: string;
   citation?: ChatCitation;
 };
+
+type ChatRequestStage = "idle" | "preparing" | "retrieving" | "generating" | "waiting_model" | "regenerating";
 
 const exampleKeys = ["chatExampleAgentLoop", "chatExampleLint", "chatExampleRag", "chatExampleReadPage"];
 
@@ -44,7 +47,9 @@ export function ChatPage({ context }: Props) {
   const [isSending, setIsSending] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [requestStage, setRequestStage] = useState<ChatRequestStage>("idle");
   const activeChatAbortRef = useRef<AbortController | null>(null);
+  const stageTimersRef = useRef<number[]>([]);
   const chatModelProviders = useMemo(() => context.modelProviders?.providers || [], [context.modelProviders]);
   const activeChatProvider = useMemo(
     () => selectedProviderName(context.selectedChatProvider, context.modelProviders?.default_provider, chatModelProviders),
@@ -92,6 +97,8 @@ export function ChatPage({ context }: Props) {
     setInput(prompt);
     context.clearPendingChatPrompt();
   }, [context.pendingChatPrompt, context.clearPendingChatPrompt]);
+
+  useEffect(() => () => clearStageTimers(), []);
 
   async function refreshSessions() {
     if (!chatVaultReady) return;
@@ -163,6 +170,7 @@ export function ChatPage({ context }: Props) {
     const nextTurns = [...turns, userTurn];
     setTurns(nextTurns);
     setIsSending(true);
+    beginRequestStages("preparing");
     const controller = new AbortController();
     activeChatAbortRef.current = controller;
     try {
@@ -190,16 +198,19 @@ export function ChatPage({ context }: Props) {
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         context.setNotice({ message: context.t("chatStopped") });
+        setTurns((current) => [...current, { role: "assistant", content: context.t("chatStoppedInline"), kind: "status" }]);
         return;
       }
       const rawMessage = error instanceof Error ? error.message : String(error);
       const message = readableChatError(rawMessage, context);
       context.setNotice({ message, error: true });
-      setTurns((current) => [...current, { role: "assistant", content: message }]);
+      setTurns((current) => [...current, { role: "assistant", content: message, kind: "error" }]);
     } finally {
       if (activeChatAbortRef.current === controller) {
         activeChatAbortRef.current = null;
       }
+      clearStageTimers();
+      setRequestStage("idle");
       setIsSending(false);
     }
   }
@@ -217,6 +228,7 @@ export function ChatPage({ context }: Props) {
     setTurns(nextTurns);
     setIsRegenerating(true);
     setIsSending(true);
+    beginRequestStages("regenerating");
     const controller = new AbortController();
     activeChatAbortRef.current = controller;
     try {
@@ -252,9 +264,34 @@ export function ChatPage({ context }: Props) {
       if (activeChatAbortRef.current === controller) {
         activeChatAbortRef.current = null;
       }
+      clearStageTimers();
+      setRequestStage("idle");
       setIsSending(false);
       setIsRegenerating(false);
     }
+  }
+
+  function beginRequestStages(initialStage: ChatRequestStage) {
+    clearStageTimers();
+    setRequestStage(initialStage);
+    if (initialStage === "regenerating") {
+      stageTimersRef.current = [
+        window.setTimeout(() => setRequestStage("retrieving"), 650),
+        window.setTimeout(() => setRequestStage("generating"), 1800),
+        window.setTimeout(() => setRequestStage("waiting_model"), 5200),
+      ];
+      return;
+    }
+    stageTimersRef.current = [
+      window.setTimeout(() => setRequestStage("retrieving"), 450),
+      window.setTimeout(() => setRequestStage("generating"), 1600),
+      window.setTimeout(() => setRequestStage("waiting_model"), 5000),
+    ];
+  }
+
+  function clearStageTimers() {
+    for (const timer of stageTimersRef.current) window.clearTimeout(timer);
+    stageTimersRef.current = [];
   }
 
   const hasConversation = turns.length > 0 || isSending;
@@ -331,7 +368,11 @@ export function ChatPage({ context }: Props) {
             {turns.map((turn, index) => (
               <div className={`chat-message ${turn.role}`} key={`${turn.role}-${index}`}>
                 <div className="chat-bubble">
-                  {turn.role === "assistant" ? (
+                  {turn.kind === "error" ? (
+                    <ChatErrorMessage message={turn.content} context={context} />
+                  ) : turn.kind === "status" ? (
+                    <ChatStatusMessage message={turn.content} />
+                  ) : turn.role === "assistant" ? (
                     <ChatMarkdownAnswer content={turn.content} citations={turn.citations || []} context={context} />
                   ) : (
                     <p>{turn.content}</p>
@@ -363,11 +404,11 @@ export function ChatPage({ context }: Props) {
             {isSending && (
               <div className="chat-message assistant">
                 <div className="chat-bubble">
-                  <div className="chat-thinking">
+                  <div className="chat-thinking" aria-live="polite">
                     <span />
                     <span />
                     <span />
-                    <p>{context.t("chatThinking")}</p>
+                    <p>{chatStageLabel(requestStage, context)}</p>
                   </div>
                 </div>
               </div>
@@ -425,6 +466,30 @@ export function ChatPage({ context }: Props) {
       </div>
     </section>
   );
+}
+
+function ChatStatusMessage({ message }: { message: string }) {
+  return <div className="chat-status-card">{message}</div>;
+}
+
+function ChatErrorMessage({ message, context }: { message: string; context: AppContext }) {
+  return (
+    <div className="chat-error-card" role="alert">
+      <strong>{context.t("chatErrorTitle")}</strong>
+      <p>{message}</p>
+      <div className="chat-error-actions">
+        <button type="button" onClick={context.openSettings}>{context.t("openSettings")}</button>
+      </div>
+    </div>
+  );
+}
+
+function chatStageLabel(stage: ChatRequestStage, context: AppContext) {
+  if (stage === "regenerating") return context.t("chatStageRegenerating");
+  if (stage === "retrieving") return context.t("chatStageRetrieving");
+  if (stage === "generating") return context.t("chatStageGenerating");
+  if (stage === "waiting_model") return context.t("chatStageWaitingModel");
+  return context.t("chatStagePreparing");
 }
 
 function SessionLifecycleBadge({ session, context }: { session: ChatSessionSummary; context: AppContext }) {
@@ -503,7 +568,7 @@ function sessionRecordToTurns(record: Awaited<ReturnType<typeof readChatSession>
 
 function latestAssistantTurnIndex(turns: ChatTurn[]) {
   for (let index = turns.length - 1; index >= 0; index -= 1) {
-    if (turns[index].role === "assistant") return index;
+    if (turns[index].role === "assistant" && turns[index].kind !== "error" && turns[index].kind !== "status") return index;
   }
   return -1;
 }

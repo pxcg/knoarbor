@@ -5848,6 +5848,8 @@ blockquote {
   align-items: center;
   gap: 6px;
   color: var(--muted);
+  min-height: 34px;
+  padding: 2px 0;
 }
 
 .chat-thinking span {
@@ -5869,6 +5871,70 @@ blockquote {
 .chat-thinking p {
   margin: 0 0 0 4px;
   color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.chat-error-card {
+  display: grid;
+  gap: 8px;
+  width: min(680px, 100%);
+  border: 1px solid #f0d5cc;
+  border-radius: 14px;
+  background: #fff8f5;
+  color: #643326;
+  padding: 12px 14px;
+}
+
+.chat-error-card strong {
+  color: #4e241a;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.chat-error-card p {
+  margin: 0;
+  color: #744338;
+  font-size: 13px;
+  line-height: 1.58;
+  white-space: normal;
+}
+
+.chat-error-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.chat-error-actions button {
+  min-height: 28px;
+  border: 1px solid #e6baad;
+  border-radius: 999px;
+  background: #fff;
+  color: #643326;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 10px;
+}
+
+.chat-error-actions button:hover {
+  border-color: #c88472;
+  background: #fff2ed;
+}
+
+.chat-status-card {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: min(620px, 100%);
+  border: 1px solid #d9e4dc;
+  border-radius: 999px;
+  background: #f7faf7;
+  color: var(--muted-strong);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.4;
+  padding: 8px 12px;
 }
 
 @keyframes chat-thinking-pulse {
