@@ -62,6 +62,13 @@ class RunMonitor:
         )
         self._write_record(record)
         self.event("run_started", message=message, status="running", stage="started")
+        logger.info(
+            "run_started run_id=%s flow=%s vault=%s metadata=%s",
+            self.run_id,
+            self.flow,
+            self.vault_path,
+            _compact_mapping(self.metadata),
+        )
         self._start_heartbeat_loop()
         return record
 
@@ -80,6 +87,7 @@ class RunMonitor:
         )
         self._write_record(record)
         self.event("run_queued", message=message, status="queued", stage="queued")
+        logger.info("run_queued run_id=%s flow=%s vault=%s metadata=%s", self.run_id, self.flow, self.vault_path, _compact_mapping(self.metadata))
         return record
 
     def heartbeat(
@@ -241,6 +249,18 @@ class RunMonitor:
             stage=record.stage,
             payload={"error": public_info},
         )
+        logger.error(
+            "run_finished run_id=%s flow=%s status=%s stage=%s elapsed_seconds=%.2f error_code=%s retryable=%s message=%s action=%s",
+            self.run_id,
+            self.flow,
+            status,
+            record.stage,
+            record.elapsed_seconds,
+            public_info.get("code", "-"),
+            public_info.get("retryable", "-"),
+            public_info.get("message") or str(exc),
+            public_info.get("action") or "-",
+        )
         self._stop_heartbeat_loop()
         return self.read()
 
@@ -341,6 +361,17 @@ class RunMonitor:
                 record.metrics = {**record.metrics, **metrics}
             self._write_record_unlocked(record)
         self.event(event_type, message=message, status=status, stage=stage, payload=result_summary or {})
+        logger.info(
+            "run_finished run_id=%s flow=%s status=%s stage=%s elapsed_seconds=%.2f summary=%s metrics=%s report=%s",
+            self.run_id,
+            self.flow,
+            status,
+            stage,
+            record.elapsed_seconds,
+            _compact_mapping(record.result_summary),
+            _compact_mapping(record.metrics),
+            _report_path(record.result_summary),
+        )
         self._stop_heartbeat_loop()
         return self.read()
 
@@ -486,6 +517,32 @@ def _finish_orphaned_record(
     monitor = RunMonitor(vault_path=vault_path, flow=record.flow, run_id=record.run_id, metadata=record.metadata)
     monitor._append_event_for_record(record, event_type, message=message, payload={"reconciled": True, "error": error_info or {}})
     return record
+
+
+def _compact_mapping(value: dict[str, Any] | None, *, max_items: int = 8) -> str:
+    if not value:
+        return "-"
+    parts = []
+    for index, (key, item) in enumerate(value.items()):
+        if index >= max_items:
+            parts.append("...")
+            break
+        parts.append(f"{key}={_compact_value(item)}")
+    return ",".join(parts)
+
+
+def _compact_value(value: Any) -> str:
+    if isinstance(value, dict):
+        return f"dict({len(value)})"
+    if isinstance(value, list):
+        return f"list({len(value)})"
+    text = str(value).replace("\n", " ")
+    return text if len(text) <= 120 else text[:117] + "..."
+
+
+def _report_path(summary: dict[str, Any]) -> str:
+    report = summary.get("report_path")
+    return str(report) if report else "-"
 
 
 def _write_reconciled_queue_state(vault_path: Path, run_id: str, status: str) -> None:

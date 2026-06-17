@@ -78,23 +78,64 @@ def run_serve(args: argparse.Namespace) -> int:
         vaults=config.vault_profiles_summary(),
     )
     if switched_port:
-        print(f"Configured port {preferred_port} is in use; using {port} instead.")
-    print(f"KnoArbor UI: {base_url}")
-    print(f"UI alias: {base_url}/ui")
-    print(f"API docs: {base_url}/docs")
-    print(f"Runtime endpoint: {endpoint_path}")
-    print(f"Runtime log: {log_path}")
+        _print_startup_line(f"Configured port {preferred_port} is in use; using {port} instead.")
+    _print_startup_line(f"KnoArbor UI: {base_url}")
+    _print_startup_line(f"UI alias: {base_url}/ui")
+    _print_startup_line(f"API docs: {base_url}/docs")
+    _print_startup_line(f"Runtime endpoint: {endpoint_path}")
+    _print_startup_line(f"Runtime log: {log_path}")
+    _print_serve_summary(config, config_path=config_path, base_url=base_url)
     runtime_logger("serve").info(
-        "service_starting host=%s port=%s vault=%s config=%s ui=%s docs=%s",
+        "service_starting host=%s port=%s vault_id=%s vault_name=%s vault=%s config=%s ui=%s docs=%s model_provider=%s model=%s providers=%s connectors=%s log=%s endpoint=%s",
         host,
         port,
+        config.active_vault_id(),
+        config.active_vault_name(),
         config.vault.path,
         config_path,
         base_url,
         f"{base_url}/docs",
+        config.models.default_provider or "-",
+        _default_model_name(config),
+        ",".join(sorted(config.models.providers.keys())) or "-",
+        ",".join(config.enabled_connectors()) or "-",
+        log_path,
+        endpoint_path,
     )
     uvicorn.run(create_app(ApplicationServices()), host=host, port=port)
     return 0
+
+
+def _print_serve_summary(config, *, config_path: Path, base_url: str) -> None:
+    provider_name = config.models.default_provider
+    provider = config.models.providers.get(provider_name) if provider_name else None
+    _print_startup_line("Startup summary:")
+    _print_startup_line(f"  Config: {config_path}")
+    _print_startup_line(f"  Active vault: {config.active_vault_name()} ({config.active_vault_id()})")
+    _print_startup_line(f"  Vault path: {config.vault.path}")
+    _print_startup_line(f"  Vault profiles: {len(config.vaults.profiles)}")
+    _print_startup_line(f"  Connectors: {', '.join(config.enabled_connectors()) or 'none'}")
+    _print_startup_line(f"  Default model: {_provider_summary(provider_name, provider)}")
+    _print_startup_line(f"  Health: {base_url}/health")
+
+
+def _print_startup_line(message: str) -> None:
+    print(message, flush=True)
+
+
+def _provider_summary(provider_name: str | None, provider) -> str:
+    if not provider_name or provider is None:
+        return "not configured"
+    auth = "no api key required" if not provider.api_key_env else f"api key env={provider.api_key_env}"
+    base_url = provider.base_url or "default endpoint"
+    model = provider.model or "model not set"
+    return f"{provider_name} / {model} / {provider.adapter} / {base_url} / {auth}"
+
+
+def _default_model_name(config) -> str:
+    provider_name = config.models.default_provider
+    provider = config.models.providers.get(provider_name) if provider_name else None
+    return provider.model if provider and provider.model else "-"
 
 
 def run_first_run(args: argparse.Namespace) -> int:
