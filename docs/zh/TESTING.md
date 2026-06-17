@@ -110,6 +110,22 @@ scripts/live-release-candidate-smoke.sh
 
 该测试会调用真实模型供应商，因此不放入默认发布门禁。它必须使用临时 vault 和临时 config。
 
+## RAG 基线对比
+
+KnoArbor 可以用同一套对话 fixture 和传统 chunk 检索做对比。默认本地基线不启动数据库或外部 RAG 产品，只读取 raw 文件、切块、执行 BM25 检索，并可选调用已配置模型基于检索到的 chunk 回答。所有输出都写入 `tmp/rag-baselines/`。
+
+```bash
+uv run python scripts/eval/rag_lite_baseline.py --retrieval-only
+```
+
+如需包含模型回答：
+
+```bash
+uv run python scripts/eval/rag_lite_baseline.py --provider deepseek
+```
+
+当已有 WeKnora 服务运行，并且目标是和完整外部 RAG 产品对比时，可以使用 WeKnora 基线脚本。
+
 ## 人工发布审查
 
 发布前还应遵循 [发布前审查清单](RELEASE_CHECKLIST.md)，覆盖隐私、协议、文档、UI、API/CLI 兼容性和长任务安全。

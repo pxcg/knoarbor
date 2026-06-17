@@ -122,9 +122,24 @@ default release gate. It must use a temporary vault and temporary config.
 
 ## RAG Baseline Comparison
 
-KnoArbor can be compared against a conventional RAG system with the same chat
-fixture. The WeKnora baseline harness is opt-in and writes results only under
-`tmp/rag-baselines/`.
+KnoArbor can be compared against conventional chunk retrieval with the same chat
+fixture. The default local baseline does not start a database or external RAG
+product. It reads raw files, chunks them, runs BM25 retrieval, and optionally
+calls a configured model to answer from the retrieved chunks. All outputs are
+written under `tmp/rag-baselines/`.
+
+```bash
+uv run python scripts/eval/rag_lite_baseline.py --retrieval-only
+```
+
+To include a model answer:
+
+```bash
+uv run python scripts/eval/rag_lite_baseline.py --provider deepseek
+```
+
+The WeKnora baseline harness is still available when a WeKnora service is
+already running and the goal is to compare against a full external RAG product.
 
 ```bash
 uv run python scripts/eval/weknora_rag_baseline.py \
