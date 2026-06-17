@@ -40,6 +40,7 @@ class ChatEvidencePlanner:
         warnings: list[str],
     ) -> ChatEvidencePack:
         primary_pages = primary_pages or ([primary_page] if primary_page else [])
+        answer_type = _infer_answer_type(query=query, answer_scope=answer_scope)
         action = self._recommended_action(evidence_coverage, primary_page)
         evidence_paths: set[str] = set()
         for page in primary_pages:
@@ -53,19 +54,21 @@ class ChatEvidencePlanner:
             "kind": "wiki_search_evidence",
             "query": query,
             "result_count": result_count,
+            "answer_type": answer_type,
             "answer_scope": answer_scope,
             "answer_set": answer_set,
-            "synthesis_outline": self._synthesis_outline(answer_scope, primary_page, supporting_pages),
+            "evidence_policy": self._evidence_policy(answer_type, evidence_coverage, primary_pages, supporting_pages, source_pages),
+            "synthesis_outline": self._synthesis_outline(answer_scope, primary_page, supporting_pages, answer_type=answer_type),
             "evidence_coverage": evidence_coverage,
             "recommended_action": action,
-            "primary_page": self._primary_payload(primary_page),
-            "primary_pages": [self._primary_payload(page) for page in primary_pages if page],
-            "supporting_pages": [self._supporting_payload(page) for page in supporting_pages],
-            "source_pages": [self._source_payload(page) for page in source_pages],
+            "primary_page": self._primary_payload(primary_page, answer_type=answer_type, index=0),
+            "primary_pages": [self._primary_payload(page, answer_type=answer_type, index=index) for index, page in enumerate(primary_pages) if page],
+            "supporting_pages": [self._supporting_payload(page, answer_type=answer_type, index=index) for index, page in enumerate(supporting_pages)],
+            "source_pages": [self._source_payload(page, answer_type=answer_type, index=index) for index, page in enumerate(source_pages)],
             "citation_pages": _citation_pages(primary_pages, supporting_pages, source_pages),
             "further_results": [self._result_payload(item) for item in results if item.get("path") not in evidence_paths][:5],
             "warnings": warnings,
-            "instructions": self._instructions(action, evidence_coverage, primary_page),
+            "instructions": self._instructions(action, evidence_coverage, primary_page, answer_type=answer_type),
         }
         return ChatEvidencePack(payload=payload)
 
@@ -118,6 +121,7 @@ class ChatEvidencePlanner:
             "kind": "session_evidence",
             "query": " / ".join(_unique_strings(queries[-4:])) or "prior session evidence",
             "result_count": len(primary_pages) + len(supporting_pages) + len(source_pages),
+            "answer_type": "synthesis",
             "answer_scope": {
                 "kind": "broad",
                 "vault_ids": _unique_strings([str(page.get("vault_id")) for page in [*primary_pages, *supporting_pages] if page.get("vault_id")]),
@@ -130,6 +134,13 @@ class ChatEvidencePlanner:
                 "source_paths": source_paths,
                 "reason": "Recent chat evidence reused for a follow-up synthesis request.",
                 "stop_reason": "session_context",
+            },
+            "evidence_policy": {
+                "answer_contract": "Synthesize the prior maintained wiki pages into the requested artifact.",
+                "primary_role": "Use primary pages as the main claims and architecture anchors.",
+                "supporting_role": "Use supporting pages to fill mechanisms, tradeoffs, examples, and implementation details.",
+                "source_role": "Use source pages only for provenance unless the user asks about origins.",
+                "citation_policy": "Cite only pages that directly support the written answer; do not cite every reused page.",
             },
             "synthesis_outline": [
                 "Answer from the maintained pages already used in this chat session.",
@@ -144,10 +155,10 @@ class ChatEvidencePlanner:
                 "gap_count": 0,
             },
             "recommended_action": "answer_from_evidence",
-            "primary_page": primary_pages[0] if primary_pages else None,
-            "primary_pages": primary_pages,
-            "supporting_pages": supporting_pages,
-            "source_pages": source_pages,
+            "primary_page": _with_role_rationale(primary_pages[0], "primary", "synthesis", 0) if primary_pages else None,
+            "primary_pages": [_with_role_rationale(page, "primary", "synthesis", index) for index, page in enumerate(primary_pages)],
+            "supporting_pages": [_with_role_rationale(page, "supporting", "synthesis", index) for index, page in enumerate(supporting_pages)],
+            "source_pages": [_with_role_rationale(page, "source", "synthesis", index) for index, page in enumerate(source_pages)],
             "citation_pages": _citation_pages(primary_pages, supporting_pages, source_pages),
             "further_results": [],
             "warnings": [],
@@ -237,10 +248,13 @@ class ChatEvidencePlanner:
         action: str,
         evidence_coverage: dict[str, Any],
         primary_page: dict[str, Any] | None,
+        *,
+        answer_type: str,
     ) -> list[str]:
         instructions = [
             "Answer from the evidence pack, using the primary page as the anchor.",
             "Follow synthesis_outline when it is present; it expresses the wiki-first answer structure for the current question.",
+            f"Use answer_type={answer_type} to choose the answer shape and evidence depth.",
             "Use supporting pages as additional maintained wiki pages, not as disposable snippets.",
             "Keep citations aligned with the evidence pages used in the answer.",
         ]
@@ -257,11 +271,41 @@ class ChatEvidencePlanner:
         answer_scope: dict[str, Any],
         primary_page: dict[str, Any] | None,
         supporting_pages: list[dict[str, Any]],
+        *,
+        answer_type: str,
     ) -> list[str]:
         if not primary_page:
             return [
                 "State the local wiki coverage gap.",
                 "If useful, suggest a specific ingest or query refinement action.",
+            ]
+        if answer_type == "comparison":
+            return [
+                "Start with the central distinction between the compared objects.",
+                "Use a compact comparison table when it clarifies decision criteria.",
+                "Use primary pages for the main concepts and supporting pages for tradeoffs, examples, and implementation details.",
+                "Do not answer as two separate page summaries; synthesize the contrast directly.",
+            ]
+        if answer_type == "architecture":
+            return [
+                "Start with the architecture thesis and the system boundary.",
+                "Organize by layers, modules, or workflow stages rather than page order.",
+                "Use multiple primary/supporting pages as maintained wiki knowledge objects.",
+                "Call out responsibilities, interfaces, and tradeoffs when evidence supports them.",
+            ]
+        if answer_type == "entity_analysis":
+            return [
+                "Use the entity or comparison page as the case anchor.",
+                "Separate reusable patterns from project-specific redesign needs.",
+                "Tie the case back to the user's current architecture goal.",
+                "Use source pages as provenance for claims about the entity.",
+            ]
+        if answer_type == "synthesis":
+            return [
+                "Reuse prior session evidence as the main material.",
+                "Produce the requested artifact directly, such as an outline, roadmap, or design section.",
+                "Preserve the session's project identity and avoid generic placeholders.",
+                "Cite only the core pages that support the synthesized artifact.",
             ]
         if answer_scope.get("kind") == "narrow":
             return [
@@ -281,13 +325,40 @@ class ChatEvidencePlanner:
             outline.append(f"Available supporting page types: {', '.join(support_types)}.")
         return outline
 
-    def _primary_payload(self, page: dict[str, Any] | None) -> dict[str, Any] | None:
+    def _evidence_policy(
+        self,
+        answer_type: str,
+        evidence_coverage: dict[str, Any],
+        primary_pages: list[dict[str, Any]],
+        supporting_pages: list[dict[str, Any]],
+        source_pages: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        policy_by_type = {
+            "definition": "Define the concept first, then explain mechanism and significance from the maintained page.",
+            "comparison": "Compare by decision criteria and boundaries; do not summarize each object separately.",
+            "architecture": "Build a layered design from multiple maintained pages and keep module responsibilities explicit.",
+            "entity_analysis": "Use the named entity as a reference implementation and separate reusable patterns from redesign needs.",
+            "synthesis": "Transform prior evidence into the requested artifact while preserving the session goal.",
+            "exploratory": "Answer from the strongest maintained pages and state evidence gaps when coverage is weak.",
+        }
+        return {
+            "answer_contract": policy_by_type.get(answer_type, policy_by_type["exploratory"]),
+            "primary_role": f"Use {len(primary_pages)} primary page(s) as the main answer material.",
+            "supporting_role": f"Use {len(supporting_pages)} supporting page(s) for mechanisms, comparisons, caveats, and implementation details.",
+            "source_role": f"Use {len(source_pages)} source page(s) mainly for provenance and raw-source traceability.",
+            "citation_policy": "Public citations should match pages that directly support written claims; do not expose every related page as a citation.",
+            "coverage_status": evidence_coverage.get("status", "unknown"),
+        }
+
+    def _primary_payload(self, page: dict[str, Any] | None, *, answer_type: str, index: int) -> dict[str, Any] | None:
         if not page:
             return None
-        return {
+        payload = {
             "path": page.get("path"),
             "title": page.get("title"),
             "type": page.get("type"),
+            "role": "primary",
+            "role_rationale": _role_rationale(page, "primary", answer_type, index),
             "score": page.get("score"),
             "relevance": page.get("relevance"),
             "summary": page.get("summary"),
@@ -297,13 +368,15 @@ class ChatEvidencePlanner:
             "vault_id": page.get("vault_id"),
             "vault_name": page.get("vault_name"),
         }
+        return payload
 
-    def _supporting_payload(self, page: dict[str, Any]) -> dict[str, Any]:
+    def _supporting_payload(self, page: dict[str, Any], *, answer_type: str, index: int) -> dict[str, Any]:
         return {
             "path": page.get("path"),
             "title": page.get("title"),
             "type": page.get("type"),
             "role": page.get("role"),
+            "role_rationale": _role_rationale(page, "supporting", answer_type, index),
             "score": page.get("score"),
             "relevance": page.get("relevance"),
             "summary": page.get("summary"),
@@ -314,10 +387,13 @@ class ChatEvidencePlanner:
             "vault_name": page.get("vault_name"),
         }
 
-    def _source_payload(self, page: dict[str, Any]) -> dict[str, Any]:
+    def _source_payload(self, page: dict[str, Any], *, answer_type: str, index: int) -> dict[str, Any]:
         return {
             "path": page.get("path"),
             "title": page.get("title"),
+            "type": page.get("type") or "source",
+            "role": "source",
+            "role_rationale": _role_rationale(page, "source", answer_type, index),
             "summary": page.get("summary"),
             "vault_id": page.get("vault_id"),
             "vault_name": page.get("vault_name"),
@@ -333,6 +409,7 @@ class ChatEvidencePlanner:
             "summary": item.get("summary"),
             "vault_id": item.get("vault_id"),
             "vault_name": item.get("vault_name"),
+            "reason": item.get("reason"),
         }
 
 
@@ -391,9 +468,63 @@ def _citation_pages(
                     "vault_name": page.get("vault_name"),
                     "vault_path": page.get("vault_path"),
                     "reason": page.get("summary") or page.get("reason") or "",
+                    "role_rationale": page.get("role_rationale") or _role_rationale(page, role, "exploratory", len(pages)),
                 }
             )
     return _unique_pages(pages)
+
+
+def _infer_answer_type(*, query: str, answer_scope: dict[str, Any]) -> str:
+    text = query.lower()
+    original = query
+    if any(term in original for term in ("整理成", "大纲", "方案", "路线图", "总结前面", "前面内容", "文档")) or any(term in text for term in ("outline", "roadmap", "proposal", "synthesize")):
+        return "synthesis"
+    if any(term in original for term in ("架构", "生产级", "系统设计", "工程模块", "怎么设计", "设计一个")) or any(term in text for term in ("architecture", "production", "system design", "design")):
+        return "architecture"
+    if any(term in original for term in ("区别", "对比", "关系", "相比", " vs ", "VS")) or any(term in text for term in ("difference", "compare", "versus", " vs ")):
+        return "comparison"
+    if any(term in original for term in ("参考", "借鉴", "OpenClaw", "Claude Code", "WeKnora")):
+        return "entity_analysis"
+    if any(term in original for term in ("是什么", "什么是", "定义", "角色")) or any(term in text for term in ("what is", "definition", "role")):
+        return "definition"
+    if answer_scope.get("kind") == "broad":
+        return "architecture"
+    return "exploratory"
+
+
+def _role_rationale(page: dict[str, Any], role: str, answer_type: str, index: int) -> str:
+    title = str(page.get("title") or page.get("path") or "page")
+    page_type = str(page.get("type") or "")
+    if role == "primary":
+        if answer_type == "definition":
+            return f"Primary answer anchor for defining {title}."
+        if answer_type == "comparison":
+            return "Primary comparison material for the user's requested distinction."
+        if answer_type == "architecture":
+            return "Primary architecture material for layer, module, or workflow design."
+        if answer_type == "entity_analysis":
+            return "Primary case material for the named entity or reference implementation."
+        if answer_type == "synthesis":
+            return "Primary prior evidence for the synthesized artifact."
+        return "Primary maintained wiki page for the answer."
+    if role == "supporting":
+        if page_type == "comparison":
+            return "Supporting comparison page for tradeoffs and boundaries."
+        if page_type == "entity":
+            return "Supporting entity page for implementation context or case evidence."
+        if page_type == "workflow":
+            return "Supporting workflow page for concrete procedure details."
+        return "Supporting maintained page for mechanisms, caveats, adjacent concepts, or implementation details."
+    if role == "source":
+        return "Source page for provenance and raw-source traceability; use as a citation only when provenance matters."
+    return f"Related page ranked at position {index + 1}."
+
+
+def _with_role_rationale(page: dict[str, Any], role: str, answer_type: str, index: int) -> dict[str, Any]:
+    output = dict(page)
+    output["role"] = role
+    output["role_rationale"] = _role_rationale(output, role, answer_type, index)
+    return output
 
 
 def _unique_strings(values: list[str]) -> list[str]:
