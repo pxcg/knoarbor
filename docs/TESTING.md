@@ -120,6 +120,33 @@ Scope:
 This test calls a real model provider and is intentionally separate from the
 default release gate. It must use a temporary vault and temporary config.
 
+## RAG Baseline Comparison
+
+KnoArbor can be compared against a conventional RAG system with the same chat
+fixture. The WeKnora baseline harness is opt-in and writes results only under
+`tmp/rag-baselines/`.
+
+```bash
+uv run python scripts/eval/weknora_rag_baseline.py \
+  --base-url http://127.0.0.1:8080 \
+  --knowledge-base-id "$WEKNORA_KNOWLEDGE_BASE_ID"
+```
+
+To create a temporary WeKnora knowledge base and upload source files for a
+baseline run:
+
+```bash
+uv run python scripts/eval/weknora_rag_baseline.py \
+  --base-url http://127.0.0.1:8080 \
+  --create-knowledge-base \
+  --upload-dir /path/to/raw/agent-notes \
+  --wait-processing
+```
+
+Credential options can be provided with `WEKNORA_API_KEY`,
+`WEKNORA_BEARER_TOKEN`, or `WEKNORA_EMAIL` / `WEKNORA_PASSWORD`. This harness is
+for evaluation only; it is not part of the KnoArbor runtime path.
+
 ## Manual Release Review
 
 Before publishing a release, also follow
