@@ -132,6 +132,8 @@ class ChatResponse(BaseModel):
     answer: str
     messages: list[ChatMessageItem] = Field(default_factory=list)
     citations: list[ChatCitation] = Field(default_factory=list)
+    hidden_evidence_count: int = Field(default=0, ge=0)
+    citation_warnings: list[str] = Field(default_factory=list)
     tool_trace: list[ChatToolTraceItem] = Field(default_factory=list)
     events: list[ChatEvent] = Field(default_factory=list)
     run_links: list[ChatRunLink] = Field(default_factory=list)
@@ -148,6 +150,8 @@ class ChatTurnRecord(BaseModel):
     user_message: ChatMessageItem
     assistant_message: ChatMessageItem
     citations: list[ChatCitation] = Field(default_factory=list)
+    hidden_evidence_count: int = Field(default=0, ge=0)
+    citation_warnings: list[str] = Field(default_factory=list)
     tool_trace: list[ChatToolTraceItem] = Field(default_factory=list)
     events: list[ChatEvent] = Field(default_factory=list)
     run_links: list[ChatRunLink] = Field(default_factory=list)

@@ -1026,7 +1026,8 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(response.tool_trace[0].tool, "list_wiki_pages")
         self.assertEqual(response.tool_trace[0].result["returned_pages"], 1)
         self.assertEqual(response.tool_trace[0].result["pages"][0]["path"], "concepts/Agent-Loop.md")
-        self.assertEqual(response.citations[0].path, "concepts/Agent-Loop.md")
+        self.assertEqual(response.citations, [])
+        self.assertEqual(response.hidden_evidence_count, 1)
         self.assertIn('"pages"', client.requests[-1].messages[-1].content)
 
     def test_chat_can_inspect_wiki_links(self) -> None:
@@ -1049,7 +1050,8 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(services.wiki_pages.link_paths, ["concepts/Agent-Loop.md"])
         self.assertEqual(response.tool_trace[0].tool, "inspect_wiki_links")
         self.assertEqual(response.tool_trace[0].result["outbound_links"][0]["target_path"], "entities/OpenClaw.md")
-        self.assertEqual(response.citations[0].path, "entities/OpenClaw.md")
+        self.assertEqual(response.citations, [])
+        self.assertEqual(response.hidden_evidence_count, 2)
         self.assertIn('"outbound_links"', client.requests[-1].messages[-1].content)
 
     def test_chat_can_list_vaults(self) -> None:

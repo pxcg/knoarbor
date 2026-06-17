@@ -381,6 +381,8 @@ def _turn_from_response(response: ChatResponse, index: int, created_at: str) -> 
         user_message=user_message,
         assistant_message=assistant_message,
         citations=response.citations,
+        hidden_evidence_count=response.hidden_evidence_count,
+        citation_warnings=response.citation_warnings,
         tool_trace=response.tool_trace,
         events=response.events,
         run_links=response.run_links,

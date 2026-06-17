@@ -407,6 +407,8 @@ export type ChatTurnRecord = {
   user_message: ChatMessageItem;
   assistant_message: ChatMessageItem;
   citations: ChatCitation[];
+  hidden_evidence_count: number;
+  citation_warnings: string[];
   tool_trace: ChatToolTraceItem[];
   events: ChatEvent[];
   run_links: ChatRunLink[];
@@ -423,6 +425,8 @@ export type ChatResponse = {
   answer: string;
   messages: ChatMessageItem[];
   citations: ChatCitation[];
+  hidden_evidence_count: number;
+  citation_warnings: string[];
   tool_trace: ChatToolTraceItem[];
   events: ChatEvent[];
   run_links: ChatRunLink[];
@@ -472,6 +476,8 @@ export type ChatSessionRecord = {
   messages: ChatMessageItem[];
   turns: ChatTurnRecord[];
   citations: ChatCitation[];
+  hidden_evidence_count: number;
+  citation_warnings: string[];
   tool_trace: ChatToolTraceItem[];
   events: ChatEvent[];
   run_links: ChatRunLink[];

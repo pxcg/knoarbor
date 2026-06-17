@@ -5874,6 +5874,13 @@ blockquote {
   font-size: 11px;
 }
 
+.chat-hidden-evidence {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .chat-citation-list {
   display: grid;
   gap: 7px;

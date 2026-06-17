@@ -24,9 +24,9 @@ from knoarbor.core.schemas.chat import (
 )
 from knoarbor.core.schemas.memory import MemoryCandidate, MemoryRecord
 from knoarbor.services.chat_answer import ChatAnswerSynthesizer, messages_chars, parse_json_object
-from knoarbor.services.chat_citations import answer_cleanup_citations, clean_answer_citation_paths, final_citations
 from knoarbor.services.chat_context import ChatContextEngine, latest_user_text, memory_target, session_target
 from knoarbor.services.chat_model_call import run_chat_model_call
+from knoarbor.services.chat_reference_resolver import answer_cleanup_citations, clean_answer_citation_paths, resolve_answer_presentation
 from knoarbor.services.chat_retrieval_policy import ChatPlanAdjustment, ChatRetrievalPolicy
 from knoarbor.services.chat_tools import ChatToolExecutor
 from knoarbor.runtime import runtime_logger
@@ -244,15 +244,21 @@ class _ChatLoop:
         return adjusted
 
     def _answer_response(self, draft: ChatAnswerDraft, turns: int) -> ChatResponse:
-        citations = final_citations(draft.citations, self.trace, answer=draft.answer)
-        answer = clean_answer_citation_paths(draft.answer, answer_cleanup_citations(self.trace, citations), latest_user_text=latest_user_text(self.current_messages))
+        presentation = resolve_answer_presentation(draft.citations, self.trace, answer=draft.answer)
+        answer = clean_answer_citation_paths(
+            presentation.answer,
+            answer_cleanup_citations(self.trace, presentation.citations),
+            latest_user_text=latest_user_text(self.current_messages),
+        )
         self._capture_memory()
-        self._event("final_answer_ready", message="Final chat answer is ready.", turn=turns, payload={"citation_count": len(citations)})
+        self._event("final_answer_ready", message="Final chat answer is ready.", turn=turns, payload={"citation_count": len(presentation.citations)})
         return ChatResponse(
             session_id=self.request.session_id,
             answer=answer,
             messages=[*self.request.messages, ChatMessageItem(role="assistant", content=answer)],
-            citations=citations,
+            citations=presentation.citations,
+            hidden_evidence_count=presentation.hidden_evidence_count,
+            citation_warnings=presentation.warnings,
             tool_trace=self.trace if self.request.include_trace else [],
             events=self.events,
             run_links=self.run_links,
@@ -260,7 +266,7 @@ class _ChatLoop:
             memory_candidates=self.memory_candidates,
             memory_writes=self.memory_writes,
             stats=self._stats(turns),
-            warnings=self.warnings,
+            warnings=[*self.warnings, *presentation.warnings],
         )
 
     def _stats(self, turns: int) -> dict[str, Any]:

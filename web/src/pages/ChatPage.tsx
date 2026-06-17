@@ -29,6 +29,8 @@ type ChatTurn = {
   role: "user" | "assistant";
   content: string;
   citations?: ChatCitation[];
+  hiddenEvidenceCount?: number;
+  citationWarnings?: string[];
   kind?: "answer" | "error" | "status";
 };
 
@@ -240,6 +242,8 @@ export function ChatPage({ context }: Props) {
           role: "assistant",
           content: response.answer,
           citations: response.citations || [],
+          hiddenEvidenceCount: response.hidden_evidence_count || 0,
+          citationWarnings: response.citation_warnings || [],
         },
       ]);
       void refreshSessions();
@@ -316,6 +320,8 @@ export function ChatPage({ context }: Props) {
           role: "assistant",
           content: response.answer,
           citations: response.citations || [],
+          hiddenEvidenceCount: response.hidden_evidence_count || 0,
+          citationWarnings: response.citation_warnings || [],
         },
       ]);
       void refreshSessions();
@@ -490,7 +496,14 @@ export function ChatPage({ context }: Props) {
                       </button>
                     </div>
                   )}
-                  {!!turn.citations?.length && <CitationList citations={turn.citations} context={context} onOpenCitation={(citation) => void openCitationPreview(citation)} />}
+                  {(!!turn.citations?.length || !!turn.hiddenEvidenceCount) && (
+                    <CitationList
+                      citations={turn.citations || []}
+                      hiddenEvidenceCount={turn.hiddenEvidenceCount || 0}
+                      context={context}
+                      onOpenCitation={(citation) => void openCitationPreview(citation)}
+                    />
+                  )}
                   {turn.role === "assistant" && !!turn.citations?.length && (
                     <ChatFollowups
                       citations={turn.citations}
@@ -691,6 +704,8 @@ function sessionRecordToTurns(record: Awaited<ReturnType<typeof readChatSession>
         role: "assistant" as const,
         content: turn.assistant_message.content,
         citations: turn.citations || [],
+        hiddenEvidenceCount: turn.hidden_evidence_count || 0,
+        citationWarnings: turn.citation_warnings || [],
       },
     ]);
   }
@@ -700,6 +715,8 @@ function sessionRecordToTurns(record: Awaited<ReturnType<typeof readChatSession>
       role: message.role === "assistant" ? "assistant" : "user",
       content: message.content,
       citations: message.role === "assistant" ? record.citations : undefined,
+      hiddenEvidenceCount: message.role === "assistant" ? record.hidden_evidence_count || 0 : undefined,
+      citationWarnings: message.role === "assistant" ? record.citation_warnings || [] : undefined,
     }));
 }
 
@@ -770,11 +787,13 @@ function renderInlineCitations(content: string, citationCount: number) {
 
 function CitationList({
   citations,
+  hiddenEvidenceCount = 0,
   context,
   compact = false,
   onOpenCitation,
 }: {
   citations: ChatCitation[];
+  hiddenEvidenceCount?: number;
   context: AppContext;
   compact?: boolean;
   onOpenCitation: (citation: ChatCitation) => void;
@@ -786,6 +805,9 @@ function CitationList({
         <span>{context.t("chatSourcesCompact")}</span>
         <strong>{citations.length}</strong>
       </summary>
+      {hiddenEvidenceCount > 0 && (
+        <p className="chat-hidden-evidence">{context.t("chatHiddenEvidence").replace("{count}", String(hiddenEvidenceCount))}</p>
+      )}
       <div className="chat-citation-list">
         {groups.map((group) => (
           <div className="chat-citation-group" key={group.label}>
