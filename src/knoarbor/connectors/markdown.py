@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from urllib.parse import unquote, urlparse
 
 from knoarbor.connectors.base import ConnectorConfig
 from knoarbor.core.errors import ConnectorConfigError, SourceNotFound
+from knoarbor.core.path_utils import path_from_file_uri
 from knoarbor.core.schemas.sources import (
     RawSource,
     SourceContent,
@@ -111,10 +111,10 @@ def _source_id(uri: str) -> str:
 
 
 def _path_from_file_uri(uri: str) -> Path:
-    parsed = urlparse(uri)
-    if parsed.scheme != "file":
-        raise ConnectorConfigError(f"MarkdownConnector expects file:// URI, got: {uri}")
-    return Path(unquote(parsed.path)).expanduser().resolve()
+    try:
+        return path_from_file_uri(uri)
+    except ValueError as exc:
+        raise ConnectorConfigError(f"MarkdownConnector expects file:// URI, got: {uri}") from exc
 
 
 def _extract_markdown_title(text: str) -> str | None:

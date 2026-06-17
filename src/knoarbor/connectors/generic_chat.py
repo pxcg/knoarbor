@@ -4,11 +4,11 @@ import hashlib
 import json
 import sqlite3
 from pathlib import Path
-from urllib.parse import unquote, urlparse
 
 from knoarbor.connectors.base import ConnectorCapabilities, ConnectorConfig
 from knoarbor.connectors.jsonl import read_jsonl_records
 from knoarbor.core.errors import ConnectorConfigError, SourceNotFound
+from knoarbor.core.path_utils import path_from_file_uri
 from knoarbor.core.schemas.sources import RawSource, SourceContent, SourceDocument, SourceFingerprint, SourceOrigin, SourceRef
 
 
@@ -303,10 +303,10 @@ def _is_supported_chat_file(path: Path) -> bool:
 def _path_from_ref(ref: SourceRef) -> Path:
     file_uri = ref.metadata.get("file_uri")
     if isinstance(file_uri, str) and file_uri:
-        parsed = urlparse(file_uri)
-        if parsed.scheme != "file":
-            raise ConnectorConfigError(f"Expected file URI in generic chat source ref, got: {file_uri}")
-        return Path(unquote(parsed.path)).expanduser().resolve()
+        try:
+            return path_from_file_uri(file_uri)
+        except ValueError as exc:
+            raise ConnectorConfigError(f"Expected file URI in generic chat source ref, got: {file_uri}") from exc
     path = ref.metadata.get("path")
     if isinstance(path, str) and path:
         return Path(path).expanduser().resolve()

@@ -37,6 +37,16 @@ DEEPSEEK_API_KEY=your-key
 set -a && source .env && set +a
 ```
 
+Windows PowerShell 可以使用：
+
+```powershell
+Get-Content .env | ForEach-Object {
+  if ($_ -match "^\s*([^#][^=]+)=(.*)$") {
+    [Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim(), "Process")
+  }
+}
+```
+
 运行只读诊断：
 
 ```bash
@@ -70,6 +80,9 @@ uv run knoar query "Agent Loop 是什么？"
 ```
 
 生成的 Wiki 页面和报告会写入配置的 vault 目录，例如 `vaults/default/`。
+
+如果 Windows 没有启用长路径支持，建议把项目和 vault 放在较短路径下，例如
+`C:\knoarbor` 或 `%USERPROFILE%\knoarbor`。
 
 ## 模型供应商
 
@@ -114,6 +127,10 @@ models:
 Markdown 文件会直接进入知识编译。PDF、DOCX、PPTX 等富文档需要配置
 MinerU 兼容预处理服务。KnoArbor 不分发 MinerU 或模型权重；启用该适配器时，
 用户需要自行安装并运行 MinerU。
+
+聊天来源默认路径如 `~/.codex/sessions`、`~/.claude/projects` 和
+`~/.hermes/sessions` 会展开到当前用户主目录。Windows 下对应路径通常位于
+`%USERPROFILE%`，例如 `C:\Users\Alice\.codex\sessions`。
 
 ## 重新构建前端
 

@@ -38,6 +38,16 @@ Load the environment variables:
 set -a && source .env && set +a
 ```
 
+On Windows PowerShell, load the variables with:
+
+```powershell
+Get-Content .env | ForEach-Object {
+  if ($_ -match "^\s*([^#][^=]+)=(.*)$") {
+    [Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim(), "Process")
+  }
+}
+```
+
 Run a read-only readiness check:
 
 ```bash
@@ -72,6 +82,10 @@ uv run knoar query "Agent Loop 是什么？"
 
 Generated wiki pages and reports are written under the configured vault
 directory, such as `vaults/default/`.
+
+Windows users should keep the project and vault directories in a short path,
+such as `C:\knoarbor` or `%USERPROFILE%\knoarbor`, when Windows long path
+support is disabled.
 
 ## Model Providers
 
@@ -118,6 +132,11 @@ Markdown files are ingested directly. PDF, DOCX, PPTX, and other rich documents
 require a configured MinerU-compatible preprocessing service. KnoArbor does not
 redistribute MinerU or model weights; users who enable that adapter install and
 run MinerU separately.
+
+Chat source defaults such as `~/.codex/sessions`, `~/.claude/projects`, and
+`~/.hermes/sessions` expand to the current user's home directory. On Windows,
+the equivalent resolved paths are under `%USERPROFILE%`, for example
+`C:\Users\Alice\.codex\sessions`.
 
 ## Rebuilding The UI
 

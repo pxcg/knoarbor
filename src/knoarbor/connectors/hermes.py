@@ -3,10 +3,10 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from urllib.parse import unquote, urlparse
 
 from knoarbor.connectors.base import ConnectorConfig
 from knoarbor.core.errors import ConnectorConfigError, SourceNotFound
+from knoarbor.core.path_utils import path_from_file_uri
 from knoarbor.core.schemas.sources import (
     RawSource,
     SourceContent,
@@ -130,10 +130,10 @@ def _path_from_ref(ref: SourceRef) -> Path:
         file_uri = ref.metadata.get("file_uri")
         if not isinstance(file_uri, str):
             raise ConnectorConfigError("Hermes source ref must include metadata.path or metadata.file_uri")
-        parsed = urlparse(file_uri)
-        if parsed.scheme != "file":
-            raise ConnectorConfigError(f"Expected file URI in Hermes source ref, got: {file_uri}")
-        path = Path(unquote(parsed.path)).expanduser().resolve()
+        try:
+            path = path_from_file_uri(file_uri)
+        except ValueError as exc:
+            raise ConnectorConfigError(f"Expected file URI in Hermes source ref, got: {file_uri}") from exc
     if not path.exists() or not path.is_file():
         raise SourceNotFound(f"Hermes session file does not exist: {path}")
     return path
