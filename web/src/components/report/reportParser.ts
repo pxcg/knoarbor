@@ -1,3 +1,5 @@
+import { pathBaseName } from "../../pathUtils";
+
 export type ReportMetric = {
   key: string;
   value: string;
@@ -211,7 +213,7 @@ export function extractWikiPagePaths(value: string): string[] {
 }
 
 export function pageName(path: string): string {
-  return path.split("/").pop()?.replace(/\.md$/, "") || path;
+  return pathBaseName(path).replace(/\.md$/, "") || path;
 }
 
 function isStructuredReportLine(value: string): boolean {

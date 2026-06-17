@@ -19,6 +19,7 @@ import {
   type VaultSelector,
 } from "../api/client";
 import type { AppContext } from "../App";
+import { pathBaseName } from "../pathUtils";
 
 type Props = {
   context: AppContext;
@@ -975,7 +976,7 @@ function relationQuestion(primary: ChatCitation, supporting: ChatCitation, conte
 function citationTitle(citation: ChatCitation) {
   if (citation.title?.trim()) return citation.title.trim();
   if (citation.path?.trim()) {
-    const name = citation.path.split("/").pop() || citation.path;
+    const name = pathBaseName(citation.path);
     return name.replace(/\.md$/i, "").replace(/-/g, " ");
   }
   return citation.run_id || citation.kind;

@@ -1,0 +1,1 @@
+function e(e){return e.replace(/\\/g,`/`)}function t(t){let n=e(t.trim());return n?n.split(`/`).filter(Boolean).pop()||n:t}export{t};
