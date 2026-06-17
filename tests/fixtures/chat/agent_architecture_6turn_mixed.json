@@ -1,0 +1,98 @@
+{
+  "id": "agent_architecture_6turn_mixed",
+  "title": "Agent architecture mixed-length chat evaluation",
+  "description": "A focused multi-turn chat evaluation case for testing short-question noise control, context-aware follow-up, wiki-page synthesis, source-grounded architecture design, and final document outline generation.",
+  "recommended_scope": "all_vaults",
+  "topic": "Design an engineering Agent system from Agent Loop to production architecture, using wiki-native pages instead of chunk-style RAG evidence.",
+  "evaluation_focus": [
+    "short-question noise control",
+    "context-aware follow-up",
+    "page-level answer synthesis",
+    "architecture boundary clarity",
+    "multi-turn context reuse",
+    "source-grounded final outline"
+  ],
+  "turns": [
+    {
+      "turn": 1,
+      "question": "Agent Loop 是什么？",
+      "expected_pages": [
+        "concepts/Agent-Loop-and-Control-Patterns.md",
+        "sources/Agent-Loop-Source.md"
+      ],
+      "expected_behavior": [
+        "return a stable definition before expanding details",
+        "avoid dumping loosely related agent pages",
+        "treat Agent Loop as a wiki concept object rather than a keyword match"
+      ]
+    },
+    {
+      "turn": 2,
+      "question": "和 Workflow 有什么区别？",
+      "expected_pages": [
+        "concepts/Agent-Loop-and-Control-Patterns.md",
+        "concepts/Agent-Infrastructure-Harness,-Context-Engineerin.md"
+      ],
+      "expected_behavior": [
+        "inherit the Agent Loop context from the previous turn",
+        "compare control ownership, state management, tool execution, and failure recovery",
+        "avoid broad workflow retrieval that ignores the chat context"
+      ]
+    },
+    {
+      "turn": 3,
+      "question": "如果要把它做成生产级系统，需要补哪些工程模块？按执行、工具、记忆、路由和监控几个方面讲。",
+      "expected_pages": [
+        "concepts/Agent-Infrastructure-Harness,-Context-Engineerin.md",
+        "concepts/Session-Memory-Architecture-for-Agent-Loops.md",
+        "concepts/Multi-Agent-Orchestration-and-Planning.md",
+        "concepts/Agent-Evaluation-and-Observability.md"
+      ],
+      "expected_behavior": [
+        "move from concept explanation to architecture design",
+        "synthesize several maintained wiki pages",
+        "organize the answer by engineering modules rather than page summaries"
+      ]
+    },
+    {
+      "turn": 4,
+      "question": "MCP 在这里是什么角色？",
+      "expected_pages": [
+        "concepts/Model-Context-Protocol-(MCP).md",
+        "concepts/JSON-RPC-2.0.md",
+        "sources/MCP-Source.md"
+      ],
+      "expected_behavior": [
+        "resolve '这里' against the production Agent system context",
+        "explain MCP as a tool/context protocol layer rather than the Agent Loop itself",
+        "distinguish MCP from JSON-RPC, HTTP APIs, and internal tool calls"
+      ]
+    },
+    {
+      "turn": 5,
+      "question": "如果参考 OpenClaw，这个系统应该怎么设计？哪些部分可以直接借鉴，哪些需要重新设计？",
+      "expected_pages": [
+        "entities/OpenClaw-(Engineering-Agent).md",
+        "sources/OpenClaw-Architecture-Source.md",
+        "comparisons/Claude-Code-vs-OpenClaw-Agent-Loop-Architecture-Comparison.md",
+        "concepts/Agent-Infrastructure-Harness,-Context-Engineerin.md"
+      ],
+      "expected_behavior": [
+        "use OpenClaw as a reference implementation rather than the whole answer",
+        "separate mature reusable patterns from project-specific redesign needs",
+        "connect the comparison back to Agent Loop, memory, routing, tools, and monitoring"
+      ]
+    },
+    {
+      "turn": 6,
+      "question": "把前面内容整理成一份技术方案大纲，适合放进开源项目的架构设计文档。",
+      "expected_pages": [],
+      "expected_behavior": [
+        "reuse prior conversation context instead of starting retrieval from scratch",
+        "produce a structured technical design outline",
+        "include project positioning, core capabilities, architecture layers, key flows, RAG comparison, OpenClaw reference, and roadmap",
+        "cite only the most relevant pages instead of listing every retrieved page"
+      ]
+    }
+  ]
+}
