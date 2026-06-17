@@ -911,6 +911,86 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(second.tool_trace[0].summary, "Read wiki page sources/Agent-Loop-Source.md.")
         self.assertEqual(second.tool_trace[0].citations[0].path, "sources/Agent-Loop-Source.md")
 
+    def test_broad_question_does_not_start_with_single_page_read(self) -> None:
+        client = FakeChatClient(
+            [
+                {
+                    "tool_calls": [
+                        {
+                            "name": "read_wiki_page",
+                            "arguments": {"page_path": "concepts/Agent-Loop.md"},
+                        }
+                    ],
+                    "reason": "model prematurely picked a single page",
+                    "confidence": 0.8,
+                },
+                {
+                    "answer": "工程化 Agent 架构需要综合 Agent Loop、工具、记忆和监控页面。",
+                    "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}],
+                },
+            ]
+        )
+        services = FakeServices()
+        response = ChatAgentService(client_factory=lambda _request: client).chat(
+            ChatRequest(
+                messages=[ChatMessageItem(role="user", content="帮我设计一个生产级工程 Agent 系统架构，包含工具、记忆、路由和监控。")],
+                vault_path="/tmp/vault",
+                append_ledger=False,
+            ),
+            services,  # type: ignore[arg-type]
+        )
+
+        self.assertEqual(response.tool_trace[0].tool, "query_wiki")
+        self.assertEqual(services.wiki_pages.read_paths, [])
+        self.assertEqual(services.wiki_search.requests[0].mode, "deep")
+        self.assertEqual(response.stats["plan_adjustments"][0]["kind"], "premature_single_page_read")
+        self.assertEqual(response.stats["tool_plan"]["tool_calls"][0]["name"], "query_wiki")
+
+    def test_single_page_read_for_broad_followup_requires_more_evidence(self) -> None:
+        client = FakeChatClient(
+            [
+                {
+                    "tool_calls": [
+                        {
+                            "name": "read_wiki_page",
+                            "arguments": {"page_path": "concepts/Agent-Loop.md"},
+                        }
+                    ],
+                    "reason": "read a page first",
+                    "confidence": 0.8,
+                },
+                {
+                    "tool_calls": [
+                        {
+                            "name": "query_wiki",
+                            "arguments": {"query": "production agent architecture memory routing monitoring", "mode": "deep", "max_results": 8},
+                        }
+                    ],
+                    "reason": "single page is not enough for the broad architecture question",
+                    "confidence": 0.85,
+                },
+                {
+                    "answer": "生产级 Agent 架构需要综合多个页面。",
+                    "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}],
+                },
+            ]
+        )
+        services = FakeServices()
+        response = ChatAgentService(client_factory=lambda _request: client).chat(
+            ChatRequest(
+                messages=[ChatMessageItem(role="user", content="从工程、工具、记忆、路由和监控几个方面设计 Agent 系统。")],
+                vault_path="/tmp/vault",
+                append_ledger=False,
+                max_turns=4,
+            ),
+            services,  # type: ignore[arg-type]
+        )
+
+        self.assertEqual([item.tool for item in response.tool_trace], ["query_wiki"])
+        self.assertEqual(services.wiki_pages.read_paths, [])
+        self.assertEqual(len(services.wiki_search.requests), 1)
+        self.assertEqual(response.stats["plan_adjustments"][0]["kind"], "premature_single_page_read")
+
     def test_answer_directly_plan_is_respected(self) -> None:
         client = FakeChatClient(
             [

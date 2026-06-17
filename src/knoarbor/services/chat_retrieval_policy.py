@@ -7,6 +7,15 @@ from knoarbor.core.schemas.chat import ChatSessionRecord, ChatToolPlan, ChatTool
 
 
 @dataclass(frozen=True)
+class ChatEvidenceAssessment:
+    """Evidence sufficiency decision for the current chat turn."""
+
+    sufficient: bool
+    reason: str
+    recommended_next_step: str
+
+
+@dataclass(frozen=True)
 class ChatPlanAdjustment:
     """A code-owned correction applied after model tool planning."""
 
@@ -33,6 +42,9 @@ class ChatRetrievalPolicy:
         existing_session: ChatSessionRecord | None,
         observations: list[ChatToolTraceItem],
     ) -> tuple[ChatToolPlan, ChatPlanAdjustment | None]:
+        page_read_adjustment = self._adjust_premature_page_read(plan, query=query, existing_session=existing_session, observations=observations)
+        if page_read_adjustment:
+            return page_read_adjustment
         if observations or existing_session is None:
             return plan, None
         if not _is_context_synthesis_request(query):
@@ -56,6 +68,75 @@ class ChatRetrievalPolicy:
             adjusted_plan=adjusted.model_dump(mode="json"),
         )
 
+    def assess_evidence(self, observations: list[ChatToolTraceItem], *, query: str) -> ChatEvidenceAssessment:
+        if not observations:
+            return ChatEvidenceAssessment(False, "no_observations", "query_wiki")
+        if any(item.status == "error" for item in observations):
+            return ChatEvidenceAssessment(False, "tool_error", "retry_or_refine_tool")
+
+        successful_reads = [item for item in observations if item.tool == "read_wiki_page" and item.status == "ok"]
+        evidence_packs = [item.result.get("evidence_pack") for item in observations if isinstance(item.result.get("evidence_pack"), dict)]
+
+        if successful_reads and not evidence_packs:
+            if _allows_single_page_read(query):
+                return ChatEvidenceAssessment(True, "explicit_page_read", "finish_answer")
+            if _is_broad_knowledge_request(query):
+                return ChatEvidenceAssessment(False, "single_page_read_for_broad_question", "query_wiki")
+            return ChatEvidenceAssessment(True, "single_page_read", "finish_answer")
+
+        for pack in evidence_packs:
+            if not isinstance(pack, dict):
+                continue
+            coverage = pack.get("evidence_coverage") if isinstance(pack.get("evidence_coverage"), dict) else {}
+            if pack.get("recommended_action") != "answer_from_evidence":
+                return ChatEvidenceAssessment(False, "pack_recommends_more_evidence", _recommended_step_from_pack(pack))
+            if coverage.get("status") == "weak":
+                return ChatEvidenceAssessment(False, "weak_coverage", "query_wiki")
+            if not pack.get("primary_pages") and not pack.get("primary_page"):
+                return ChatEvidenceAssessment(False, "missing_primary_page", "query_wiki")
+
+        return ChatEvidenceAssessment(True, "evidence_pack_sufficient", "finish_answer")
+
+    def _adjust_premature_page_read(
+        self,
+        plan: ChatToolPlan,
+        *,
+        query: str,
+        existing_session: ChatSessionRecord | None,
+        observations: list[ChatToolTraceItem],
+    ) -> tuple[ChatToolPlan, ChatPlanAdjustment] | None:
+        if observations:
+            return None
+        if _allows_single_page_read(query):
+            return None
+        if existing_session is not None and _is_followup_detail_request(query):
+            return None
+        if not _is_broad_knowledge_request(query):
+            return None
+        read_calls = [call for call in plan.tool_calls if call.name == "read_wiki_page"]
+        if not read_calls:
+            return None
+        adjusted = ChatToolPlan(
+            tool_calls=[
+                {
+                    "name": "query_wiki",
+                    "arguments": {
+                        "query": query,
+                        "mode": "deep",
+                        "max_results": 8,
+                    },
+                }
+            ],
+            reason="Broad knowledge questions need a wiki evidence set before reading a single page.",
+            confidence=max(plan.confidence, 0.85),
+        )
+        return adjusted, ChatPlanAdjustment(
+            kind="premature_single_page_read",
+            reason=adjusted.reason,
+            original_plan=plan.model_dump(mode="json"),
+            adjusted_plan=adjusted.model_dump(mode="json"),
+        )
+
 
 def _plan_only_finishes_or_reuses(plan: ChatToolPlan) -> bool:
     return bool(plan.tool_calls) and all(call.name in {"reuse_context", "finish_answer"} for call in plan.tool_calls)
@@ -73,6 +154,107 @@ def _has_reusable_wiki_evidence(session: ChatSessionRecord) -> bool:
             if pack.get("primary_pages") or pack.get("primary_page") or item.citations:
                 return True
     return False
+
+
+def _recommended_step_from_pack(pack: dict[str, Any]) -> str:
+    action = str(pack.get("recommended_action") or "")
+    if action == "read_primary_if_detail_needed":
+        return "read_wiki_page"
+    return "query_wiki"
+
+
+def _allows_single_page_read(query: str) -> bool:
+    text = query.strip().lower()
+    if not text:
+        return False
+    explicit_terms = (
+        "全文",
+        "完整页面",
+        "完整内容",
+        "打开页面",
+        "读取页面",
+        "读一下",
+        "展开这个页面",
+        "这个页面",
+        "该页面",
+        "page content",
+        "full page",
+        "read this page",
+        "open this page",
+    )
+    source_terms = (
+        "参考页面",
+        "来源",
+        "引用",
+        "依据",
+        "原文",
+        "材料",
+        "source",
+        "reference",
+        "citation",
+        "raw material",
+    )
+    return any(term in text for term in explicit_terms) or any(term in text for term in source_terms)
+
+
+def _is_followup_detail_request(query: str) -> bool:
+    text = query.strip().lower()
+    detail_terms = (
+        "展开",
+        "详细",
+        "细讲",
+        "举例",
+        "具体",
+        "第二点",
+        "第三点",
+        "这一点",
+        "这个点",
+        "explain more",
+        "more detail",
+        "elaborate",
+    )
+    return any(term in text for term in detail_terms)
+
+
+def _is_broad_knowledge_request(query: str) -> bool:
+    text = query.strip().lower()
+    if not text:
+        return False
+    broad_terms = (
+        "架构",
+        "系统",
+        "框架",
+        "方案",
+        "设计",
+        "模块",
+        "几个方面",
+        "哪些",
+        "区别",
+        "对比",
+        "关系",
+        "如何",
+        "怎么",
+        "生产",
+        "工程",
+        "路线",
+        "综合",
+        "整理",
+        "总结",
+        "architecture",
+        "system",
+        "framework",
+        "design",
+        "module",
+        "compare",
+        "difference",
+        "relationship",
+        "production",
+        "roadmap",
+        "synthesize",
+    )
+    if any(term in text for term in broad_terms):
+        return True
+    return len(text) > 80
 
 
 def _is_context_synthesis_request(query: str) -> bool:

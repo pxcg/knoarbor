@@ -169,7 +169,7 @@ class _ChatLoop:
             if _plan_contains_direct_answer(executable_plan):
                 stop_reason = "direct_answer"
                 break
-            if not _needs_more_evidence(round_observations):
+            if self.retrieval_policy.assess_evidence(round_observations, query=query).sufficient:
                 stop_reason = "evidence_sufficient"
                 break
         answer_turn = evidence_round + 1
@@ -411,7 +411,7 @@ def _tool_plan_messages(
         "recent_turns": _planner_recent_turns(existing_session),
         "workspace_context": _workspace_planning_context(initial_messages),
         "prior_evidence_context": _prior_evidence_context(existing_session),
-        "current_turn_evidence_context": _current_evidence_context(observations or []),
+        "current_turn_evidence_context": _current_evidence_context(observations or [], query=query),
     }
     return [
         ChatMessage(role="system", content=TOOL_PLAN_PROMPT),
@@ -502,30 +502,10 @@ def _tool_signature(name: str, arguments: dict[str, Any]) -> str:
     return json.dumps({"name": name, "arguments": arguments}, ensure_ascii=False, sort_keys=True)
 
 
-def _needs_more_evidence(observations: list[ChatToolTraceItem]) -> bool:
-    if not observations:
-        return True
-    if any(item.status == "error" for item in observations):
-        return True
-    if any(item.tool == "read_wiki_page" and item.status == "ok" for item in observations):
-        return False
-    for item in observations:
-        pack = item.result.get("evidence_pack")
-        if not isinstance(pack, dict):
-            continue
-        coverage = pack.get("evidence_coverage") if isinstance(pack.get("evidence_coverage"), dict) else {}
-        if pack.get("recommended_action") != "answer_from_evidence":
-            return True
-        if coverage.get("status") == "weak":
-            return True
-        if not pack.get("primary_pages") and not pack.get("primary_page"):
-            return True
-    return False
-
-
-def _current_evidence_context(observations: list[ChatToolTraceItem]) -> dict[str, object]:
+def _current_evidence_context(observations: list[ChatToolTraceItem], *, query: str = "") -> dict[str, object]:
     if not observations:
         return {}
+    assessment = ChatRetrievalPolicy().assess_evidence(observations, query=query or _latest_observation_query(observations))
     items = []
     primary_paths: list[str] = []
     coverage_statuses: list[str] = []
@@ -571,32 +551,19 @@ def _current_evidence_context(observations: list[ChatToolTraceItem]) -> dict[str
             "missing_facets": _unique_strings(missing_facets),
             "executed_queries": _unique_strings(executed_queries),
             "failed_tools": _unique_strings(failed_tools),
-            "needs_more_evidence": _needs_more_evidence(observations),
-            "recommended_next_step": _recommended_next_evidence_step(observations),
+            "needs_more_evidence": not assessment.sufficient,
+            "evidence_assessment_reason": assessment.reason,
+            "recommended_next_step": assessment.recommended_next_step,
         },
         "observations": items,
     }
 
 
-def _recommended_next_evidence_step(observations: list[ChatToolTraceItem]) -> str:
-    if not observations:
-        return "query_wiki"
-    if any(item.status == "error" for item in observations):
-        return "retry_or_refine_tool"
-    if not _needs_more_evidence(observations):
-        return "finish_answer"
-    for item in observations:
-        pack = item.result.get("evidence_pack")
-        if not isinstance(pack, dict):
-            continue
-        primary_pages = pack.get("primary_pages") if isinstance(pack.get("primary_pages"), list) else []
-        if primary_pages:
-            first = primary_pages[0]
-            if isinstance(first, dict) and first.get("path"):
-                return "read_wiki_page"
-        if pack.get("recommended_action") == "read_primary_if_detail_needed":
-            return "read_wiki_page"
-    return "query_wiki"
+def _latest_observation_query(observations: list[ChatToolTraceItem]) -> str:
+    for item in reversed(observations):
+        if item.arguments.get("query"):
+            return str(item.arguments["query"])
+    return ""
 
 
 def _unique_strings(values: list[str]) -> list[str]:
