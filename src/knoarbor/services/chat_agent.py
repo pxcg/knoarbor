@@ -49,7 +49,13 @@ class ChatAgentService:
     client_factory: Callable[[ChatRequest], ChatClient] | None = None
     context_engine: ChatContextEngine = field(default_factory=ChatContextEngine)
 
-    def chat(self, request: ChatRequest, services: ApplicationServices) -> ChatResponse:
+    def chat(
+        self,
+        request: ChatRequest,
+        services: ApplicationServices,
+        *,
+        event_callback: Callable[[ChatEvent], None] | None = None,
+    ) -> ChatResponse:
         started = time.perf_counter()
         client = self.client_factory(request) if self.client_factory else _client_from_request(request)
         chat_target = session_target(request)
@@ -76,6 +82,7 @@ class ChatAgentService:
             model_retry=load_config(Path(request.config_path).expanduser().resolve() if request.config_path else default_config_path()).models.retry,
             memory_used=context.memory_used,
             warnings=context.warnings,
+            event_callback=event_callback,
         )
         response = loop.run()
         response.stats.update(
@@ -125,6 +132,7 @@ class _ChatLoop:
     memory_writes: list[MemoryRecord] = field(default_factory=list)
     retrieval_policy: ChatRetrievalPolicy = field(default_factory=ChatRetrievalPolicy)
     plan_adjustments: list[ChatPlanAdjustment] = field(default_factory=list)
+    event_callback: Callable[[ChatEvent], None] | None = None
 
     def run(self) -> ChatResponse:
         self._event("chat_started", message="Chat request started.")
@@ -316,6 +324,8 @@ class _ChatLoop:
             payload=payload or {},
         )
         self.events.append(event)
+        if self.event_callback:
+            self.event_callback(event)
         LOGGER.info(
             "chat_event chat_id=%s event=%s turn=%s tool=%s status=%s usage=%s elapsed_seconds=%s",
             self.chat_id,

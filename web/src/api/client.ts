@@ -434,6 +434,18 @@ export type ChatResponse = {
   warnings: string[];
 };
 
+export type ChatStreamEvent = {
+  schema_version: "chat_stream_event.v1";
+  event: "stage" | "tool" | "final" | "error";
+  message: string;
+  stage?: string | null;
+  tool?: string | null;
+  status?: string | null;
+  response?: ChatResponse | null;
+  error?: Record<string, unknown>;
+  payload?: Record<string, unknown>;
+};
+
 export type ChatSessionSummary = {
   session_id: string;
   title: string;
@@ -908,6 +920,78 @@ export async function sendChatMessage(
   });
 }
 
+export async function sendChatMessageStream(
+  selector: VaultSelector,
+  messages: ChatMessageItem[],
+  options: {
+    vault_ids?: string[];
+    all_vaults?: boolean;
+    max_turns?: number;
+    session_id?: string | null;
+    provider?: string | null;
+  } = {},
+  onEvent?: (event: ChatStreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<ChatResponse> {
+  const body = {
+    schema_version: "chat_request.v1",
+    session_id: options.session_id || undefined,
+    config_path: selector.config_path,
+    vault_id: selector.vault_id,
+    vault_path: selector.vault_id ? undefined : selector.vault_path,
+    vault_ids: options.vault_ids || [],
+    all_vaults: options.all_vaults || false,
+    messages,
+    max_turns: options.max_turns || 6,
+    include_trace: true,
+    provider: options.provider || undefined,
+  };
+  const response = await fetch("/chat/stream", {
+    method: "POST",
+    headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(formatApiError(parseJson(text), text));
+  }
+  if (!response.body) {
+    return sendChatMessage(selector, messages, options, signal);
+  }
+
+  let finalResponse: ChatResponse | null = null;
+  const decoder = new TextDecoder();
+  const reader = response.body.getReader();
+  let buffer = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parsed = consumeSseBuffer(buffer);
+    buffer = parsed.rest;
+    for (const event of parsed.events) {
+      onEvent?.(event);
+      if (event.event === "error") {
+        throw new Error(typeof event.message === "string" && event.message ? event.message : "Chat stream failed.");
+      }
+      if (event.event === "final" && event.response) {
+        finalResponse = event.response;
+      }
+    }
+  }
+  if (buffer.trim()) {
+    for (const event of parseSseEvent(buffer)) {
+      onEvent?.(event);
+      if (event.event === "final" && event.response) finalResponse = event.response;
+    }
+  }
+  if (!finalResponse) {
+    throw new Error("Chat stream ended without a final response.");
+  }
+  return finalResponse;
+}
+
 export async function listChatSessions(selector: VaultSelector, limit = 12): Promise<ChatSessionListResponse> {
   const params = new URLSearchParams();
   if (selector.config_path) params.set("config_path", selector.config_path);
@@ -1074,4 +1158,26 @@ function parseJson(text: string): unknown {
   } catch {
     return text;
   }
+}
+
+function consumeSseBuffer(buffer: string): { events: ChatStreamEvent[]; rest: string } {
+  const normalized = buffer.replace(/\r\n/g, "\n");
+  const chunks = normalized.split("\n\n");
+  const rest = chunks.pop() || "";
+  return {
+    events: chunks.flatMap((chunk) => parseSseEvent(chunk)),
+    rest,
+  };
+}
+
+function parseSseEvent(chunk: string): ChatStreamEvent[] {
+  const dataLines = chunk
+    .split("\n")
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice(5).trimStart());
+  if (!dataLines.length) return [];
+  const data = dataLines.join("\n");
+  const parsed = parseJson(data);
+  if (!isRecord(parsed) || parsed.schema_version !== "chat_stream_event.v1") return [];
+  return [parsed as ChatStreamEvent];
 }

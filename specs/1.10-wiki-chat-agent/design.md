@@ -54,7 +54,7 @@ Rejected ideas:
 | Layer | Responsibility |
 | --- | --- |
 | UI | Chat layout, message state, citations, and links to pages/reports/runs. |
-| API | Stable `/chat`, `/chat/sessions`, and `/chat/sessions/{session_id}` contracts. |
+| API | Stable `/chat`, `/chat/stream`, `/chat/sessions`, and `/chat/sessions/{session_id}` contracts. |
 | Service | Chat orchestration, deterministic retrieval, model calls, response assembly. |
 | Context | Stable system prompt, workspace context, memory context, and recent session messages. |
 | Storage | Vault-scoped chat session records under `.knoarbor/chat/`. |
@@ -123,9 +123,41 @@ GET /chat/sessions
 GET /chat/sessions/{session_id}
 ```
 
-The API is synchronous for the first implementation. If streaming is added
-later, it should use the same internal event model, write into the same
-session record, and preserve this final response shape.
+Streaming endpoint:
+
+```text
+POST /chat/stream
+```
+
+`/chat/stream` accepts the same `ChatRequest` as `/chat` and returns
+`text/event-stream`. The final event contains the same `ChatResponse` shape as
+`POST /chat`.
+
+Event contract:
+
+```text
+event: stage
+data: {"stage":"tool_plan","message":"Calling chat tool planner."}
+
+event: tool
+data: {"event_type":"tool_call_finished","tool":"query_wiki","status":"ok","message":"Found 6 wiki result(s)."}
+
+event: final
+data: {"schema_version":"chat_response.v1","answer":"...","citations":[]}
+
+event: error
+data: {"message":"...","code":"..."}
+```
+
+Design rules:
+
+- streaming reuses the normal chat service and does not fork retrieval,
+  citation, memory, or session persistence behavior;
+- progress events are derived from the same internal `ChatEvent` stream stored
+  on the final response;
+- answer token streaming can be added inside `ModelGateway` later, but the
+  public `/chat/stream` contract remains event-based;
+- clients can fall back to `/chat` without changing request payloads.
 
 ## Chat Session Store
 
@@ -258,9 +290,21 @@ system prompt
   -> validated answer draft
 ```
 
+Streaming chain:
+
+```text
+POST /chat/stream
+  -> same ChatAgentService loop
+  -> emit lifecycle/tool/model events as SSE
+  -> persist final session record
+  -> emit final ChatResponse
+```
+
 Rules:
 
 - Chat performs one planning step before answer synthesis.
+- Streaming and synchronous chat share the same planning and answer synthesis
+  path.
 - The planner can use `query_wiki`, `read_wiki_page`, `reuse_context`, or
   `answer_directly`; it cannot access shell, browser, arbitrary files, or
   external workflow tools.

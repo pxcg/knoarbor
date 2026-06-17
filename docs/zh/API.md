@@ -35,7 +35,7 @@ http://127.0.0.1:8000
 | 知识编译 | `POST /ingest` | 编译配置来源、标准文档、单个文件或文件夹，或恢复失败编译 |
 | 校验维护 | `POST /lint` | 执行确定性、结构、质量或完整维护 |
 | 知识查询 | `POST /query` | 为宿主 AI 检索 Wiki 上下文 |
-| 对话 | `POST /chat` | 通过受限 KnoArbor Wiki Chat Agent 询问选中的知识库 |
+| 对话 | `POST /chat`, `POST /chat/stream` | 通过受限 KnoArbor Wiki Chat Agent 询问选中的知识库 |
 | 查询反馈 | `POST /query/feedback`, `GET /query/trends` | 记录和查看查询反馈 |
 | 运行报告 | `GET /reports`, `GET /reports/content` | 列出和读取流程报告 |
 | 运行监控 | `GET /runs`, `GET /runs/{run_id}` | 查看队列、运行中和已完成任务 |
@@ -147,6 +147,24 @@ Wiki 问答入口：KnoArbor 会先规划受限的 Wiki 工具，在服务守卫
 可以执行多轮受限证据收集：先规划 KnoArbor 工具，执行后再判断是否需要继续
 查证，最后生成带引用的回答。当另一个宿主 AI 需要拿到证据并自行生成最终
 回答时使用 `/query`。写入和维护工作流应直接调用 `/ingest` 与 `/lint`。
+
+如果前端或集成工具需要在检索和生成过程中展示进度，可以使用流式入口：
+
+```http
+POST /chat/stream
+```
+
+`/chat/stream` 接收与 `/chat` 相同的请求体，返回 `text/event-stream`。
+它在同一个 Chat Loop 运行期间持续输出进度事件，并在最后输出一个 `final`
+事件；该事件的 `response` 字段与 `POST /chat` 返回的 `chat_response.v1`
+完全一致。
+
+事件类型：
+
+- `stage`：Chat Loop 进入规划、检索或回答生成阶段。
+- `tool`：受限 KnoArbor 工具开始或完成调用。
+- `final`：最终回答、引用、trace、token 指标和持久化会话信息。
+- `error`：共享 KnoArbor 错误 envelope。
 
 Chat 会话默认保存在已维护 Wiki 页面之外。当某次对话需要沉淀为持久 Wiki
 知识时，调用会话入库入口：

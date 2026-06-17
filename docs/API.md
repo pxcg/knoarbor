@@ -35,7 +35,7 @@ Public endpoints are organized by product capability, not by internal workflow s
 | Ingest | `POST /ingest` | Compile configured sources, one normalized document, one file or folder, or recover a failed ingest |
 | Lint | `POST /lint` | Run deterministic, structural, quality, or full maintenance |
 | Query | `POST /query` | Retrieve wiki context for a host AI |
-| Chat | `POST /chat` | Ask the selected vault through the bounded KnoArbor Wiki Chat Agent |
+| Chat | `POST /chat`, `POST /chat/stream` | Ask the selected vault through the bounded KnoArbor Wiki Chat Agent |
 | Query telemetry | `POST /query/feedback`, `GET /query/trends` | Record and inspect query usefulness signals |
 | Reports | `GET /reports`, `GET /reports/content` | List and read workflow reports |
 | Run monitor | `GET /runs`, `GET /runs/{run_id}` | Inspect queued/running/completed workflows |
@@ -151,6 +151,26 @@ KnoArbor tools, runs them, asks the planner whether more evidence is needed, and
 then writes the final answer. Use `/query` when another host AI should receive
 evidence and generate the final answer itself. Use `/ingest` and `/lint`
 directly for write or maintenance workflows.
+
+For UI clients that need visible progress during retrieval and answer
+synthesis, use the streaming variant:
+
+```http
+POST /chat/stream
+```
+
+`/chat/stream` accepts the same request body as `/chat` and returns
+`text/event-stream`. It emits progress events while the same chat loop is
+running, then emits a final event whose `response` field is the same
+`chat_response.v1` object returned by `POST /chat`.
+
+Event types:
+
+- `stage`: the chat loop moved to planning, retrieval, or answer generation.
+- `tool`: a bounded KnoArbor tool was called or completed.
+- `final`: final answer, citations, trace, token stats, and persisted session
+  metadata.
+- `error`: shared KnoArbor error envelope for failed runs.
 
 Chat sessions are stored outside maintained wiki pages. When a conversation
 should become durable wiki knowledge, use the chat-session ingest endpoint:

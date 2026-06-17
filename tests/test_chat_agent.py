@@ -6,11 +6,15 @@ import unittest
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from fastapi.testclient import TestClient
+
 from knoarbor.core.errors import ExternalServiceError
 from knoarbor.core.schemas.chat import ChatCitation, ChatMessageItem, ChatRequest, ChatResponse
 from knoarbor.core.schemas.vaults import VaultListResponse, VaultProfile
 from knoarbor.core.schemas.wiki_query import WikiAnswerScope, WikiAnswerSet, WikiEvidenceCoverage, WikiSearchResponse, WikiSearchResult
+from knoarbor.entrypoints.api import create_app
 from knoarbor.semantic.llm import ChatCompletionRequest, ChatCompletionResponse
+from knoarbor.services import ApplicationServices
 from knoarbor.services.chat_answer import parse_answer_draft
 from knoarbor.services.chat_agent import ChatAgentService
 from knoarbor.services.chat_sessions import ChatSessionStore
@@ -320,6 +324,44 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertIn("model_call_started", event_types)
         self.assertIn("tool_call_finished", event_types)
         self.assertIn("final_answer_ready", event_types)
+
+    def test_chat_stream_endpoint_emits_progress_and_final_response(self) -> None:
+        client_model = FakeChatClient(
+            [
+                {
+                    "answer": "Agent Loop 是推理、行动和观察的循环。",
+                    "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}],
+                },
+            ]
+        )
+        services = ApplicationServices(
+            chat=ChatAgentService(client_factory=lambda _request: client_model),
+            chat_sessions=ChatSessionStore(),
+            wiki_search=FakeWikiSearch(),  # type: ignore[arg-type]
+            wiki_pages=FakeWikiPages(),  # type: ignore[arg-type]
+            vaults=FakeVaults(),  # type: ignore[arg-type]
+            memory=MemoryService(),
+        )
+        app = create_app(services)
+        with tempfile.TemporaryDirectory() as tmp:
+            response = TestClient(app).post(
+                "/chat/stream",
+                json={
+                    "messages": [{"role": "user", "content": "Agent Loop 是什么？"}],
+                    "vault_path": tmp,
+                    "append_ledger": False,
+                    "include_trace": True,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"].split(";")[0], "text/event-stream")
+        body = response.text
+        self.assertIn("event: stage", body)
+        self.assertIn("event: tool", body)
+        self.assertIn("event: final", body)
+        self.assertIn('"schema_version": "chat_response.v1"', body)
+        self.assertIn("Agent Loop 是推理", body)
 
     def test_chat_model_calls_retry_retryable_transport_errors(self) -> None:
         client = FakeChatClient(

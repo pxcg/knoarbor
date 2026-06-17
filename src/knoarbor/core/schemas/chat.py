@@ -31,6 +31,7 @@ ChatEventType = Literal[
     "final_answer_ready",
     "chat_stopped",
 ]
+ChatStreamEventType = Literal["stage", "tool", "final", "error"]
 
 
 class ChatMessageItem(BaseModel):
@@ -142,6 +143,18 @@ class ChatResponse(BaseModel):
     memory_writes: list[MemoryRecord] = Field(default_factory=list)
     stats: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
+
+
+class ChatStreamEvent(BaseModel):
+    schema_version: Literal["chat_stream_event.v1"] = "chat_stream_event.v1"
+    event: ChatStreamEventType
+    message: str = ""
+    stage: str | None = None
+    tool: str | None = None
+    status: str | None = None
+    response: ChatResponse | None = None
+    error: dict[str, Any] = Field(default_factory=dict)
+    payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class ChatTurnRecord(BaseModel):

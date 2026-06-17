@@ -49,6 +49,9 @@
 - [x] Emit lightweight chat events for tool calls and failures.
 - [x] Add readable error states for model unavailable, no results, retrieval
   failure, and invalid answer output.
+- [x] Add `/chat/stream` server-sent event endpoint.
+- [x] Add front-end streaming chat client with synchronous fallback.
+- [x] Render stage/tool progress from stream events before the final answer.
 - [ ] Add optional chat transcript export only after privacy review.
 
 ## P3 Docs And Release Surface
@@ -60,7 +63,7 @@
 
 ## Deferred
 
-- [ ] Streaming responses.
+- [ ] Token-level model streaming through provider adapters.
 - [ ] Native provider tool calling.
 - [ ] Scheduling or proactive daily summaries.
 - [ ] Cross-vault merge recommendations from chat.

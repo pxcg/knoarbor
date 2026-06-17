@@ -31,6 +31,8 @@ scripts/release-check.sh
 - Invalid JSON model output raises a structured model-output error.
 - Chat retrieval policy expands evidence for broad or comparative questions.
 - Multi-vault query labels each cited page with vault information.
+- `/chat/stream` emits progress events and a final `chat_response.v1` payload.
+- `/chat/stream` final response matches the persisted session record.
 
 ## Manual UI Checks
 
@@ -39,6 +41,7 @@ scripts/release-check.sh
 - Evidence trace can be expanded without overwhelming the conversation.
 - Page citations open the Knowledge Base.
 - Model errors are readable and do not blank the page.
+- Chat shows progress while retrieval or answer generation is still running.
 
 ## Non-Regression Checks
 

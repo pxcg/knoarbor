@@ -9,10 +9,11 @@ import {
   listChatSessions,
   readChatSession,
   retryChatSession,
-  sendChatMessage,
+  sendChatMessageStream,
   updateChatSession,
   type ChatCitation,
   type ChatMessageItem,
+  type ChatStreamEvent,
   type PageDetail,
   type ChatSessionSummary,
   type ModelProviderSummary,
@@ -224,7 +225,7 @@ export function ChatPage({ context }: Props) {
     const controller = new AbortController();
     activeChatAbortRef.current = controller;
     try {
-      const response = await sendChatMessage(
+      const response = await sendChatMessageStream(
         context.activeVaultSelector,
         [...apiMessages, { role: "user", content }],
         {
@@ -233,6 +234,7 @@ export function ChatPage({ context }: Props) {
           max_turns: 6,
           provider: activeChatProvider || undefined,
         },
+        (event) => applyStreamEvent(event),
         controller.signal,
       );
       setSessionId(response.session_id || sessionId);
@@ -360,6 +362,14 @@ export function ChatPage({ context }: Props) {
       window.setTimeout(() => setRequestStage("generating"), 1600),
       window.setTimeout(() => setRequestStage("waiting_model"), 5000),
     ];
+  }
+
+  function applyStreamEvent(event: ChatStreamEvent) {
+    const nextStage = chatStageFromStreamEvent(event);
+    if (nextStage) {
+      clearStageTimers();
+      setRequestStage(nextStage);
+    }
   }
 
   function clearStageTimers() {
@@ -615,6 +625,17 @@ function chatStageLabel(stage: ChatRequestStage, context: AppContext) {
   if (stage === "generating") return context.t("chatStageGenerating");
   if (stage === "waiting_model") return context.t("chatStageWaitingModel");
   return context.t("chatStagePreparing");
+}
+
+function chatStageFromStreamEvent(event: ChatStreamEvent): ChatRequestStage | null {
+  if (event.event === "final") return "generating";
+  if (event.event === "error") return "idle";
+  if (event.stage === "planning" || event.stage === "preparing") return "preparing";
+  if (event.stage === "retrieving") return "retrieving";
+  if (event.stage === "generating") return "waiting_model";
+  if (event.stage === "completed") return "generating";
+  if (event.tool) return "retrieving";
+  return null;
 }
 
 function SessionLifecycleBadge({ session, context, busy = false }: { session: ChatSessionSummary; context: AppContext; busy?: boolean }) {

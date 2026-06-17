@@ -24,6 +24,8 @@ This is a KnoArbor product capability, not a general-purpose agent platform.
 - Support active-vault and multi-vault context explicitly.
 - Make evidence selection inspectable through UI trace, API response, and token
   metrics.
+- Stream chat progress events so long retrieval and answer generation do not
+  look stalled in the console.
 - Keep the same model gateway and provider abstraction used by ingest and lint.
 - Reuse existing query and wiki page services for evidence selection and page
   navigation.
@@ -46,6 +48,9 @@ This is a KnoArbor product capability, not a general-purpose agent platform.
   chat for answer synthesis or use `/query` for raw evidence retrieval.
 - Do not implement long-term user accounts, multi-user sessions, or TLS in this
   feature.
+- Do not make streaming a separate chat implementation. Streaming must use the
+  same chat loop, session store, citations, token ledger, and error handling as
+  `POST /chat`.
 
 ## User Scenarios
 
@@ -129,12 +134,16 @@ Acceptance criteria:
 ## Release Criteria
 
 - `POST /chat` has a stable request and response schema.
+- `POST /chat/stream` exposes the same final response shape through a
+  server-sent event stream.
 - Chat session list/read APIs expose persisted session summaries and records.
 - Chat session ingest and close APIs expose queued run metadata when a session
   is sent to ingest.
 - The console home page is a chat interface backed by `/chat`.
 - Evidence traces are visible but not overwhelming.
 - Chat uses existing model gateway, retry, error codes, and token metrics.
+- Streaming requests show progress before the final answer and persist the same
+  session record as synchronous requests.
 - Unit tests cover chat tool planning, direct-answer guardrails, invalid model
   output, answer synthesis, citations, and turn-level session persistence.
 - UI tests or screenshots cover the home chat view and a successful evidence trace.

@@ -1,9 +1,17 @@
 from __future__ import annotations
 
+import asyncio
+import json
+from collections.abc import AsyncIterator
+from typing import Any
+
 from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
 
 from knoarbor.core.config import default_config_path, load_config
+from knoarbor.core.errors import KnoArborError
 from knoarbor.core.schemas.chat import (
+    ChatEvent,
     ChatRequest,
     ChatResponse,
     ChatSessionCloseRequest,
@@ -28,6 +36,17 @@ def create_chat_router(services: ApplicationServices) -> APIRouter:
     @router.post("/chat", response_model=ChatResponse)
     async def run_chat(request: ChatRequest) -> ChatResponse:
         return services.chat.chat(request, services)
+
+    @router.post("/chat/stream")
+    async def stream_chat(request: ChatRequest) -> StreamingResponse:
+        return StreamingResponse(
+            _chat_event_stream(request, services),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     @router.get("/chat/sessions", response_model=ChatSessionListResponse)
     async def list_chat_sessions(
@@ -120,6 +139,103 @@ def create_chat_router(services: ApplicationServices) -> APIRouter:
             raise
 
     return router
+
+
+async def _chat_event_stream(request: ChatRequest, services: ApplicationServices) -> AsyncIterator[str]:
+    queue: asyncio.Queue[tuple[str, dict[str, Any]] | None] = asyncio.Queue()
+    loop = asyncio.get_running_loop()
+
+    def emit(name: str, payload: dict[str, Any]) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, (name, payload))
+
+    def event_callback(event: ChatEvent) -> None:
+        payload = _chat_event_payload(event)
+        emit(payload["event"], payload)
+
+    def run_chat() -> None:
+        try:
+            response = services.chat.chat(request, services, event_callback=event_callback)
+            emit(
+                "final",
+                {
+                    "schema_version": "chat_stream_event.v1",
+                    "event": "final",
+                    "message": "Chat response completed.",
+                    "response": response.model_dump(mode="json"),
+                },
+            )
+        except KnoArborError as exc:
+            emit("error", _stream_error_payload(str(exc), code=getattr(exc, "code", None), retryable=getattr(exc, "retryable", None)))
+        except Exception as exc:  # noqa: BLE001 - stream errors must be serialized instead of escaping mid-response.
+            emit("error", _stream_error_payload(str(exc)))
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, None)
+
+    task = asyncio.create_task(asyncio.to_thread(run_chat))
+    try:
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            name, payload = item
+            yield _sse_event(name, payload)
+    finally:
+        await task
+
+
+def _chat_event_payload(event: ChatEvent) -> dict[str, Any]:
+    if event.event_type.startswith("tool_"):
+        stream_event = "tool"
+    elif event.event_type == "final_answer_ready":
+        stream_event = "stage"
+    else:
+        stream_event = "stage"
+    return {
+        "schema_version": "chat_stream_event.v1",
+        "event": stream_event,
+        "message": event.message,
+        "stage": _chat_stage(event),
+        "tool": event.tool,
+        "status": event.status,
+        "payload": {
+            "event_type": event.event_type,
+            "turn": event.turn,
+            **event.payload,
+        },
+    }
+
+
+def _chat_stage(event: ChatEvent) -> str:
+    if event.event_type == "chat_started":
+        return "preparing"
+    if event.event_type.startswith("tool_"):
+        return "retrieving"
+    if event.event_type == "model_call_started":
+        phase = event.payload.get("phase")
+        return "generating" if phase == "answer" else "planning"
+    if event.event_type == "model_call_finished":
+        phase = event.payload.get("phase")
+        return "generating" if phase == "answer" else "planning"
+    if event.event_type == "final_answer_ready":
+        return "completed"
+    return "running"
+
+
+def _stream_error_payload(message: str, *, code: object = None, retryable: object = None) -> dict[str, Any]:
+    return {
+        "schema_version": "chat_stream_event.v1",
+        "event": "error",
+        "message": message,
+        "error": {
+            "code": str(code or "KA-CHAT-STREAM"),
+            "retryable": bool(retryable) if retryable is not None else False,
+            "message": message,
+        },
+    }
+
+
+def _sse_event(name: str, payload: dict[str, Any]) -> str:
+    return f"event: {name}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
 def _start_chat_session_ingest(services: ApplicationServices, session_id: str, request: ChatSessionIngestRequest):
