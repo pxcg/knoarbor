@@ -168,7 +168,7 @@ class OpenAICompatibleChatClient:
     def complete(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         payload: dict[str, object] = {
             "model": self.model,
-            "messages": [message.model_dump() for message in request.messages],
+            "messages": [message.model_dump() for message in _merge_system_messages(request.messages)],
             "temperature": request.temperature,
         }
         if request.max_tokens is not None:
@@ -415,7 +415,7 @@ class OllamaNativeChatClient:
             options["num_predict"] = request.max_tokens
         payload: dict[str, object] = {
             "model": self.model,
-            "messages": [message.model_dump() for message in request.messages],
+            "messages": [message.model_dump() for message in _merge_system_messages(request.messages)],
             "stream": False,
             "think": False,
             "options": options,
@@ -605,6 +605,38 @@ def _deep_merge_payload(base: dict[str, object], extra: dict[str, object]) -> di
         else:
             merged[key] = value
     return merged
+
+
+def _merge_system_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Normalize chat payloads for providers that accept only one system message.
+
+    KnoArbor keeps system concerns separate internally: stable task prompt,
+    workspace context, memory context, and provider probes are assembled by
+    different layers. Provider adapters own wire-level compatibility, so they
+    collapse those system sections into one ordered system message before
+    sending OpenAI-compatible/Ollama payloads.
+    """
+
+    system_messages = [message for message in messages if message.role == "system"]
+    if len(system_messages) <= 1:
+        return messages
+    merged_system = ChatMessage(
+        role="system",
+        content="\n\n".join(
+            f"## System Context {index}\n{message.content}"
+            for index, message in enumerate(system_messages, start=1)
+        ),
+    )
+    output: list[ChatMessage] = []
+    inserted = False
+    for message in messages:
+        if message.role == "system":
+            if not inserted:
+                output.append(merged_system)
+                inserted = True
+            continue
+        output.append(message)
+    return output
 
 
 def is_local_or_private_model_endpoint(base_url: str | None) -> bool:

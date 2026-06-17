@@ -425,6 +425,46 @@ class SemanticRunnerTests(unittest.TestCase):
         self.assertEqual(response.usage["total_tokens"], 14)
         self.assertEqual(response.tokens_per_second, 2.0)
 
+    def test_ollama_native_client_merges_multiple_system_messages(self) -> None:
+        client = OllamaNativeChatClient.from_config(
+            "ollama",
+            ModelProviderConfig(adapter="ollama", base_url="http://127.0.0.1:11434", model="qwen", json_mode=False),
+        )
+
+        captured_payload: dict[str, object] = {}
+
+        class OllamaChatResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self) -> bytes:
+                return b'{"message":{"role":"assistant","content":"ok"},"prompt_eval_count":1,"eval_count":1}'
+
+        def fake_urlopen(request, **_kwargs):
+            nonlocal captured_payload
+            captured_payload = json.loads(request.data.decode("utf-8"))
+            return OllamaChatResponse()
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            client.complete(
+                ChatCompletionRequest(
+                    messages=[
+                        {"role": "system", "content": "Stable prompt."},
+                        {"role": "system", "content": "Memory context."},
+                        {"role": "user", "content": "hello"},
+                    ],
+                    structured_output=False,
+                )
+            )
+
+        messages = captured_payload["messages"]
+        self.assertEqual([message["role"] for message in messages], ["system", "user"])
+        self.assertIn("Stable prompt.", messages[0]["content"])
+        self.assertIn("Memory context.", messages[0]["content"])
+
     def test_ollama_native_client_discovers_models_and_context_window(self) -> None:
         client = OllamaNativeChatClient(
             provider="ollama",
@@ -491,6 +531,39 @@ class SemanticRunnerTests(unittest.TestCase):
             client.complete(ChatCompletionRequest(messages=[{"role": "user", "content": "hello"}]))
 
         self.assertEqual(captured_payload["response_format"], {"type": "json_object"})
+
+    def test_openai_compatible_client_merges_multiple_system_messages(self) -> None:
+        client = OpenAICompatibleChatClient(
+            provider="vllm",
+            base_url="http://127.0.0.1:8001/v1",
+            api_key="test-key",
+            model="qwen",
+            json_mode=False,
+        )
+
+        captured_payload: dict[str, object] = {}
+
+        def fake_urlopen(request, **_kwargs):
+            nonlocal captured_payload
+            captured_payload = json.loads(request.data.decode("utf-8"))
+            return FakeHTTPResponse()
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            client.complete(
+                ChatCompletionRequest(
+                    messages=[
+                        {"role": "system", "content": "Stable prompt."},
+                        {"role": "system", "content": "Workspace context."},
+                        {"role": "user", "content": "hello"},
+                    ],
+                    structured_output=False,
+                )
+            )
+
+        messages = captured_payload["messages"]
+        self.assertEqual([message["role"] for message in messages], ["system", "user"])
+        self.assertIn("Stable prompt.", messages[0]["content"])
+        self.assertIn("Workspace context.", messages[0]["content"])
 
     def test_openai_compatible_client_extracts_provider_cache_telemetry(self) -> None:
         client = OpenAICompatibleChatClient(
