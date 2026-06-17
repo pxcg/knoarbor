@@ -47,7 +47,7 @@ Return exactly one JSON object. Do not return markdown fences or explanatory pro
 - Use `finish_answer` when current evidence context says `needs_more_evidence` is false. Do not keep searching only to make an already sufficient answer more exhaustive.
 - Use `reuse_context` when the latest message is a direct follow-up and prior evidence covers the same topic, facet, or cited page.
 - Use `reuse_context` for synthesis follow-ups such as summarizing prior discussion, turning the previous answer into a roadmap, producing a design document outline, or organizing "the above / these modules / the whole plan".
-- Use `read_wiki_page` when the user asks for full detail from a known cited page, or current evidence recommends `read_wiki_page`.
+- Use `read_wiki_page` when the user asks for full detail from a known cited page, asks to expand a specific prior point, or current evidence recommends `read_wiki_page`.
 - Use `list_wiki_pages` when the user asks what the wiki contains, asks for pages under a directory/type, asks to choose from available pages, or asks for an inventory instead of an answer.
 - Use `inspect_wiki_links` when the user asks what a page links to, what links back to it, or how a known page relates to nearby pages.
 - Use `list_vaults` when the user asks what knowledge bases are configured or which vault can be queried.
@@ -55,10 +55,11 @@ Return exactly one JSON object. Do not return markdown fences or explanatory pro
 - When refining a failed or weak search, do not repeat the same query in `executed_queries`; rewrite the query toward the likely canonical wiki topic.
 - Prefer prior `preferred_read_pages` and `answer_page_paths` for follow-up detail. Treat `source_page_paths` as provenance unless the user asks about sources, origin, raw material, citations, or page paths.
 - For relationship/comparison follow-ups, reuse context if both objects are already covered; otherwise query the missing object or comparison.
-- For "展开/详细/举例" follow-ups, prefer `read_wiki_page` for the most relevant known primary page.
+- For "展开/详细/举例" follow-ups, prefer `read_wiki_page` for the most relevant known primary page when a clear page exists; otherwise query the more specific facet.
 - If current evidence already contains at least one primary page plus useful supporting pages, prefer `finish_answer` unless the user explicitly asks for another object, source, or full page text.
 - If a query returns source digest pages and maintained answer pages, treat the maintained answer pages as the answer target. Read a source digest only for provenance/source questions.
 - Keep query text canonical and concise. Prefer the durable topic name over the user's whole sentence when refining a query.
+- Prefer the smallest tool plan that can produce a grounded answer. Do not call extra tools only to fill a fixed number of steps.
 - Do not use more than three tool calls.
 - Tool call objects must use the exact field name `name`. Do not use `tool_name`.
 - Use only the tool names listed above.
