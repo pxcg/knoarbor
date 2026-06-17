@@ -31,15 +31,13 @@ from knoarbor.semantic.llm import ChatCompletionRequest, ChatMessage, ModelGatew
 
 DEFAULT_FIXTURE = Path("tests/fixtures/chat/agent_architecture_6turn_mixed.json")
 DEFAULT_OUTPUT_ROOT = Path("tmp/rag-baselines")
+DEFAULT_AGENT_NOTES_DIR = Path("~/Documents/Obsidian/Notes/02 AI Agent")
+DEFAULT_AGENT_NOTE_FILENAMES = ("Agent.md", "MCP.md", "OpenClaw架构.md")
 
-AGENT_ARCHITECTURE_RAW_FILES = [
-    Path("/Users/pxcg/Documents/Obsidian/Notes/02 AI Agent/Agent.md"),
-    Path("/Users/pxcg/Documents/Obsidian/Notes/02 AI Agent/MCP.md"),
-    Path("/Users/pxcg/Documents/Obsidian/Notes/02 AI Agent/OpenClaw架构.md"),
-    Path("/Users/pxcg/.hermes/sessions/session_20260505_173432_47d596.json"),
-    Path("/Users/pxcg/.codex/sessions/2026/05/26/rollout-2026-05-26T23-18-09-019e64dd-5f34-7020-bb79-01e35ed3ab51.jsonl"),
-    Path("/Users/pxcg/.claude/projects/-Users-pxcg/6184bdcf-4789-4eea-9f5f-76b52330676a.jsonl"),
-]
+
+def agent_architecture_md_files() -> list[Path]:
+    base = DEFAULT_AGENT_NOTES_DIR.expanduser()
+    return [base / filename for filename in DEFAULT_AGENT_NOTE_FILENAMES]
 
 
 @dataclass(frozen=True)
@@ -99,8 +97,8 @@ def load_fixture(path: Path) -> Fixture:
 
 def resolve_input_files(args: argparse.Namespace) -> list[Path]:
     paths: list[Path] = []
-    if args.preset == "agent-architecture":
-        paths.extend(AGENT_ARCHITECTURE_RAW_FILES)
+    if args.preset == "agent-architecture-md":
+        paths.extend(agent_architecture_md_files())
     paths.extend(args.file or [])
     for directory in args.input_dir or []:
         paths.extend(sorted(path for path in directory.rglob("*") if path.is_file() and path.suffix.lower() in {".md", ".txt", ".json", ".jsonl"}))
@@ -461,7 +459,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run a simple local chunk-RAG baseline against a KnoArbor chat fixture.")
     parser.add_argument("--fixture", type=Path, default=DEFAULT_FIXTURE)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
-    parser.add_argument("--preset", choices=["agent-architecture", "none"], default="agent-architecture")
+    parser.add_argument("--preset", choices=["agent-architecture-md", "none"], default="agent-architecture-md")
     parser.add_argument("--file", action="append", type=Path, default=[])
     parser.add_argument("--input-dir", action="append", type=Path, default=[])
     parser.add_argument("--allow-missing", action="store_true")

@@ -27,7 +27,7 @@ class ChatEvalFixtureTests(unittest.TestCase):
         data = _load_fixture(MAIN_FIXTURE_PATH)
 
         self.assertEqual(data["id"], "agent_architecture_6turn_mixed")
-        self.assertEqual(data["recommended_scope"], "all_vaults")
+        self.assertEqual(data["recommended_scope"], "agent-engineering")
         self.assertIn("short-question noise control", data["evaluation_focus"])
 
         _assert_turns_well_formed(self, data, expected_count=6)

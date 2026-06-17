@@ -2,7 +2,7 @@
   "id": "agent_architecture_6turn_mixed",
   "title": "Agent architecture mixed-length chat evaluation",
   "description": "A focused multi-turn chat evaluation case for testing short-question noise control, context-aware follow-up, wiki-page synthesis, source-grounded architecture design, and final document outline generation.",
-  "recommended_scope": "all_vaults",
+  "recommended_scope": "agent-engineering",
   "topic": "Design an engineering Agent system from Agent Loop to production architecture, using wiki-native pages instead of chunk-style RAG evidence.",
   "evaluation_focus": [
     "short-question noise control",

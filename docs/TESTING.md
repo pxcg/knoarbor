@@ -124,9 +124,43 @@ default release gate. It must use a temporary vault and temporary config.
 
 KnoArbor can be compared against conventional chunk retrieval with the same chat
 fixture. The default local baseline does not start a database or external RAG
-product. It reads raw files, chunks them, runs BM25 retrieval, and optionally
-calls a configured model to answer from the retrieved chunks. All outputs are
-written under `tmp/rag-baselines/`.
+product. It reads the fixed Markdown source set, chunks it, runs BM25 retrieval,
+and optionally calls a configured model to answer from the retrieved chunks. All
+outputs are written under `tmp/rag-baselines/`.
+
+This is a maintainer evaluation protocol, not part of the first-run user path.
+New users can complete the product quickstart without running any comparison
+benchmark.
+
+The fixed comparison protocol uses:
+
+- fixture: `tests/fixtures/chat/agent_architecture_6turn_mixed.json`;
+- LLM-Wiki scope: `agent-engineering` vault;
+- RAG-lite scope: `Agent.md`, `MCP.md`, and `OpenClaw架构.md`;
+- output root: `tmp/eval-protocol/`.
+
+Use `--rag-source-dir` when the three source notes live outside the default
+local notes directory.
+
+Larger raw-chat baselines are intentionally not built into a preset because
+large chat logs can dominate chunk retrieval. Add those files explicitly with
+`--file` or `--input-dir` when the evaluation goal requires them.
+
+Dry-run the protocol before calling a real provider:
+
+```bash
+uv run python scripts/eval/llmwiki_rag_comparison.py --plan
+```
+
+Run one provider:
+
+```bash
+uv run python scripts/eval/llmwiki_rag_comparison.py \
+  --run-rag \
+  --run-llmwiki \
+  --compare \
+  --provider deepseek
+```
 
 ```bash
 uv run python scripts/eval/rag_lite_baseline.py --retrieval-only

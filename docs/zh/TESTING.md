@@ -112,7 +112,36 @@ scripts/live-release-candidate-smoke.sh
 
 ## RAG 基线对比
 
-KnoArbor 可以用同一套对话 fixture 和传统 chunk 检索做对比。默认本地基线不启动数据库或外部 RAG 产品，只读取 raw 文件、切块、执行 BM25 检索，并可选调用已配置模型基于检索到的 chunk 回答。所有输出都写入 `tmp/rag-baselines/`。
+KnoArbor 可以用同一套对话 fixture 和传统 chunk 检索做对比。默认本地基线不启动数据库或外部 RAG 产品，只读取固定 Markdown 来源集、切块、执行 BM25 检索，并可选调用已配置模型基于检索到的 chunk 回答。所有输出都写入 `tmp/rag-baselines/`。
+
+这是维护者评测协议，不是新用户首次上手路径。新用户完成产品快速开始不需要运行任何对比基准。
+
+固定对比协议使用：
+
+- fixture：`tests/fixtures/chat/agent_architecture_6turn_mixed.json`；
+- LLM-Wiki 范围：`agent-engineering` 知识库；
+- RAG-lite 范围：`Agent.md`、`MCP.md` 和 `OpenClaw架构.md`；
+- 输出目录：`tmp/eval-protocol/`。
+
+如果这三个来源笔记不在默认本地笔记目录下，使用 `--rag-source-dir` 指定实际目录。
+
+更大的聊天 raw 基线不内置为 preset，因为大型聊天日志会主导 chunk 检索。确实需要时，使用 `--file` 或 `--input-dir` 显式加入这些文件。
+
+调用真实模型前先查看计划：
+
+```bash
+uv run python scripts/eval/llmwiki_rag_comparison.py --plan
+```
+
+运行单个模型供应商：
+
+```bash
+uv run python scripts/eval/llmwiki_rag_comparison.py \
+  --run-rag \
+  --run-llmwiki \
+  --compare \
+  --provider deepseek
+```
 
 ```bash
 uv run python scripts/eval/rag_lite_baseline.py --retrieval-only
