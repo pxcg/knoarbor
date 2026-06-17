@@ -49,6 +49,7 @@ type ChatCitationPreview = {
 };
 
 const exampleKeys = ["chatExampleAgentLoop", "chatExampleLint", "chatExampleRag", "chatExampleReadPage"];
+const CHAT_SESSION_LIST_LIMIT = 200;
 
 export function ChatPage({ context }: Props) {
   const [input, setInput] = useState("");
@@ -93,7 +94,7 @@ export function ChatPage({ context }: Props) {
     if (!chatVaultReady) return;
     let cancelled = false;
     setIsLoadingSessions(true);
-    listChatSessions(context.activeVaultSelector, 20)
+    listChatSessions(context.activeVaultSelector, CHAT_SESSION_LIST_LIMIT)
       .then((response) => {
         if (!cancelled) setRecentSessions(response.sessions || []);
       })
@@ -120,7 +121,7 @@ export function ChatPage({ context }: Props) {
   async function refreshSessions() {
     if (!chatVaultReady) return;
     try {
-      const response = await listChatSessions(context.activeVaultSelector, 20);
+      const response = await listChatSessions(context.activeVaultSelector, CHAT_SESSION_LIST_LIMIT);
       setRecentSessions(response.sessions || []);
     } catch {
       setRecentSessions([]);
