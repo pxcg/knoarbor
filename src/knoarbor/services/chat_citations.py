@@ -17,6 +17,10 @@ def final_citations(decision_citations: list[ChatCitation], trace: list[ChatTool
     """
 
     trace_citations = [citation for item in trace for citation in item.citations]
+    evidence_citations = _evidence_pack_citations(trace)
+    referenced = _referenced_citations(answer, evidence_citations or trace_citations)
+    if referenced:
+        return _unique_citations(referenced)
     if decision_citations:
         if not trace_citations:
             return _unique_citations(decision_citations)
@@ -24,10 +28,6 @@ def final_citations(decision_citations: list[ChatCitation], trace: list[ChatTool
         validated = [citation for citation in validated if _citation_is_trace_supported(citation, trace_citations)]
         if validated:
             return _unique_citations(validated)
-    evidence_citations = _evidence_pack_citations(trace)
-    referenced = _referenced_citations(answer, evidence_citations)
-    if referenced:
-        return _unique_citations(referenced)
     if evidence_citations:
         return _unique_citations(evidence_citations)
     return _unique_citations(trace_citations)
@@ -110,7 +110,7 @@ def _enrich_citation(citation: ChatCitation, trace_citations: list[ChatCitation]
 
 def _referenced_citations(answer: str, citations: list[ChatCitation]) -> list[ChatCitation]:
     indexes = []
-    for match in re.finditer(r"\[(\d{1,2})\]", answer):
+    for match in re.finditer(r"[\[［](\d{1,2})[\]］]", answer):
         number = int(match.group(1))
         if number < 1 or number > len(citations) or number in indexes:
             continue

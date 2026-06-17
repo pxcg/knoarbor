@@ -64,6 +64,25 @@ class ChatCitationPolicyTests(unittest.TestCase):
         self.assertEqual(citations[0].path, "concepts/Agent-Loop.md")
         self.assertEqual(citations[0].title, "Model Title")
 
+    def test_answer_references_override_broad_model_selected_citations(self) -> None:
+        citation_pages = [
+            {"path": f"concepts/Page-{index}.md", "title": f"Page {index}", "role": "supporting"}
+            for index in range(1, 21)
+        ]
+        trace = [
+            ChatToolTraceItem(
+                tool="query_wiki",
+                result={"evidence_pack": {"citation_pages": citation_pages}},
+                citations=[ChatCitation(kind="page", path=page["path"], title=page["title"]) for page in citation_pages],
+            )
+        ]
+        decision = [ChatCitation(kind="page", path=page["path"], title=page["title"]) for page in citation_pages]
+
+        citations = final_citations(decision, trace, answer="正文只明确引用 [1]、[2]、[3] 和 [4]。")
+
+        self.assertEqual(len(citations), 4)
+        self.assertEqual([citation.path for citation in citations], [f"concepts/Page-{index}.md" for index in range(1, 5)])
+
     def test_answer_references_choose_matching_evidence_order(self) -> None:
         trace = [
             ChatToolTraceItem(
@@ -80,6 +99,25 @@ class ChatCitationPolicyTests(unittest.TestCase):
         ]
 
         citations = final_citations([], trace, answer="结论主要来自 [2]。")
+
+        self.assertEqual([citation.path for citation in citations], ["concepts/B.md"])
+
+    def test_answer_references_accept_fullwidth_brackets(self) -> None:
+        trace = [
+            ChatToolTraceItem(
+                tool="query_wiki",
+                result={
+                    "evidence_pack": {
+                        "citation_pages": [
+                            {"path": "concepts/A.md", "title": "A", "role": "primary"},
+                            {"path": "concepts/B.md", "title": "B", "role": "supporting"},
+                        ]
+                    }
+                },
+            )
+        ]
+
+        citations = final_citations([], trace, answer="结论主要来自［2］。")
 
         self.assertEqual([citation.path for citation in citations], ["concepts/B.md"])
 
