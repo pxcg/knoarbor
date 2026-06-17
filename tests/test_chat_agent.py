@@ -909,7 +909,7 @@ class ChatAgentServiceTest(unittest.TestCase):
                     "reason": "user asks for available pages",
                     "confidence": 0.9,
                 },
-                {"answer": "当前有 Agent Loop 页面。", "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}]},
+                {"answer": "当前有 Agent Loop 页面。", "citations": []},
             ]
         )
         services = FakeServices()
@@ -922,6 +922,7 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(response.tool_trace[0].tool, "list_wiki_pages")
         self.assertEqual(response.tool_trace[0].result["returned_pages"], 1)
         self.assertEqual(response.tool_trace[0].result["pages"][0]["path"], "concepts/Agent-Loop.md")
+        self.assertEqual(response.citations[0].path, "concepts/Agent-Loop.md")
         self.assertIn('"pages"', client.requests[-1].messages[-1].content)
 
     def test_chat_can_inspect_wiki_links(self) -> None:
@@ -944,6 +945,7 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(services.wiki_pages.link_paths, ["concepts/Agent-Loop.md"])
         self.assertEqual(response.tool_trace[0].tool, "inspect_wiki_links")
         self.assertEqual(response.tool_trace[0].result["outbound_links"][0]["target_path"], "entities/OpenClaw.md")
+        self.assertEqual(response.citations[0].path, "entities/OpenClaw.md")
         self.assertIn('"outbound_links"', client.requests[-1].messages[-1].content)
 
     def test_chat_can_list_vaults(self) -> None:

@@ -23,7 +23,8 @@ from knoarbor.core.schemas.chat import (
     ChatToolTraceItem,
 )
 from knoarbor.core.schemas.memory import MemoryCandidate, MemoryRecord
-from knoarbor.services.chat_answer import ChatAnswerSynthesizer, answer_cleanup_citations, clean_answer_citation_paths, final_citations, messages_chars, parse_json_object
+from knoarbor.services.chat_answer import ChatAnswerSynthesizer, messages_chars, parse_json_object
+from knoarbor.services.chat_citations import answer_cleanup_citations, clean_answer_citation_paths, final_citations
 from knoarbor.services.chat_context import ChatContextEngine, latest_user_text, memory_target, session_target
 from knoarbor.services.chat_model_call import run_chat_model_call
 from knoarbor.services.chat_retrieval_policy import ChatPlanAdjustment, ChatRetrievalPolicy
