@@ -32,7 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     first_run_parser = subparsers.add_parser("first-run", help="Create local config, initialize the vault, and run first-run diagnostics.")
-    first_run_parser.add_argument("--vault", default=None, help="Vault path to create. Defaults to ./vaults/all in the local config.")
+    first_run_parser.add_argument("--vault", default=None, help="Vault path to create. Defaults to ./vaults/default in the local config.")
     first_run_parser.add_argument(
         "--example",
         action=argparse.BooleanOptionalAction,

@@ -88,7 +88,7 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 TEMP_CONFIG="$TMP_DIR/config.yaml"
-TEMP_VAULT="/vaults/all"
+TEMP_VAULT="$TMP_DIR/vault"
 
 # Copy config.example.yaml into TEMP_CONFIG, rewrite vault.path to TEMP_VAULT,
 # then run CLI/API checks against TEMP_CONFIG only.

@@ -1,27 +1,46 @@
 # API Compatibility
 
-KnoArbor has not published a stable v1 API yet, so the pre-release line favors a small, clear public surface over compatibility with early prototype paths.
+KnoArbor 1.x exposes a public local API for the CLI, web console, skills, and
+external tools. The 1.x line favors a compact and clear surface while the
+project continues toward the 2.0 long-term compatibility baseline.
 
 ## Public API Surface
 
 The public integration API is intentionally compact:
 
 - `GET /health`
-- `GET /runtime`
 - `GET /doctor`
 - `POST /ingest`
 - `POST /lint`
+- `GET /models/providers`
+- `POST /models/discover`
+- `POST /models/probe`
+- `POST /models/apply-capabilities`
+- `POST /chat`
+- `POST /chat/stream`
+- `GET /chat/sessions`
+- `GET /chat/sessions/{session_id}`
+- `PATCH /chat/sessions/{session_id}`
+- `DELETE /chat/sessions/{session_id}`
+- `POST /chat/sessions/{session_id}/ingest`
+- `POST /chat/sessions/{session_id}/close`
+- `POST /chat/sessions/{session_id}/retry`
 - `POST /query`
 - `POST /query/feedback`
 - `GET /query/trends`
+- `GET /reports`
+- `GET /reports/content`
+- `GET /runtime`
+- `GET /sources`
+- `GET /vaults`
 - `GET /runs`
 - `GET /runs/{run_id}`
 - `GET /runs/{run_id}/events`
 - `GET /runs/{run_id}/stream`
 - `POST /runs/{run_id}/cancel`
-- `GET /vaults/all/pages`
-- `GET /vaults/all/pages/content`
-- `GET /vaults/all/pages/links`
+- `GET /wiki/pages`
+- `GET /wiki/pages/content`
+- `GET /wiki/pages/links`
 
 Different workflow variants are selected by request fields such as `execution`, `kind`, and `mode`.
 

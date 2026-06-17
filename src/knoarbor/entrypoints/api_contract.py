@@ -3,7 +3,7 @@ from __future__ import annotations
 """Public HTTP API compatibility contract.
 
 This module is the single machine-readable list of routes that are intended to
-remain stable across v0.x releases. Tests, documentation checks, and release
+remain stable across 1.x releases. Tests, documentation checks, and release
 readiness scripts should read this contract instead of duplicating route lists.
 """
 

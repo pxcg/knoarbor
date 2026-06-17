@@ -13,8 +13,52 @@ class AnswerSelectionResult:
     rejected_candidates: list[WikiRejectedCandidate]
 
 
+@dataclass(frozen=True)
+class AnswerSelectionPolicy:
+    """Tunable page-level answer selection policy.
+
+    The selector still returns deterministic results, but thresholds live in one
+    named policy instead of being scattered through the selection code.
+    """
+
+    source_answer_limit: int = 2
+    narrow_source_limit: int = 1
+    broad_source_limit: int = 3
+    further_reading_limit: int = 3
+    broad_primary_limit: int = 3
+    exploratory_primary_limit: int = 4
+    narrow_supporting_limit: int = 2
+    broad_supporting_limit: int = 4
+    exploratory_supporting_limit: int = 5
+    primary_min_relative_score: float = 0.68
+    related_primary_min_relative_score: float = 0.9
+    primary_min_facet_novelty: float = 0.35
+    supporting_min_facet_novelty: float = 0.2
+    broad_supporting_min_score: float = 0.8
+    narrow_supporting_min_score: float = 1.2
+
+    def primary_limit(self, scope_kind: str) -> int:
+        return self.broad_primary_limit if scope_kind == "broad" else self.exploratory_primary_limit
+
+    def supporting_limit(self, scope_kind: str) -> int:
+        return {
+            "narrow": self.narrow_supporting_limit,
+            "broad": self.broad_supporting_limit,
+            "exploratory": self.exploratory_supporting_limit,
+        }.get(scope_kind, self.broad_supporting_limit)
+
+    def source_limit(self, scope_kind: str) -> int:
+        return self.narrow_source_limit if scope_kind == "narrow" else self.broad_source_limit
+
+    def supporting_min_score(self, scope_kind: str) -> float:
+        return self.broad_supporting_min_score if scope_kind in {"broad", "exploratory"} else self.narrow_supporting_min_score
+
+
 class AnswerSetSelector:
     """Selects answer-bearing wiki pages from page-level retrieval candidates."""
+
+    def __init__(self, policy: AnswerSelectionPolicy | None = None) -> None:
+        self.policy = policy or AnswerSelectionPolicy()
 
     def select(self, query: str, results: list[WikiSearchResult], scope: WikiAnswerScope) -> AnswerSelectionResult:
         if not results:
@@ -26,7 +70,7 @@ class AnswerSetSelector:
         knowledge_pages = [result for result in results if result.type != "source"]
 
         if source_intent or not knowledge_pages:
-            selected_sources = source_pages[:2] if source_pages else results[:1]
+            selected_sources = source_pages[: self.policy.source_answer_limit] if source_pages else results[:1]
             rejected = [
                 _reject(result, "source_query_focus" if result.type != "source" else "outside_answer_budget", role_hint="further_reading")
                 for result in results
@@ -37,7 +81,7 @@ class AnswerSetSelector:
                 primary_paths=[page.path for page in selected_sources[:1]],
                 supporting_paths=[],
                 source_paths=[page.path for page in selected_sources[1:] if page.type == "source"],
-                further_reading_paths=[item.path for item in results if item.path not in {page.path for page in selected_sources}][:3],
+                further_reading_paths=[item.path for item in results if item.path not in {page.path for page in selected_sources}][: self.policy.further_reading_limit],
                 rejected_candidates=rejected,
                 reason="The query asks about source or provenance, so source digest pages are answer-bearing.",
                 stop_reason="source_intent_selected",
@@ -51,13 +95,13 @@ class AnswerSetSelector:
             scope.kind,
         )
         selected_paths = {page.path for page in [*selected_primary, *selected_supporting]}
-        source_limit = 1 if scope.kind == "narrow" else 3
+        source_limit = self.policy.source_limit(scope.kind)
         provenance_source_paths = [page.path for page in source_pages[:source_limit]]
         further_reading = [
             result.path
             for result in results
             if result.path not in selected_paths and result.path not in set(provenance_source_paths)
-        ][:3]
+        ][: self.policy.further_reading_limit]
         rejected = [*primary_rejections, *supporting_rejections]
         rejected.extend(
             _reject(result, "source_not_requested", role_hint="source")
@@ -94,20 +138,20 @@ class AnswerSetSelector:
             return selected, rejected
 
         seen_facets = result_facets(strongest)
-        max_primary = 3 if scope_kind == "broad" else 4
+        max_primary = self.policy.primary_limit(scope_kind)
         for candidate in candidates[1:]:
             if len(selected) >= max_primary:
                 rejected.append(_reject(candidate, "outside_answer_budget", role_hint="supporting"))
                 continue
-            if candidate.score < strongest.score * 0.68:
+            if candidate.score < strongest.score * self.policy.primary_min_relative_score:
                 rejected.append(_reject(candidate, "weak_score", role_hint="supporting"))
                 continue
-            if candidate.match_kind != "direct" and candidate.score < strongest.score * 0.9:
+            if candidate.match_kind != "direct" and candidate.score < strongest.score * self.policy.related_primary_min_relative_score:
                 rejected.append(_reject(candidate, "related_not_primary", role_hint="supporting"))
                 continue
             facets = result_facets(candidate)
             novelty = facet_novelty(facets, seen_facets)
-            if novelty < 0.35:
+            if novelty < self.policy.primary_min_facet_novelty:
                 rejected.append(_reject(candidate, "redundant_facet", role_hint="supporting"))
                 continue
             selected.append(candidate)
@@ -126,7 +170,7 @@ class AnswerSetSelector:
         if not primary_pages:
             return selected, rejected
         seen_facets = {facet for page in primary_pages for facet in result_facets(page)}
-        max_supporting = {"narrow": 2, "broad": 4, "exploratory": 5}.get(scope_kind, 3)
+        max_supporting = self.policy.supporting_limit(scope_kind)
         for candidate in candidates:
             if candidate.path in primary_paths:
                 continue
@@ -138,11 +182,11 @@ class AnswerSetSelector:
             relation = candidate.match_kind == "direct" or any(
                 reason in candidate.reason for reason in ["shared_source", "outbound_link", "backlink", "type_affinity"]
             )
-            minimum_score = 0.8 if scope_kind in {"broad", "exploratory"} else 1.2
+            minimum_score = self.policy.supporting_min_score(scope_kind)
             if candidate.score < minimum_score and not relation:
                 rejected.append(_reject(candidate, "weak_score", role_hint="further_reading"))
                 continue
-            if novelty < 0.2:
+            if novelty < self.policy.supporting_min_facet_novelty:
                 rejected.append(_reject(candidate, "redundant_facet", role_hint="further_reading"))
                 continue
             selected.append(candidate)

@@ -741,7 +741,7 @@ returns one Markdown page with metadata and rendered summary fields.
 `/wiki/pages/links` returns pages that link to the selected page. Page paths are
 relative to the maintained content root, so callers pass
 `concepts/Agent-Loop.md` even though the default filesystem location is
-`vaults/all/pages/concepts/Agent-Loop.md`.
+`vaults/default/pages/concepts/Agent-Loop.md`.
 
 These endpoints also accept `vault_id` with `config_path`. When a result from
 a multi-vault `/query` response is selected, pass the result's `vault_id` to

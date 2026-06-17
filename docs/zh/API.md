@@ -672,7 +672,7 @@ GET /wiki/pages/links?vault_path=/path/to/vault&path=concepts/Agent-Loop.md
 Markdown 页面及其元数据。`/wiki/pages/links` 返回指向目标页面的页面。
 页面路径是相对于 Wiki 内容根目录的路径，例如 API 使用
 `concepts/Agent-Loop.md`。在文件系统中，新版工作区会把同一页面存放在
-`vaults/all/pages/concepts/Agent-Loop.md`。
+`vaults/default/pages/concepts/Agent-Loop.md`。
 
 这些接口也支持同时传入 `config_path` 和 `vault_id`。当用户选择跨知识库
 `/query` 返回的某个结果时，应使用该结果的 `vault_id` 读取页面正文或链接，

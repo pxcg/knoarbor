@@ -426,14 +426,14 @@ def _next_steps(checks: list[DoctorCheck]) -> list[str]:
         return check.status if check else "ok"
 
     if status_of("config.exists") == "error":
-        add("Run `uv run knoar first-run --vault ./vaults/all` to create config.yaml and initialize a local vault.")
+        add("Run `uv run knoar first-run --vault ./vaults/default` to create config.yaml and initialize a local vault.")
         return steps
 
     if status_of("config.local_file") == "warning":
         add("Copy config.example.yaml to config.yaml before editing persistent local settings.")
 
     if status_of("vault.exists") == "error":
-        add("Run `uv run knoar init --vault ./vaults/all` or `uv run knoar first-run --vault ./vaults/all` to create the vault.")
+        add("Run `uv run knoar init --vault ./vaults/default` or `uv run knoar first-run --vault ./vaults/default` to create the vault.")
     elif status_of("vault.structure") == "warning":
         add("Run `uv run knoar init --vault <vault-path>` to restore missing vault initialization files.")
 

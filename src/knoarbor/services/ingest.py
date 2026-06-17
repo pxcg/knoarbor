@@ -13,11 +13,11 @@ from knoarbor.core.schemas.ingest_run import (
     IngestRunRequest,
     UnifiedIngestRequest,
 )
-from knoarbor.audit.run_failure import write_run_failure_artifacts
 from knoarbor.document_processing import DocumentProcessingPipeline
 from knoarbor.pipelines import IngestContextProvider, IngestPipeline, IngestPipelineResult, IngestSourceResult
-from knoarbor.runtime import configure_runtime_logging, current_run_monitor, runtime_logger
+from knoarbor.runtime import configure_runtime_logging, runtime_logger
 from knoarbor.semantic import build_ingest_semantic_workflow
+from knoarbor.services.workflow_failures import write_workflow_failure_artifacts
 
 logger = runtime_logger(__name__)
 
@@ -153,26 +153,14 @@ def _write_failure_artifacts(
     config: KnoArborConfig | None = None,
     vault_path: Path | None = None,
 ) -> None:
-    if not request.write_report and not request.append_ledger:
-        return
-    effective_vault = vault_path or (config.vault.path if config else None)
-    if effective_vault is None:
-        logger.info("ingest_failure_report_skipped reason=no_vault_path error=%s", exc)
-        return
-    try:
-        monitor = current_run_monitor()
-        write_run_failure_artifacts(
-            effective_vault,
-            flow="ingest",
-            request=request,
-            exc=exc,
-            run_id=monitor.run_id if monitor else None,
-            stage=monitor.read().stage if monitor else None,
-            append_ledger=request.append_ledger,
-            write_report=request.write_report,
-        )
-    except Exception as report_exc:
-        logger.exception("ingest_failure_report_write_failed error=%s original_error=%s", report_exc, exc)
+    write_workflow_failure_artifacts(
+        flow="ingest",
+        request=request,
+        exc=exc,
+        logger=logger,
+        config=config,
+        vault_path=vault_path,
+    )
 
 
 def _markdown_files_config(config: KnoArborConfig, markdown_paths: list[Path]) -> KnoArborConfig:

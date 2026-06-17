@@ -253,7 +253,7 @@ scan
 - `lint_collection` 负责页面收集、wikilink lookup、图谱健康度和 scoped page 扩展。
 - `lint_scanners` 负责确定性扫描规则和 issue 生成。
 - `lint_candidates` 负责 scan page 预览、质量候选和 freshness 候选评分。
-- `wiki_lint` 是公开编排门面，只保留 scan、candidate selection、safe fixes 和旧版 lint report 入口。
+- `WikiLintPipeline` 是内部确定性维护管线，负责 scan、candidate selection、safe fixes 和 lint report 生成。公开调用通过统一 `/lint` API 或 CLI `lint` 命令进入。
 - `lint_execution` 负责把审核决策路由到具体执行器，不直接实现 source 解析或页面渲染。
 - `provenance_refresh` 负责执行 refresh-request。它只处理 vault 内可解析的本地 raw source，并修复 raw source -> source digest -> generated page 链路。缺失或有歧义的来源继续保留在队列并写入 warning。
 
@@ -401,7 +401,7 @@ Web UI 是建立在公开 API 和 UI 专用 HTTP 适配器之上的本地管理�
 
 Vault Runtime 是前端状态边界，不是存储层。它把配置中的知识库 profiles 映射为稳定的 UI 身份，用 `vaultId` 分区 React Query 缓存，并在 API 调用时传入解析后的 vault path。这样 UI 可以在不清空无关页面状态的情况下切换当前知识库，也为后续在一个页面并排展示多个知识库摘要打基础。
 
-v0.x 阶段，KnoArbor 暂时保留轻量本地组件体系，不引入完整 UI 组件框架。如果表单、菜单、弹窗、表格和报告视图继续膨胀，下一步应有意识地抽取共享 UI primitives，或正式引入小型组件库，而不是继续追加页面级样式补丁。
+1.x 阶段，KnoArbor 暂时保留轻量本地组件体系，不引入完整 UI 组件框架。如果表单、菜单、弹窗、表格和报告视图继续膨胀，下一步应有意识地抽取共享 UI primitives，或正式引入小型组件库，而不是继续追加页面级样式补丁。
 
 ## 可靠性原则
 

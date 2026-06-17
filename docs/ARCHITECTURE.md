@@ -263,7 +263,7 @@ Implementation boundary:
 - `lint_collection` owns page collection, wikilink lookup maps, graph health, and scoped page expansion.
 - `lint_scanners` owns deterministic scan rules and issue generation.
 - `lint_candidates` owns scan-page previews and quality/freshness candidate scoring.
-- `wiki_lint` is the public orchestration facade for scan, candidate selection, safe fixes, and legacy lint reports.
+- `WikiLintPipeline` is the internal deterministic maintenance pipeline for scan, candidate selection, safe fixes, and lint report generation. Public callers enter through the unified `/lint` API or CLI `lint` command.
 - `lint_execution` owns decision-to-executor routing and must not implement source parsing or page rendering directly.
 - `provenance_refresh` owns refresh-request execution. It only handles local raw sources that can be resolved inside the vault and repairs the raw source -> source digest -> generated page chain. Missing or ambiguous sources remain queued with warnings.
 
@@ -418,7 +418,7 @@ Non-responsibilities:
 
 The Vault Runtime is a frontend state boundary, not a storage layer. It maps configured vault profiles to stable UI identities, keeps React Query caches partitioned by `vaultId`, and passes the resolved vault path to API calls. This lets the UI switch active vaults without clearing unrelated page state and prepares future multi-vault views where several vault summaries can be shown side by side.
 
-For the v0.x line, KnoArbor keeps a lightweight local component system instead of adopting a full UI component framework. If forms, menus, dialogs, tables, and report views continue to grow, the next architectural step should be extracting shared UI primitives or adopting a small component library deliberately, not adding page-specific styling patches.
+For the 1.x line, KnoArbor keeps a lightweight local component system instead of adopting a full UI component framework. If forms, menus, dialogs, tables, and report views continue to grow, the next architectural step should be extracting shared UI primitives or adopting a small component library deliberately, not adding page-specific styling patches.
 
 ## Reliability Principles
 

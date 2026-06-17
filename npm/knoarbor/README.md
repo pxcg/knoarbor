@@ -19,7 +19,7 @@ Then run npm commands from inside that repository:
 ```bash
 npx knoarbor doctor
 npx knoarbor serve
-npx knoar ingest --connector markdown --write
+npx knoarbor ingest --connector markdown --write
 ```
 
 If you run the launcher from another directory, set:
@@ -28,7 +28,8 @@ If you run the launcher from another directory, set:
 export KNOARBOR_HOME=/path/to/knoarbor
 ```
 
-This package exposes both command names:
+When installed as a package dependency or global package, it exposes both
+command names:
 
 - `knoar`
 - `knoarbor`
