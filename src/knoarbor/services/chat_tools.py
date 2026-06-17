@@ -210,6 +210,10 @@ class ChatToolExecutor:
             requested_vault_id,
             self.request.config_path,
         )
+        if _needs_page_reference_resolution(page_path):
+            resolved_page_path = _resolve_page_reference(self.services, vault, page_path)
+            if resolved_page_path:
+                page_path = resolved_page_path
         page = self.services.wiki_pages.read_page(vault.path, page_path, vault_id=vault.vault_id, vault_name=vault.vault_name)
         citation = ChatCitation(kind="page", role="primary", path=page.path, title=page.summary.title, vault_id=vault.vault_id, vault_name=vault.vault_name, vault_path=str(vault.path))
         result = {
@@ -224,8 +228,10 @@ class ChatToolExecutor:
             "truncated": False,
         }
         summary = f"Read wiki page {page.path}."
-        if original_page_path != page_path:
+        if original_page_path.startswith("sources/") and original_page_path != page_path:
             summary = f"Read wiki page {page.path} instead of source digest {original_page_path}."
+        elif original_page_path != page_path:
+            summary = f"Read wiki page {page.path} after resolving requested page reference {original_page_path}."
         return ChatToolTraceItem(tool="read_wiki_page", arguments=arguments, summary=summary, citations=[citation], result=result)
 
     def _inspect_wiki_links(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
@@ -412,7 +418,12 @@ def _vault_id_for_prior_page(page_path: str, existing_session: ChatSessionRecord
 
 
 def _answer_page_for_source_read(page_path: str, query: str, existing_session: ChatSessionRecord | None) -> str | None:
-    if not page_path.startswith("sources/") or query_prefers_source_page(query) or existing_session is None:
+    if (
+        not page_path.startswith("sources/")
+        or query_prefers_source_page(query)
+        or _query_prefers_source_read(query)
+        or existing_session is None
+    ):
         return None
     trace_items = [item for turn in existing_session.turns for item in turn.tool_trace] or existing_session.tool_trace
     for item in reversed(trace_items):
@@ -440,6 +451,25 @@ def _first_answer_page_path(pack: dict[str, Any]) -> str | None:
         if primary_page.get("type") != "source" and not path.startswith("sources/"):
             return path
     return None
+
+
+def _query_prefers_source_read(query: str) -> bool:
+    text = query.lower()
+    source_read_terms = {
+        "reference",
+        "references",
+        "citation",
+        "citations",
+        "cited",
+        "basis",
+        "raw material",
+        "参考",
+        "引用",
+        "依据",
+        "材料",
+        "原文",
+    }
+    return any(term in text for term in source_read_terms)
 
 
 def _primary_first_results(results: list[WikiSearchResult], primary: WikiSearchResult | list[WikiSearchResult] | None) -> list[WikiSearchResult]:
@@ -548,6 +578,45 @@ def _page_matches(page: dict[str, object], *, query: str, page_dirs: set[str]) -
         ]
     ).lower()
     return query in haystack
+
+
+def _resolve_page_reference(services, vault, requested: str) -> str | None:
+    requested_key = _page_reference_key(requested)
+    if not requested_key:
+        return None
+    response = services.wiki_pages.list_pages(vault.path, vault_id=vault.vault_id, vault_name=vault.vault_name)
+    pages = [_page_summary_payload(page) for page in response.pages]
+    exact_matches = [
+        str(page["path"])
+        for page in pages
+        if _page_reference_key(str(page.get("path") or "")) == requested_key
+        or _page_reference_key(str(page.get("path") or "").removesuffix(".md")) == requested_key
+    ]
+    if len(exact_matches) == 1:
+        return exact_matches[0]
+    title_matches = [
+        str(page["path"])
+        for page in pages
+        if _page_reference_key(str(page.get("title") or "")) == requested_key
+        or _page_reference_key(str(page.get("path") or "").rsplit("/", 1)[-1].removesuffix(".md")) == requested_key
+    ]
+    unique = _unique_strings(title_matches)
+    if len(unique) == 1:
+        return unique[0]
+    if len(unique) > 1:
+        raise UserInputError(f"Ambiguous wiki page reference: {requested}")
+    return None
+
+
+def _needs_page_reference_resolution(page_path: str) -> bool:
+    return "/" not in page_path
+
+
+def _page_reference_key(value: str) -> str:
+    cleaned = value.strip().removesuffix(".md").lower()
+    if not cleaned:
+        return ""
+    return "".join(char for char in cleaned if char.isalnum())
 
 
 def _link_payload(link) -> dict[str, object]:

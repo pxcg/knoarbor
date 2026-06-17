@@ -16,6 +16,7 @@ Output contract:
 Evidence rules:
 - Use answer_state.conversation_context to understand follow-ups, pronouns, references such as "the second point", and the user's ongoing goal.
 - Treat conversation_context as dialogue continuity, not as independent factual evidence.
+- If tool_observations contain `answer_directly` or no wiki evidence, answer as KnoArbor's assistant without citations, source sections, or invented local wiki references. Describe source citations as available when wiki evidence is used, not as something every answer must include.
 - Ground factual claims in tool_observations and their evidence packs. If conversation_context and wiki evidence conflict, prefer current wiki evidence and mention the uncertainty when relevant.
 - Use evidence_pack.primary_pages as the maintained wiki answer set when present.
 - Treat primary_pages and supporting_pages as structured wiki pages, not short RAG chunks.

@@ -477,15 +477,7 @@ def _guard_tool_plan(plan: ChatToolPlan, query: str) -> ChatToolPlan:
         return plan
     if any(call.name not in {"answer_directly", "finish_answer"} for call in plan.tool_calls):
         return plan
-    if any(call.name == "finish_answer" for call in plan.tool_calls):
-        return plan
-    if _query_allows_direct_answer(query):
-        return plan
-    return ChatToolPlan(
-        tool_calls=[{"name": "query_wiki", "arguments": {"query": query, "mode": "balanced", "max_results": 6}}],
-        reason=f"Planner selected answer_directly for a knowledge request; KnoArbor requires wiki evidence. {plan.reason}".strip(),
-        confidence=min(plan.confidence, 0.5),
-    )
+    return plan
 
 
 def _plan_is_finish(plan: ChatToolPlan) -> bool:

@@ -376,6 +376,73 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertIn("knowledge assistant", client.requests[-1].messages[0].content.lower())
         self.assertIn("evidence_pack", client.requests[-1].messages[-1].content)
 
+    def test_answer_directly_plan_is_not_forced_to_query(self) -> None:
+        client = FakeChatClient(
+            [
+                {
+                    "tool_calls": [{"name": "answer_directly", "arguments": {"reason": "identity question"}}],
+                    "reason": "assistant identity does not need wiki evidence",
+                    "confidence": 0.95,
+                },
+                {"answer": "你好，我是 KnoArbor 的知识助手，可以帮助你查询和整理本地知识库。", "citations": []},
+            ]
+        )
+        services = FakeServices()
+        response = ChatAgentService(client_factory=lambda _request: client).chat(
+            ChatRequest(messages=[ChatMessageItem(role="user", content="你好，你是谁，有什么功能？")], vault_path="/tmp/vault", append_ledger=False),
+            services,  # type: ignore[arg-type]
+        )
+
+        self.assertEqual(response.tool_trace[0].tool, "answer_directly")
+        self.assertEqual(response.stats["tool_calls"], 1)
+        self.assertEqual(response.citations, [])
+        self.assertEqual(services.wiki_search.requests, [])
+
+    def test_read_wiki_page_resolves_title_like_page_reference(self) -> None:
+        class PageReferenceWikiPages(FakeWikiPages):
+            def list_pages(self, vault_path, *, vault_id=None, vault_name=None):
+                response = super().list_pages(vault_path, vault_id=vault_id, vault_name=vault_name)
+                return response.model_copy(
+                    update={
+                        "pages": [
+                            *response.pages,
+                            WikiPageSummary(
+                                path="concepts/Agent-Engineering.md",
+                                directory="concepts",
+                                title="Agent Engineering",
+                                page_type="concept",
+                                summary="Agent engineering covers agent loop, tools, and runtime design.",
+                                tags=["agent"],
+                                headings=["Summary"],
+                            ),
+                        ]
+                    }
+                )
+
+        @dataclass
+        class PageReferenceServices(FakeServices):
+            wiki_pages: PageReferenceWikiPages = field(default_factory=PageReferenceWikiPages)
+
+        client = FakeChatClient(
+            [
+                {
+                    "tool_calls": [{"name": "read_wiki_page", "arguments": {"page_path": "Agent-Engineering.md"}}],
+                    "reason": "read a known page by title-like reference",
+                    "confidence": 0.9,
+                },
+                {"answer": "Agent Engineering 页面已读取。", "citations": [{"kind": "page", "path": "concepts/Agent-Engineering.md", "title": "Agent Engineering"}]},
+            ]
+        )
+        services = PageReferenceServices()
+        response = ChatAgentService(client_factory=lambda _request: client).chat(
+            ChatRequest(messages=[ChatMessageItem(role="user", content="展开 Agent Engineering 页面")], vault_path="/tmp/vault", append_ledger=False),
+            services,  # type: ignore[arg-type]
+        )
+
+        self.assertEqual(services.wiki_pages.read_paths, ["concepts/Agent-Engineering.md"])
+        self.assertIn("resolving requested page reference Agent-Engineering.md", response.tool_trace[0].summary)
+        self.assertEqual(response.citations[0].path, "concepts/Agent-Engineering.md")
+
     def test_provider_does_not_change_chat_retrieval_contract(self) -> None:
         client = FakeChatClient(
             [
@@ -811,26 +878,59 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertIn("instead of source digest sources/Agent-Loop-Source.md", second.tool_trace[0].summary)
         self.assertEqual(second.tool_trace[0].citations[0].path, "concepts/Agent-Loop.md")
 
-    def test_answer_directly_is_guarded_for_knowledge_questions(self) -> None:
+    def test_reference_question_keeps_source_digest_read(self) -> None:
+        client = FakeChatClient(
+            [
+                {"answer": "Agent Loop 是推理、行动和观察的循环。", "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}]},
+                {
+                    "tool_calls": [
+                        {
+                            "name": "read_wiki_page",
+                            "arguments": {"page_path": "sources/Agent-Loop-Source.md"},
+                        }
+                    ],
+                    "reason": "read a reference source page",
+                    "confidence": 0.85,
+                },
+                {"answer": "这个来源页更适合作为辅助参考。", "citations": [{"kind": "page", "path": "sources/Agent-Loop-Source.md", "title": "Agent Loop Source"}]},
+            ]
+        )
+        service = ChatAgentService(client_factory=lambda _request: client)
+        with tempfile.TemporaryDirectory() as tmp:
+            services = FakeServices()
+            first = service.chat(
+                ChatRequest(messages=[ChatMessageItem(role="user", content="Agent Loop 是什么？")], vault_path=tmp, append_ledger=False),
+                services,  # type: ignore[arg-type]
+            )
+            second = service.chat(
+                ChatRequest(session_id=first.session_id, messages=[ChatMessageItem(role="user", content="这些参考页面哪些适合作为核心实现依据？")], vault_path=tmp, append_ledger=False),
+                services,  # type: ignore[arg-type]
+            )
+
+        self.assertEqual(services.wiki_pages.read_paths, ["sources/Agent-Loop-Source.md"])
+        self.assertEqual(second.tool_trace[0].summary, "Read wiki page sources/Agent-Loop-Source.md.")
+        self.assertEqual(second.tool_trace[0].citations[0].path, "sources/Agent-Loop-Source.md")
+
+    def test_answer_directly_plan_is_respected(self) -> None:
         client = FakeChatClient(
             [
                 {
-                    "tool_calls": [{"name": "answer_directly", "arguments": {"reason": "planner mistake"}}],
-                    "reason": "mistaken direct answer",
+                    "tool_calls": [{"name": "answer_directly", "arguments": {"reason": "assistant capability question"}}],
+                    "reason": "direct assistant answer",
                     "confidence": 0.9,
                 },
-                {"answer": "Agent Loop 需要查询维护后的 Wiki 页面后回答。", "citations": []},
+                {"answer": "你好，我可以帮助你查询和解释 KnoArbor 知识库。", "citations": []},
             ]
         )
         services = FakeServices()
         response = ChatAgentService(client_factory=lambda _request: client).chat(
-            ChatRequest(messages=[ChatMessageItem(role="user", content="Agent Loop 是什么？")], vault_path="/tmp/vault", append_ledger=False),
+            ChatRequest(messages=[ChatMessageItem(role="user", content="你有什么功能？")], vault_path="/tmp/vault", append_ledger=False),
             services,  # type: ignore[arg-type]
         )
 
-        self.assertEqual(len(services.wiki_search.requests), 1)
-        self.assertEqual(response.tool_trace[0].tool, "query_wiki")
-        self.assertEqual(response.stats["tool_plan"]["tool_calls"][0]["name"], "query_wiki")
+        self.assertEqual(len(services.wiki_search.requests), 0)
+        self.assertEqual(response.tool_trace[0].tool, "answer_directly")
+        self.assertEqual(response.stats["tool_plan"]["tool_calls"][0]["name"], "answer_directly")
 
     def test_answer_directly_is_allowed_for_greetings(self) -> None:
         client = FakeChatClient(
