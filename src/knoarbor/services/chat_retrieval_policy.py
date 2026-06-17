@@ -42,9 +42,9 @@ class ChatRetrievalPolicy:
         existing_session: ChatSessionRecord | None,
         observations: list[ChatToolTraceItem],
     ) -> tuple[ChatToolPlan, ChatPlanAdjustment | None]:
-        page_read_adjustment = self._adjust_premature_page_read(plan, query=query, existing_session=existing_session, observations=observations)
-        if page_read_adjustment:
-            return page_read_adjustment
+        followup_adjustment = self._adjust_broad_anchor_followup(plan, query=query, observations=observations)
+        if followup_adjustment:
+            return followup_adjustment
         if observations or existing_session is None:
             return plan, None
         if not _is_context_synthesis_request(query):
@@ -81,7 +81,7 @@ class ChatRetrievalPolicy:
             if _allows_single_page_read(query):
                 return ChatEvidenceAssessment(True, "explicit_page_read", "finish_answer")
             if _is_broad_knowledge_request(query):
-                return ChatEvidenceAssessment(False, "single_page_read_for_broad_question", "query_wiki")
+                return ChatEvidenceAssessment(False, "anchor_page_needs_supporting_evidence", "query_wiki")
             return ChatEvidenceAssessment(True, "single_page_read", "finish_answer")
 
         for pack in evidence_packs:
@@ -97,24 +97,29 @@ class ChatRetrievalPolicy:
 
         return ChatEvidenceAssessment(True, "evidence_pack_sufficient", "finish_answer")
 
-    def _adjust_premature_page_read(
+    def _adjust_broad_anchor_followup(
         self,
         plan: ChatToolPlan,
         *,
         query: str,
-        existing_session: ChatSessionRecord | None,
         observations: list[ChatToolTraceItem],
     ) -> tuple[ChatToolPlan, ChatPlanAdjustment] | None:
-        if observations:
-            return None
         if _allows_single_page_read(query):
-            return None
-        if existing_session is not None and _is_followup_detail_request(query):
             return None
         if not _is_broad_knowledge_request(query):
             return None
-        read_calls = [call for call in plan.tool_calls if call.name == "read_wiki_page"]
-        if not read_calls:
+        if not observations:
+            return None
+        if not any(call.name == "finish_answer" for call in plan.tool_calls):
+            return None
+        if any(isinstance(item.result.get("evidence_pack"), dict) for item in observations):
+            return None
+        anchor_paths = [
+            str(item.result.get("path") or "")
+            for item in observations
+            if item.tool == "read_wiki_page" and item.status == "ok" and item.result.get("path")
+        ]
+        if not anchor_paths:
             return None
         adjusted = ChatToolPlan(
             tool_calls=[
@@ -127,11 +132,11 @@ class ChatRetrievalPolicy:
                     },
                 }
             ],
-            reason="Broad knowledge questions need a wiki evidence set before reading a single page.",
+            reason="Broad knowledge questions may use the anchor page, but need supporting wiki evidence before final synthesis.",
             confidence=max(plan.confidence, 0.85),
         )
         return adjusted, ChatPlanAdjustment(
-            kind="premature_single_page_read",
+            kind="anchor_page_needs_supporting_evidence",
             reason=adjusted.reason,
             original_plan=plan.model_dump(mode="json"),
             adjusted_plan=adjusted.model_dump(mode="json"),

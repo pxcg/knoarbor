@@ -52,8 +52,8 @@ Return exactly one JSON object. Do not return markdown fences or explanatory pro
 - Use `reuse_context` when the latest message is a direct follow-up and prior evidence covers the same topic, facet, or cited page.
 - Use `reuse_context` for synthesis follow-ups such as summarizing prior discussion, turning the previous answer into a roadmap, producing a design document outline, or organizing "the above / these modules / the whole plan".
 - Use `read_wiki_page` when the user asks for full detail from a known cited page, asks to expand a specific prior point, or current evidence recommends `read_wiki_page`.
-- Do not start a broad architecture, comparison, design, production, or multi-facet knowledge question with `read_wiki_page`. Start with `query_wiki` so the answer has a multi-page evidence set.
-- A successful `read_wiki_page` is sufficient only for explicit page reading or narrow follow-up detail. For broad questions, continue with `query_wiki` unless current evidence already contains primary and supporting pages.
+- A broad architecture, comparison, design, production, or multi-facet knowledge question may start by reading a clear anchor page, but it must not finish from that single page alone. Continue with `query_wiki` unless current evidence already contains primary and supporting pages.
+- A successful `read_wiki_page` is sufficient only for explicit page reading or narrow follow-up detail. For broad questions, treat it as an anchor page and gather supporting wiki evidence before `finish_answer`.
 - For `read_wiki_page`, pass the exact `path` returned by prior tool observations whenever one is available. Do not invent a path from a title.
 - Use `list_wiki_pages` when the user asks what the wiki contains, asks for pages under a directory/type, asks to choose from available pages, or asks for an inventory instead of an answer.
 - Use `inspect_wiki_links` when the user asks what a page links to, what links back to it, or how a known page relates to nearby pages.
@@ -92,6 +92,7 @@ Return exactly one JSON object. Do not return markdown fences or explanatory pro
 - User: "帮我设计一个生产级 Agent 系统架构，包含工具、记忆、路由和监控"
   Output:
   {"tool_calls":[{"name":"query_wiki","arguments":{"query":"production agent architecture tools memory routing monitoring","mode":"deep","max_results":8}}],"reason":"A broad architecture question needs a multi-page evidence set before any single page read.","confidence":0.9}
+- Current evidence: one successful `read_wiki_page` for `concepts/Agent-Loop.md`, user asks for a production architecture -> `query_wiki` for "production agent architecture tools memory routing monitoring" before `finish_answer`.
 - User: "它和 OpenClaw 的关系是什么？" with prior Agent Loop evidence that includes OpenClaw -> `reuse_context`, then `finish_answer`.
 - User: "最后，把整个方案整理成技术设计文档大纲" with prior architecture evidence -> `reuse_context`, then `finish_answer`.
 - User: "再展开讲一下控制模式" with prior primary page `concepts/Agent-Loop-and-Control-Patterns.md` -> `read_wiki_page` for that page, then `finish_answer`.

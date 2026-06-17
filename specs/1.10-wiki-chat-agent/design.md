@@ -325,6 +325,16 @@ Rules:
   be handed to `/ingest` as a `knoarbor_chat` source document through explicit
   session ingest or the close-session auto-ingest policy.
 
+Retrieval policy:
+
+- A known maintained page can be used as an anchor for a broad question.
+- Broad architecture, comparison, design, production, or multi-facet questions
+  must not finish from one anchor page alone.
+- When the current evidence only contains an anchor page, the loop asks for a
+  supporting `query_wiki` evidence set before answer synthesis.
+- Explicit page-reading and narrow follow-up detail requests may finish from a
+  single maintained page.
+
 ## Session Turn Records
 
 Chat sessions are stored as ordered turn records. Each assistant turn owns its

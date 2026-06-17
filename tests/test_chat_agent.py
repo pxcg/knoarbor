@@ -962,7 +962,7 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(second.tool_trace[0].summary, "Read wiki page sources/Agent-Loop-Source.md.")
         self.assertEqual(second.tool_trace[0].citations[0].path, "sources/Agent-Loop-Source.md")
 
-    def test_broad_question_does_not_start_with_single_page_read(self) -> None:
+    def test_broad_question_can_start_with_anchor_page_then_expand_evidence(self) -> None:
         client = FakeChatClient(
             [
                 {
@@ -972,8 +972,18 @@ class ChatAgentServiceTest(unittest.TestCase):
                             "arguments": {"page_path": "concepts/Agent-Loop.md"},
                         }
                     ],
-                    "reason": "model prematurely picked a single page",
+                    "reason": "model picked an anchor page",
                     "confidence": 0.8,
+                },
+                {
+                    "tool_calls": [
+                        {
+                            "name": "finish_answer",
+                            "arguments": {"reason": "anchor page is enough"},
+                        }
+                    ],
+                    "reason": "model tried to finish from one anchor page",
+                    "confidence": 0.85,
                 },
                 {
                     "answer": "工程化 Agent 架构需要综合 Agent Loop、工具、记忆和监控页面。",
@@ -991,11 +1001,11 @@ class ChatAgentServiceTest(unittest.TestCase):
             services,  # type: ignore[arg-type]
         )
 
-        self.assertEqual(response.tool_trace[0].tool, "query_wiki")
-        self.assertEqual(services.wiki_pages.read_paths, [])
+        self.assertEqual([item.tool for item in response.tool_trace], ["read_wiki_page", "query_wiki"])
+        self.assertEqual(services.wiki_pages.read_paths, ["concepts/Agent-Loop.md"])
         self.assertEqual(services.wiki_search.requests[0].mode, "deep")
-        self.assertEqual(response.stats["plan_adjustments"][0]["kind"], "premature_single_page_read")
-        self.assertEqual(response.stats["tool_plan"]["tool_calls"][0]["name"], "query_wiki")
+        self.assertEqual(response.stats["plan_adjustments"][0]["kind"], "anchor_page_needs_supporting_evidence")
+        self.assertEqual(response.stats["tool_plan"]["tool_calls"][0]["name"], "read_wiki_page")
 
     def test_single_page_read_for_broad_followup_requires_more_evidence(self) -> None:
         client = FakeChatClient(
@@ -1013,8 +1023,8 @@ class ChatAgentServiceTest(unittest.TestCase):
                 {
                     "tool_calls": [
                         {
-                            "name": "query_wiki",
-                            "arguments": {"query": "production agent architecture memory routing monitoring", "mode": "deep", "max_results": 8},
+                            "name": "finish_answer",
+                            "arguments": {"reason": "single page is enough"},
                         }
                     ],
                     "reason": "single page is not enough for the broad architecture question",
@@ -1037,10 +1047,10 @@ class ChatAgentServiceTest(unittest.TestCase):
             services,  # type: ignore[arg-type]
         )
 
-        self.assertEqual([item.tool for item in response.tool_trace], ["query_wiki"])
-        self.assertEqual(services.wiki_pages.read_paths, [])
+        self.assertEqual([item.tool for item in response.tool_trace], ["read_wiki_page", "query_wiki"])
+        self.assertEqual(services.wiki_pages.read_paths, ["concepts/Agent-Loop.md"])
         self.assertEqual(len(services.wiki_search.requests), 1)
-        self.assertEqual(response.stats["plan_adjustments"][0]["kind"], "premature_single_page_read")
+        self.assertEqual(response.stats["plan_adjustments"][0]["kind"], "anchor_page_needs_supporting_evidence")
 
     def test_answer_directly_plan_is_respected(self) -> None:
         client = FakeChatClient(
