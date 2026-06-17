@@ -7,7 +7,7 @@ from knoarbor.services.chat_citations import clean_answer_citation_paths, final_
 
 
 class ChatCitationPolicyTests(unittest.TestCase):
-    def test_prefers_primary_evidence_pack_pages(self) -> None:
+    def test_returns_evidence_pack_pages_in_citation_order(self) -> None:
         trace = [
             ChatToolTraceItem(
                 tool="query_wiki",
@@ -26,8 +26,9 @@ class ChatCitationPolicyTests(unittest.TestCase):
 
         citations = final_citations([], trace)
 
-        self.assertEqual([citation.path for citation in citations], ["concepts/Agent-Loop.md"])
+        self.assertEqual([citation.path for citation in citations], ["concepts/Agent-Loop.md", "entities/OpenClaw.md"])
         self.assertEqual(citations[0].role, "primary")
+        self.assertEqual(citations[1].role, "supporting")
 
     def test_uses_page_tool_citations_when_no_evidence_pack_exists(self) -> None:
         trace = [
@@ -81,6 +82,43 @@ class ChatCitationPolicyTests(unittest.TestCase):
         citations = final_citations([], trace, answer="结论主要来自 [2]。")
 
         self.assertEqual([citation.path for citation in citations], ["concepts/B.md"])
+
+    def test_keeps_more_than_four_evidence_citations_for_inline_rendering(self) -> None:
+        trace = [
+            ChatToolTraceItem(
+                tool="query_wiki",
+                result={
+                    "evidence_pack": {
+                        "citation_pages": [
+                            {"path": f"concepts/Page-{index}.md", "title": f"Page {index}", "role": "supporting"}
+                            for index in range(1, 7)
+                        ]
+                    }
+                },
+            )
+        ]
+
+        citations = final_citations([], trace)
+
+        self.assertEqual(len(citations), 6)
+        self.assertEqual(citations[4].path, "concepts/Page-5.md")
+        self.assertEqual(citations[5].path, "concepts/Page-6.md")
+
+    def test_keeps_more_than_four_trace_citations_without_evidence_pack(self) -> None:
+        trace = [
+            ChatToolTraceItem(
+                tool="list_wiki_pages",
+                citations=[
+                    ChatCitation(kind="page", path=f"concepts/Page-{index}.md", title=f"Page {index}")
+                    for index in range(1, 7)
+                ],
+            )
+        ]
+
+        citations = final_citations([], trace)
+
+        self.assertEqual(len(citations), 6)
+        self.assertEqual(citations[-1].path, "concepts/Page-6.md")
 
     def test_clean_answer_paths_keeps_explicit_path_questions(self) -> None:
         citation = ChatCitation(kind="page", path="concepts/Agent-Loop.md", title="Agent Loop")

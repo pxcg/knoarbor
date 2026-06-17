@@ -287,6 +287,8 @@ class ChatAgentServiceTest(unittest.TestCase):
             [citation.path for citation in response.citations],
             [
                 "concepts/Agent-Loop.md",
+                "concepts/Session-Memory-Architecture-for-Agent-Loops.md",
+                "sources/Agent-Loop-Source.md",
             ],
         )
         self.assertTrue(response.tool_trace[0].result["primary_page"])
@@ -527,6 +529,8 @@ class ChatAgentServiceTest(unittest.TestCase):
             [citation.path for citation in response.citations],
             [
                 "concepts/Agent-Loop.md",
+                "concepts/Session-Memory-Architecture-for-Agent-Loops.md",
+                "sources/Agent-Loop-Source.md",
             ],
         )
 
@@ -1105,6 +1109,7 @@ class ChatAgentServiceTest(unittest.TestCase):
             [
                 "concepts/Agent-Loop.md",
                 "concepts/Session-Memory-Architecture-for-Agent-Loops.md",
+                "sources/Agent-Loop-Source.md",
             ],
         )
         planner_requests = [request for request in client.requests if "KnoArbor Chat Tool Planner" in request.messages[0].content]

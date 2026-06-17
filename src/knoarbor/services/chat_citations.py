@@ -28,12 +28,9 @@ def final_citations(decision_citations: list[ChatCitation], trace: list[ChatTool
     referenced = _referenced_citations(answer, evidence_citations)
     if referenced:
         return _unique_citations(referenced)
-    primary = [citation for citation in evidence_citations if citation.role == "primary"]
-    if primary:
-        return _unique_citations(primary[:4])
     if evidence_citations:
-        return _unique_citations(evidence_citations[:4])
-    return _unique_citations(trace_citations[:4])
+        return _unique_citations(evidence_citations)
+    return _unique_citations(trace_citations)
 
 
 def answer_cleanup_citations(trace: list[ChatToolTraceItem], final_answer_citations: list[ChatCitation]) -> list[ChatCitation]:
