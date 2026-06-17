@@ -19,6 +19,7 @@ from knoarbor.core.schemas.chat import (
     ChatResponse,
     ChatRunLink,
     ChatSessionRecord,
+    ChatTopicAnchor,
     ChatToolPlan,
     ChatToolTraceItem,
 )
@@ -28,6 +29,7 @@ from knoarbor.services.chat_context import ChatContextEngine, latest_user_text, 
 from knoarbor.services.chat_model_call import run_chat_model_call
 from knoarbor.services.chat_reference_resolver import answer_cleanup_citations, clean_answer_citation_paths, resolve_answer_presentation
 from knoarbor.services.chat_retrieval_policy import ChatPlanAdjustment, ChatRetrievalPolicy
+from knoarbor.services.chat_topic_anchor import ChatTopicAnchorBuilder, update_anchor_after_evidence, update_anchor_answer_type
 from knoarbor.services.chat_tools import ChatToolExecutor
 from knoarbor.runtime import runtime_logger
 from knoarbor.semantic.contracts import load_prompt
@@ -71,6 +73,10 @@ class ChatAgentService:
             system_prompt=ANSWER_SYNTHESIS_PROMPT,
         )
         effective_request = request.model_copy(update={"messages": context.conversation_messages, "session_id": chat_id})
+        topic_anchor = ChatTopicAnchorBuilder().build(
+            latest_user_text(context.conversation_messages),
+            existing_session=existing_session,
+        )
         loop = _ChatLoop(
             request=effective_request,
             current_messages=context.conversation_messages,
@@ -79,6 +85,7 @@ class ChatAgentService:
             chat_id=chat_id,
             initial_messages=context.model_messages,
             existing_session=existing_session,
+            topic_anchor=topic_anchor,
             model_retry=load_config(Path(request.config_path).expanduser().resolve() if request.config_path else default_config_path()).models.retry,
             memory_used=context.memory_used,
             warnings=context.warnings,
@@ -118,6 +125,7 @@ class _ChatLoop:
     chat_id: str
     initial_messages: list[ChatMessage]
     existing_session: ChatSessionRecord | None = None
+    topic_anchor: ChatTopicAnchor | None = None
     model_retry: ModelRetryConfig = field(default_factory=ModelRetryConfig)
     answer_synthesizer: ChatAnswerSynthesizer = field(default_factory=ChatAnswerSynthesizer)
     trace: list[ChatToolTraceItem] = field(default_factory=list)
@@ -180,6 +188,8 @@ class _ChatLoop:
             if self.retrieval_policy.assess_evidence(round_observations, query=query).sufficient:
                 stop_reason = "evidence_sufficient"
                 break
+        if self.topic_anchor is not None:
+            self.topic_anchor = update_anchor_answer_type(update_anchor_after_evidence(self.topic_anchor, observations), observations)
         answer_turn = evidence_round + 1
         self._event("model_call_started", message="Calling chat answer model.", turn=answer_turn, payload={"phase": "answer"})
         answer_result = self.answer_synthesizer.synthesize(
@@ -188,6 +198,7 @@ class _ChatLoop:
             initial_messages=self.initial_messages,
             current_messages=self.current_messages,
             existing_session=self.existing_session,
+            topic_anchor=self.topic_anchor,
             observations=observations,
             turn=answer_turn,
             max_tokens=_max_tokens(self.request),
@@ -210,10 +221,12 @@ class _ChatLoop:
         response.stats["evidence_rounds"] = len(plans)
         response.stats["evidence_stop_reason"] = stop_reason
         response.stats["plan_adjustments"] = [adjustment.__dict__ for adjustment in self.plan_adjustments]
+        if self.topic_anchor is not None:
+            response.stats["topic_anchor"] = self.topic_anchor.model_dump(mode="json")
         return response
 
     def _plan_tools(self, query: str, *, observations: list[ChatToolTraceItem], turn: int) -> ChatToolPlan:
-        messages = _tool_plan_messages(self.initial_messages, self.existing_session, observations, query=query)
+        messages = _tool_plan_messages(self.initial_messages, self.existing_session, observations, query=query, topic_anchor=self.topic_anchor)
         prompt_chars = messages_chars(messages)
         self._event("model_call_started", message="Calling chat tool planner.", turn=turn, payload={"phase": "tool_plan"})
         call = run_chat_model_call(
@@ -274,6 +287,7 @@ class _ChatLoop:
             memory_used=self.memory_used,
             memory_candidates=self.memory_candidates,
             memory_writes=self.memory_writes,
+            topic_anchor=self.topic_anchor,
             stats=self._stats(turns),
             warnings=[*self.warnings, *presentation.warnings],
         )
@@ -299,6 +313,7 @@ class _ChatLoop:
             "memory_writes": len(self.memory_writes),
             "usage": dict(self.total_usage),
             "total_tokens": self.total_usage.get("total_tokens", 0),
+            "topic_anchor": self.topic_anchor.model_dump(mode="json") if self.topic_anchor is not None else None,
         }
 
     def _capture_memory(self) -> None:
@@ -426,9 +441,11 @@ def _tool_plan_messages(
     observations: list[ChatToolTraceItem] | None = None,
     *,
     query: str,
+    topic_anchor: ChatTopicAnchor | None = None,
 ) -> list[ChatMessage]:
     planning_state = {
         "latest_user_message": query,
+        "topic_anchor": topic_anchor.model_dump(mode="json") if topic_anchor is not None else {},
         "recent_user_messages": _recent_user_messages(initial_messages),
         "recent_turns": _planner_recent_turns(existing_session),
         "workspace_context": _workspace_planning_context(initial_messages),

@@ -101,6 +101,7 @@ class ChatSessionStore:
             memory_used=response.memory_used,
             memory_candidates=response.memory_candidates,
             memory_writes=response.memory_writes,
+            topic_anchor=response.topic_anchor,
             stats=response.stats,
             warnings=response.warnings,
         )
@@ -150,6 +151,7 @@ class ChatSessionStore:
                 "memory_used": previous_turn.memory_used if previous_turn else [],
                 "memory_candidates": previous_turn.memory_candidates if previous_turn else [],
                 "memory_writes": previous_turn.memory_writes if previous_turn else [],
+                "topic_anchor": previous_turn.topic_anchor if previous_turn else None,
                 "stats": previous_turn.stats if previous_turn else {},
                 "warnings": previous_turn.warnings if previous_turn else [],
                 "ingest_candidate": None,
@@ -389,6 +391,7 @@ def _turn_from_response(response: ChatResponse, index: int, created_at: str) -> 
         memory_used=response.memory_used,
         memory_candidates=response.memory_candidates,
         memory_writes=response.memory_writes,
+        topic_anchor=response.topic_anchor,
         stats=response.stats,
         warnings=response.warnings,
     )

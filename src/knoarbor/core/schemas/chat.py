@@ -21,6 +21,7 @@ ChatToolName = Literal[
 ]
 ChatCitationKind = Literal["page", "report", "run", "source"]
 ChatSessionStatus = Literal["active", "closed"]
+ChatTopicRelation = Literal["continue", "refine", "synthesize", "switch", "side_question"]
 ChatEventType = Literal[
     "chat_started",
     "model_call_started",
@@ -109,6 +110,21 @@ class ChatToolPlan(BaseModel):
         return self
 
 
+class ChatTopicAnchor(BaseModel):
+    """Soft conversation focus used by the chat loop.
+
+    The anchor guides follow-up retrieval and answer synthesis. It is not a
+    hard retrieval filter: a new user topic can replace it on any turn.
+    """
+
+    active_topic: str = ""
+    active_goal: str = ""
+    key_entities: list[str] = Field(default_factory=list)
+    recent_answer_type: str = ""
+    relation_to_previous: ChatTopicRelation = "switch"
+    excluded_directions: list[str] = Field(default_factory=list)
+
+
 class ChatRunLink(BaseModel):
     flow: Literal["ingest", "lint", "query"]
     run_id: str
@@ -142,6 +158,7 @@ class ChatResponse(BaseModel):
     memory_used: list[MemoryRecord] = Field(default_factory=list)
     memory_candidates: list[MemoryCandidate] = Field(default_factory=list)
     memory_writes: list[MemoryRecord] = Field(default_factory=list)
+    topic_anchor: ChatTopicAnchor | None = None
     stats: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
 
@@ -172,6 +189,7 @@ class ChatTurnRecord(BaseModel):
     memory_used: list[MemoryRecord] = Field(default_factory=list)
     memory_candidates: list[MemoryCandidate] = Field(default_factory=list)
     memory_writes: list[MemoryRecord] = Field(default_factory=list)
+    topic_anchor: ChatTopicAnchor | None = None
     stats: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
 
@@ -189,6 +207,7 @@ class ChatSessionSummary(BaseModel):
     last_ingest_run_id: str | None = None
     last_ingested_at: str | None = None
     ingest_candidate: "ChatIngestCandidate | None" = None
+    topic_anchor: ChatTopicAnchor | None = None
 
 
 class ChatIngestCandidate(BaseModel):
@@ -224,6 +243,7 @@ class ChatSessionRecord(BaseModel):
     memory_used: list[MemoryRecord] = Field(default_factory=list)
     memory_candidates: list[MemoryCandidate] = Field(default_factory=list)
     memory_writes: list[MemoryRecord] = Field(default_factory=list)
+    topic_anchor: ChatTopicAnchor | None = None
     stats: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
 
@@ -242,6 +262,7 @@ class ChatSessionRecord(BaseModel):
             last_ingest_run_id=self.last_ingest_run_id,
             last_ingested_at=self.last_ingested_at,
             ingest_candidate=self.ingest_candidate,
+            topic_anchor=self.topic_anchor,
         )
 
 

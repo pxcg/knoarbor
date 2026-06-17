@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from knoarbor.core.config import ModelRetryConfig
 from knoarbor.core.errors import ModelOutputError
 from knoarbor.core.markdown import compact_inline_text
-from knoarbor.core.schemas.chat import ChatAnswerDraft, ChatMessageItem, ChatRequest, ChatSessionRecord, ChatToolTraceItem
+from knoarbor.core.schemas.chat import ChatAnswerDraft, ChatMessageItem, ChatRequest, ChatSessionRecord, ChatTopicAnchor, ChatToolTraceItem
 from knoarbor.services.chat_context import latest_user_text
 from knoarbor.services.chat_evidence import ChatEvidencePlanner
 from knoarbor.services.chat_model_call import run_chat_model_call, run_chat_model_call_stream
@@ -37,13 +37,14 @@ class ChatAnswerSynthesizer:
         initial_messages: list[ChatMessage],
         current_messages: list[ChatMessageItem],
         existing_session: ChatSessionRecord | None,
+        topic_anchor: ChatTopicAnchor | None,
         observations: list[ChatToolTraceItem],
         turn: int,
         max_tokens: int | None,
         retry: ModelRetryConfig,
         token_callback: Callable[[str], None] | None = None,
     ) -> ChatAnswerResult:
-        messages = _answer_messages(initial_messages, self._answer_prompt(current_messages, observations, existing_session))
+        messages = _answer_messages(initial_messages, self._answer_prompt(current_messages, observations, existing_session, topic_anchor))
         prompt_chars = messages_chars(messages)
         completion_request = ChatCompletionRequest(
             messages=messages,
@@ -81,6 +82,7 @@ class ChatAnswerSynthesizer:
         current_messages: list[ChatMessageItem],
         observations: list[ChatToolTraceItem],
         existing_session: ChatSessionRecord | None,
+        topic_anchor: ChatTopicAnchor | None,
     ) -> str:
         payloads = [
             self.evidence_planner.project_tool_observation(
@@ -95,12 +97,13 @@ class ChatAnswerSynthesizer:
         return json.dumps(
             {
                 "answer_state": {
-                "latest_user_message": latest_user,
-                "recent_user_messages": _recent_user_messages(current_messages, latest_user),
-                "conversation_context": _conversation_context(existing_session),
-                "tool_observations": payloads,
-            }
-        },
+                    "latest_user_message": latest_user,
+                    "topic_anchor": topic_anchor.model_dump(mode="json") if topic_anchor is not None else {},
+                    "recent_user_messages": _recent_user_messages(current_messages, latest_user),
+                    "conversation_context": _conversation_context(existing_session),
+                    "tool_observations": payloads,
+                }
+            },
             ensure_ascii=False,
         )
 

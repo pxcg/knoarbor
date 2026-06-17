@@ -62,6 +62,7 @@ Rejected ideas:
 | Model Gateway | Provider-neutral chat completion, retry, metrics, capability errors. |
 | Retrieval | Selects the canonical first-pass wiki evidence package from the user question and vault scope. |
 | Evidence Planning | Converts rich query results into bounded model-facing evidence packs. |
+| Session Topic Anchor | Maintains a soft, updateable conversation focus for follow-up planning and synthesis. |
 | Runtime / Audit | Optional run/event records, failure reports, token ledger entries. |
 
 ## Public API
@@ -217,6 +218,44 @@ planning stable and prevents prior answer wording from becoming a new tool
 instruction. Answer synthesis can see bounded assistant excerpts so follow-up
 questions such as "展开第二点" or "它和上面方案的关系是什么" remain natural.
 The evidence package remains the only grounding source for factual claims.
+
+## Session Topic Anchor
+
+Multi-turn wiki chat keeps a structured topic anchor on the session record:
+
+```json
+{
+  "active_topic": "Agent Loop / OpenClaw",
+  "active_goal": "Design a production agent architecture",
+  "key_entities": ["Agent Loop", "OpenClaw", "MCP", "A2A"],
+  "recent_answer_type": "architecture",
+  "relation_to_previous": "continue",
+  "excluded_directions": []
+}
+```
+
+The anchor is a service-owned dialogue state, not a model-generated memory and
+not a retrieval filter. It is built deterministically from the latest user
+message, persisted session metadata, and evidence returned by tools.
+
+Relation values:
+
+- `continue`: the latest turn stays on the same topic;
+- `refine`: the user asks to expand, detail, or exemplify a known point;
+- `synthesize`: the user asks to summarize, organize, or turn prior discussion
+  into a plan or document;
+- `side_question`: the user briefly asks about a related object without
+  replacing the main topic;
+- `switch`: the user introduces a new topic and old evidence should not be
+  forced into the answer.
+
+Design rules:
+
+- the anchor guides query rewriting, context reuse, and answer identity;
+- it never prevents a clear topic switch;
+- factual claims still require current tool evidence;
+- synthesis turns may reuse prior evidence when sufficient;
+- side questions can use related evidence without overwriting the active goal.
 
 ## Tool Planning And Retrieval Policy
 
