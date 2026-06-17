@@ -436,7 +436,7 @@ export type ChatResponse = {
 
 export type ChatStreamEvent = {
   schema_version: "chat_stream_event.v1";
-  event: "stage" | "tool" | "final" | "error";
+  event: "stage" | "tool" | "answer_delta" | "final" | "error";
   message: string;
   stage?: string | null;
   tool?: string | null;

@@ -168,6 +168,7 @@ Event types:
 
 - `stage`: the chat loop moved to planning, retrieval, or answer generation.
 - `tool`: a bounded KnoArbor tool was called or completed.
+- `answer_delta`: incremental final-answer text from the provider adapter.
 - `final`: final answer, citations, trace, token stats, and persisted session
   metadata.
 - `error`: shared KnoArbor error envelope for failed runs.

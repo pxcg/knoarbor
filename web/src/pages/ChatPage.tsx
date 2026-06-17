@@ -33,6 +33,7 @@ type ChatTurn = {
   hiddenEvidenceCount?: number;
   citationWarnings?: string[];
   kind?: "answer" | "error" | "status";
+  streaming?: boolean;
 };
 
 type ChatFollowup = {
@@ -218,7 +219,8 @@ export function ChatPage({ context }: Props) {
     if (!content || isSending || !chatVaultReady) return;
     setInput("");
     const userTurn: ChatTurn = { role: "user", content };
-    const nextTurns = [...turns, userTurn];
+    const assistantPlaceholder: ChatTurn = { role: "assistant", content: "", streaming: true };
+    const nextTurns = [...turns, userTurn, assistantPlaceholder];
     setTurns(nextTurns);
     setIsSending(true);
     beginRequestStages("preparing");
@@ -238,27 +240,24 @@ export function ChatPage({ context }: Props) {
         controller.signal,
       );
       setSessionId(response.session_id || sessionId);
-      setTurns((current) => [
-        ...current,
-        {
+      setTurns((current) => replaceStreamingAssistant(current, {
           role: "assistant",
           content: response.answer,
           citations: response.citations || [],
           hiddenEvidenceCount: response.hidden_evidence_count || 0,
           citationWarnings: response.citation_warnings || [],
-        },
-      ]);
+        }));
       void refreshSessions();
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         context.setNotice({ message: context.t("chatStopped") });
-        setTurns((current) => [...current, { role: "assistant", content: context.t("chatStoppedInline"), kind: "status" }]);
+        setTurns((current) => replaceStreamingAssistant(current, { role: "assistant", content: context.t("chatStoppedInline"), kind: "status" }));
         return;
       }
       const rawMessage = error instanceof Error ? error.message : String(error);
       const message = readableChatError(rawMessage, context);
       context.setNotice({ message, error: true });
-      setTurns((current) => [...current, { role: "assistant", content: message, kind: "error" }]);
+      setTurns((current) => replaceStreamingAssistant(current, { role: "assistant", content: message, kind: "error" }));
     } finally {
       if (activeChatAbortRef.current === controller) {
         activeChatAbortRef.current = null;
@@ -365,6 +364,12 @@ export function ChatPage({ context }: Props) {
   }
 
   function applyStreamEvent(event: ChatStreamEvent) {
+    if (event.event === "answer_delta") {
+      const delta = typeof event.payload?.delta === "string" ? event.payload.delta : "";
+      if (delta) {
+        setTurns((current) => appendStreamingAssistantDelta(current, delta));
+      }
+    }
     const nextStage = chatStageFromStreamEvent(event);
     if (nextStage) {
       clearStageTimers();
@@ -601,6 +606,27 @@ export function ChatPage({ context }: Props) {
       </div>
     </section>
   );
+}
+
+function appendStreamingAssistantDelta(turns: ChatTurn[], delta: string): ChatTurn[] {
+  const lastIndex = turns.length - 1;
+  const last = turns[lastIndex];
+  if (!last || last.role !== "assistant" || !last.streaming) {
+    return [...turns, { role: "assistant", content: delta, streaming: true }];
+  }
+  return [
+    ...turns.slice(0, lastIndex),
+    { ...last, content: `${last.content}${delta}` },
+  ];
+}
+
+function replaceStreamingAssistant(turns: ChatTurn[], replacement: ChatTurn): ChatTurn[] {
+  const lastIndex = turns.length - 1;
+  const last = turns[lastIndex];
+  if (!last || last.role !== "assistant" || !last.streaming) {
+    return [...turns, replacement];
+  }
+  return [...turns.slice(0, lastIndex), replacement];
 }
 
 function ChatStatusMessage({ message }: { message: string }) {

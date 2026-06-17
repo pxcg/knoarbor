@@ -10,6 +10,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from collections.abc import Iterator
 from typing import Protocol
 
 import certifi
@@ -39,6 +40,11 @@ class ChatCompletionResponse(BaseModel):
     usage: dict[str, int] = Field(default_factory=dict)
     elapsed_seconds: float = 0.0
     tokens_per_second: float | None = None
+
+
+class ChatCompletionStreamChunk(BaseModel):
+    delta: str = ""
+    response: ChatCompletionResponse | None = None
 
 
 class ChatClient(Protocol):
@@ -114,6 +120,9 @@ class ModelGateway:
 
     def complete(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         return self.adapter.complete(request)
+
+    def stream(self, request: ChatCompletionRequest) -> Iterator[ChatCompletionStreamChunk]:
+        yield from self.adapter.stream(request)
 
     def check(self) -> ProviderHealthCheck:
         return self.adapter.check()
@@ -211,6 +220,74 @@ class OpenAICompatibleChatClient:
             usage=usage,
             elapsed_seconds=elapsed,
             tokens_per_second=_tokens_per_second(usage, elapsed),
+        )
+
+    def stream(self, request: ChatCompletionRequest) -> Iterator[ChatCompletionStreamChunk]:
+        payload: dict[str, object] = {
+            "model": self.model,
+            "messages": [message.model_dump() for message in _merge_system_messages(request.messages)],
+            "temperature": request.temperature,
+            "stream": True,
+        }
+        if request.max_tokens is not None:
+            payload["max_tokens"] = request.max_tokens
+        if self.json_mode and request.structured_output:
+            payload["response_format"] = {"type": "json_object"}
+        if self.extra_body:
+            payload.update(self.extra_body)
+
+        http_request = urllib.request.Request(
+            f"{self.base_url}/chat/completions",
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers=self._headers(content_type=True),
+            method="POST",
+        )
+        started = time.perf_counter()
+        content_parts: list[str] = []
+        final_usage: dict[str, int] = {}
+        final_raw: dict[str, object] = {"stream": True, "chunks": 0}
+        try:
+            with urllib.request.urlopen(http_request, timeout=self.timeout_seconds, context=_ssl_context(self.verify_tls, self.tls_ca_file)) as response:  # noqa: S310
+                for raw_line in response:
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if not line or not line.startswith("data:"):
+                        continue
+                    data_text = line.removeprefix("data:").strip()
+                    if data_text == "[DONE]":
+                        break
+                    try:
+                        data = json.loads(data_text)
+                    except json.JSONDecodeError as exc:
+                        raise ModelOutputError(f"Model provider {self.provider} returned an invalid stream chunk: {exc}") from exc
+                    final_raw["chunks"] = int(final_raw["chunks"]) + 1
+                    usage = _extract_usage(data)
+                    if usage:
+                        final_usage.update(usage)
+                    delta = _extract_openai_delta(data)
+                    if delta:
+                        content_parts.append(delta)
+                        yield ChatCompletionStreamChunk(delta=delta)
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            raise ExternalServiceError(f"Model provider {self.provider} returned HTTP {exc.code}: {body}") from exc
+        except urllib.error.URLError as exc:
+            raise ExternalServiceError(f"Model provider {self.provider} request failed: {exc.reason}") from exc
+        except (http.client.IncompleteRead, http.client.RemoteDisconnected, TimeoutError, socket.timeout, ssl.SSLError) as exc:
+            raise ExternalServiceError(f"Model provider {self.provider} response was interrupted: {exc}") from exc
+        content = "".join(content_parts).strip()
+        if not content:
+            raise ModelOutputError(f"Model provider {self.provider} returned an empty streamed chat completion.")
+        elapsed = time.perf_counter() - started
+        yield ChatCompletionStreamChunk(
+            response=ChatCompletionResponse(
+                content=content,
+                provider=self.provider,
+                model=self.model,
+                raw=final_raw,
+                usage=final_usage,
+                elapsed_seconds=elapsed,
+                tokens_per_second=_tokens_per_second(final_usage, elapsed),
+            )
         )
 
     def check(self) -> ProviderHealthCheck:
@@ -460,6 +537,74 @@ class OllamaNativeChatClient:
             tokens_per_second=_ollama_tokens_per_second(data, usage, elapsed),
         )
 
+    def stream(self, request: ChatCompletionRequest) -> Iterator[ChatCompletionStreamChunk]:
+        options: dict[str, object] = {"temperature": request.temperature}
+        if request.max_tokens is not None:
+            options["num_predict"] = request.max_tokens
+        payload: dict[str, object] = {
+            "model": self.model,
+            "messages": [message.model_dump() for message in _merge_system_messages(request.messages)],
+            "stream": True,
+            "think": False,
+            "options": options,
+        }
+        if self.json_mode and request.structured_output:
+            payload["format"] = "json"
+        if self.extra_body:
+            payload = _deep_merge_payload(payload, self.extra_body)
+
+        http_request = urllib.request.Request(
+            f"{self.base_url}/api/chat",
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers={"Accept": "application/x-ndjson, application/json", "Content-Type": "application/json"},
+            method="POST",
+        )
+        started = time.perf_counter()
+        content_parts: list[str] = []
+        final_data: dict[str, object] = {}
+        chunks = 0
+        try:
+            with urllib.request.urlopen(http_request, timeout=self.timeout_seconds, context=_ssl_context(self.verify_tls, self.tls_ca_file)) as response:  # noqa: S310
+                for raw_line in response:
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                    except json.JSONDecodeError as exc:
+                        raise ModelOutputError(f"Model provider {self.provider} returned an invalid Ollama stream chunk: {exc}") from exc
+                    chunks += 1
+                    final_data = data
+                    delta = _extract_ollama_delta(data)
+                    if delta:
+                        content_parts.append(delta)
+                        yield ChatCompletionStreamChunk(delta=delta)
+                    if data.get("done") is True:
+                        break
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            raise ExternalServiceError(f"Model provider {self.provider} returned HTTP {exc.code}: {body}") from exc
+        except urllib.error.URLError as exc:
+            raise ExternalServiceError(f"Model provider {self.provider} request failed: {exc.reason}") from exc
+        except (http.client.IncompleteRead, http.client.RemoteDisconnected, TimeoutError, socket.timeout, ssl.SSLError) as exc:
+            raise ExternalServiceError(f"Model provider {self.provider} response was interrupted: {exc}") from exc
+        content = "".join(content_parts).strip()
+        if not content:
+            raise ModelOutputError(f"Model provider {self.provider} returned an empty streamed Ollama chat response.")
+        elapsed = time.perf_counter() - started
+        usage = _extract_ollama_usage(final_data)
+        yield ChatCompletionStreamChunk(
+            response=ChatCompletionResponse(
+                content=content,
+                provider=self.provider,
+                model=self.model,
+                raw={"stream": True, "chunks": chunks, "final": final_data},
+                usage=usage,
+                elapsed_seconds=elapsed,
+                tokens_per_second=_ollama_tokens_per_second(final_data, usage, elapsed),
+            )
+        )
+
     def check(self) -> ProviderHealthCheck:
         discovery = self.discover_models()
         if not discovery.available:
@@ -676,6 +821,26 @@ def _extract_openai_content(data: object) -> str:
     return content
 
 
+def _extract_openai_delta(data: object) -> str:
+    if not isinstance(data, dict):
+        return ""
+    choices = data.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return ""
+    first = choices[0]
+    if not isinstance(first, dict):
+        return ""
+    delta = first.get("delta")
+    if isinstance(delta, dict):
+        content = delta.get("content")
+        return content if isinstance(content, str) else ""
+    message = first.get("message")
+    if isinstance(message, dict):
+        content = message.get("content")
+        return content if isinstance(content, str) else ""
+    return ""
+
+
 def _extract_ollama_content(data: object) -> str:
     if not isinstance(data, dict):
         raise SemanticContractError("Ollama response must be a JSON object")
@@ -686,6 +851,17 @@ def _extract_ollama_content(data: object) -> str:
     if not isinstance(content, str) or not content.strip():
         raise SemanticContractError("Ollama response message content is empty")
     return content
+
+
+def _extract_ollama_delta(data: object) -> str:
+    if not isinstance(data, dict):
+        return ""
+    message = data.get("message")
+    if isinstance(message, dict):
+        content = message.get("content")
+        return content if isinstance(content, str) else ""
+    response = data.get("response")
+    return response if isinstance(response, str) else ""
 
 
 def _extract_usage(data: object) -> dict[str, int]:

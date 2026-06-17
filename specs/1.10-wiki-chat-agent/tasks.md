@@ -52,6 +52,8 @@
 - [x] Add `/chat/stream` server-sent event endpoint.
 - [x] Add front-end streaming chat client with synchronous fallback.
 - [x] Render stage/tool progress from stream events before the final answer.
+- [x] Add provider-adapter token streaming for final chat answers.
+- [x] Render answer deltas in the active assistant message.
 - [ ] Add optional chat transcript export only after privacy review.
 
 ## P3 Docs And Release Surface
@@ -63,7 +65,6 @@
 
 ## Deferred
 
-- [ ] Token-level model streaming through provider adapters.
 - [ ] Native provider tool calling.
 - [ ] Scheduling or proactive daily summaries.
 - [ ] Cross-vault merge recommendations from chat.

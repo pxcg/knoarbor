@@ -25,13 +25,14 @@ ChatEventType = Literal[
     "chat_started",
     "model_call_started",
     "model_call_finished",
+    "answer_delta",
     "tool_call_started",
     "tool_call_finished",
     "tool_call_failed",
     "final_answer_ready",
     "chat_stopped",
 ]
-ChatStreamEventType = Literal["stage", "tool", "final", "error"]
+ChatStreamEventType = Literal["stage", "tool", "answer_delta", "final", "error"]
 
 
 class ChatMessageItem(BaseModel):

@@ -26,6 +26,8 @@ This is a KnoArbor product capability, not a general-purpose agent platform.
   metrics.
 - Stream chat progress events so long retrieval and answer generation do not
   look stalled in the console.
+- Stream final answer text incrementally when the selected model adapter
+  supports token streaming.
 - Keep the same model gateway and provider abstraction used by ingest and lint.
 - Reuse existing query and wiki page services for evidence selection and page
   navigation.
@@ -136,6 +138,8 @@ Acceptance criteria:
 - `POST /chat` has a stable request and response schema.
 - `POST /chat/stream` exposes the same final response shape through a
   server-sent event stream.
+- `/chat/stream` may emit answer text deltas before the final event; the final
+  `chat_response.v1` remains the persisted source of truth.
 - Chat session list/read APIs expose persisted session summaries and records.
 - Chat session ingest and close APIs expose queued run metadata when a session
   is sent to ingest.

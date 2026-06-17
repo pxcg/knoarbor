@@ -13,7 +13,7 @@ from knoarbor.core.schemas.chat import ChatCitation, ChatMessageItem, ChatReques
 from knoarbor.core.schemas.vaults import VaultListResponse, VaultProfile
 from knoarbor.core.schemas.wiki_query import WikiAnswerScope, WikiAnswerSet, WikiEvidenceCoverage, WikiSearchResponse, WikiSearchResult
 from knoarbor.entrypoints.api import create_app
-from knoarbor.semantic.llm import ChatCompletionRequest, ChatCompletionResponse
+from knoarbor.semantic.llm import ChatCompletionRequest, ChatCompletionResponse, ChatCompletionStreamChunk
 from knoarbor.services import ApplicationServices
 from knoarbor.services.chat_answer import parse_answer_draft
 from knoarbor.services.chat_agent import ChatAgentService
@@ -77,6 +77,14 @@ class FakeChatClient:
             model=self.model,
             usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         )
+
+    def stream(self, request: ChatCompletionRequest):
+        response = self.complete(request)
+        midpoint = max(1, len(response.content) // 2)
+        for delta in (response.content[:midpoint], response.content[midpoint:]):
+            if delta:
+                yield ChatCompletionStreamChunk(delta=delta)
+        yield ChatCompletionStreamChunk(response=response)
 
 
 class FakeWikiSearch:
@@ -359,6 +367,7 @@ class ChatAgentServiceTest(unittest.TestCase):
         body = response.text
         self.assertIn("event: stage", body)
         self.assertIn("event: tool", body)
+        self.assertIn("event: answer_delta", body)
         self.assertIn("event: final", body)
         self.assertIn('"schema_version": "chat_response.v1"', body)
         self.assertIn("Agent Loop 是推理", body)

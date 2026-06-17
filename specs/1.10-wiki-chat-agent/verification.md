@@ -32,6 +32,8 @@ scripts/release-check.sh
 - Chat retrieval policy expands evidence for broad or comparative questions.
 - Multi-vault query labels each cited page with vault information.
 - `/chat/stream` emits progress events and a final `chat_response.v1` payload.
+- `/chat/stream` emits `answer_delta` events during final answer synthesis when
+  the selected provider adapter supports streaming.
 - `/chat/stream` final response matches the persisted session record.
 
 ## Manual UI Checks

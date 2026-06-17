@@ -56,6 +56,24 @@ class FakeHTTPResponse:
         ).encode("utf-8")
 
 
+class FakeOpenAIStreamResponse:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def __iter__(self):
+        chunks = [
+            {"choices": [{"delta": {"content": "Agent "}}]},
+            {"choices": [{"delta": {"content": "Loop"}}]},
+            {"choices": [{"delta": {}}], "usage": {"prompt_tokens": 7, "completion_tokens": 2, "total_tokens": 9}},
+        ]
+        for chunk in chunks:
+            yield f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
+        yield b"data: [DONE]\n\n"
+
+
 class SemanticRunnerTests(unittest.TestCase):
     def test_parse_contract_output_requires_top_level_output(self) -> None:
         contract = load_semantic_contract("source_normalize")
@@ -587,6 +605,37 @@ class SemanticRunnerTests(unittest.TestCase):
         self.assertEqual(response.usage["prompt_cache_hit_tokens"], 64)
         self.assertEqual(response.usage["prompt_cache_miss_tokens"], 36)
         self.assertEqual(response.usage["prompt_cached_tokens"], 48)
+
+    def test_openai_compatible_client_streams_chat_completion_deltas(self) -> None:
+        client = OpenAICompatibleChatClient(
+            provider="openai",
+            base_url="https://api.example.test",
+            api_key="test-key",
+            model="gpt-test",
+            json_mode=False,
+        )
+
+        captured_payload: dict[str, object] = {}
+
+        def fake_urlopen(request, **_kwargs):
+            nonlocal captured_payload
+            captured_payload = json.loads(request.data.decode("utf-8"))
+            return FakeOpenAIStreamResponse()
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            chunks = list(
+                client.stream(
+                    ChatCompletionRequest(
+                        messages=[{"role": "user", "content": "hello"}],
+                        structured_output=False,
+                    )
+                )
+            )
+
+        self.assertTrue(captured_payload["stream"])
+        self.assertEqual([chunk.delta for chunk in chunks[:-1]], ["Agent ", "Loop"])
+        self.assertEqual(chunks[-1].response.content, "Agent Loop")
+        self.assertEqual(chunks[-1].response.usage["total_tokens"], 9)
 
     def test_openai_compatible_client_reports_models_list_details(self) -> None:
         client = OpenAICompatibleChatClient(

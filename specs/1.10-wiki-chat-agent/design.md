@@ -142,6 +142,9 @@ data: {"stage":"tool_plan","message":"Calling chat tool planner."}
 event: tool
 data: {"event_type":"tool_call_finished","tool":"query_wiki","status":"ok","message":"Found 6 wiki result(s)."}
 
+event: answer_delta
+data: {"delta":"Agent Loop "}
+
 event: final
 data: {"schema_version":"chat_response.v1","answer":"...","citations":[]}
 
@@ -155,8 +158,11 @@ Design rules:
   citation, memory, or session persistence behavior;
 - progress events are derived from the same internal `ChatEvent` stream stored
   on the final response;
-- answer token streaming can be added inside `ModelGateway` later, but the
-  public `/chat/stream` contract remains event-based;
+- final answer token streaming is owned by `ModelGateway` provider adapters and
+  appears as `answer_delta` events on the same `/chat/stream` connection;
+- token deltas are provisional display text. The final `chat_response.v1`
+  remains the canonical answer after citations, session persistence, and token
+  ledger recording complete;
 - clients can fall back to `/chat` without changing request payloads.
 
 ## Chat Session Store

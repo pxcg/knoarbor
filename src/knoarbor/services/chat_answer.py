@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from pydantic import ValidationError
 
@@ -12,7 +12,7 @@ from knoarbor.core.markdown import compact_inline_text
 from knoarbor.core.schemas.chat import ChatAnswerDraft, ChatMessageItem, ChatRequest, ChatSessionRecord, ChatToolTraceItem
 from knoarbor.services.chat_context import latest_user_text
 from knoarbor.services.chat_evidence import ChatEvidencePlanner
-from knoarbor.services.chat_model_call import run_chat_model_call
+from knoarbor.services.chat_model_call import run_chat_model_call, run_chat_model_call_stream
 from knoarbor.semantic.llm import ChatClient, ChatCompletionRequest, ChatCompletionResponse, ChatMessage
 
 
@@ -41,22 +41,35 @@ class ChatAnswerSynthesizer:
         turn: int,
         max_tokens: int | None,
         retry: ModelRetryConfig,
+        token_callback: Callable[[str], None] | None = None,
     ) -> ChatAnswerResult:
         messages = _answer_messages(initial_messages, self._answer_prompt(current_messages, observations, existing_session))
         prompt_chars = messages_chars(messages)
-        call = run_chat_model_call(
-            client=client,
-            request=ChatCompletionRequest(
-                messages=messages,
-                temperature=0.1,
-                max_tokens=max_tokens,
-                structured_output=False,
-            ),
-            retry=retry,
-            phase="answer",
-            turn=turn,
-            prompt_chars=prompt_chars,
+        completion_request = ChatCompletionRequest(
+            messages=messages,
+            temperature=0.1,
+            max_tokens=max_tokens,
+            structured_output=False,
         )
+        if token_callback is None:
+            call = run_chat_model_call(
+                client=client,
+                request=completion_request,
+                retry=retry,
+                phase="answer",
+                turn=turn,
+                prompt_chars=prompt_chars,
+            )
+        else:
+            call = run_chat_model_call_stream(
+                client=client,
+                request=completion_request,
+                retry=retry,
+                phase="answer",
+                turn=turn,
+                prompt_chars=prompt_chars,
+                on_delta=token_callback,
+            )
         return ChatAnswerResult(
             draft=ChatAnswerDraft(answer=call.completion.content.strip(), citations=[]),
             completion=call.completion,
@@ -184,4 +197,3 @@ def _normalize_answer_payload(payload: dict[str, Any]) -> dict[str, Any]:
             item["kind"] = "page"
         normalized.append(item)
     return {**payload, "citations": normalized}
-

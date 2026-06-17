@@ -192,6 +192,7 @@ class _ChatLoop:
             turn=answer_turn,
             max_tokens=_max_tokens(self.request),
             retry=self.model_retry,
+            token_callback=self._answer_delta_callback(answer_turn) if self.event_callback else None,
         )
         self.model_calls += 1
         _merge_usage(self.total_usage, answer_result.completion.usage)
@@ -276,6 +277,17 @@ class _ChatLoop:
             stats=self._stats(turns),
             warnings=[*self.warnings, *presentation.warnings],
         )
+
+    def _answer_delta_callback(self, turn: int) -> Callable[[str], None]:
+        def callback(delta: str) -> None:
+            self._event(
+                "answer_delta",
+                message="Chat answer token received.",
+                turn=turn,
+                payload={"delta": delta},
+            )
+
+        return callback
 
     def _stats(self, turns: int) -> dict[str, Any]:
         return {

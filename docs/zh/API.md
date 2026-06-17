@@ -163,6 +163,7 @@ POST /chat/stream
 
 - `stage`：Chat Loop 进入规划、检索或回答生成阶段。
 - `tool`：受限 KnoArbor 工具开始或完成调用。
+- `answer_delta`：模型适配器返回的最终回答增量文本。
 - `final`：最终回答、引用、trace、token 指标和持久化会话信息。
 - `error`：共享 KnoArbor 错误 envelope。
 

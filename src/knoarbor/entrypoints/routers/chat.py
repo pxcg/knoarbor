@@ -184,7 +184,9 @@ async def _chat_event_stream(request: ChatRequest, services: ApplicationServices
 
 
 def _chat_event_payload(event: ChatEvent) -> dict[str, Any]:
-    if event.event_type.startswith("tool_"):
+    if event.event_type == "answer_delta":
+        stream_event = "answer_delta"
+    elif event.event_type.startswith("tool_"):
         stream_event = "tool"
     elif event.event_type == "final_answer_ready":
         stream_event = "stage"
@@ -218,6 +220,8 @@ def _chat_stage(event: ChatEvent) -> str:
         return "generating" if phase == "answer" else "planning"
     if event.event_type == "final_answer_ready":
         return "completed"
+    if event.event_type == "answer_delta":
+        return "generating"
     return "running"
 
 
