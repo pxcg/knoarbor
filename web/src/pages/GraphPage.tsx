@@ -45,9 +45,9 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
     if (!graph) return { nodes: [], edges: [] };
     const normalizedSearch = nodeSearch.trim().toLowerCase();
     const nodes = graph.nodes.filter((node) => {
-      if (typeFilter && node.type !== typeFilter) return false;
+      if (typeFilter && nodeKindOf(node) !== typeFilter) return false;
       if (!normalizedSearch) return true;
-      return `${node.title} ${node.id} ${node.summary} ${node.tags.join(" ")}`.toLowerCase().includes(normalizedSearch);
+      return `${node.title} ${node.id} ${node.summary} ${node.tags.join(" ")} ${(node.facets || []).join(" ")}`.toLowerCase().includes(normalizedSearch);
     });
     const visibleIds = new Set(nodes.map((node) => node.id));
     const edges = graph.edges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target));
@@ -55,10 +55,13 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
   }, [graph, nodeSearch, typeFilter]);
 
   const nodeById = useMemo(() => new Map((graph?.nodes || []).map((node) => [node.id, node])), [graph]);
-  const types = useMemo(() => Array.from(new Set((graph?.nodes || []).map((node) => node.type))).sort(), [graph]);
+  const types = useMemo(() => Array.from(new Set((graph?.nodes || []).map(nodeKindOf))).sort(), [graph]);
   const typeCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const node of graph?.nodes || []) counts.set(node.type, (counts.get(node.type) || 0) + 1);
+    for (const node of graph?.nodes || []) {
+      const type = nodeKindOf(node);
+      counts.set(type, (counts.get(type) || 0) + 1);
+    }
     return counts;
   }, [graph]);
 
@@ -79,7 +82,7 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
         data: {
           id: node.id,
           label: node.title,
-          type: node.type,
+          type: nodeKindOf(node),
           degree: degree.get(node.id) || 0,
         },
       })),
@@ -208,9 +211,9 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
       <div className="panel-grid graph-overview">
         <article className="panel chart-panel">
           <div className="panel-header compact">
-            <h2>{t("directoryMix")}</h2>
+            <h2>{t("pageKinds")}</h2>
           </div>
-          <BarChart data={graph.stats.directory_counts} emptyText={t("noData")} />
+          <BarChart data={Object.keys(graph.stats.page_kind_counts || {}).length ? graph.stats.page_kind_counts : graph.stats.directory_counts} emptyText={t("noData")} />
         </article>
         <article className="panel chart-panel">
           <div className="panel-header compact">
@@ -287,13 +290,21 @@ function NodeDetail({ node, t, onOpenPage }: { node: GraphNode | null; t: (key: 
     <div className="node-detail">
       <h3>{node.title}</h3>
       <div className="result-meta">
-        {node.id} · {node.type}
+        {node.id} · {nodeKindOf(node)}
       </div>
       <p>{node.summary || t("noSummary")}</p>
       <div className="tag-list">
         {node.tags.length ? node.tags.map((tag) => <span key={tag}>{tag}</span>) : <em>{t("noTags")}</em>}
       </div>
       <dl className="mini-detail">
+        <div>
+          <dt>{t("pageRole")}</dt>
+          <dd>{node.role || "knowledge_page"}</dd>
+        </div>
+        <div>
+          <dt>{t("facets")}</dt>
+          <dd>{(node.facets || []).join(", ") || t("none")}</dd>
+        </div>
         <div>
           <dt>{t("source")}</dt>
           <dd>{node.source || t("none")}</dd>
@@ -306,6 +317,11 @@ function NodeDetail({ node, t, onOpenPage }: { node: GraphNode | null; t: (key: 
       )}
     </div>
   );
+}
+
+
+function nodeKindOf(node: GraphNode) {
+  return node.page_kind || node.type || "page";
 }
 
 function buildLayout(density: GraphDensity) {

@@ -292,6 +292,9 @@ export type GraphNode = {
   id: string;
   title: string;
   type: string;
+  page_kind?: string | null;
+  role?: string | null;
+  facets?: string[];
   summary: string;
   tags: string[];
   source?: string | null;
@@ -313,6 +316,9 @@ export type GraphResponse = {
     orphan_count: number;
     unresolved_link_count: number;
     directory_counts: Record<string, number>;
+    page_kind_counts: Record<string, number>;
+    role_counts: Record<string, number>;
+    facet_counts: Record<string, number>;
     tag_counts: Record<string, number>;
   };
 };
@@ -528,9 +534,14 @@ export type ChatSessionWorkflowResponse = {
 
 export type PageSummary = {
   path: string;
+  canonical_path?: string | null;
+  legacy_paths?: string[];
   directory: string;
   title: string;
   page_type?: string | null;
+  page_kind?: string | null;
+  role?: string | null;
+  facets?: string[];
   status?: string | null;
   updated?: string | null;
   source?: string | null;
@@ -819,6 +830,32 @@ export async function runIngest(body: Record<string, unknown>): Promise<unknown>
 
 export async function runIngestFile(body: Record<string, unknown>): Promise<unknown> {
   return requestJson("/ingest", { method: "POST", body: { execution: "queued", kind: "file", ...body } });
+}
+
+export async function ingestExcerpt(
+  selector: VaultSelector,
+  body: {
+    excerpt_text: string;
+    excerpt_title?: string;
+    excerpt_context?: Record<string, unknown>;
+  },
+): Promise<WorkflowResponse> {
+  return requestJson("/ingest", {
+    method: "POST",
+    body: {
+      execution: "queued",
+      kind: "excerpt",
+      config_path: selector.config_path,
+      vault_id: selector.vault_id,
+      vault_path: selector.vault_id ? undefined : selector.vault_path,
+      write: true,
+      write_report: true,
+      append_ledger: true,
+      auto_scoped_lint: true,
+      auto_apply_safe_lint_fixes: true,
+      ...body,
+    },
+  });
 }
 
 export async function runLint(body: Record<string, unknown>): Promise<unknown> {

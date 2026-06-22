@@ -5616,6 +5616,8 @@ blockquote {
 
 .chat-message-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   justify-content: flex-start;
   margin-top: 10px;
 }

@@ -6,6 +6,7 @@ import {
   deleteChatSession,
   getPage,
   ingestChatSession,
+  ingestExcerpt,
   listChatSessions,
   readChatSession,
   retryChatSession,
@@ -63,6 +64,7 @@ export function ChatPage({ context }: Props) {
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [ingestingExcerptKey, setIngestingExcerptKey] = useState<string | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
   const [archivingSessionId, setArchivingSessionId] = useState<string | null>(null);
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
@@ -188,6 +190,41 @@ export function ChatPage({ context }: Props) {
     } finally {
       setIsArchiving(false);
       setArchivingSessionId(null);
+    }
+  }
+
+  async function archiveExcerpt(turn: ChatTurn, index: number) {
+    if (turn.role !== "assistant" || turn.kind === "error" || turn.kind === "status" || !chatVaultReady) return;
+    const excerptText = selectedTextOrTurnContent(turn.content);
+    if (!excerptText) {
+      context.setNotice({ message: context.t("chatExcerptEmpty"), error: true });
+      return;
+    }
+    const excerptKey = `${index}:${excerptText.slice(0, 24)}`;
+    setIngestingExcerptKey(excerptKey);
+    try {
+      const response = await ingestExcerpt(context.activeVaultSelector, {
+        excerpt_text: excerptText,
+        excerpt_title: buildExcerptTitle(excerptText),
+        excerpt_context: {
+          source_app: "knoarbor_chat",
+          session_id: sessionId,
+          turn_index: index,
+          role: turn.role,
+          selection_used: selectedTextOrNull() !== null,
+        },
+      });
+      context.setNotice({
+        message: response.run_id ? `${context.t("chatExcerptQueued")} ${response.run_id}` : context.t("chatExcerptQueued"),
+        actionLabel: context.t("viewRun"),
+        onAction: () => context.navigate("runs"),
+      });
+      await context.refreshAll();
+      context.navigate("runs");
+    } catch (error) {
+      context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
+    } finally {
+      setIngestingExcerptKey(null);
     }
   }
 
@@ -499,8 +536,17 @@ export function ChatPage({ context }: Props) {
                   ) : (
                     <p>{turn.content}</p>
                   )}
-                  {turn.role === "assistant" && index === latestAssistantIndex && (
+                  {turn.role === "assistant" && turn.kind !== "error" && turn.kind !== "status" && (
                     <div className="chat-message-actions">
+                      <button
+                        type="button"
+                        onClick={() => void archiveExcerpt(turn, index)}
+                        disabled={isSending || ingestingExcerptKey !== null}
+                        title={context.t("chatIngestExcerptHint")}
+                      >
+                        {ingestingExcerptKey?.startsWith(`${index}:`) ? context.t("chatArchiving") : context.t("chatIngestExcerpt")}
+                      </button>
+                      {index === latestAssistantIndex && (
                       <button
                         type="button"
                         onClick={() => void regenerateLatestAnswer()}
@@ -509,6 +555,7 @@ export function ChatPage({ context }: Props) {
                       >
                         {context.t("chatRegenerate")}
                       </button>
+                      )}
                     </div>
                   )}
                   {(!!turn.citations?.length || !!turn.hiddenEvidenceCount) && (
@@ -606,6 +653,25 @@ export function ChatPage({ context }: Props) {
       </div>
     </section>
   );
+}
+
+function selectedTextOrNull(): string | null {
+  if (typeof window === "undefined") return null;
+  const selected = window.getSelection()?.toString().trim();
+  return selected || null;
+}
+
+function selectedTextOrTurnContent(content: string): string {
+  return selectedTextOrNull() || content.trim();
+}
+
+function buildExcerptTitle(content: string): string {
+  const compact = content
+    .replace(/\s+/g, " ")
+    .replace(/^#+\s*/, "")
+    .trim();
+  if (!compact) return "Chat excerpt";
+  return compact.length > 48 ? `${compact.slice(0, 48)}...` : compact;
 }
 
 function appendStreamingAssistantDelta(turns: ChatTurn[], delta: string): ChatTurn[] {

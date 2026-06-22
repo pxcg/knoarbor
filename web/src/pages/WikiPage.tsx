@@ -12,31 +12,49 @@ type Props = {
   focusedPagePath?: string | null;
 };
 
-const PAGE_DIRECTORIES = ["sources", "entities", "concepts", "comparisons", "queries", "workflows"];
+type PageFilter =
+  | { type: "all"; value: "" }
+  | { type: "role"; value: string }
+  | { type: "kind"; value: string }
+  | { type: "facet"; value: string };
 
 export function WikiPage({ context, focusedPagePath = null }: Props) {
   const [selectedPath, setSelectedPath] = useState<string | null>(focusedPagePath);
   const [selectedDetail, setSelectedDetail] = useState<PageDetail | null>(null);
-  const [directory, setDirectory] = useState("");
+  const [filter, setFilter] = useState<PageFilter>({ type: "all", value: "" });
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const directoryCounts = useMemo(() => {
+  const pageKindCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const page of context.pages) {
-      counts.set(page.directory, (counts.get(page.directory) || 0) + 1);
+      const pageKind = pageKindOf(page);
+      counts.set(pageKind, (counts.get(pageKind) || 0) + 1);
     }
     return counts;
+  }, [context.pages]);
+
+  const sourceAuditCount = useMemo(() => context.pages.filter(isSourceDigestPage).length, [context.pages]);
+
+  const facetCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const page of context.pages) {
+      for (const facet of facetsOf(page)) {
+        if (facet === pageKindOf(page) || facet === page.directory) continue;
+        counts.set(facet, (counts.get(facet) || 0) + 1);
+      }
+    }
+    return new Map([...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12));
   }, [context.pages]);
 
   const filteredPages = useMemo(() => {
     const query = search.trim().toLowerCase();
     return context.pages.filter((page) => {
-      if (directory && page.directory !== directory) return false;
+      if (!matchesFilter(page, filter)) return false;
       if (!query) return true;
-      return `${page.title} ${page.path} ${page.summary} ${page.tags.join(" ")}`.toLowerCase().includes(query);
+      return `${page.title} ${page.path} ${page.summary} ${page.tags.join(" ")} ${facetsOf(page).join(" ")}`.toLowerCase().includes(query);
     });
-  }, [context.pages, directory, search]);
+  }, [context.pages, filter, search]);
 
   useEffect(() => {
     if (focusedPagePath) setSelectedPath(focusedPagePath);
@@ -86,17 +104,37 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
             <h2>{context.t("wikiDirectory")}</h2>
           </div>
           <div className="wiki-directory-section">
-            <button className={`wiki-directory-row ${directory === "" ? "active" : ""}`} onClick={() => setDirectory("")} type="button">
+            <button className={`wiki-directory-row ${filter.type === "all" ? "active" : ""}`} onClick={() => setFilter({ type: "all", value: "" })} type="button">
               <span>{context.t("allPages")}</span>
               <strong>{context.pages.length}</strong>
             </button>
-            {PAGE_DIRECTORIES.filter((item) => directoryCounts.has(item)).map((item) => (
-              <button className={`wiki-directory-row ${directory === item ? "active" : ""}`} key={item} onClick={() => setDirectory(item)} type="button">
-                <span>{item}</span>
-                <strong>{directoryCounts.get(item) || 0}</strong>
+            {sourceAuditCount > 0 && (
+              <button className={`wiki-directory-row ${filter.type === "role" && filter.value === "source_digest" ? "active" : ""}`} onClick={() => setFilter({ type: "role", value: "source_digest" })} type="button">
+                <span>{context.t("sourceAudit")}</span>
+                <strong>{sourceAuditCount}</strong>
+              </button>
+            )}
+          </div>
+          <div className="wiki-directory-section">
+            <p className="wiki-directory-label">{context.t("pageKinds")}</p>
+            {[...pageKindCounts.entries()].map(([item, count]) => (
+              <button className={`wiki-directory-row ${filter.type === "kind" && filter.value === item ? "active" : ""}`} key={item} onClick={() => setFilter({ type: "kind", value: item })} type="button">
+                <span>{labelForPageKind(item)}</span>
+                <strong>{count}</strong>
               </button>
             ))}
           </div>
+          {facetCounts.size > 0 && (
+            <div className="wiki-directory-section">
+              <p className="wiki-directory-label">{context.t("facets")}</p>
+              {[...facetCounts.entries()].map(([item, count]) => (
+                <button className={`wiki-directory-row ${filter.type === "facet" && filter.value === item ? "active" : ""}`} key={item} onClick={() => setFilter({ type: "facet", value: item })} type="button">
+                  <span>{labelForFacet(item)}</span>
+                  <strong>{count}</strong>
+                </button>
+              ))}
+            </div>
+          )}
         </aside>
 
         <article className="panel wiki-list-panel">
@@ -156,7 +194,7 @@ function WikiPageRow({ page, active, onClick }: { page: PageSummary; active: boo
     <button className={`page-row ${active ? "active" : ""}`} onClick={onClick} type="button">
       <span className="page-row-heading">
         <DelayedTooltip text={page.title} className="page-row-title" />
-        <span className="page-row-type">{page.directory}</span>
+        <span className="page-row-type">{labelForPageKind(pageKindOf(page))}</span>
       </span>
       <code>{page.path}</code>
       {page.summary && <small>{page.summary}</small>}
@@ -177,6 +215,18 @@ function PageMetadata({ detail, t }: { detail: PageDetail; t: (key: string) => s
         <dd>{detail.path}</dd>
       </div>
       <div>
+        <dt>{t("pageKind")}</dt>
+        <dd>{labelForPageKind(pageKindOf(detail.summary))}</dd>
+      </div>
+      <div>
+        <dt>{t("pageRole")}</dt>
+        <dd>{detail.summary.role || (isSourceDigestPage(detail.summary) ? "source_digest" : "knowledge_page")}</dd>
+      </div>
+      <div>
+        <dt>{t("facets")}</dt>
+        <dd>{facetsOf(detail.summary).join(", ") || t("none")}</dd>
+      </div>
+      <div>
         <dt>{t("source")}</dt>
         <dd>{detail.summary.source || t("none")}</dd>
       </div>
@@ -190,6 +240,33 @@ function PageMetadata({ detail, t }: { detail: PageDetail; t: (key: string) => s
       </div>
     </dl>
   );
+}
+
+function matchesFilter(page: PageSummary, filter: PageFilter) {
+  if (filter.type === "all") return true;
+  if (filter.type === "role") return filter.value === "source_digest" ? isSourceDigestPage(page) : page.role === filter.value;
+  if (filter.type === "kind") return pageKindOf(page) === filter.value;
+  return facetsOf(page).includes(filter.value);
+}
+
+function pageKindOf(page: PageSummary) {
+  return page.page_kind || page.page_type || page.directory || "page";
+}
+
+function facetsOf(page: PageSummary) {
+  return page.facets || [];
+}
+
+function isSourceDigestPage(page: PageSummary) {
+  return page.role === "source_digest" || page.page_kind === "source_digest" || page.page_type === "source" || page.directory === "sources";
+}
+
+function labelForPageKind(value: string) {
+  return value.replace(/_/g, " ");
+}
+
+function labelForFacet(value: string) {
+  return value.replace(/_/g, " ");
 }
 
 function LinkSection({
