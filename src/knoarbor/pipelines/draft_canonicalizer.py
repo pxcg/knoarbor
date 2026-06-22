@@ -68,6 +68,7 @@ class DraftCanonicalizer:
         tags = [str(item).strip().lower().replace(" ", "-") for item in draft.tags if str(item).strip()][:8]
         page_kind = _page_kind_from_draft(draft.page_kind, page_dir)
         page_role = _page_role_from_draft(draft.role, page_kind)
+        subject_kind = _subject_kind_from_draft(draft.subject_kind, page_kind)
         facets = _identity_facets(draft.facets, tags, page_dir, page_kind)
 
         canonical = WikiDraft(
@@ -77,7 +78,7 @@ class DraftCanonicalizer:
             canonical_path=draft.canonical_path or "",
             legacy_paths=draft.legacy_paths,
             page_kind=page_kind,
-            subject_kind=_normalize_identity_value(draft.subject_kind),
+            subject_kind=subject_kind,
             role=page_role,
             facets=facets,
             question=question,
@@ -169,6 +170,13 @@ def _page_role_from_draft(value: str, page_kind: str) -> str:
     if page_kind == "generated_view":
         return "generated_view"
     return "knowledge_page"
+
+
+def _subject_kind_from_draft(value: str, page_kind: str) -> str:
+    text = _normalize_identity_value(value)
+    if text:
+        return text
+    return page_kind
 
 
 def _identity_facets(explicit: list[str], tags: list[str], page_dir: str, page_kind: str) -> list[str]:

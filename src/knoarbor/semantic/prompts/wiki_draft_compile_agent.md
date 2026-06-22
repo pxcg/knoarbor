@@ -85,6 +85,11 @@ Do not return markdown fences or explanatory prose.
 ## Drafting Rules
 
 - Use `knowledge_extract.compile_context.primary_content` and `content_units` as the main source.
+- Write user-facing fields (`question`, `summary`, `definition`, `claims`,
+  `relations`, `synthesis`, `key_points`, and patch content) in the dominant
+  language of the source material. Preserve precise technical terms, model
+  names, API names, and established English labels when they are the natural
+  term in the source domain.
 - Use `knowledge_atoms` and the matching operation's selected atom ids to structure the draft. `claims` and `relations` should expose the evidence skeleton; `synthesis` should be a readable projection of selected facts, claims, relations, and evidence, not an unrelated free-form rewrite.
 - If source metadata indicates a segmented long source, write only what is supported by the current segment, avoid duplicate source digests across sibling segments, and prefer update patches when the segment extends an object already represented in retrieved context.
 - Use `ingest_compile_context` as the authoritative compile context. `target` pages carry existing body content; `related` and `candidate` pages are background only.

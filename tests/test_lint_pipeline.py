@@ -414,7 +414,10 @@ class WikiLintPipelineTests(unittest.TestCase):
             )
 
         missing_sections = [issue.details["section"] for issue in response.issues if issue.code == "missing_required_section"]
-        self.assertIn("Answer", missing_sections)
+        self.assertIn("Definition", missing_sections)
+        self.assertIn("Claims", missing_sections)
+        self.assertIn("Relations", missing_sections)
+        self.assertIn("Synthesis", missing_sections)
         self.assertIn("Key Points", missing_sections)
         self.assertTrue(any(fix.action == "add_missing_section" for fix in response.fixes))
 
@@ -631,7 +634,7 @@ class WikiLintPipelineTests(unittest.TestCase):
             page = vault / "concepts" / "RAG.md"
             page.write_text(
                 "---\ncreated: 2026-05-01\nupdated: 2026-05-01\ntype: concept\nstatus: draft\nsource: raw/notes/rag.md\ncontent_hash: a\ntags: rag\n---\n"
-                "# RAG\n\n## Summary\n\nRAG evaluation notes.\n\n## Answer\n\nBody.\n\n## Key Points\n\n- Point.\n\n## Related Pages\n\n- 暂无关联知识\n\n## Source\n\n- raw/notes/rag.md\n",
+                "# RAG\n\n## Summary\n\nRAG evaluation notes.\n\n## Source Focus\n\nRAG evaluation.\n\n## Definition\n\nRAG evaluates retrieval and generation.\n\n## Claims\n\n- RAG evaluation needs source-backed metrics.\n\n## Relations\n\n- RAG evaluation relates_to retrieval quality.\n\n## Synthesis\n\nBody.\n\n## Key Points\n\n- Point.\n\n## Related Pages\n\n- 暂无关联知识\n\n## Source\n\n- raw/notes/rag.md\n",
                 encoding="utf-8",
             )
             (vault / "sources" / "RAG.md").write_text(
@@ -1061,7 +1064,7 @@ class WikiLintPipelineTests(unittest.TestCase):
         self.assertIn("## Trend Summary", report)
         self.assertRegex(report, r"- previous_runs_considered: [1-9]\d*")
         self.assertIn("persistent_issue_codes:", report)
-        self.assertIn("missing_required_section=3", report)
+        self.assertIn("missing_required_section=7", report)
 
 
 class FakeLintSemanticWorkflow:

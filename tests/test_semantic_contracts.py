@@ -288,6 +288,37 @@ class SemanticContractTests(unittest.TestCase):
         self.assertEqual(draft.claims, ["Coordinates tool use."])
         self.assertEqual(draft.synthesis, "Agent Loop coordinates tool use.")
 
+    def test_wiki_draft_batch_normalizes_null_identity_hints(self) -> None:
+        batch = WikiDraftBatch.model_validate(
+            {
+                "drafts": [
+                    {
+                        "operation_index": 0,
+                        "write_action": "create",
+                        "target_page": None,
+                        "source_file": "raw/notes/RAG.md",
+                        "title": "RAG 评估方法",
+                        "page_dir": "concepts",
+                        "page_kind": None,
+                        "subject_kind": None,
+                        "question": "RAG 评估应该关注什么？",
+                        "answer": "RAG 评估需要同时覆盖检索质量与生成质量。",
+                        "summary": "RAG 评估同时关注检索和生成。",
+                        "key_points": ["检索召回和答案忠实度需要分开衡量。"],
+                        "tags": ["rag", "evaluation"],
+                        "patches": [],
+                        "confidence": 0.87,
+                    }
+                ],
+                "batch_summary": "One draft with optional identity hints omitted.",
+                "warnings": [],
+            }
+        )
+
+        draft = batch.drafts[0]
+        self.assertEqual(draft.page_kind, "")
+        self.assertEqual(draft.subject_kind, "")
+
     def test_wiki_draft_batch_schema_accepts_create_and_update(self) -> None:
         batch = WikiDraftBatch.model_validate(
             {

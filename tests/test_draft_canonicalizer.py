@@ -29,6 +29,8 @@ class DraftCanonicalizerTests(unittest.TestCase):
         result = DraftCanonicalizer().canonicalize_draft(draft, source_file="raw/notes/LLM-Wiki.md", write_action="create")
 
         self.assertEqual(result.draft.title, "LLM-Wiki Source")
+        self.assertEqual(result.draft.page_kind, "source_digest")
+        self.assertEqual(result.draft.subject_kind, "source_digest")
         self.assertEqual(result.draft.question, "### Source Focus")
         self.assertIn("### Overview", result.draft.answer)
         self.assertEqual(result.draft.tags, ["knowledge-management"])

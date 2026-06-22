@@ -93,6 +93,10 @@ You receive:
 
 - Extract only durable atoms that are likely useful across future queries,
   lint, page maintenance, or chat answers.
+- Write atom statements, claims, relation reasons, scopes, and limitations in
+  the dominant language of the source digest. Preserve technical terms,
+  protocol names, model names, API field names, and established English labels
+  when translating them would reduce precision.
 - Do not extract every sentence.
 - Prefer 3-12 facts, 1-8 claims, and 1-10 relations for a normal source
   segment. Smaller sources can produce fewer atoms or none.

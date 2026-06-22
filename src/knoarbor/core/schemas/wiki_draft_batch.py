@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from knoarbor.core.schemas.wiki_relation_plan import WikiPageDir
@@ -41,6 +43,13 @@ class WikiDraftBatchItem(BaseModel):
             return None
         text = value.strip()
         return text or None
+
+    @field_validator("page_kind", "subject_kind", mode="before")
+    @classmethod
+    def null_identity_text_to_empty_string(cls, value: Any) -> str:
+        if value is None:
+            return ""
+        return str(value).strip()
 
     @field_validator("facets", "source_digest_ids", "atom_ids", mode="before")
     @classmethod
