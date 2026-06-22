@@ -202,20 +202,16 @@ KnoArbor organizes knowledge into three layers:
 vaults/
 └── default/
     ├── pages/        # Obsidian-facing wiki; open this directory in Obsidian
+    │   ├── *.md          # maintained knowledge pages
     │   ├── sources/      # source digest pages
-    │   ├── entities/     # named people, organizations, products, projects
-    │   ├── concepts/     # reusable ideas, methods, architectures, principles
-    │   ├── comparisons/  # comparison-first pages
-    │   ├── queries/      # retained Q&A pages
-    │   ├── claims/       # verifiable atomic claims
-    │   ├── timelines/    # chronology-first pages
-    │   └── workflows/    # repeatable process pages
+    │   └── _views/       # generated browsing views
     ├── raw/          # immutable source files
     ├── maintenance/  # human-readable run reports
     └── .knoarbor/    # machine state, indexes, ledgers, locks, runs
 ```
 
 The runtime `vaults/` workspace is ignored by git because it can contain private notes, source documents, generated pages, and run records. Use `vaults/default/pages` as the clean Obsidian vault when you only want maintained Wiki pages.
+Knowledge-page type is metadata, not a required physical directory: pages carry `page_kind`, `role`, `facets`, claims, and typed relations. Source digest pages stay under `pages/sources/`; generated `_views/` pages provide Obsidian-friendly browsing by concepts, entities, workflows, comparisons, open questions, and source audit.
 
 ## Usage
 

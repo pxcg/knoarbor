@@ -106,7 +106,7 @@ Wiki 问答入口：KnoArbor 会先规划受限的 Wiki 工具，在服务守卫
   "schema_version": "chat_response.v1",
   "answer": "Agent Loop 是...",
   "citations": [
-    {"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}
+    {"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}
   ],
   "tool_trace": [
     {"tool": "query_wiki", "status": "ok", "summary": "Found 3 wiki result(s)."}
@@ -444,6 +444,7 @@ POST /ingest
 - `file`：编译一个本地输入文件。
 - `folder`：一次性编译一个本地文件夹，不修改持久配置。
 - `document`：编译一个已经标准化的 `source_document`。
+- `excerpt`：编译用户选中的短文本，例如一句金句、一个 insight，或一组被选中的聊天消息。
 - `recovery`：重试上一次知识编译中失败的项目。
 
 知识编译是写入流程，每次请求只作用于一个知识库。可以直接传
@@ -505,6 +506,28 @@ POST /ingest
   "write": true
 }
 ```
+
+选中文本摘录：
+
+```json
+{
+  "execution": "queued",
+  "kind": "excerpt",
+  "config_path": "./config.yaml",
+  "vault_id": "personal",
+  "excerpt_title": "知识通过关系生长",
+  "excerpt_text": "知识不是记忆的堆积，而是关系的生长。",
+  "excerpt_context": {
+    "source_app": "knoarbor_chat",
+    "session_id": "chat_123",
+    "message_ids": ["assistant:4"]
+  },
+  "write": true
+}
+```
+
+摘录编译会把用户选择视为高价值信号，但仍复用标准 document ingest 路径：
+来源标准化、atom 抽取、页面规划、草稿评审、写入/报告生成，以及可选局部 lint。
 
 恢复失败的知识编译：
 
@@ -664,15 +687,15 @@ POST /runs/{run_id}/cancel
 
 ```http
 GET /wiki/pages?vault_path=/path/to/vault
-GET /wiki/pages/content?vault_path=/path/to/vault&path=concepts/Agent-Loop.md
-GET /wiki/pages/links?vault_path=/path/to/vault&path=concepts/Agent-Loop.md
+GET /wiki/pages/content?vault_path=/path/to/vault&path=Agent-Loop.md
+GET /wiki/pages/links?vault_path=/path/to/vault&path=Agent-Loop.md
 ```
 
 `/wiki/pages` 返回页面摘要和链接元数据。`/wiki/pages/content` 返回单个
 Markdown 页面及其元数据。`/wiki/pages/links` 返回指向目标页面的页面。
-页面路径是相对于 Wiki 内容根目录的路径，例如 API 使用
-`concepts/Agent-Loop.md`。在文件系统中，新版工作区会把同一页面存放在
-`vaults/default/pages/concepts/Agent-Loop.md`。
+页面路径是相对于 Wiki 内容根目录的路径。新知识页面使用 `Agent-Loop.md`
+这样的 flat path；来源摘要页面使用 `sources/Agent-Loop-Source.md`。迁移期内，
+`concepts/Agent-Loop.md` 等旧 typed path 可以通过页面的 `legacy_paths` 继续解析。
 
 这些接口也支持同时传入 `config_path` 和 `vault_id`。当用户选择跨知识库
 `/query` 返回的某个结果时，应使用该结果的 `vault_id` 读取页面正文或链接，

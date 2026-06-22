@@ -202,20 +202,16 @@ KnoArbor 把知识库组织为三层：
 vaults/
 └── default/
     ├── pages/        # 面向 Obsidian 的 Wiki 页面；建议只打开这个目录
+    │   ├── *.md          # 维护后的知识页面
     │   ├── sources/      # 来源摘要页面
-    │   ├── entities/     # 人物、组织、产品、项目等命名对象
-    │   ├── concepts/     # 方法、架构、原则和可复用知识
-    │   ├── comparisons/  # 对比型页面
-    │   ├── queries/      # 保留问答页面
-    │   ├── claims/       # 可验证原子主张
-    │   ├── timelines/    # 时间线页面
-    │   └── workflows/    # 可复用流程页面
+    │   └── _views/       # 自动生成的浏览视图
     ├── raw/          # 不可变原始资料
     ├── maintenance/  # 可读运行报告
     └── .knoarbor/    # 机器状态、索引、账本、锁和运行记录
 ```
 
 运行时 `vaults/` 目录默认不提交到 git，因为它可能包含私人笔记、原始文档、生成页面和运行记录。只需要在 Obsidian 中查看维护后的 Wiki 时，建议打开 `vaults/default/pages`。
+知识页面类型由元数据表达，而不是由必须存在的物理目录表达：页面会记录 `page_kind`、`role`、`facets`、claims 和 typed relations。来源摘要页仍保留在 `pages/sources/`，`pages/_views/` 提供按概念、实体、流程、对比、开放问题和来源审计浏览的入口。
 
 ## 常用命令
 

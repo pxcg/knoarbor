@@ -58,14 +58,13 @@ KnoArbor 会把页面写入一个普通的本地 Markdown 工作区：
 
 - `pages/`：面向 Obsidian 的干净 Wiki 根目录。需要在 Obsidian 中查看时，打开这个目录。
 - `pages/sources/`：来源摘要页面，说明某个原始资料贡献了什么内容。
-- `pages/entities/`：工具、人物、产品、组织、项目、地点等命名对象。
-- `pages/concepts/`：方法、模式、架构、原则和可复用知识。
-- `pages/comparisons/`、`pages/queries/`、`pages/claims/`、`pages/timelines/`、`pages/workflows/`：更细分的知识对象。
+- `pages/<slug>.md`：维护后的知识页面。页面身份元数据记录 `page_kind`、`role`、`facets`、`canonical_path` 和 `legacy_paths`。
+- `pages/_views/`：按概念、实体、流程、对比、开放问题和来源审计生成的浏览视图。
 - `raw/`：不可变的原始资料或标准化后的资料副本。
 - `maintenance/`：人类可读的运行报告。
 - `.knoarbor/`：机器状态、索引、账本、锁和运行记录。
 
-最终结果是一个可追溯的知识网络：知识页面连接来源摘要，来源摘要指向原始资料，查询阶段返回可供宿主 AI 使用的证据。
+`pages/concepts/` 等旧 typed 目录在迁移期仍可读取，但新知识页面写入统一页面命名空间。最终结果是一个可追溯的知识网络：知识页面连接来源摘要，来源摘要指向原始资料，查询阶段返回可供宿主 AI 使用的证据。
 
 ## 端到端流程
 

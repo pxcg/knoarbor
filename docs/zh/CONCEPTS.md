@@ -12,12 +12,21 @@ Source digest 是 `sources/` 下的来源摘要页面。它解释某个 raw sour
 
 ## Wiki Page
 
-Wiki page 是真正面向查询和维护的知识页面。常见目录包括：
+Wiki page 是真正面向查询和维护的知识页面。维护后的页面位于 `pages/`：
 
-- `entities/`：人物、组织、产品、项目、学校、工具等命名对象。
-- `concepts/`：方法、模式、架构、原则和可复用知识。
-- `comparisons/`：以对比为核心的知识对象。
-- `queries/`：有保留价值但尚未成熟为稳定对象的问答。
+- `pages/<slug>.md`：普通知识页面。
+- `pages/sources/`：来源摘要页面。
+- `pages/_views/`：自动生成的浏览视图。
+
+页面类型不再依赖必须存在的物理类型目录，而是由页面身份元数据表达：
+
+- `page_kind`：概念、实体、流程、对比、时间线、问答、笔记或来源摘要。
+- `role`：知识页、来源摘要、生成视图或报告。
+- `facets`：用于检索和浏览的多标签。
+- `canonical_path`：当前稳定路径。
+- `legacy_paths`：迁移前旧路径，仍可解析。
+
+`concepts/`、`entities/` 等旧目录在迁移期可以继续读取，但不是新的页面类型模型。
 
 ## Ingest
 

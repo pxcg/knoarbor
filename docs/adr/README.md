@@ -9,8 +9,10 @@ multiple future releases.
 
 ## Current ADR Index
 
-No ADR has been accepted yet. Use [0000-template.md](0000-template.md) when
-recording the first decision.
+| ADR | Status | Decision |
+| --- | --- | --- |
+| [0001 Knowledge Atom Ingest](0001-knowledge-atom-ingest.md) | Accepted | Ingest produces evidence-backed knowledge atoms; Markdown wiki pages are readable projections of atoms, claims, relations, and evidence. |
+| [0002 Unified Page Namespace And Virtual Facets](0002-unified-page-namespace.md) | Accepted | Knowledge pages move toward a unified `pages/` namespace; page type is expressed by metadata, atom indexes, and virtual facets rather than physical type directories. |
 
 ## ADR Rules
 

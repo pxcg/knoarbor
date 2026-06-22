@@ -90,15 +90,27 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 当你希望在 Obsidian 中打开干净的知识库时，应打开 `vaults/default/pages`，而不是整个 `vaults/default` 运行时工作区：
 
 - `pages/sources/`：来源摘要页面。
-- `pages/entities/`：人物、组织、产品、项目、工具、标准、地点、数据集等命名对象。
-- `pages/concepts/`：方法、架构、模式、原则和技术实践。
-- `pages/comparisons/`：以比较为核心的页面。
-- `pages/queries/`：尚未成熟为稳定实体、概念或比较页面的留存问答。
-- `pages/claims/`：原子化、有证据支撑的声明。
-- `pages/timelines/`：事件序列。
-- `pages/workflows/`：可复用流程和操作指南。
+- `pages/<slug>.md`：维护后的知识页面。
+- `pages/_views/`：按概念、实体、流程、对比、开放问题和来源审计生成的浏览视图。
+
+知识页面的类型由页面身份元数据和索引 facets 表达：
+
+- `page_kind`：concept、entity、workflow、comparison、timeline、query、note 或 source digest。
+- `role`：knowledge page、source digest、generated view 或 report。
+- `facets`：用于检索和浏览的多标签，例如 `agent_architecture`、`workflow_pattern`、`claims`、`relations`。
+- `canonical_path` 与 `legacy_paths`：迁移期间保持稳定解析的路径身份。
+
+`pages/concepts/`、`pages/entities/` 等旧 typed 目录在迁移期仍可读取，但新知识页写入统一的 flat namespace。来源摘要页仍保留在 `pages/sources/`。
+
+迁移状态：
+
+- 读取路径：flat 页面和旧 typed 页面都可读取。
+- 写入路径：新知识页写入 `pages/<slug>.md`。
+- 迁移路径：`knoar vaults migrate-namespace` 默认 dry-run，只有显式 `--apply` 才移动旧 typed 页面。
+- 安全路径：迁移会先报告冲突，执行后写入带 rollback notes 的维护报告。
 
 人类可读报告保存在 `vaults/default/maintenance/`。运行状态、ledger、checkpoint、lock 和机器索引保存在 `vaults/default/.knoarbor/`。
+可审计声明和类型化关系是页面内部结构，并进入机器索引，不再作为独立页面目录。
 
 规则：
 

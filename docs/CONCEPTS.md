@@ -20,21 +20,28 @@ Raw sources are preserved for provenance. Automated workflows should not rewrite
 
 This keeps the rest of the system independent from source-specific details.
 
-## Wiki Page Types
+## Wiki Page Identity
 
-The wiki is organized by page responsibility:
+The maintained wiki is stored under `pages/`. Source digest pages stay in
+`pages/sources/`; ordinary knowledge pages use the flat `pages/<slug>.md`
+namespace.
 
-- `sources/`: source digest pages for raw inputs.
-- `entities/`: named objects such as tools, products, organizations, people, or schools.
-- `concepts/`: reusable methods, patterns, architectures, and principles.
-- `comparisons/`: comparison-first artifacts.
-- `queries/`: useful Q&A that is not yet stable enough to become another page type.
-- `claims/`: atomic, evidence-backed claims.
-- `timelines/`: chronology-first pages.
-- `workflows/`: reusable procedures.
-- `pages/`: Obsidian-facing maintained Wiki pages. Open this directory in Obsidian.
-- `maintenance/`: human-readable reports.
-- `.knoarbor/`: machine state such as indexes, ledgers, runs, locks, and checkpoints.
+Page type is described by metadata rather than by mandatory physical
+directories:
+
+- `page_kind`: concept, entity, workflow, comparison, timeline, query, note, or
+  source digest.
+- `role`: knowledge page, source digest, generated view, or report.
+- `facets`: searchable and browsable labels such as `agent_architecture`,
+  `workflow_pattern`, `claims`, or `relations`.
+- `canonical_path`: the current stable path.
+- `legacy_paths`: old paths that still resolve after migration.
+
+Generated `_views/` pages and the console provide human browsing by concepts,
+entities, workflows, comparisons, open questions, and source audit. Page
+`Claims` and `Relations` sections carry evidence-backed statements and typed
+edges; `.knoarbor/index/` stores the machine-readable index, atoms, run state,
+and ledgers.
 
 ## Ingest
 

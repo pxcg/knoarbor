@@ -58,14 +58,19 @@ KnoArbor writes normal Markdown pages into a local vault:
 
 - `pages/`: the Obsidian-facing Wiki root. Open this directory in Obsidian.
 - `pages/sources/`: source digest pages that explain what each source contributes.
-- `pages/entities/`: named tools, people, products, organizations, projects, and places.
-- `pages/concepts/`: reusable ideas, patterns, architectures, and principles.
-- `pages/comparisons/`, `pages/queries`, `pages/claims`, `pages/timelines`, and `pages/workflows`: more specialized knowledge objects.
+- `pages/<slug>.md`: maintained knowledge pages. Page identity metadata records
+  `page_kind`, `role`, `facets`, `canonical_path`, and `legacy_paths`.
+- `pages/_views/`: generated browsing views for concepts, entities, workflows,
+  comparisons, open questions, and source audit.
 - `raw/`: immutable copied or normalized source material.
 - `maintenance/`: human-readable run reports.
 - `.knoarbor/`: machine state, indexes, ledgers, locks, and run records.
 
-The result is a traceable knowledge network: generated pages link to source digests, source digests point back to raw sources, and query returns evidence that a host AI can use.
+Legacy typed directories such as `pages/concepts/` can still be read during
+migration, but new knowledge pages use the unified page namespace. The result is
+a traceable knowledge network: generated pages link to source digests, source
+digests point back to raw sources, and query returns evidence that a host AI can
+use.
 
 ## End-To-End Flow
 

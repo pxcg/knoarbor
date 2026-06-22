@@ -108,7 +108,7 @@ Example response:
   "schema_version": "chat_response.v1",
   "answer": "Agent Loop is...",
   "citations": [
-    {"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}
+    {"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}
   ],
   "tool_trace": [
     {"tool": "query_wiki", "status": "ok", "summary": "Found 3 wiki result(s)."}
@@ -475,6 +475,7 @@ Use `kind` to select the input shape:
 - `file`: ingest one local input file.
 - `folder`: ingest one local folder as a one-off input without changing persistent configuration.
 - `document`: ingest one already normalized `source_document`.
+- `excerpt`: ingest user-selected text such as one quote, insight, or a small group of selected chat messages.
 - `recovery`: retry failed items from a previous ingest run.
 
 Ingest is a write workflow and always targets one vault per request. Select that
@@ -538,6 +539,29 @@ One normalized source document:
   "write": true
 }
 ```
+
+Selected excerpt:
+
+```json
+{
+  "execution": "queued",
+  "kind": "excerpt",
+  "config_path": "./config.yaml",
+  "vault_id": "personal",
+  "excerpt_title": "Knowledge grows through relations",
+  "excerpt_text": "Knowledge is not a pile of memories; it grows through relations.",
+  "excerpt_context": {
+    "source_app": "knoarbor_chat",
+    "session_id": "chat_123",
+    "message_ids": ["assistant:4"]
+  },
+  "write": true
+}
+```
+
+Excerpt ingest treats user selection as a high-value signal, but still uses the
+normal document ingest path: source normalization, atom extraction, page planning,
+draft review, write/report generation, and optional scoped lint.
 
 Recover a failed ingest run:
 
@@ -732,16 +756,18 @@ This design favors correctness and reproducibility over maximum throughput for t
 
 ```http
 GET /wiki/pages?vault_path=/path/to/vault
-GET /wiki/pages/content?vault_path=/path/to/vault&path=concepts/Agent-Loop.md
-GET /wiki/pages/links?vault_path=/path/to/vault&path=concepts/Agent-Loop.md
+GET /wiki/pages/content?vault_path=/path/to/vault&path=Agent-Loop.md
+GET /wiki/pages/links?vault_path=/path/to/vault&path=Agent-Loop.md
 ```
 
 `/wiki/pages` returns page summaries and link metadata. `/wiki/pages/content`
 returns one Markdown page with metadata and rendered summary fields.
 `/wiki/pages/links` returns pages that link to the selected page. Page paths are
-relative to the maintained content root, so callers pass
-`concepts/Agent-Loop.md` even though the default filesystem location is
-`vaults/default/pages/concepts/Agent-Loop.md`.
+relative to the maintained content root. New knowledge pages use flat paths such
+as `Agent-Loop.md`; source digest pages use paths such as
+`sources/Agent-Loop-Source.md`. Legacy typed paths such as
+`concepts/Agent-Loop.md` may still resolve during migration when the page
+records them as `legacy_paths`.
 
 These endpoints also accept `vault_id` with `config_path`. When a result from
 a multi-vault `/query` response is selected, pass the result's `vault_id` to

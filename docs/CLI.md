@@ -251,8 +251,8 @@ Record relevance feedback for a previous query. Feedback is stored in the query
 feedback ledger and is used for later retrieval diagnostics.
 
 ```bash
-uv run knoar query-feedback "Agent Loop 是什么？" --useful --selected-path concepts/Agent-Loop.md
-uv run knoar query-feedback "Agent Loop 是什么？" --no-useful --rejected-path concepts/Old-Page.md
+uv run knoar query-feedback "Agent Loop 是什么？" --useful --selected-path Agent-Loop.md
+uv run knoar query-feedback "Agent Loop 是什么？" --no-useful --rejected-path Old-Page.md
 ```
 
 ### `pages`
@@ -263,30 +263,43 @@ List, read, or inspect generated wiki pages.
 uv run knoar pages list
 uv run knoar pages list --dir concepts
 uv run knoar pages list --contains "Agent Loop"
-uv run knoar pages read concepts/Agent-Loop-and-Control-Patterns.md
-uv run knoar pages links concepts/Agent-Loop-and-Control-Patterns.md
-uv run knoar pages read --vault-id personal concepts/Agent-Loop-and-Control-Patterns.md
+uv run knoar pages read Agent-Loop-and-Control-Patterns.md
+uv run knoar pages links Agent-Loop-and-Control-Patterns.md
+uv run knoar pages read --vault-id personal Agent-Loop-and-Control-Patterns.md
 ```
 
 Use `pages read` after query when you need the full maintained page body. Use
 `pages links` to inspect outbound links and backlinks without opening the UI.
 
 Page paths are relative to the maintained content root. In the default layout,
-KnoArbor stores these pages under `vaults/default/pages/`, but CLI commands still use
-paths such as `concepts/Agent-Loop.md`.
+KnoArbor stores knowledge pages under `vaults/default/pages/`. New knowledge
+pages use flat paths such as `Agent-Loop.md`; source digest pages use
+`sources/Agent-Loop-Source.md`. Legacy typed paths such as
+`concepts/Agent-Loop.md` continue to resolve during migration when page metadata
+records them as `legacy_paths`. `pages list --dir` is a legacy compatibility
+filter; UI and retrieval increasingly prefer page kind, role, and facets.
 
 ### `vaults`
 
-List configured knowledge bases or migrate an older root-level wiki layout.
+List configured knowledge bases or migrate older wiki layouts.
 
 ```bash
 uv run knoar vaults list
 uv run knoar vaults migrate-layout --vault ./vaults/default
+uv run knoar vaults migrate-namespace --vault ./vaults/default
+uv run knoar vaults migrate-namespace --vault ./vaults/default --dir concepts
+uv run knoar vaults migrate-namespace --vault ./vaults/default --apply
 ```
 
 `migrate-layout` moves legacy root-level page directories such as `concepts/`,
 `entities/`, and `sources/` into `pages/`. It does not move `raw/`,
 `maintenance/`, or `.knoarbor/`.
+
+`migrate-namespace` plans migration from legacy typed knowledge directories
+inside `pages/` into the flat namespace. It is a dry-run by default and reports
+planned moves, link rewrites, skipped paths, and conflicts. `--apply` is
+required to write files. Source digest pages stay under `pages/sources/`; views
+under `pages/_views/` are regenerated.
 
 ### `reports`
 

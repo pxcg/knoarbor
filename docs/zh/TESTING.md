@@ -116,7 +116,7 @@ KnoArbor 可以用同一套对话 fixture 和传统 chunk 检索做对比。默�
 
 这是维护者评测协议，不是新用户首次上手路径。新用户完成产品快速开始不需要运行任何对比基准。
 
-固定对比协议使用：
+默认对比协议使用：
 
 - fixture：`tests/fixtures/chat/agent_architecture_6turn_mixed.json`；
 - LLM-Wiki 范围：`agent-engineering` 知识库；
@@ -124,6 +124,13 @@ KnoArbor 可以用同一套对话 fixture 和传统 chunk 检索做对比。默�
 - 输出目录：`tmp/eval-protocol/`。
 
 如果这三个来源笔记不在默认本地笔记目录下，使用 `--rag-source-dir` 指定实际目录。
+
+第二个固定 fixture 面向工程决策综合：
+
+- fixture：`tests/fixtures/chat/ios_audio_tennis_detection_6turn.json`；
+- LLM-Wiki 范围：`ios-audio-project` 知识库；
+- RAG-lite 范围：fixture 中 `rag_baseline.source_files` 声明的 raw 文件；
+- 评测目标：验证 Wiki 页面能否把一个较短的 iOS 网球音频需求组织为模型选型、数据准备、评估指标、端侧部署和 MVP 到生产级路线。
 
 更大的聊天 raw 基线不内置为 preset，因为大型聊天日志会主导 chunk 检索。确实需要时，使用 `--file` 或 `--input-dir` 显式加入这些文件。
 
@@ -137,6 +144,17 @@ uv run python scripts/eval/llmwiki_rag_comparison.py --plan
 
 ```bash
 uv run python scripts/eval/llmwiki_rag_comparison.py \
+  --run-rag \
+  --run-llmwiki \
+  --compare \
+  --provider deepseek
+```
+
+运行 iOS 音频 fixture：
+
+```bash
+uv run python scripts/eval/llmwiki_rag_comparison.py \
+  --fixture tests/fixtures/chat/ios_audio_tennis_detection_6turn.json \
   --run-rag \
   --run-llmwiki \
   --compare \

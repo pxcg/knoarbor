@@ -93,16 +93,38 @@ Open `vaults/default/pages` in Obsidian when you want a clean vault without raw 
 reports, or machine state:
 
 - `pages/sources/`: source digest pages.
-- `pages/entities/`: named objects such as people, organizations, products, projects, tools, standards, places, and datasets.
-- `pages/concepts/`: reusable ideas, methods, architectures, patterns, principles, and technical practices.
-- `pages/comparisons/`: comparison-first pages.
-- `pages/queries/`: retained Q&A pages that have not matured into stable entities, concepts, or comparisons.
-- `pages/claims/`: atomic evidence-backed claims.
-- `pages/timelines/`: event sequences.
-- `pages/workflows/`: reusable procedures and operational guides.
+- `pages/<slug>.md`: maintained knowledge pages.
+- `pages/_views/`: generated browsing views for concepts, entities, workflows,
+  comparisons, open questions, and source audit.
+
+Knowledge-page type is expressed through page identity metadata and indexed
+facets:
+
+- `page_kind`: concept, entity, workflow, comparison, timeline, query, note, or
+  source digest.
+- `role`: knowledge page, source digest, generated view, or report.
+- `facets`: multi-facet routing labels such as `agent_architecture`,
+  `workflow_pattern`, `claims`, or `relations`.
+- `canonical_path` and `legacy_paths`: stable path identity during migration.
+
+Legacy typed directories such as `pages/concepts/` and `pages/entities/` remain
+readable during migration, but new knowledge-page writes target the unified
+flat page namespace. Source digest pages remain physically separated under
+`pages/sources/`.
+
+Migration status:
+
+- read path: flat pages and legacy typed pages are both supported;
+- write path: new knowledge pages target `pages/<slug>.md`;
+- migration path: `knoar vaults migrate-namespace` is dry-run by default and
+  `--apply` is required to move legacy typed pages;
+- safety path: migrations report conflicts before apply and write rollback
+  notes after apply.
 
 Human-readable reports stay in `vaults/default/maintenance/`. Machine state, runs,
 ledgers, checkpoints, locks, and indexes stay in `vaults/default/.knoarbor/`.
+Auditable claims and typed relations are page-internal structures and machine-indexed atoms,
+not standalone page directories.
 
 Rules:
 

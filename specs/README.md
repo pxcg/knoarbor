@@ -17,6 +17,7 @@ tests, and release notes.
 | Cross-feature capability state | `docs/CAPABILITY_MAP.md`, `docs/zh/CAPABILITY_MAP.md` |
 | Architecture layers and ownership | `docs/ARCHITECTURE.md`, `docs/zh/ARCHITECTURE.md` |
 | Durable architecture decisions | `docs/adr/*.md` |
+| Knowledge atom ingest boundary | `docs/adr/0001-knowledge-atom-ingest.md`, `specs/1.13-knowledge-atom-ingest/` |
 | Maintainer process and governance | `docs/MAINTAINERS.md`, `docs/zh/MAINTAINERS.md` |
 | Public API contract | `docs/API.md`, `src/knoarbor/entrypoints/api_contract.py` |
 | CLI contract | `docs/CLI.md`, `src/knoarbor/cli_commands/parser.py` |
@@ -39,6 +40,8 @@ tests, and release notes.
 | 1.10.x | [Wiki Chat Agent](1.10-wiki-chat-agent/requirements.md) | Console chat surface, page-first evidence retrieval, answer synthesis, and `/chat` contract. |
 | 1.11.x | [Chat Memory](1.11-chat-memory/requirements.md) | Vault-scoped chat preferences, memory recall, explicit memory capture, and memory audit events. |
 | 1.12.x | [Answer Set Selection](1.12-answer-set-selection/requirements.md) | Page-level primary/supporting/source selection, rejected candidates, and evidence-set quality. |
+| 1.13.x | [Knowledge Atom Ingest](1.13-knowledge-atom-ingest/requirements.md) | Evidence-backed facts, claims, and relations between source digest and page drafting. |
+| 1.14.x | [Unified Page Namespace](1.14-unified-page-namespace/requirements.md) | Move page type semantics from physical directories to page identity metadata, atom indexes, and virtual facets. |
 
 ## Spec Lifecycle
 

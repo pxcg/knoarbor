@@ -132,7 +132,7 @@ This is a maintainer evaluation protocol, not part of the first-run user path.
 New users can complete the product quickstart without running any comparison
 benchmark.
 
-The fixed comparison protocol uses:
+The default comparison protocol uses:
 
 - fixture: `tests/fixtures/chat/agent_architecture_6turn_mixed.json`;
 - LLM-Wiki scope: `agent-engineering` vault;
@@ -141,6 +141,15 @@ The fixed comparison protocol uses:
 
 Use `--rag-source-dir` when the three source notes live outside the default
 local notes directory.
+
+The second fixed fixture targets decision-oriented engineering synthesis:
+
+- fixture: `tests/fixtures/chat/ios_audio_tennis_detection_6turn.json`;
+- LLM-Wiki scope: `ios-audio-project` vault;
+- RAG-lite scope: the raw files declared in the fixture under `rag_baseline.source_files`;
+- evaluation goal: test whether wiki pages can organize a short iOS tennis
+  audio request into model selection, data preparation, metrics, deployment,
+  and MVP-to-production planning.
 
 Larger raw-chat baselines are intentionally not built into a preset because
 large chat logs can dominate chunk retrieval. Add those files explicitly with
@@ -156,6 +165,17 @@ Run one provider:
 
 ```bash
 uv run python scripts/eval/llmwiki_rag_comparison.py \
+  --run-rag \
+  --run-llmwiki \
+  --compare \
+  --provider deepseek
+```
+
+Run the iOS audio fixture:
+
+```bash
+uv run python scripts/eval/llmwiki_rag_comparison.py \
+  --fixture tests/fixtures/chat/ios_audio_tennis_detection_6turn.json \
   --run-rag \
   --run-llmwiki \
   --compare \
