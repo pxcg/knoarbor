@@ -38,6 +38,87 @@
     "summary": "Approved.",
     "warnings": []
   },
+  "knowledge_atom_batch": {
+    "claims": [
+      {
+        "claim": "Agent loop is a reusable control pattern for agents.",
+        "claim_type": "definition",
+        "confidence": 0.9,
+        "evidence": [],
+        "id": "claim_agent_loop_control_pattern",
+        "limitations": [],
+        "scope": "Agent system design.",
+        "stance": "asserted",
+        "supporting_fact_ids": [
+          "fact_agent_loop_cycle"
+        ]
+      }
+    ],
+    "facts": [
+      {
+        "confidence": 0.9,
+        "evidence": [
+          {
+            "char_end": null,
+            "char_start": null,
+            "excerpt": "Agent loop is observe, decide, act, feedback.",
+            "excerpt_hash": null,
+            "source_digest_id": "sd_test_agent",
+            "source_path": "raw/notes/Agent.md",
+            "source_unit_index": 0
+          }
+        ],
+        "id": "fact_agent_loop_cycle",
+        "object": {
+          "aliases": [],
+          "atom_id": null,
+          "name": "Observe Decide Act Feedback Cycle",
+          "object_type": "concept",
+          "page_path": null
+        },
+        "predicate": "is",
+        "qualifiers": {},
+        "statement": "Agent loop is an observe, decide, act, feedback cycle.",
+        "subject": {
+          "aliases": [],
+          "atom_id": null,
+          "name": "Agent Loop",
+          "object_type": "concept",
+          "page_path": null
+        }
+      }
+    ],
+    "relations": [
+      {
+        "confidence": 0.8,
+        "evidence": [],
+        "id": "rel_agent_loop_mentions_control",
+        "object": {
+          "aliases": [],
+          "atom_id": null,
+          "name": "Agent Control",
+          "object_type": "concept",
+          "page_path": null
+        },
+        "predicate": "mentions",
+        "reason": "Agent loop describes a control cycle.",
+        "source_claim_ids": [],
+        "source_fact_ids": [
+          "fact_agent_loop_cycle"
+        ],
+        "subject": {
+          "aliases": [],
+          "atom_id": null,
+          "name": "Agent Loop",
+          "object_type": "concept",
+          "page_path": null
+        }
+      }
+    ],
+    "schema_version": "knowledge_atoms.v1",
+    "source_digest_id": "sd_test_agent",
+    "warnings": []
+  },
   "knowledge_extract": {
     "compile_context": {
       "latest_unit_indexes": [
@@ -77,7 +158,17 @@
     "drafts": [
       {
         "answer": "Agent Loop is an observe, decide, act, feedback cycle.",
+        "atom_ids": [
+          "fact_agent_loop_cycle",
+          "claim_agent_loop_control_pattern",
+          "rel_agent_loop_mentions_control"
+        ],
+        "claims": [
+          "It includes feedback."
+        ],
         "confidence": 0.9,
+        "definition": "Agent Loop is a basic control cycle for agents.",
+        "facets": [],
         "key_points": [
           "It includes feedback."
         ],
@@ -85,10 +176,17 @@
         "model_provider": "fake",
         "operation_index": 0,
         "page_dir": "concepts",
+        "page_kind": "",
         "patches": [],
         "question": "Agent Loop",
+        "relations": [],
+        "source_digest_ids": [
+          "sd_test_agent"
+        ],
         "source_file": "raw/notes/Agent.md",
+        "subject_kind": "",
         "summary": "Agent Loop is a basic control cycle for agents.",
+        "synthesis": "Agent Loop is an observe, decide, act, feedback cycle.",
         "tags": [
           "agent",
           "control"
@@ -107,9 +205,24 @@
         "action": "create",
         "candidate_pages": [],
         "decision_reason": "The source defines a durable concept.",
+        "facets": [],
         "knowledge_object": "Agent Loop",
         "page_dir": "concepts",
+        "page_kind": null,
         "related_pages": [],
+        "selected_claim_ids": [
+          "claim_agent_loop_control_pattern"
+        ],
+        "selected_fact_ids": [
+          "fact_agent_loop_cycle"
+        ],
+        "selected_relation_ids": [
+          "rel_agent_loop_mentions_control"
+        ],
+        "source_digest_ids": [
+          "sd_test_agent"
+        ],
+        "subject_kind": null,
         "target_page": null,
         "title": "Agent Loop"
       }

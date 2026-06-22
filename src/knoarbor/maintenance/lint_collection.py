@@ -6,42 +6,132 @@ from pathlib import Path
 from typing import Any
 
 from knoarbor.core.markdown import extract_heading, parse_frontmatter
+from knoarbor.core.schemas.page_identity import PageIdentity, normalize_facet
 from knoarbor.core.schemas.wiki_lint import WikiLintIssue
-from knoarbor.core.wiki_schema import PAGE_TYPE_ORDER, is_index_excluded_file
+from knoarbor.core.wiki_schema import FRONTMATTER_TYPES, INDEX_PAGE_DIRS, UNIFIED_KNOWLEDGE_PAGE_DIR, is_index_excluded_file
 from knoarbor.maintenance.lint_models import LintPage
-from knoarbor.maintenance.lint_rules import KNOWLEDGE_DIRS
 from knoarbor.storage.wiki_paths import content_root
 
 
 def collect_pages(vault_path: Path) -> list[LintPage]:
     pages: list[LintPage] = []
     root = content_root(vault_path)
-    for directory in PAGE_TYPE_ORDER:
+    for md_path in _iter_lint_page_paths(root):
+        try:
+            content = md_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            content = ""
+        relative_path = md_path.relative_to(root).as_posix()
+        directory = _page_directory(root, md_path)
+        metadata = parse_frontmatter(content) if content else {}
+        title = extract_heading(content, md_path.stem) if content else md_path.stem
+        identity = _page_identity(relative_path, directory, metadata, title, content)
+        pages.append(
+            LintPage(
+                path=md_path,
+                relative_path=relative_path,
+                directory=directory,
+                stem=md_path.stem,
+                title=title,
+                content=content,
+                metadata=metadata,
+                links=extract_wiki_links(content),
+                canonical_path=identity.canonical_path,
+                legacy_paths=identity.legacy_paths,
+                page_kind=identity.page_kind,
+                role=identity.role,
+                facets=identity.facets,
+            )
+        )
+    return pages
+
+
+def _iter_lint_page_paths(root: Path) -> list[Path]:
+    paths: list[Path] = []
+    for md_path in sorted(root.glob("*.md")):
+        if not is_index_excluded_file(md_path.name):
+            paths.append(md_path)
+    for directory in INDEX_PAGE_DIRS:
         page_dir = root / directory
         if not page_dir.exists():
             continue
         for md_path in sorted(page_dir.glob("*.md")):
-            if is_index_excluded_file(md_path.name):
-                continue
-            try:
-                content = md_path.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                content = ""
-            relative_path = md_path.relative_to(root).as_posix()
-            metadata = parse_frontmatter(content) if content else {}
-            pages.append(
-                LintPage(
-                    path=md_path,
-                    relative_path=relative_path,
-                    directory=directory,
-                    stem=md_path.stem,
-                    title=extract_heading(content, md_path.stem) if content else md_path.stem,
-                    content=content,
-                    metadata=metadata,
-                    links=extract_wiki_links(content),
-                )
-            )
-    return pages
+            if not is_index_excluded_file(md_path.name):
+                paths.append(md_path)
+    return paths
+
+
+def _page_directory(root: Path, md_path: Path) -> str:
+    if md_path.parent.resolve() == root.resolve():
+        return UNIFIED_KNOWLEDGE_PAGE_DIR
+    return md_path.parent.name
+
+
+def _page_identity(relative_path: str, directory: str, metadata: dict[str, str], title: str, content: str) -> PageIdentity:
+    page_kind = _infer_page_kind(directory, metadata)
+    role = "source_digest" if directory == "sources" or page_kind == "source_digest" else "knowledge_page"
+    return PageIdentity(
+        canonical_path=metadata.get("canonical_path") or relative_path,
+        legacy_paths=_metadata_list(metadata.get("legacy_paths")),
+        title=title,
+        page_kind=page_kind,
+        subject_kind=metadata.get("subject_kind", ""),
+        role=role,
+        facets=_lint_facets(directory, page_kind, metadata, content),
+        atom_ids=_metadata_list(metadata.get("atom_ids")) + _metadata_list(metadata.get("claim_ids")),
+        relation_ids=_metadata_list(metadata.get("relation_ids")),
+        source_digest_ids=_metadata_list(metadata.get("source_digest_ids")),
+    )
+
+
+def _infer_page_kind(directory: str, metadata: dict[str, str]) -> str:
+    raw_kind = metadata.get("page_kind") or metadata.get("kind")
+    if raw_kind:
+        return _normalize_page_kind(raw_kind)
+    raw_type = metadata.get("type") or FRONTMATTER_TYPES.get(directory, "unknown")
+    if directory == "sources" or raw_type == "source":
+        return "source_digest"
+    if raw_type == "page":
+        return "unknown"
+    return _normalize_page_kind(raw_type)
+
+
+def _normalize_page_kind(value: str) -> str:
+    normalized = normalize_facet(value)
+    aliases = {"source": "source_digest", "question": "query", "qa": "query", "page": "unknown"}
+    allowed = {"concept", "entity", "workflow", "comparison", "timeline", "query", "note", "source_digest", "generated_view", "unknown"}
+    normalized = aliases.get(normalized, normalized or "unknown")
+    return normalized if normalized in allowed else "unknown"
+
+
+def _lint_facets(directory: str, page_kind: str, metadata: dict[str, str], content: str) -> list[str]:
+    values = [directory, page_kind]
+    values.extend(_metadata_list(metadata.get("facets")))
+    values.extend(_metadata_list(metadata.get("tags")))
+    for heading, facet in {
+        "Claims": "claims",
+        "Relations": "relations",
+        "Synthesis": "synthesis",
+        "Definition": "definition",
+    }.items():
+        if has_section(content, heading):
+            values.append(facet)
+    return [facet for facet in (normalize_facet(value) for value in values) if facet]
+
+
+def _metadata_list(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return []
+        if text.startswith("[") and text.endswith("]"):
+            text = text[1:-1]
+        return [item.strip().strip("'\"") for item in text.split(",") if item.strip().strip("'\"")]
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return [str(value).strip()]
 
 
 def filter_lint_scope(
@@ -156,6 +246,9 @@ def resolve_link(
 ) -> list[LintPage]:
     if target in pages_by_relative:
         return [pages_by_relative[target]]
+    target_with_suffix = target if target.endswith(".md") else f"{target}.md"
+    if target_with_suffix in pages_by_relative:
+        return [pages_by_relative[target_with_suffix]]
     if "/" in target:
         directory, title = target.split("/", 1)
         return [page for page in pages_by_title.get(normalize_title(title), []) if page.directory == directory]
@@ -165,10 +258,14 @@ def resolve_link(
 def page_lookup_maps(
     pages: list[LintPage],
 ) -> tuple[dict[str, LintPage], dict[str, list[LintPage]], dict[str, list[LintPage]]]:
-    pages_by_relative = {page.relative_path.removesuffix(".md"): page for page in pages}
+    pages_by_relative: dict[str, LintPage] = {}
     pages_by_stem: dict[str, list[LintPage]] = defaultdict(list)
     pages_by_title: dict[str, list[LintPage]] = defaultdict(list)
     for page in pages:
+        for path in [page.relative_path, page.relative_path.removesuffix(".md"), page.canonical_path, page.canonical_path.removesuffix(".md"), *page.legacy_paths]:
+            if path:
+                pages_by_relative[path] = page
+                pages_by_relative[path.removesuffix(".md")] = page
         pages_by_stem[page.stem].append(page)
         pages_by_title[normalize_title(page.title)].append(page)
     return pages_by_relative, pages_by_stem, pages_by_title
@@ -191,7 +288,7 @@ def resolved_paths_from_links(
 
 def graph_health_stats(pages: list[LintPage]) -> dict[str, object]:
     pages_by_relative, pages_by_stem, pages_by_title = page_lookup_maps(pages)
-    knowledge_paths = {page.relative_path for page in pages if page.directory in KNOWLEDGE_DIRS | {"sources"}}
+    knowledge_paths = {page.relative_path for page in pages if page.is_knowledge_page or page.is_source_digest}
     adjacency: dict[str, set[str]] = {path: set() for path in knowledge_paths}
     degrees: Counter[str] = Counter()
 

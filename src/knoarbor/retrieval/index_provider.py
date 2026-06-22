@@ -17,6 +17,9 @@ from knoarbor.storage.wiki_paths import content_root
 class IndexRequest:
     vault_path: Path
     page_dirs: list[str] = field(default_factory=list)
+    page_kinds: list[str] = field(default_factory=list)
+    page_roles: list[str] = field(default_factory=list)
+    facets: list[str] = field(default_factory=list)
 
 
 class IndexProvider(Protocol):
@@ -35,10 +38,7 @@ class MarkdownIndexProvider:
 
     def collect(self, request: IndexRequest) -> list[SearchPage]:
         pages = collect_search_pages(request.vault_path)
-        allowed_dirs = {page_dir.strip() for page_dir in request.page_dirs if page_dir.strip()}
-        if allowed_dirs:
-            pages = [page for page in pages if page.directory in allowed_dirs]
-        return pages
+        return [page for page in pages if _page_matches_request(page, request)]
 
 
 class MachineIndexProvider:
@@ -54,16 +54,12 @@ class MachineIndexProvider:
         records = payload.get("pages", [])
         if not isinstance(records, list):
             return []
-        allowed_dirs = {page_dir.strip() for page_dir in request.page_dirs if page_dir.strip()}
         pages: list[SearchPage] = []
         for record in records:
             if not isinstance(record, dict):
                 continue
-            directory = str(record.get("directory") or "")
-            if allowed_dirs and directory not in allowed_dirs:
-                continue
             page = _record_to_search_page(vault_path, record)
-            if page:
+            if page and _page_matches_request(page, request):
                 pages.append(page)
         return pages
 
@@ -98,6 +94,11 @@ def _record_to_search_page(vault_path: Path, record: dict[str, object]) -> Searc
         related_pages=_resolve_related_paths(vault_path, record.get("outbound_links", [])),
         headings=[str(heading) for heading in record.get("headings", []) if isinstance(heading, str)],
         body=strip_frontmatter(content),
+        canonical_path=str(record.get("canonical_path") or relative_path),
+        legacy_paths=[str(path) for path in record.get("legacy_paths", []) if isinstance(path, str)],
+        page_kind=str(record.get("page_kind") or _default_page_type(path.parent.name)),
+        role=str(record.get("role") or "knowledge_page"),
+        facets=[str(facet) for facet in record.get("facets", []) if isinstance(facet, str)],
     )
 
 
@@ -127,3 +128,34 @@ def _default_page_type(directory: str) -> str:
     if directory in PAGE_TYPE_ORDER:
         return directory.rstrip("s")
     return "page"
+
+
+def _page_matches_request(page: SearchPage, request: IndexRequest) -> bool:
+    allowed_dirs_or_facets = _normalized_set(request.page_dirs)
+    allowed_kinds = _normalized_set(request.page_kinds)
+    allowed_roles = _normalized_set(request.page_roles)
+    allowed_facets = _normalized_set(request.facets)
+    page_directory = _normalize_value(page.directory)
+    page_kind = _normalize_value(page.page_kind)
+    page_role = _normalize_value(page.role)
+    page_facets = {_normalize_value(item) for item in page.facets if item.strip()}
+
+    if allowed_dirs_or_facets and not (
+        page_directory in allowed_dirs_or_facets
+        or page_kind in allowed_dirs_or_facets
+        or bool(page_facets.intersection(allowed_dirs_or_facets))
+    ):
+        return False
+    if allowed_kinds and page_kind not in allowed_kinds:
+        return False
+    if allowed_roles and page_role not in allowed_roles:
+        return False
+    return not (allowed_facets and not page_facets.intersection(allowed_facets))
+
+
+def _normalized_set(values: list[str]) -> set[str]:
+    return {_normalize_value(value) for value in values if str(value).strip()}
+
+
+def _normalize_value(value: object) -> str:
+    return str(value).strip().lower().replace(" ", "_").replace("-", "_")

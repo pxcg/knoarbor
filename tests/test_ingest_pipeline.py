@@ -15,6 +15,14 @@ from knoarbor.core.schemas.ingest_review import (
     IngestReviewChecks,
     IngestReviewDimensionScores,
 )
+from knoarbor.core.schemas.knowledge_atoms import (
+    KnowledgeAtomBatch,
+    KnowledgeAtomObject,
+    KnowledgeClaim,
+    KnowledgeEvidenceSpan,
+    KnowledgeFact,
+    KnowledgeRelation,
+)
 from knoarbor.core.schemas.knowledge_extract import CompileContext, ContentUnit, KnowledgeExtract, KnowledgeSource
 from knoarbor.core.schemas.sources import RawSource, SourceContent, SourceDocument, SourceFingerprint, SourceOrigin, SourceRef
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch, WikiDraftBatchItem
@@ -25,6 +33,7 @@ from knoarbor.document_processing.schemas import DocumentProcessingItem, Documen
 from knoarbor.pipelines.ingest import IngestPipeline
 from knoarbor.pipelines.source import SourcePipeline
 from knoarbor.runtime import RunMonitor, run_monitor_context
+from knoarbor.storage.knowledge_atom_index import read_knowledge_atom_records
 from knoarbor.storage.wiki_paths import content_root
 
 
@@ -41,6 +50,9 @@ class FakeIngestSemanticWorkflow:
         self.calls += 1
         self.last_document = document
         return IngestSemanticWorkflowFixtures.result(document).knowledge_extract
+
+    def extract_atoms(self, source_digest, **kwargs):
+        return KnowledgeAtomBatch(source_digest_id=source_digest.digest_id)
 
     def plan_relations(self, knowledge_extract, **kwargs):
         self.last_existing_wiki_index = kwargs.get("existing_wiki_index")
@@ -119,6 +131,68 @@ class MismatchedWriteActionSemanticWorkflow(FakeIngestSemanticWorkflow):
                 ],
             }
         )
+        return batch
+
+
+class MissingAtomTraceSemanticWorkflow(FakeIngestSemanticWorkflow):
+    def plan_relations(self, knowledge_extract, **kwargs):
+        plan = super().plan_relations(knowledge_extract, **kwargs)
+        plan.operations[0].selected_fact_ids = ["fact_agent_loop_cycle"]
+        plan.operations[0].source_digest_ids = ["sd_test_agent"]
+        return plan
+
+
+class AtomTraceSemanticWorkflow(FakeIngestSemanticWorkflow):
+    def extract_atoms(self, source_digest, **kwargs):
+        evidence = KnowledgeEvidenceSpan(
+            source_digest_id=source_digest.digest_id,
+            source_path=source_digest.source.source_path,
+            source_unit_index=0,
+            excerpt="Agent loop repeats observe and act.",
+        )
+        return KnowledgeAtomBatch(
+            source_digest_id=source_digest.digest_id,
+            facts=[
+                KnowledgeFact(
+                    id="fact_agent_loop_cycle",
+                    statement="Agent loop repeats observe and act.",
+                    evidence=[evidence],
+                )
+            ],
+            claims=[
+                KnowledgeClaim(
+                    id="claim_agent_loop_control",
+                    claim="Agent loop is a control pattern.",
+                    claim_type="definition",
+                    supporting_fact_ids=["fact_agent_loop_cycle"],
+                )
+            ],
+            relations=[
+                KnowledgeRelation(
+                    id="rel_agent_loop_mentions_workflow",
+                    subject=KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
+                    predicate="relates_to",
+                    object=KnowledgeAtomObject(object_type="workflow", name="Workflow"),
+                    source_fact_ids=["fact_agent_loop_cycle"],
+                )
+            ],
+        )
+
+    def plan_relations(self, knowledge_extract, **kwargs):
+        plan = super().plan_relations(knowledge_extract, **kwargs)
+        plan.operations[0].selected_fact_ids = ["fact_agent_loop_cycle"]
+        plan.operations[0].selected_claim_ids = ["claim_agent_loop_control"]
+        plan.operations[0].selected_relation_ids = ["rel_agent_loop_mentions_workflow"]
+        return plan
+
+    def compile_drafts(self, knowledge_extract, wiki_relation_plan, **kwargs):
+        batch = super().compile_drafts(knowledge_extract, wiki_relation_plan, **kwargs)
+        batch.drafts[0].atom_ids = [
+            "fact_agent_loop_cycle",
+            "claim_agent_loop_control",
+            "rel_agent_loop_mentions_workflow",
+        ]
+        batch.drafts[0].source_digest_ids = [kwargs["knowledge_atom_batch"].source_digest_id]
         return batch
 
 
@@ -437,6 +511,7 @@ class IngestSemanticWorkflowFixtures:
     def result_from_extract(knowledge_extract) -> object:
         return __import__("knoarbor.semantic.ingest_workflow", fromlist=["IngestSemanticWorkflowResult"]).IngestSemanticWorkflowResult(
             knowledge_extract=knowledge_extract,
+            knowledge_atom_batch=KnowledgeAtomBatch(source_digest_id="test-digest"),
             wiki_relation_plan=WikiRelationPlan(
                 operations=[
                     WikiRelationOperation(
@@ -636,8 +711,8 @@ class IngestPipelineTests(unittest.TestCase):
             result = pipeline.run(config, connector_names=["markdown"], write=True, write_report=False, append_ledger=False)
             self.assertEqual(result.stats["written_count"], 2)
             source_page = (vault / "sources" / "Agent-Source-Digest.md").read_text(encoding="utf-8")
-            concept_page = (vault / "concepts" / "Agent-Loop-Control.md").read_text(encoding="utf-8")
-            self.assertIn("[[concepts/Agent-Loop-Control|Agent Loop Control]]", source_page)
+            concept_page = (vault / "Agent-Loop-Control.md").read_text(encoding="utf-8")
+            self.assertIn("[[Agent-Loop-Control|Agent Loop Control]]", source_page)
             self.assertIn("[[sources/Agent-Source-Digest|Agent Source Digest]]", concept_page)
             self.assertNotIn("Existing-Agent", source_page)
             self.assertNotIn("Existing-Agent", concept_page)
@@ -857,19 +932,79 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertIn("# Ingest Report", report)
         self.assertEqual(result.report_path, "maintenance/ingest_report_ingest-report-test.md")
         self.assertEqual(ledger_record["run_id"], "ingest-report-test")
+        self.assertIn("source_digest:", report)
+        self.assertIn("evidence_spans=", report)
+        self.assertIn("knowledge_atoms:", report)
+        self.assertIn("unsupported=0", report)
+        self.assertIn("conflicting=0", report)
+        self.assertIn("rejected=0", report)
         self.assertIn("Relation operations:", report)
         self.assertEqual(ledger_record["schema_version"], "ingest_run.v1")
         self.assertEqual(ledger_record["stats"]["processed_count"], 1)
         self.assertEqual(ledger_record["stats"]["segment_count"], 1)
         self.assertEqual(ledger_record["stats"]["failed_segment_count"], 0)
-        self.assertEqual(ledger_record["sources"][0]["generated_pages"], ["concepts/Agent-Loop.md"])
+        self.assertEqual(ledger_record["sources"][0]["generated_pages"], ["Agent-Loop.md"])
         self.assertEqual(ledger_record["sources"][0]["scoped_lint"]["scope"], "latest_ingest_source")
-        self.assertIn("concepts/Agent-Loop.md", ledger_record["sources"][0]["touched_pages"])
+        self.assertIn("Agent-Loop.md", ledger_record["sources"][0]["touched_pages"])
         self.assertTrue(ledger_record["sources"][0]["scoped_lint_result"]["deterministic_lint"]["stats"]["scoped"])
         self.assertIn("policy_decision", ledger_record["sources"][0]["scoped_lint_result"])
         self.assertIn("## Run Summary", report)
         self.assertIn("- segment_status: written=1", report)
         self.assertIn("scoped_lint_issues:", report)
+
+    def test_ingest_writes_knowledge_atom_index(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "vaults" / "all"
+            notes = root / "notes"
+            vault.mkdir(parents=True)
+            notes.mkdir()
+            (notes / "agent.md").write_text("# Agent Loop\n\nObserve and act.", encoding="utf-8")
+            config = KnoArborConfig(
+                vault=VaultConfig(path=vault),
+                connectors={
+                    "markdown": ConnectorConfig(
+                        enabled=True,
+                        settings={"roots": [str(notes)]},
+                    )
+                },
+            )
+
+            result = IngestPipeline(AtomTraceSemanticWorkflow()).run(config, connector_names=["markdown"], write=True)  # type: ignore[arg-type]
+            records = read_knowledge_atom_records(vault)
+
+        self.assertEqual(result.results[0].generated_pages, ["Agent-Loop.md"])
+        self.assertEqual(result.results[0].context["knowledge_atom_index_path"], ".knoarbor/index/knowledge_atoms.jsonl")
+        self.assertEqual(len(records), 3)
+        fact = next(record for record in records if record.atom_id == "fact_agent_loop_cycle")
+        self.assertEqual(fact.page_paths, ["Agent-Loop.md"])
+
+    def test_ingest_report_includes_knowledge_atom_index_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "vaults" / "all"
+            notes = root / "notes"
+            vault.mkdir(parents=True)
+            notes.mkdir()
+            (notes / "agent.md").write_text("# Agent Loop\n\nObserve and act.", encoding="utf-8")
+            config = KnoArborConfig(
+                vault=VaultConfig(path=vault),
+                connectors={
+                    "markdown": ConnectorConfig(
+                        enabled=True,
+                        settings={"roots": [str(notes)]},
+                    )
+                },
+            )
+            monitor = RunMonitor(vault_path=vault, flow="ingest", run_id="atom-index-report-test")
+            with run_monitor_context(monitor):
+                result = IngestPipeline(AtomTraceSemanticWorkflow()).run(config, connector_names=["markdown"], write=True)  # type: ignore[arg-type]
+
+            report = (vault / (result.report_path or "")).read_text(encoding="utf-8")
+
+        self.assertIn("- knowledge_atom_index: .knoarbor/index/knowledge_atoms.jsonl", report)
+        self.assertIn("Draft atom traces:", report)
+        self.assertIn("fact_agent_loop_cycle", report)
 
     def test_ingest_records_source_failure_and_continues_batch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -965,6 +1100,33 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertIn("write_action_mismatch", source.error_message or "")
         self.assertEqual(source.generated_pages, [])
 
+    def test_quality_gate_blocks_missing_atom_trace(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "vaults" / "all"
+            notes = root / "notes"
+            vault.mkdir(parents=True)
+            notes.mkdir()
+            (notes / "agent.md").write_text("# Agent\n\nAgent loop.", encoding="utf-8")
+            config = KnoArborConfig(
+                vault=VaultConfig(path=vault),
+                connectors={
+                    "markdown": ConnectorConfig(
+                        enabled=True,
+                        settings={"roots": [str(notes)]},
+                    )
+                },
+            )
+
+            result = IngestPipeline(MissingAtomTraceSemanticWorkflow()).run(config, connector_names=["markdown"], write=True)  # type: ignore[arg-type]
+            source = result.results[0]
+
+        self.assertEqual(source.status, "failed")
+        self.assertEqual(source.error_stage, "quality_gate")
+        self.assertEqual(source.error_code, "KA-INPUT-001")
+        self.assertIn("missing_selected_atom_trace", source.error_message or "")
+        self.assertIn("missing_source_digest_trace", source.error_message or "")
+
     def test_relation_update_operation_patches_existing_page(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -1051,8 +1213,8 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertIn("semantic_skip_reason:", report)
         self.assertEqual(len(checkpoint_state["sources"]), 1)
 
-    def test_claim_timeline_and_workflow_page_dirs_write_expected_types(self) -> None:
-        for page_dir, page_type in [("claims", "claim"), ("timelines", "timeline"), ("workflows", "workflow")]:
+    def test_timeline_and_workflow_page_dirs_write_expected_types(self) -> None:
+        for page_dir, page_type in [("timelines", "timeline"), ("workflows", "workflow")]:
             with tempfile.TemporaryDirectory() as tmp_dir:
                 root = Path(tmp_dir)
                 vault = root / "vaults" / "all"
@@ -1078,8 +1240,9 @@ class IngestPipelineTests(unittest.TestCase):
                 page = content_root(vault) / result.results[0].generated_pages[0]
                 content = page.read_text(encoding="utf-8")
 
-            self.assertIn(f"type: {page_type}", content)
-            self.assertTrue(result.results[0].generated_pages[0].startswith(f"{page_dir}/"))
+            self.assertIn("type: page", content)
+            self.assertIn(f"page_kind: {page_type}", content)
+            self.assertFalse(result.results[0].generated_pages[0].startswith(f"{page_dir}/"))
 
     def test_hermes_connector_uses_incremental_session_window(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1202,7 +1365,7 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertEqual(first.stats["written_count"], 1)
         self.assertEqual(second.stats["lifecycle_candidate_count"], 1)
         self.assertEqual(second.lifecycle_candidates[0].issue_type, "source_missing")
-        self.assertEqual(second.lifecycle_candidates[0].target_page, "concepts/Agent-Loop.md")
+        self.assertEqual(second.lifecycle_candidates[0].target_page, "Agent-Loop.md")
         self.assertIn("Source Lifecycle Candidates", report)
         self.assertIn("source_missing", report)
 

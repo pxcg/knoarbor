@@ -30,6 +30,23 @@ class LlmWikiRagComparisonTests(unittest.TestCase):
 
         self.assertEqual([path.name for path in files], ["Agent.md", "MCP.md", "OpenClaw架构.md"])
 
+    def test_fixture_can_override_vault_and_rag_sources(self) -> None:
+        fixture = {
+            "recommended_scope": "ios-audio-project",
+            "rag_baseline": {
+                "source_files": [
+                    "~/.codex/sessions/2026/05/23/ios.jsonl",
+                    "/tmp/audio.md",
+                ]
+            },
+        }
+
+        self.assertEqual(self.module.recommended_vault_id(fixture), "ios-audio-project")
+        files = self.module.rag_source_files(Path("/tmp/unused"), fixture)
+
+        self.assertEqual(files[0].name, "ios.jsonl")
+        self.assertEqual(str(files[1]), "/tmp/audio.md")
+
     def test_build_llmwiki_report_includes_core_metrics(self) -> None:
         report = self.module.build_llmwiki_report(
             {

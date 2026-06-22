@@ -8,15 +8,21 @@ from pydantic import BaseModel, Field
 
 from knoarbor.core.errors import UserInputError, VaultPathError, WikiPageNotFound
 from knoarbor.core.markdown import compact_inline_text, extract_heading, extract_section, extract_tags, parse_frontmatter
+from knoarbor.retrieval.page_resolver import resolve_page_reference
 from knoarbor.storage import ensure_machine_index, machine_index_dir
 from knoarbor.storage.wiki_paths import content_root
 
 
 class WikiPageSummary(BaseModel):
     path: str
+    canonical_path: str | None = None
+    legacy_paths: list[str] = Field(default_factory=list)
     directory: str
     title: str
     page_type: str | None = None
+    page_kind: str | None = None
+    role: str | None = None
+    facets: list[str] = Field(default_factory=list)
     status: str | None = None
     updated: str | None = None
     source: str | None = None
@@ -41,6 +47,8 @@ class WikiPageLink(BaseModel):
 
 class WikiPageBacklinksResponse(BaseModel):
     path: str
+    canonical_path: str | None = None
+    legacy_paths: list[str] = Field(default_factory=list)
     vault_path: str | None = None
     vault_id: str | None = None
     vault_name: str | None = None
@@ -50,6 +58,8 @@ class WikiPageBacklinksResponse(BaseModel):
 
 class WikiPageDetail(BaseModel):
     path: str
+    canonical_path: str | None = None
+    legacy_paths: list[str] = Field(default_factory=list)
     vault_path: str | None = None
     vault_id: str | None = None
     vault_name: str | None = None
@@ -78,6 +88,8 @@ class WikiPageService:
         links = self.page_links(vault, page_relative, vault_id=vault_id, vault_name=vault_name)
         return WikiPageDetail(
             path=page_relative,
+            canonical_path=links.canonical_path,
+            legacy_paths=links.legacy_paths,
             vault_path=str(vault),
             vault_id=vault_id,
             vault_name=vault_name,
@@ -90,16 +102,27 @@ class WikiPageService:
 
     def page_links(self, vault_path: Path, relative_path: str, *, vault_id: str | None = None, vault_name: str | None = None) -> WikiPageBacklinksResponse:
         vault = _resolve_vault(vault_path)
+        resolution = resolve_page_reference(vault, relative_path)
+        resolved_path = resolution.resolved_path or relative_path
         links = _link_records(vault)
         outbound = _unique_links(
-            (link for link in links if link.source == relative_path and link.target_path != relative_path),
+            (link for link in links if link.source == resolved_path and link.target_path != resolved_path),
             key=lambda link: link.target_path or link.target,
         )
         backlinks = _unique_links(
-            (link for link in links if link.target_path == relative_path and link.source != relative_path),
+            (link for link in links if link.target_path == resolved_path and link.source != resolved_path),
             key=lambda link: link.source,
         )
-        return WikiPageBacklinksResponse(path=relative_path, vault_path=str(vault), vault_id=vault_id, vault_name=vault_name, outbound_links=outbound, backlinks=backlinks)
+        return WikiPageBacklinksResponse(
+            path=resolved_path,
+            canonical_path=resolution.canonical_path,
+            legacy_paths=resolution.legacy_paths,
+            vault_path=str(vault),
+            vault_id=vault_id,
+            vault_name=vault_name,
+            outbound_links=outbound,
+            backlinks=backlinks,
+        )
 
 
 def _resolve_vault(vault_path: Path) -> Path:
@@ -108,7 +131,9 @@ def _resolve_vault(vault_path: Path) -> Path:
 
 def _resolve_vault_file(vault_path: Path, relative_path: str) -> Path:
     root = content_root(vault_path)
-    page_path = (root / relative_path).resolve()
+    resolution = resolve_page_reference(vault_path, relative_path)
+    resolved_relative_path = resolution.resolved_path or relative_path
+    page_path = (root / resolved_relative_path).resolve()
     try:
         page_path.relative_to(root)
     except ValueError as exc:
@@ -160,9 +185,14 @@ def _summary_from_record(record: dict[str, object]) -> WikiPageSummary:
     path = str(record.get("path") or "")
     return WikiPageSummary(
         path=path,
+        canonical_path=_optional_text(record.get("canonical_path")),
+        legacy_paths=[str(item) for item in record.get("legacy_paths", []) if isinstance(item, str)],
         directory=str(record.get("directory") or Path(path).parent.name or "root"),
         title=str(record.get("title") or Path(path).stem),
         page_type=_optional_text(record.get("type")),
+        page_kind=_optional_text(record.get("page_kind")),
+        role=_optional_text(record.get("role")),
+        facets=[str(item) for item in record.get("facets", []) if isinstance(item, str)],
         status=_optional_text(record.get("status")),
         updated=_optional_text(record.get("updated") or record.get("created")),
         source=_optional_text(record.get("source")),
@@ -178,9 +208,14 @@ def _summary_from_content(vault_path: Path, path: Path, content: str) -> WikiPag
     directory = relative.split("/", 1)[0] if "/" in relative else "root"
     return WikiPageSummary(
         path=relative,
+        canonical_path=metadata.get("canonical_path") or relative,
+        legacy_paths=[],
         directory=directory,
         title=metadata.get("title") or extract_heading(content, path.stem),
         page_type=metadata.get("type"),
+        page_kind=metadata.get("page_kind"),
+        role=None,
+        facets=[],
         status=metadata.get("status"),
         updated=metadata.get("updated") or metadata.get("created"),
         source=metadata.get("source"),

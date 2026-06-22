@@ -64,9 +64,16 @@
           {
             "action": "create",
             "decision_reason": "Create one digest for the source, not one page per segment.",
+            "facets": [],
             "knowledge_object": "Long source provenance",
             "operation_index": 0,
             "page_dir": "sources",
+            "page_kind": null,
+            "selected_claim_ids": [],
+            "selected_fact_ids": [],
+            "selected_relation_ids": [],
+            "source_digest_ids": [],
+            "subject_kind": null,
             "target_page": null,
             "title": "Long Source Digest"
           }
@@ -99,9 +106,16 @@
           {
             "action": "create",
             "decision_reason": "Create one digest for the source, not one page per segment.",
+            "facets": [],
             "knowledge_object": "Long source provenance",
             "operation_index": 0,
             "page_dir": "sources",
+            "page_kind": null,
+            "selected_claim_ids": [],
+            "selected_fact_ids": [],
+            "selected_relation_ids": [],
+            "source_digest_ids": [],
+            "subject_kind": null,
             "target_page": null,
             "title": "Long Source Digest"
           }
@@ -134,9 +148,16 @@
           {
             "action": "create",
             "decision_reason": "Create one digest for the source, not one page per segment.",
+            "facets": [],
             "knowledge_object": "Long source provenance",
             "operation_index": 0,
             "page_dir": "sources",
+            "page_kind": null,
+            "selected_claim_ids": [],
+            "selected_fact_ids": [],
+            "selected_relation_ids": [],
+            "source_digest_ids": [],
+            "subject_kind": null,
             "target_page": null,
             "title": "Long Source Digest"
           }

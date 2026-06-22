@@ -35,6 +35,22 @@ class DraftCanonicalizerTests(unittest.TestCase):
         self.assertIn("normalized_title", result.changes)
         self.assertIn("normalized_body_headings", result.changes)
 
+    def test_preserves_atom_trace_fields(self) -> None:
+        draft = WikiDraftInput(
+            title="Agent Loop",
+            page_dir="concepts",
+            question="Agent Loop",
+            answer="Agent loop repeats reasoning and tool use.",
+            summary="Agent loop is a control pattern.",
+            source_digest_ids=[" sd_agent ", "sd_agent"],
+            atom_ids=["fact_agent_loop", " fact_agent_loop "],
+        )
+
+        result = DraftCanonicalizer().canonicalize_draft(draft, source_file="raw/notes/agent.md", write_action="create")
+
+        self.assertEqual(result.draft.source_digest_ids, ["sd_agent"])
+        self.assertEqual(result.draft.atom_ids, ["fact_agent_loop"])
+
     def test_rejects_placeholder_source_file(self) -> None:
         draft = WikiDraftInput(
             title="LLM Wiki",

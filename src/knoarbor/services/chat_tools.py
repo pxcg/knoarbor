@@ -102,10 +102,10 @@ class ChatToolExecutor:
                 for item in response.results
                 if primary_pages
                 and item.path not in primary_paths
-                and item.type != "source"
+                and not _is_source_result(item)
             ]
         )[:5]
-        source_pages = (response.source_pages or [item for item in response.results if item.role == "source" or item.type == "source"])[:5]
+        source_pages = (response.source_pages or [item for item in response.results if _is_source_result(item)])[:5]
         citations = [
             ChatCitation(
                 kind="page",
@@ -419,7 +419,7 @@ def _vault_id_for_prior_page(page_path: str, existing_session: ChatSessionRecord
 
 def _answer_page_for_source_read(page_path: str, query: str, existing_session: ChatSessionRecord | None) -> str | None:
     if (
-        not page_path.startswith("sources/")
+        not _path_looks_like_source_digest(page_path)
         or query_prefers_source_page(query)
         or _query_prefers_source_read(query)
         or existing_session is None
@@ -443,12 +443,12 @@ def _first_answer_page_path(pack: dict[str, Any]) -> str | None:
             if not isinstance(page, dict) or not page.get("path"):
                 continue
             path = str(page["path"])
-            if page.get("type") != "source" and not path.startswith("sources/"):
+            if not _is_source_page_payload(page):
                 return path
     primary_page = pack.get("primary_page")
     if isinstance(primary_page, dict) and primary_page.get("path"):
         path = str(primary_page["path"])
-        if primary_page.get("type") != "source" and not path.startswith("sources/"):
+        if not _is_source_page_payload(primary_page):
             return path
     return None
 
@@ -484,8 +484,8 @@ def _ordered_chat_citations(results: list[WikiSearchResult], primary: WikiSearch
     ordered = _primary_first_results(results, primary)
     if prefer_sources:
         return ordered
-    answer_pages = [result for result in ordered if result.type != "source"]
-    source_pages = [result for result in ordered if result.type == "source"]
+    answer_pages = [result for result in ordered if not _is_source_result(result)]
+    source_pages = [result for result in ordered if _is_source_result(result)]
     return [*answer_pages, *source_pages]
 
 
@@ -501,7 +501,7 @@ def _fallback_primary_result(results: list[WikiSearchResult], query: str) -> Wik
         if result.role == "primary":
             return result
     for result in results:
-        if result.type != "source":
+        if not _is_source_result(result):
             return result
     return results[0] if results else None
 
@@ -511,6 +511,9 @@ def _chat_supporting_page_payload(item: WikiSearchResult) -> dict[str, object]:
         "path": item.path,
         "title": item.title,
         "type": item.type,
+        "page_kind": item.page_kind,
+        "page_role": item.page_role,
+        "facets": item.facets,
         "role": item.role,
         "score": item.score,
         "relevance": item.relevance,
@@ -520,6 +523,7 @@ def _chat_supporting_page_payload(item: WikiSearchResult) -> dict[str, object]:
         "content_truncated": item.content_truncated,
         "vault_id": item.vault_id,
         "vault_name": item.vault_name,
+        "atom_traces": [trace.model_dump() for trace in item.atom_traces],
     }
 
 
@@ -528,6 +532,9 @@ def _chat_primary_page_payload(item: WikiSearchResult) -> dict[str, object]:
         "path": item.path,
         "title": item.title,
         "type": item.type,
+        "page_kind": item.page_kind,
+        "page_role": item.page_role,
+        "facets": item.facets,
         "role": item.role,
         "score": item.score,
         "relevance": item.relevance,
@@ -537,15 +544,21 @@ def _chat_primary_page_payload(item: WikiSearchResult) -> dict[str, object]:
         "content_truncated": item.content_truncated,
         "vault_id": item.vault_id,
         "vault_name": item.vault_name,
+        "atom_traces": [trace.model_dump() for trace in item.atom_traces],
     }
 
 
 def _page_summary_payload(page) -> dict[str, object]:
     return {
         "path": page.path,
+        "canonical_path": page.canonical_path,
+        "legacy_paths": page.legacy_paths,
         "directory": page.directory,
         "title": page.title,
         "type": page.page_type,
+        "page_kind": page.page_kind,
+        "page_role": page.role,
+        "facets": page.facets,
         "status": page.status,
         "updated": page.updated,
         "source": page.source,
@@ -553,6 +566,35 @@ def _page_summary_payload(page) -> dict[str, object]:
         "summary": page.summary,
         "headings": page.headings,
     }
+
+
+def _is_source_result(result: WikiSearchResult) -> bool:
+    return (
+        result.role == "source"
+        or result.page_role == "source_digest"
+        or result.page_kind == "source_digest"
+        or result.type == "source"
+        or _path_looks_like_source_digest(result.path)
+    )
+
+
+def _is_source_page_payload(page: dict[str, Any]) -> bool:
+    answer_role = str(page.get("role") or "")
+    page_role = str(page.get("page_role") or "")
+    page_kind = str(page.get("page_kind") or "")
+    page_type = str(page.get("type") or "")
+    path = str(page.get("path") or "")
+    return (
+        answer_role == "source"
+        or page_role == "source_digest"
+        or page_kind == "source_digest"
+        or page_type == "source"
+        or _path_looks_like_source_digest(path)
+    )
+
+
+def _path_looks_like_source_digest(path: str) -> bool:
+    return path.startswith("sources/")
 
 
 def _with_vault_identity(page: dict[str, object], vault) -> dict[str, object]:
@@ -564,7 +606,14 @@ def _with_vault_identity(page: dict[str, object], vault) -> dict[str, object]:
 
 
 def _page_matches(page: dict[str, object], *, query: str, page_dirs: set[str]) -> bool:
-    if page_dirs and str(page.get("directory") or "") not in page_dirs:
+    normalized_page_dirs = {_normalize_page_filter_value(item) for item in page_dirs}
+    page_facets = {_normalize_page_filter_value(item) for item in page.get("facets", []) if isinstance(item, str)}
+    page_identity = {
+        _normalize_page_filter_value(page.get("directory")),
+        _normalize_page_filter_value(page.get("page_kind")),
+        *page_facets,
+    }
+    if normalized_page_dirs and not page_identity.intersection(normalized_page_dirs):
         return False
     if not query:
         return True
@@ -578,6 +627,10 @@ def _page_matches(page: dict[str, object], *, query: str, page_dirs: set[str]) -
         ]
     ).lower()
     return query in haystack
+
+
+def _normalize_page_filter_value(value: object) -> str:
+    return str(value or "").strip().lower().replace(" ", "_").replace("-", "_")
 
 
 def _resolve_page_reference(services, vault, requested: str) -> str | None:

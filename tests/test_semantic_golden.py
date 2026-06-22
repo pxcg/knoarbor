@@ -16,6 +16,7 @@ from tests.harness.semantic_cases import (
     lint_review_output,
     markdown_source_document,
     source_normalize_output,
+    wiki_atom_extract_output,
     wiki_draft_batch_output,
     wiki_relation_output,
 )
@@ -30,6 +31,7 @@ class SemanticGoldenTests(unittest.TestCase):
         client = ScriptedChatClient(
             [
                 source_normalize_output(),
+                wiki_atom_extract_output(),
                 wiki_relation_output(),
                 wiki_draft_batch_output(),
                 ingest_review_output(),

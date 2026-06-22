@@ -367,6 +367,7 @@ class ChatEvidencePlanner:
             "content_truncated": bool(page.get("content_truncated")),
             "vault_id": page.get("vault_id"),
             "vault_name": page.get("vault_name"),
+            "atom_traces": _atom_traces(page),
         }
         return payload
 
@@ -385,6 +386,7 @@ class ChatEvidencePlanner:
             "content_truncated": bool(page.get("content_truncated")),
             "vault_id": page.get("vault_id"),
             "vault_name": page.get("vault_name"),
+            "atom_traces": _atom_traces(page),
         }
 
     def _source_payload(self, page: dict[str, Any], *, answer_type: str, index: int) -> dict[str, Any]:
@@ -397,6 +399,7 @@ class ChatEvidencePlanner:
             "summary": page.get("summary"),
             "vault_id": page.get("vault_id"),
             "vault_name": page.get("vault_name"),
+            "atom_traces": _atom_traces(page),
         }
 
     def _result_payload(self, item: dict[str, Any]) -> dict[str, Any]:
@@ -410,6 +413,7 @@ class ChatEvidencePlanner:
             "vault_id": item.get("vault_id"),
             "vault_name": item.get("vault_name"),
             "reason": item.get("reason"),
+            "atom_traces": _atom_traces(item),
         }
 
 
@@ -424,6 +428,7 @@ def search_result_to_chat_payload(item: WikiSearchResult) -> dict[str, Any]:
         "key_points": item.key_points[:5],
         "vault_id": item.vault_id,
         "vault_name": item.vault_name,
+        "atom_traces": [trace.model_dump() for trace in item.atom_traces],
         "is_primary": item.role == "primary",
     }
 
@@ -469,9 +474,17 @@ def _citation_pages(
                     "vault_path": page.get("vault_path"),
                     "reason": page.get("summary") or page.get("reason") or "",
                     "role_rationale": page.get("role_rationale") or _role_rationale(page, role, "exploratory", len(pages)),
+                    "atom_traces": _atom_traces(page),
                 }
             )
     return _unique_pages(pages)
+
+
+def _atom_traces(page: dict[str, Any]) -> list[dict[str, Any]]:
+    traces = page.get("atom_traces")
+    if not isinstance(traces, list):
+        return []
+    return [trace for trace in traces if isinstance(trace, dict) and trace.get("atom_id")]
 
 
 def _infer_answer_type(*, query: str, answer_scope: dict[str, Any]) -> str:

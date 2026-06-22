@@ -16,6 +16,9 @@ class QueryPipelineRequest:
     mode: str = "balanced"
     limit: int = 8
     page_dirs: list[str] = field(default_factory=list)
+    page_kinds: list[str] = field(default_factory=list)
+    page_roles: list[str] = field(default_factory=list)
+    facets: list[str] = field(default_factory=list)
     include_related: bool = True
 
 
@@ -43,7 +46,15 @@ class QueryPipeline:
         if not vault_path.exists() or not vault_path.is_dir():
             raise UserInputError(f"vault_path does not exist or is not a directory: {vault_path}")
 
-        direct_pages = self.index_provider.collect(IndexRequest(vault_path=vault_path, page_dirs=request.page_dirs))
+        direct_pages = self.index_provider.collect(
+            IndexRequest(
+                vault_path=vault_path,
+                page_dirs=request.page_dirs,
+                page_kinds=request.page_kinds,
+                page_roles=request.page_roles,
+                facets=request.facets,
+            )
+        )
         if monitor:
             monitor.event("query_index_loaded", stage="query", message=f"Loaded {len(direct_pages)} direct page(s).", payload={"page_count": len(direct_pages)})
         graph_pages = direct_pages
@@ -103,8 +114,17 @@ class QueryPipeline:
                 "direct_page_count": len(direct_pages),
                 "graph_page_count": len(graph_pages),
                 "page_dirs": request.page_dirs,
+                "page_kinds": request.page_kinds,
+                "page_roles": request.page_roles,
+                "facets": request.facets,
                 "initial_scope_dirs": request.page_dirs or sorted({page.directory for page in direct_pages}),
                 "expanded_scope_dirs": sorted({page.directory for page in graph_pages}),
+                "initial_scope_page_kinds": request.page_kinds or sorted({page.page_kind for page in direct_pages if page.page_kind}),
+                "expanded_scope_page_kinds": sorted({page.page_kind for page in graph_pages if page.page_kind}),
+                "initial_scope_roles": request.page_roles or sorted({page.role for page in direct_pages if page.role}),
+                "expanded_scope_roles": sorted({page.role for page in graph_pages if page.role}),
+                "initial_scope_facets": request.facets or sorted({facet for page in direct_pages for facet in page.facets}),
+                "expanded_scope_facets": sorted({facet for page in graph_pages for facet in page.facets}),
                 "query_terms": terms,
                 "field_weights": FIELD_WEIGHTS,
                 "direct_match_count": direct_match_count,

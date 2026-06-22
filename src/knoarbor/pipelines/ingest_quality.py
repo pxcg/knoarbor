@@ -57,6 +57,31 @@ class IngestQualityGate:
                     )
                 )
 
+            expected_atom_ids = {
+                *operation.selected_fact_ids,
+                *operation.selected_claim_ids,
+                *operation.selected_relation_ids,
+            }
+            if expected_atom_ids and not expected_atom_ids.issubset(set(draft.atom_ids)):
+                missing = sorted(expected_atom_ids.difference(set(draft.atom_ids)))
+                issues.append(
+                    _issue(
+                        operation_index,
+                        "missing_selected_atom_trace",
+                        f"Draft is missing selected atom ids from the page plan: {', '.join(missing)}.",
+                    )
+                )
+            expected_source_digest_ids = set(operation.source_digest_ids)
+            if expected_source_digest_ids and not expected_source_digest_ids.issubset(set(draft.source_digest_ids)):
+                missing = sorted(expected_source_digest_ids.difference(set(draft.source_digest_ids)))
+                issues.append(
+                    _issue(
+                        operation_index,
+                        "missing_source_digest_trace",
+                        f"Draft is missing source digest ids from the page plan: {', '.join(missing)}.",
+                    )
+                )
+
             try:
                 normalize_page_dir(draft.page_dir)
             except ValueError as exc:

@@ -191,6 +191,17 @@ def render_ingest_report(record: dict[str, object]) -> str:
                 )
         else:
             lines.append("- None.")
+        draft_atom_traces = as_list(source.get("draft_atom_traces"))
+        if draft_atom_traces:
+            lines.extend(["", "Draft atom traces:"])
+            for trace in draft_atom_traces:
+                trace = as_dict(trace)
+                atom_ids = format_list(as_list(trace.get("atom_ids")))
+                source_digest_ids = format_list(as_list(trace.get("source_digest_ids")))
+                lines.append(
+                    f"- operation {trace.get('operation_index')}: `{trace.get('page_dir')}` "
+                    f"{trace.get('title')} / atoms={atom_ids} / source_digests={source_digest_ids}"
+                )
         if segments:
             lines.extend(["", "Segments:"])
             for segment in segments:
@@ -435,6 +446,7 @@ def _source_record(source_result: Any) -> dict[str, object]:
         "segmentation": dict(getattr(source_result, "segmentation", {}) or {}),
         "segments": list(getattr(source_result, "segments", []) or []),
         "relation_operations": _relation_operations(semantic_result),
+        "draft_atom_traces": _draft_atom_traces(semantic_result),
         "review_decisions": _review_decisions(semantic_result),
         "semantic_stage_warnings": _semantic_stage_warnings(semantic_result),
         "warnings": _final_warnings(source_result, semantic_result),
@@ -444,12 +456,41 @@ def _source_record(source_result: Any) -> dict[str, object]:
 def _context_strategy_lines(context: dict[str, Any]) -> list[str]:
     retrieval = as_dict(context.get("retrieval"))
     retrieval_stats = as_dict(retrieval.get("stats"))
+    source_digest = as_dict(context.get("source_digest"))
+    source_digest_summary = as_dict(source_digest.get("summary"))
+    knowledge_atoms = as_dict(context.get("knowledge_atoms"))
+    knowledge_atom_index_path = context.get("knowledge_atom_index_path")
+    knowledge_atom_quality = as_dict(context.get("knowledge_atom_quality"))
     materialized = as_dict(context.get("materialized_pages"))
     compile_context = as_dict(context.get("compile_context"))
     lines: list[str] = []
-    if retrieval_stats or materialized or compile_context:
+    if retrieval_stats or source_digest_summary or knowledge_atoms or materialized or compile_context:
         lines.append(f"- relation_context_policy: {retrieval_stats.get('relation_context_policy', 'n/a')}")
         lines.append(f"- relation_profile_chars: {retrieval_stats.get('relation_profile_chars', 'n/a')}")
+        if source_digest_summary:
+            lines.append(
+                "- source_digest: "
+                f"id={source_digest.get('digest_id', 'n/a')}, "
+                f"units={source_digest_summary.get('units', 0)}, "
+                f"observations={source_digest_summary.get('observations', 0)}, "
+                f"evidence_spans={source_digest_summary.get('evidence_spans', 0)}"
+            )
+        if knowledge_atoms:
+            lines.append(
+                "- knowledge_atoms: "
+                f"facts={knowledge_atoms.get('facts', 0)}, "
+                f"claims={knowledge_atoms.get('claims', 0)}, "
+                f"relations={knowledge_atoms.get('relations', 0)}, "
+                f"evidence_spans={knowledge_atoms.get('evidence_spans', 0)}, "
+                f"unsupported={knowledge_atoms.get('unsupported', 0)}, "
+                f"conflicting={knowledge_atoms.get('conflicting', 0)}, "
+                f"rejected={knowledge_atoms.get('rejected', 0)}"
+            )
+        if knowledge_atom_index_path:
+            lines.append(f"- knowledge_atom_index: {knowledge_atom_index_path}")
+        quality_issues = knowledge_atom_quality.get("issues")
+        if isinstance(quality_issues, list) and quality_issues:
+            lines.append(f"- knowledge_atom_quality_issues: {len(quality_issues)}")
         lines.append(f"- materialized_context_policy: {materialized.get('context_policy', 'n/a')}")
         lines.append(f"- materialized_context_chars: {materialized.get('materialized_context_chars', 'n/a')}")
         lines.append(
@@ -474,10 +515,30 @@ def _relation_operations(semantic_result: Any | None) -> list[dict[str, object]]
                 "page_dir": operation.page_dir,
                 "title": operation.title,
                 "knowledge_object": operation.knowledge_object,
+                "selected_fact_ids": list(operation.selected_fact_ids),
+                "selected_claim_ids": list(operation.selected_claim_ids),
+                "selected_relation_ids": list(operation.selected_relation_ids),
+                "source_digest_ids": list(operation.source_digest_ids),
                 "decision_reason": operation.decision_reason,
             }
         )
     return operations
+
+
+def _draft_atom_traces(semantic_result: Any | None) -> list[dict[str, object]]:
+    if semantic_result is None:
+        return []
+    return [
+        {
+            "operation_index": draft.operation_index,
+            "page_dir": draft.page_dir,
+            "title": draft.title,
+            "atom_ids": list(draft.atom_ids),
+            "source_digest_ids": list(draft.source_digest_ids),
+        }
+        for draft in semantic_result.wiki_draft_batch.drafts
+        if draft.atom_ids or draft.source_digest_ids
+    ]
 
 
 def _review_decisions(semantic_result: Any | None) -> list[dict[str, object]]:

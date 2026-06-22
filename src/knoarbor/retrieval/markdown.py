@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from knoarbor.core.markdown import extract_heading, extract_list_items, extract_section, parse_frontmatter
-from knoarbor.core.wiki_schema import INDEX_EXCLUDED_DIRS, PAGE_TYPE_ORDER, is_index_excluded_file
+from knoarbor.core.wiki_schema import INDEX_EXCLUDED_DIRS, INDEX_PAGE_DIRS, UNIFIED_KNOWLEDGE_PAGE_DIR, is_index_excluded_file
 from knoarbor.retrieval.bm25 import BM25Document, BM25Field, score_bm25_documents
 from knoarbor.retrieval.wiki_links import resolve_wikilink_target
 from knoarbor.storage import relative_wiki_path
@@ -84,6 +84,11 @@ class SearchPage:
     related_pages: list[str]
     headings: list[str]
     body: str
+    canonical_path: str = ""
+    legacy_paths: list[str] = field(default_factory=list)
+    page_kind: str = ""
+    role: str = "knowledge_page"
+    facets: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -99,37 +104,61 @@ class ScoredPage:
 def collect_search_pages(vault_path: Path) -> list[SearchPage]:
     pages: list[SearchPage] = []
     root = content_root(vault_path)
-    for page_dir in PAGE_TYPE_ORDER:
+    for md_path in _iter_search_page_paths(root):
+        page_dir = _page_directory(vault_path, md_path)
+        try:
+            content = md_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        metadata = parse_frontmatter(content)
+        page_type = metadata.get("type") or _default_type_for_directory(page_dir)
+        page_kind = metadata.get("page_kind") or _default_page_kind(page_dir, page_type)
+        relative_path = relative_wiki_path(vault_path, md_path)
+        pages.append(
+            SearchPage(
+                path=md_path,
+                relative_path=relative_path,
+                directory=page_dir,
+                title=extract_heading(content, md_path.stem),
+                page_type=page_type,
+                status=metadata.get("status"),
+                source=metadata.get("source"),
+                tags=extract_tags_from_page(content, metadata),
+                summary=extract_section(content, "Summary"),
+                key_points=extract_list_items(extract_section(content, "Key Points")),
+                related_pages=extract_related_page_paths(vault_path, extract_section(content, "Related Pages")),
+                headings=extract_headings(content),
+                body=strip_frontmatter(content),
+                canonical_path=metadata.get("canonical_path") or relative_path,
+                legacy_paths=_metadata_list(metadata.get("legacy_paths")),
+                page_kind=page_kind,
+                role=_page_role(page_dir, page_kind),
+                facets=_page_facets(metadata, page_dir, page_kind),
+            )
+        )
+    return pages
+
+
+def _iter_search_page_paths(root: Path) -> list[Path]:
+    paths: list[Path] = []
+    for md_path in sorted(root.glob("*.md")):
+        if not is_index_excluded_file(md_path.name):
+            paths.append(md_path)
+    for page_dir in INDEX_PAGE_DIRS:
         directory_path = root / page_dir
         if not directory_path.exists():
             continue
         for md_path in sorted(directory_path.glob("*.md")):
-            if should_skip_page(vault_path, md_path):
-                continue
-            try:
-                content = md_path.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                continue
-            metadata = parse_frontmatter(content)
-            page_type = metadata.get("type") or page_dir.rstrip("s")
-            pages.append(
-                SearchPage(
-                    path=md_path,
-                    relative_path=relative_wiki_path(vault_path, md_path),
-                    directory=page_dir,
-                    title=extract_heading(content, md_path.stem),
-                    page_type=page_type,
-                    status=metadata.get("status"),
-                    source=metadata.get("source"),
-                    tags=extract_tags_from_page(content, metadata),
-                    summary=extract_section(content, "Summary"),
-                    key_points=extract_list_items(extract_section(content, "Key Points")),
-                    related_pages=extract_related_page_paths(vault_path, extract_section(content, "Related Pages")),
-                    headings=extract_headings(content),
-                    body=strip_frontmatter(content),
-                )
-            )
-    return pages
+            if not is_index_excluded_file(md_path.name):
+                paths.append(md_path)
+    return paths
+
+
+def _page_directory(vault_path: Path, md_path: Path) -> str:
+    root = content_root(vault_path)
+    if md_path.parent.resolve() == root.resolve():
+        return UNIFIED_KNOWLEDGE_PAGE_DIR
+    return md_path.parent.name
 
 
 def should_skip_page(vault_path: Path, path: Path) -> bool:
@@ -313,3 +342,53 @@ def extract_related_page_paths(vault_path: Path, related_section: str) -> list[s
         seen.add(resolved)
         paths.append(resolved)
     return paths
+
+
+def _default_page_kind(directory: str, page_type: str) -> str:
+    if directory == "sources" or page_type == "source":
+        return "source_digest"
+    if page_type == "page":
+        return "unknown"
+    return page_type
+
+
+def _default_type_for_directory(directory: str) -> str:
+    if directory == UNIFIED_KNOWLEDGE_PAGE_DIR:
+        return "page"
+    return directory.rstrip("s")
+
+
+def _page_role(directory: str, page_kind: str) -> str:
+    if directory == "sources" or page_kind == "source_digest":
+        return "source_digest"
+    return "knowledge_page"
+
+
+def _page_facets(metadata: dict[str, str], directory: str, page_kind: str) -> list[str]:
+    values: list[str] = []
+    values.extend(_metadata_list(metadata.get("facets")))
+    values.extend(_metadata_list(metadata.get("tags")))
+    values.extend([directory, page_kind])
+    facets: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = value.strip().lower().replace(" ", "_").replace("-", "_")
+        if text and text not in seen:
+            facets.append(text)
+            seen.add(text)
+    return facets
+
+
+def _metadata_list(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return []
+        if text.startswith("[") and text.endswith("]"):
+            text = text[1:-1]
+        return [item.strip().strip("'\"") for item in text.split(",") if item.strip().strip("'\"")]
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return [str(value).strip()]

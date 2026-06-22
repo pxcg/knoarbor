@@ -28,6 +28,8 @@ class IngestService:
     def run_unified(self, request: UnifiedIngestRequest) -> IngestPipelineResult | IngestSourceResult:
         if request.kind == "document":
             return self.run_document(request.to_document_request())
+        if request.kind == "excerpt":
+            return self.run_document(request.to_excerpt_request())
         if request.kind == "file":
             return self.run_file(request.to_file_request())
         if request.kind == "folder":

@@ -44,6 +44,9 @@ def create_ingest_router(services: ApplicationServices) -> APIRouter:
         if request.kind == "document":
             started = services.runs.start_ingest_document(request.to_document_request(), services.ingest.run_document)
             return WorkflowResponse(flow="ingest", execution="queued", status=started.status, run_id=started.run_id, run=started.run)
+        if request.kind == "excerpt":
+            started = services.runs.start_ingest_document(request.to_excerpt_request(), services.ingest.run_document)
+            return WorkflowResponse(flow="ingest", execution="queued", status=started.status, run_id=started.run_id, run=started.run)
         if request.kind == "file":
             started = services.runs.start_ingest_file(request.to_file_request(), services.ingest.run_file)
             return WorkflowResponse(flow="ingest", execution="queued", status=started.status, run_id=started.run_id, run=started.run)

@@ -290,13 +290,13 @@ def _fix_for_issue(issue: WikiLintIssue) -> WikiLintFix:
             mode="safe_auto",
             description="Remove adjacent duplicate Markdown heading lines that have no content between them.",
         )
-    if issue.code in {"claim_missing_evidence_section", "claim_missing_confidence", "claim_invalid_confidence"}:
+    if issue.code.startswith("atom_"):
         return WikiLintFix(
             issue_code=issue.code,
             path=issue.path,
-            action="repair_claim_contract",
+            action="repair_atom_trace",
             mode="manual",
-            description="Review the claim page and add explicit evidence and confidence metadata before relying on it.",
+            description="Rerun ingest or semantic maintenance so page metadata and the atom index agree.",
         )
     if issue.code == "timeline_missing_chronology":
         return WikiLintFix(

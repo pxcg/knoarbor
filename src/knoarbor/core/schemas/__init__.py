@@ -22,6 +22,15 @@ from knoarbor.core.schemas.knowledge_extract import (
     KnowledgeSource,
     SupportingEvidence,
 )
+from knoarbor.core.schemas.knowledge_atoms import (
+    KnowledgeAtomBatch,
+    KnowledgeAtomObject,
+    KnowledgeClaim,
+    KnowledgeEvidenceSpan,
+    KnowledgeFact,
+    KnowledgeRelation,
+)
+from knoarbor.core.schemas.source_digest import SourceDigest, SourceDigestUnit, SourceObservation
 from knoarbor.core.schemas.lint_candidates import (
     MaintenanceCandidate,
     MaintenanceCandidates,
@@ -40,13 +49,24 @@ from knoarbor.core.schemas.ingest_review import (
 )
 from knoarbor.core.schemas.ingest_run import (
     IngestDocumentRunRequest,
+    IngestExcerptContext,
+    IngestExcerptRunRequest,
     IngestFileRunRequest,
     IngestFolderRunRequest,
     IngestRunRequest,
     UnifiedIngestRequest,
+    build_excerpt_source_document,
 )
 from knoarbor.core.schemas.maintenance import MaintenanceScope, MaintenanceScopeSource
 from knoarbor.core.schemas.memory import MemoryCandidate, MemoryEvent, MemoryRecallResult, MemoryRecord
+from knoarbor.core.schemas.page_identity import (
+    PageFacet,
+    PageIdentity,
+    PageKind,
+    PageRole,
+    normalize_facet,
+    normalize_identity_path,
+)
 from knoarbor.core.schemas.sources import RawSource, SourceDocument, SourceRef
 from knoarbor.core.schemas.wiki_lint import (
     LintPolicyDecision,
@@ -86,6 +106,7 @@ from knoarbor.core.schemas.wiki_relation_plan import (
     WikiRelationOperation,
     WikiRelationPlan,
 )
+from knoarbor.core.schemas.wiki_page_plan import WikiPageOperation, WikiPagePlan
 from knoarbor.core.schemas.wiki_operation import (
     WikiOperationAction,
     WikiOperationApplyRequest,
@@ -97,6 +118,7 @@ from knoarbor.core.schemas.wiki_query import (
     WikiContextMatch,
     WikiContextRequest,
     WikiContextResponse,
+    WikiAtomTrace,
     WikiPageReadItem,
     WikiPageReadRequest,
     WikiPageReadResponse,
@@ -126,6 +148,15 @@ __all__ = [
     "ChatTurnRecord",
     "KnowledgeExtract",
     "KnowledgeSource",
+    "KnowledgeAtomBatch",
+    "KnowledgeAtomObject",
+    "KnowledgeClaim",
+    "KnowledgeEvidenceSpan",
+    "KnowledgeFact",
+    "KnowledgeRelation",
+    "SourceDigest",
+    "SourceDigestUnit",
+    "SourceObservation",
     "ContentUnit",
     "CompileContext",
     "SupportingEvidence",
@@ -143,16 +174,25 @@ __all__ = [
     "IngestReviewChecks",
     "IngestReviewDimensionScores",
     "IngestDocumentRunRequest",
+    "IngestExcerptContext",
+    "IngestExcerptRunRequest",
     "IngestFileRunRequest",
     "IngestFolderRunRequest",
     "IngestRunRequest",
     "UnifiedIngestRequest",
+    "build_excerpt_source_document",
     "MaintenanceScope",
     "MaintenanceScopeSource",
     "MemoryCandidate",
     "MemoryEvent",
     "MemoryRecallResult",
     "MemoryRecord",
+    "PageFacet",
+    "PageIdentity",
+    "PageKind",
+    "PageRole",
+    "normalize_facet",
+    "normalize_identity_path",
     "LintPolicyDecision",
     "LintRunMode",
     "LintRunRequest",
@@ -178,6 +218,8 @@ __all__ = [
     "WikiRelatedPage",
     "WikiRelationOperation",
     "WikiRelationPlan",
+    "WikiPageOperation",
+    "WikiPagePlan",
     "WikiOperationAction",
     "WikiOperationApplyRequest",
     "WikiOperationApplyResponse",
@@ -199,6 +241,7 @@ __all__ = [
     "WikiContextMatch",
     "WikiContextRequest",
     "WikiContextResponse",
+    "WikiAtomTrace",
     "WikiPageReadItem",
     "WikiPageReadRequest",
     "WikiPageReadResponse",

@@ -78,6 +78,8 @@ Excerpts:
 
 - answer_scope: {'kind': 'narrow', 'vault_ids': [], 'initial_page_dirs': ['concepts', 'entities', 'sources'], 'expanded_page_dirs': ['concepts', 'entities', 'sources'], 'include_related': True, 'reason': 'Top result appears sufficient as the main answer unit.'}
 - answer_set: {'kind': 'single_page', 'primary_paths': ['concepts/Agent-Loop.md'], 'supporting_paths': ['entities/OpenClaw.md'], 'source_paths': [], 'further_reading_paths': [], 'rejected_candidates': [], 'reason': 'The query is narrow enough to anchor on concepts/Agent-Loop.md. Source digest pages are kept for provenance.', 'stop_reason': 'answer_set_selected'}
+- atom_trace_count: 0
+- atom_trace_counts: {}
 - candidate_count: 3
 - context_pack_chars: 2867
 - context_pack_truncated: False
@@ -100,7 +102,7 @@ Excerpts:
 - role_counts: {'primary': 1, 'supporting': 1, 'source': 1}
 - schema_version: query_trace.v1
 - scoring_model: field_weighted_bm25
-- top_matches: [{'path': 'concepts/Agent-Loop.md', 'score': 20.853, 'relevance': 'high', 'matched_fields': ['body', 'headings', 'key_points', 'path', 'related_graph', 'summary', 'tags', 'title'], 'reason': 'Matched body, headings, key_points, path, related_graph, summary, tags, title; graph relevance boost 3.954 via backlink, shared_source.'}, {'path': 'sources/Agent-Loop-Source.md', 'score': 13.453, 'relevance': 'high', 'matched_fields': ['body', 'headings', 'path', 'related_graph', 'summary', 'title'], 'reason': 'Matched body, headings, path, related_graph, summary, title; graph relevance boost 3.6 via outbound_link, shared_source.'}, {'path': 'entities/OpenClaw.md', 'score': 6.813, 'relevance': 'medium', 'matched_fields': ['body', 'related_graph', 'summary', 'tags'], 'reason': 'Matched body, related_graph, summary, tags; graph relevance boost 2.4 via outbound_link.'}]
+- top_matches: [{'path': 'concepts/Agent-Loop.md', 'score': 20.853, 'relevance': 'high', 'matched_fields': ['body', 'headings', 'key_points', 'path', 'related_graph', 'summary', 'tags', 'title'], 'atom_trace_count': 0, 'reason': 'Matched body, headings, key_points, path, related_graph, summary, tags, title; graph relevance boost 3.954 via backlink, shared_source.'}, {'path': 'sources/Agent-Loop-Source.md', 'score': 13.453, 'relevance': 'high', 'matched_fields': ['body', 'headings', 'path', 'related_graph', 'summary', 'title'], 'atom_trace_count': 0, 'reason': 'Matched body, headings, path, related_graph, summary, title; graph relevance boost 3.6 via outbound_link, shared_source.'}, {'path': 'entities/OpenClaw.md', 'score': 6.813, 'relevance': 'medium', 'matched_fields': ['body', 'related_graph', 'summary', 'tags'], 'atom_trace_count': 0, 'reason': 'Matched body, related_graph, summary, tags; graph relevance boost 2.4 via outbound_link.'}]
 
 ## Context Pack
 

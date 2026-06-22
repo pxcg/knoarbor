@@ -6,7 +6,7 @@ from pathlib import Path
 from knoarbor.core.errors import PolicyRejection
 from knoarbor.core.markdown import normalize_embedded_body_markdown, validate_body_markdown
 from knoarbor.core.schemas.wiki_write import WikiDraft, WikiDraftInput, WikiPatchInput
-from knoarbor.core.wiki_schema import frontmatter_type, normalize_page_dir
+from knoarbor.core.wiki_schema import normalize_page_dir
 from knoarbor.retrieval.wiki_links import sanitize_unresolved_wikilinks
 from knoarbor.storage.wiki_paths import normalize_page_title, normalize_source_digest_title
 
@@ -50,26 +50,51 @@ class DraftCanonicalizer:
         summary = normalize_embedded_body_markdown(draft.summary, "summary")
         question = normalize_embedded_body_markdown(draft.question, "source focus")
         answer = normalize_embedded_body_markdown(draft.answer, "answer")
-        if (summary, question, answer) != (draft.summary, draft.question, draft.answer):
+        definition = normalize_embedded_body_markdown(draft.definition or draft.summary, "definition")
+        synthesis = normalize_embedded_body_markdown(draft.synthesis or draft.answer, "synthesis")
+        if (summary, question, answer, definition, synthesis) != (
+            draft.summary,
+            draft.question,
+            draft.answer,
+            draft.definition,
+            draft.synthesis,
+        ):
             changes.append("normalized_body_headings")
 
         patches = self._canonicalize_patches(draft.patches, changes)
         key_points = [str(item).strip() for item in draft.key_points if str(item).strip()][:8]
+        claims = [str(item).strip() for item in (draft.claims or key_points) if str(item).strip()][:12]
+        relations = [str(item).strip() for item in draft.relations if str(item).strip()][:12]
         tags = [str(item).strip().lower().replace(" ", "-") for item in draft.tags if str(item).strip()][:8]
+        page_kind = _page_kind_from_draft(draft.page_kind, page_dir)
+        page_role = _page_role_from_draft(draft.role, page_kind)
+        facets = _identity_facets(draft.facets, tags, page_dir, page_kind)
 
         canonical = WikiDraft(
             title=title,
             page_dir=page_dir,
-            page_type=frontmatter_type(page_dir),
+            page_type="source" if page_role == "source_digest" else "page",
+            canonical_path=draft.canonical_path or "",
+            legacy_paths=draft.legacy_paths,
+            page_kind=page_kind,
+            subject_kind=_normalize_identity_value(draft.subject_kind),
+            role=page_role,
+            facets=facets,
             question=question,
             answer=answer,
             summary=summary,
+            definition=definition,
+            claims=claims,
+            relations=relations,
+            synthesis=synthesis,
             key_points=key_points,
             tags=tags,
             confidence=draft.confidence,
             model_provider=draft.model_provider,
             model_name=draft.model_name,
             patches=patches,
+            source_digest_ids=draft.source_digest_ids,
+            atom_ids=draft.atom_ids,
         )
         self.validate_draft(canonical, source_file=resolved_source_file, write_action=write_action)
         return CanonicalizedDraft(draft=canonical, source_file=resolved_source_file, changes=changes)
@@ -86,6 +111,12 @@ class DraftCanonicalizer:
         validate_body_markdown(draft.summary, "summary")
         validate_body_markdown(draft.question, "source focus")
         validate_body_markdown(draft.answer, "answer")
+        validate_body_markdown(draft.definition, "definition")
+        validate_body_markdown(draft.synthesis, "synthesis")
+        for claim in draft.claims:
+            validate_body_markdown(claim, "claim")
+        for relation in draft.relations:
+            validate_body_markdown(relation, "relation")
 
     def _canonical_source_file(self, source_file: str | None, write_action: str) -> str | None:
         text = source_file.strip() if isinstance(source_file, str) else None
@@ -96,6 +127,9 @@ class DraftCanonicalizer:
     def _canonicalize_patches(self, patches: list[WikiPatchInput], changes: list[str]) -> list[WikiPatchInput]:
         canonical: list[WikiPatchInput] = []
         for patch in patches:
+            section = "Synthesis" if patch.section.strip().lower() == "answer" else patch.section
+            if section != patch.section:
+                changes.append("normalized_patch_section")
             content = patch.content
             heading = patch.heading
             if content:
@@ -106,5 +140,46 @@ class DraftCanonicalizer:
                 validate_body_markdown(content, f"{patch.section} patch")
             if heading:
                 heading = normalize_page_title(heading)
-            canonical.append(patch.model_copy(update={"content": content, "heading": heading}))
+            canonical.append(patch.model_copy(update={"section": section, "content": content, "heading": heading}))
         return canonical
+
+
+def _page_kind_from_draft(value: str, page_dir: str) -> str:
+    text = _normalize_identity_value(value)
+    if text:
+        return text
+    mapping = {
+        "sources": "source_digest",
+        "entities": "entity",
+        "concepts": "concept",
+        "comparisons": "comparison",
+        "queries": "query",
+        "timelines": "timeline",
+        "workflows": "workflow",
+    }
+    return mapping.get(page_dir, "unknown")
+
+
+def _page_role_from_draft(value: str, page_kind: str) -> str:
+    text = _normalize_identity_value(value)
+    if text:
+        return text
+    if page_kind == "source_digest":
+        return "source_digest"
+    if page_kind == "generated_view":
+        return "generated_view"
+    return "knowledge_page"
+
+
+def _identity_facets(explicit: list[str], tags: list[str], page_dir: str, page_kind: str) -> list[str]:
+    values = [*explicit, *tags, page_dir, page_kind]
+    facets: list[str] = []
+    for value in values:
+        text = _normalize_identity_value(value)
+        if text and text not in facets:
+            facets.append(text)
+    return facets
+
+
+def _normalize_identity_value(value: object) -> str:
+    return str(value or "").strip().lower().replace(" ", "_").replace("-", "_")

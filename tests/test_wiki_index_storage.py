@@ -52,6 +52,67 @@ class WikiIndexStorageTests(unittest.TestCase):
         self.assertEqual(links["links"][0]["target_path"], "sources/Source.md")
         self.assertEqual(sources["sources"][0]["source"], "raw/notes/agent.md")
 
+    def test_machine_index_emits_page_identity_fields_for_legacy_and_unified_pages(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            (vault / "concepts").mkdir()
+            (vault / "concepts" / "Agent-Loop.md").write_text(
+                "---\ntype: concept\ntags: agent, workflow\n---\n"
+                "# Agent Loop\n\n## Summary\n\nLegacy typed page.\n\n## Claims\n\n- Agent loops coordinate tools.\n",
+                encoding="utf-8",
+            )
+            (vault / "OpenClaw.md").write_text(
+                "---\npage_kind: entity\nfacets: agent_platform, workflow-pattern\nlegacy_paths: entities/OpenClaw.md\n---\n"
+                "# OpenClaw\n\n## Summary\n\nCanonical unified page.\n",
+                encoding="utf-8",
+            )
+
+            update_index(vault)
+            pages = json.loads((machine_index_dir(vault) / "pages.json").read_text(encoding="utf-8"))
+            records = {record["path"]: record for record in pages["pages"]}
+
+        self.assertEqual(pages["schema_version"], "machine_pages.v2")
+        self.assertEqual(records["concepts/Agent-Loop.md"]["schema_version"], "machine_page.v2")
+        self.assertEqual(records["concepts/Agent-Loop.md"]["canonical_path"], "concepts/Agent-Loop.md")
+        self.assertEqual(records["concepts/Agent-Loop.md"]["page_kind"], "concept")
+        self.assertEqual(records["concepts/Agent-Loop.md"]["role"], "knowledge_page")
+        self.assertIn("claims", records["concepts/Agent-Loop.md"]["facets"])
+        self.assertEqual(records["OpenClaw.md"]["directory"], "pages")
+        self.assertEqual(records["OpenClaw.md"]["canonical_path"], "OpenClaw.md")
+        self.assertEqual(records["OpenClaw.md"]["legacy_paths"], ["entities/OpenClaw.md"])
+        self.assertEqual(records["OpenClaw.md"]["page_kind"], "entity")
+        self.assertIn("agent_platform", records["OpenClaw.md"]["facets"])
+
+    def test_update_index_generates_views_without_indexing_them_as_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            pages = vault / "pages"
+            (pages / "sources").mkdir(parents=True)
+            (pages / "Agent-Loop.md").write_text(
+                "---\ntype: page\npage_kind: concept\nfacets: [agent-loop]\n---\n"
+                "# Agent Loop\n\n## Summary\n\nAgent loop coordinates model and tool execution.\n",
+                encoding="utf-8",
+            )
+            (pages / "sources" / "Agent-Loop-Source.md").write_text(
+                "---\ntype: source\npage_kind: source_digest\nrole: source_digest\n---\n"
+                "# Agent Loop Source\n\n## Summary\n\nSource digest for agent loop notes.\n",
+                encoding="utf-8",
+            )
+
+            update_index(vault)
+            home = (pages / "_views" / "Home.md").read_text(encoding="utf-8")
+            concepts = (pages / "_views" / "Concepts.md").read_text(encoding="utf-8")
+            source_audit = (pages / "_views" / "Source-Audit.md").read_text(encoding="utf-8")
+            pages_index = json.loads((machine_index_dir(vault) / "pages.json").read_text(encoding="utf-8"))
+            indexed_paths = {record["path"] for record in pages_index["pages"]}
+
+        self.assertIn("[[_views/Concepts|Concepts]]", home)
+        self.assertIn("[[Agent-Loop|Agent Loop]]", concepts)
+        self.assertIn("[[sources/Agent-Loop-Source|Agent Loop Source]]", source_audit)
+        self.assertIn("page_kind: generated_view", home)
+        self.assertNotIn("_views/Home.md", indexed_paths)
+        self.assertEqual(indexed_paths, {"Agent-Loop.md", "sources/Agent-Loop-Source.md"})
+
     def test_machine_index_stale_detection_refreshes_after_page_write(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)

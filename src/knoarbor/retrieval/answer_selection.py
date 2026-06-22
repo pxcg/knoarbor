@@ -66,13 +66,13 @@ class AnswerSetSelector:
             return AnswerSelectionResult(answer_set=answer_set, rejected_candidates=[])
 
         source_intent = query_prefers_source_page(query)
-        source_pages = [result for result in results if result.type == "source"]
-        knowledge_pages = [result for result in results if result.type != "source"]
+        source_pages = [result for result in results if _is_source_result(result)]
+        knowledge_pages = [result for result in results if not _is_source_result(result)]
 
         if source_intent or not knowledge_pages:
             selected_sources = source_pages[: self.policy.source_answer_limit] if source_pages else results[:1]
             rejected = [
-                _reject(result, "source_query_focus" if result.type != "source" else "outside_answer_budget", role_hint="further_reading")
+                _reject(result, "source_query_focus" if not _is_source_result(result) else "outside_answer_budget", role_hint="further_reading")
                 for result in results
                 if result.path not in {page.path for page in selected_sources}
             ]
@@ -80,7 +80,7 @@ class AnswerSetSelector:
                 kind="multi_page" if len(selected_sources) > 1 else "single_page",
                 primary_paths=[page.path for page in selected_sources[:1]],
                 supporting_paths=[],
-                source_paths=[page.path for page in selected_sources[1:] if page.type == "source"],
+                source_paths=[page.path for page in selected_sources[1:] if _is_source_result(page)],
                 further_reading_paths=[item.path for item in results if item.path not in {page.path for page in selected_sources}][: self.policy.further_reading_limit],
                 rejected_candidates=rejected,
                 reason="The query asks about source or provenance, so source digest pages are answer-bearing.",
@@ -211,12 +211,24 @@ def query_prefers_source_page(query: str) -> bool:
 
 
 def result_facets(result: WikiSearchResult) -> set[str]:
-    facets = {result.type, result.path.split("/", 1)[0]}
+    facets = {result.type, result.page_kind or "", result.page_role or "", *result.facets}
+    if "/" in result.path:
+        facets.add(result.path.split("/", 1)[0])
     facets.update(result.tags[:8])
     facets.update(result.matched_fields)
     facets.update(result.matched_terms.get("graph_reasons", []))
     facets.update(normalize_text(excerpt.heading)[:40] for excerpt in result.excerpts[:3] if excerpt.heading)
     return {facet for facet in facets if facet}
+
+
+def _is_source_result(result: WikiSearchResult) -> bool:
+    return (
+        result.role == "source"
+        or result.page_role == "source_digest"
+        or result.page_kind == "source_digest"
+        or result.type == "source"
+        or result.path.startswith("sources/")
+    )
 
 
 def facet_novelty(facets: set[str], seen_facets: set[str]) -> float:

@@ -19,6 +19,7 @@ RAW_DIRS = (
     "raw/media",
     "raw/notes",
     "raw/papers",
+    "raw/excerpts",
     "raw/transcripts",
 )
 
@@ -147,7 +148,10 @@ This file defines the local wiki contract for LLM and automation workflows.
 - `pages/`: Obsidian-facing wiki pages. Open this directory in Obsidian.
 - `raw/`: immutable source material.
 - `pages/sources/`: source digest pages.
-- `pages/entities/`, `pages/concepts`, `pages/comparisons`, `pages/queries`, `pages/claims`, `pages/timelines`, `pages/workflows`: maintained wiki pages.
+- `pages/<slug>.md`: unified maintained knowledge pages.
+- `pages/entities/`, `pages/concepts`, `pages/comparisons`, `pages/queries`, `pages/timelines`, `pages/workflows`: legacy typed page locations accepted during migration.
+- `pages/_views/`: generated navigation views such as Home, Concepts, and Source Audit. Views are not fact sources.
+- Page-level `Claims` and `Relations` sections carry auditable statements and typed edges. They are indexed under `.knoarbor/index`.
 - `maintenance/`: human-readable run and maintenance reports.
 - `.knoarbor/`: machine state such as runs, locks, indexes, ledgers, and checkpoints.
 
@@ -165,6 +169,9 @@ This file defines the local wiki contract for LLM and automation workflows.
 created: YYYY-MM-DD HH:MM:SS
 updated: YYYY-MM-DD HH:MM:SS
 type: source | entity | concept | comparison | query | claim | timeline | workflow
+page_kind: source_digest | concept | entity | comparison | query | timeline | workflow | generated_view
+role: knowledge_page | source_digest | generated_view
+facets: [normalized_facets]
 status: draft | reviewed | archived
 source: raw/path
 content_hash: hash

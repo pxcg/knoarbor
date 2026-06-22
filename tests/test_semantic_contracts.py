@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
+from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch
 from knoarbor.core.schemas.ingest_review import IngestDraftReview
 from knoarbor.core.schemas.lint_candidates import MaintenanceCandidates
 from knoarbor.core.schemas.lint_review import LintMaintenanceReview
@@ -20,6 +21,7 @@ class SemanticContractTests(unittest.TestCase):
     def test_ingest_semantic_contracts_load_prompt_and_schema(self) -> None:
         expected = {
             "source_normalize": ("knowledge_extract.v1", KnowledgeExtract),
+            "wiki_atom_extract": ("knowledge_atoms.v1", KnowledgeAtomBatch),
             "wiki_relation": ("wiki_relation_plan.v1", WikiRelationPlan),
             "wiki_draft_compile": ("wiki_draft_batch.v1", WikiDraftBatch),
             "ingest_draft_review": ("ingest_draft_review.v2", IngestDraftReview),
@@ -134,6 +136,10 @@ class SemanticContractTests(unittest.TestCase):
                         "page_dir": "concepts",
                         "title": "Agent Loop",
                         "knowledge_object": "Agent Loop control pattern",
+                        "selected_fact_ids": [" fact_agent_loop_cycle ", "fact_agent_loop_cycle"],
+                        "selected_claim_ids": ["claim_agent_loop_pattern"],
+                        "selected_relation_ids": ["rel_agent_loop_mentions_control"],
+                        "source_digest_ids": ["sd_agent_loop"],
                         "related_pages": [],
                         "candidate_pages": [],
                         "decision_reason": "The source contains a durable reusable concept.",
@@ -163,6 +169,8 @@ class SemanticContractTests(unittest.TestCase):
         )
 
         self.assertEqual(len(plan.operations), 2)
+        self.assertEqual(plan.operations[0].selected_fact_ids, ["fact_agent_loop_cycle"])
+        self.assertEqual(plan.operations[0].source_digest_ids, ["sd_agent_loop"])
         self.assertEqual(plan.operations[1].target_page, "entities/OpenClaw.md")
 
     def test_wiki_relation_plan_drops_redundant_mixed_skip(self) -> None:
@@ -245,6 +253,40 @@ class SemanticContractTests(unittest.TestCase):
                     "warnings": [],
                 }
             )
+
+    def test_wiki_draft_batch_accepts_atom_trace_fields(self) -> None:
+        batch = WikiDraftBatch.model_validate(
+            {
+                "drafts": [
+                    {
+                        "operation_index": 0,
+                        "write_action": "create",
+                        "target_page": None,
+                        "source_file": "raw/notes/Agent.md",
+                        "title": "Agent Loop",
+                        "page_dir": "concepts",
+                        "question": "Agent Loop",
+                        "answer": "Agent Loop coordinates tool use.",
+                        "summary": "Agent Loop is a control pattern.",
+                        "key_points": ["Coordinates tool use."],
+                        "tags": ["agent", "loop"],
+                        "source_digest_ids": [" sd_agent ", "sd_agent"],
+                        "atom_ids": ["fact_agent_loop_cycle", " fact_agent_loop_cycle "],
+                        "patches": [],
+                        "confidence": 0.9,
+                    }
+                ],
+                "batch_summary": "One draft.",
+                "warnings": [],
+            }
+        )
+
+        draft = batch.drafts[0]
+        self.assertEqual(draft.source_digest_ids, ["sd_agent"])
+        self.assertEqual(draft.atom_ids, ["fact_agent_loop_cycle"])
+        self.assertEqual(draft.definition, "Agent Loop is a control pattern.")
+        self.assertEqual(draft.claims, ["Coordinates tool use."])
+        self.assertEqual(draft.synthesis, "Agent Loop coordinates tool use.")
 
     def test_wiki_draft_batch_schema_accepts_create_and_update(self) -> None:
         batch = WikiDraftBatch.model_validate(

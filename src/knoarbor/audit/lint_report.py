@@ -452,7 +452,6 @@ def _governance_queue(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         "split_page",
         "queue_conflict_review",
         "queue_graph_review",
-        "queue_claim_review",
     }
     return [
         action

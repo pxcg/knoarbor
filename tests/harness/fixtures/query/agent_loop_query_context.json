@@ -109,6 +109,8 @@
         "entities/OpenClaw.md"
       ]
     },
+    "atom_trace_count": 0,
+    "atom_trace_counts": {},
     "candidate_count": 3,
     "context_pack_chars": 3067,
     "context_pack_truncated": false,
@@ -164,6 +166,7 @@
     "scoring_model": "field_weighted_bm25",
     "top_matches": [
       {
+        "atom_trace_count": 0,
         "matched_fields": [
           "body",
           "headings",
@@ -180,6 +183,7 @@
         "score": 20.853
       },
       {
+        "atom_trace_count": 0,
         "matched_fields": [
           "body",
           "headings",
@@ -194,6 +198,7 @@
         "score": 13.453
       },
       {
+        "atom_trace_count": 0,
         "matched_fields": [
           "body",
           "related_graph",

@@ -19,6 +19,8 @@ class FakeIngestService:
     def run_unified(self, request):
         if request.kind == "document":
             return self.run_document(request.to_document_request())
+        if request.kind == "excerpt":
+            return self.run_document(request.to_excerpt_request())
         if request.kind == "folder":
             return self.run_folder(request.to_folder_request())
         if request.kind == "file":
@@ -160,6 +162,43 @@ class IngestApiTests(unittest.TestCase):
                         "content": {"format": "markdown", "text": "# Test\n\nBody."},
                         "fingerprint": {"content_hash": "abc123", "connector_version": "test"},
                         "checkpoint": {"mode": "full"},
+                    },
+                },
+            )
+            self.assertEqual(response.status_code, 200)
+            response_payload = response.json()
+            self.assertEqual(response_payload["schema_version"], "workflow_response.v1")
+            self.assertEqual(response_payload["flow"], "ingest")
+            self.assertEqual(response_payload["execution"], "queued")
+            run_id = response_payload["run_id"]
+            payload = _wait_for_run(client, str(vault), run_id)
+
+        self.assertEqual(payload["status"], "completed")
+
+    def test_run_ingest_excerpt_accepts_selected_text(self) -> None:
+        services = ApplicationServices()
+        services.ingest = FakeIngestService()
+        client = TestClient(create_app(services))
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "vaults" / "all"
+            vault.mkdir(parents=True)
+            config = root / "config.yaml"
+            config.write_text(f"vault:\n  path: {vault}\n", encoding="utf-8")
+            response = client.post(
+                "/ingest",
+                json={
+                    "execution": "queued",
+                    "kind": "excerpt",
+                    "config_path": str(config),
+                    "vault_path": str(vault),
+                    "excerpt_text": "知识不是记忆的堆积，而是关系的生长。",
+                    "excerpt_title": "知识关系短句",
+                    "excerpt_context": {
+                        "source_app": "knoarbor_chat",
+                        "session_id": "chat-1",
+                        "message_ids": ["assistant:1"],
                     },
                 },
             )

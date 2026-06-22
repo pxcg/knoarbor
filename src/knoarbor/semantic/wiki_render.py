@@ -16,6 +16,11 @@ from knoarbor.core.schemas.wiki_write import WikiDraft, WikiPatchInput
 from knoarbor.core.wiki_lists import merge_unique_items
 
 
+def _frontmatter_list_value(items: list[str]) -> str:
+    escaped = [item.replace("\\", "\\\\").replace('"', '\\"') for item in items if item.strip()]
+    return "[" + ", ".join(f'"{item}"' for item in escaped) + "]"
+
+
 def apply_wiki_patch(content: str, patch: WikiPatchInput) -> str:
     section = patch.section.strip()
     if patch.operation == "append_section":
@@ -46,6 +51,8 @@ def render_markdown(
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     created = created_at or now
     related = "\n".join(f"- {link}" for link in related_links)
+    claims = _render_list(draft.claims, "暂无可审计断言")
+    relations = _render_list(draft.relations, "暂无显式关系")
     key_points = "\n".join(f"- {item}" for item in draft.key_points)
     tags = "\n".join(f"- {tag}" for tag in draft.tags)
     if not source_file:
@@ -53,7 +60,8 @@ def render_markdown(
     source = source_file
     summary = validate_body_markdown(draft.summary, "summary")
     source_focus = validate_body_markdown(draft.question, "source focus")
-    answer = validate_body_markdown(draft.answer, "answer")
+    definition = validate_body_markdown(draft.definition or draft.summary, "definition")
+    synthesis = validate_body_markdown(draft.synthesis or draft.answer, "synthesis")
 
     return f"""# {draft.title}
 
@@ -67,6 +75,14 @@ content_hash: {digest}
 confidence: {draft.confidence:.2f}
 model_provider: {draft.model_provider}
 model_name: {draft.model_name}
+canonical_path: {draft.canonical_path}
+legacy_paths: {_frontmatter_list_value(draft.legacy_paths)}
+page_kind: {draft.page_kind}
+role: {draft.role}
+subject_kind: {draft.subject_kind}
+facets: {_frontmatter_list_value(draft.facets)}
+source_digest_ids: {_frontmatter_list_value(draft.source_digest_ids)}
+atom_ids: {_frontmatter_list_value(draft.atom_ids)}
 ---
 
 ## Summary
@@ -77,9 +93,21 @@ model_name: {draft.model_name}
 
 {source_focus}
 
-## Answer
+## Definition
 
-{answer}
+{definition}
+
+## Claims
+
+{claims}
+
+## Relations
+
+{relations}
+
+## Synthesis
+
+{synthesis}
 
 ## Key Points
 
@@ -99,6 +127,13 @@ model_name: {draft.model_name}
 """
 
 
+def _render_list(items: list[str], placeholder: str) -> str:
+    values = [item.strip() for item in items if item.strip()]
+    if not values:
+        return f"- {placeholder}"
+    return "\n".join(f"- {item}" for item in values)
+
+
 def apply_patched_markdown(
     existing_content: str,
     draft: WikiDraft,
@@ -113,6 +148,22 @@ def apply_patched_markdown(
     merged = update_frontmatter_value(merged, "confidence", f"{draft.confidence:.2f}")
     merged = update_frontmatter_value(merged, "model_provider", draft.model_provider)
     merged = update_frontmatter_value(merged, "model_name", draft.model_name)
+    if draft.canonical_path:
+        merged = update_frontmatter_value(merged, "canonical_path", draft.canonical_path)
+    if draft.legacy_paths:
+        merged = update_frontmatter_value(merged, "legacy_paths", _frontmatter_list_value(draft.legacy_paths))
+    if draft.page_kind:
+        merged = update_frontmatter_value(merged, "page_kind", draft.page_kind)
+    if draft.role:
+        merged = update_frontmatter_value(merged, "role", draft.role)
+    if draft.subject_kind:
+        merged = update_frontmatter_value(merged, "subject_kind", draft.subject_kind)
+    if draft.facets:
+        merged = update_frontmatter_value(merged, "facets", _frontmatter_list_value(draft.facets))
+    if draft.source_digest_ids:
+        merged = update_frontmatter_value(merged, "source_digest_ids", _frontmatter_list_value(draft.source_digest_ids))
+    if draft.atom_ids:
+        merged = update_frontmatter_value(merged, "atom_ids", _frontmatter_list_value(draft.atom_ids))
 
     merged = apply_wiki_patches(merged, draft.patches)
 

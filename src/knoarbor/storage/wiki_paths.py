@@ -77,9 +77,10 @@ def resolve_wiki_page(vault_path: Path, raw_path: str) -> Path:
     relative = Path(normalize_wiki_page_path(raw_path))
     if relative.is_absolute() or ".." in relative.parts:
         raise VaultPathError(f"Invalid wiki page path: {raw_path}")
-    if not relative.parts or relative.parts[0] not in AI_WRITABLE_DIRS:
+    is_flat_page = len(relative.parts) == 1 and relative.suffix == ".md"
+    if not relative.parts or (relative.parts[0] not in AI_WRITABLE_DIRS and not is_flat_page):
         allowed = ", ".join(sorted(AI_WRITABLE_DIRS))
-        raise VaultPathError(f"Wiki operation path must be in an AI writable directory ({allowed}): {raw_path}")
+        raise VaultPathError(f"Wiki operation path must be a flat wiki page or in an AI writable directory ({allowed}): {raw_path}")
     root = content_root(vault_path)
     path = (root / relative).resolve()
     if not path.is_relative_to(root.resolve()):
@@ -110,17 +111,28 @@ def resolve_required_target(vault_path: Path, target_page: str | None, write_act
 
 
 def resolve_existing_by_hash(vault_path: Path, page_dir: str, digest: str) -> Path | None:
-    output_dir = content_root(vault_path) / page_dir
-    if not output_dir.exists():
-        return None
-    for md_path in sorted(output_dir.glob("*.md")):
-        try:
-            metadata = parse_frontmatter(md_path.read_text(encoding="utf-8"))
-        except UnicodeDecodeError:
+    for output_dir in _hash_lookup_dirs(vault_path, page_dir):
+        if not output_dir.exists():
             continue
-        if metadata.get("content_hash") == digest:
-            return md_path
+        for md_path in sorted(output_dir.glob("*.md")):
+            try:
+                metadata = parse_frontmatter(md_path.read_text(encoding="utf-8"))
+            except UnicodeDecodeError:
+                continue
+            if metadata.get("content_hash") == digest:
+                return md_path
     return None
+
+
+def _hash_lookup_dirs(vault_path: Path, page_dir: str) -> list[Path]:
+    root = content_root(vault_path)
+    if page_dir == "sources":
+        return [root / "sources"]
+    dirs = [root]
+    legacy_dir = root / page_dir
+    if legacy_dir not in dirs:
+        dirs.append(legacy_dir)
+    return dirs
 
 
 def available_title_path(output_dir: Path, title: str) -> Path:

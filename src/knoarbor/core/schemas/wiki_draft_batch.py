@@ -15,11 +15,20 @@ class WikiDraftBatchItem(BaseModel):
     source_file: str | None = None
     title: str = Field(..., min_length=1)
     page_dir: WikiPageDir
+    page_kind: str = ""
+    subject_kind: str = ""
+    facets: list[str] = Field(default_factory=list)
     question: str = Field(..., min_length=1)
     answer: str = Field(..., min_length=1)
     summary: str = Field(..., min_length=1)
+    definition: str = ""
+    claims: list[str] = Field(default_factory=list)
+    relations: list[str] = Field(default_factory=list)
+    synthesis: str = ""
     key_points: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
+    source_digest_ids: list[str] = Field(default_factory=list)
+    atom_ids: list[str] = Field(default_factory=list)
     patches: list[WikiPatchInput] = Field(default_factory=list)
     confidence: float = Field(default=0.8, ge=0, le=1)
     model_provider: str = Field(default="external", min_length=1)
@@ -32,6 +41,30 @@ class WikiDraftBatchItem(BaseModel):
             return None
         text = value.strip()
         return text or None
+
+    @field_validator("facets", "source_digest_ids", "atom_ids", mode="before")
+    @classmethod
+    def normalize_id_list(cls, value: object) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            value = [value]
+        ids: list[str] = []
+        for item in value if isinstance(value, list) else []:
+            text = str(item).strip()
+            if text and text not in ids:
+                ids.append(text)
+        return ids
+
+    @model_validator(mode="after")
+    def fill_evidence_page_fields(self) -> WikiDraftBatchItem:
+        if not self.definition.strip():
+            self.definition = self.summary
+        if not self.synthesis.strip():
+            self.synthesis = self.answer
+        if not self.claims:
+            self.claims = list(self.key_points)
+        return self
 
     @model_validator(mode="after")
     def validate_write_action(self) -> WikiDraftBatchItem:

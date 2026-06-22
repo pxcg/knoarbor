@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from knoarbor.core.errors import ExternalServiceError
 from knoarbor.core.schemas.chat import ChatCitation, ChatMessageItem, ChatRequest, ChatResponse
 from knoarbor.core.schemas.vaults import VaultListResponse, VaultProfile
-from knoarbor.core.schemas.wiki_query import WikiAnswerScope, WikiAnswerSet, WikiEvidenceCoverage, WikiSearchResponse, WikiSearchResult
+from knoarbor.core.schemas.wiki_query import WikiAnswerScope, WikiAnswerSet, WikiAtomTrace, WikiEvidenceCoverage, WikiSearchResponse, WikiSearchResult
 from knoarbor.entrypoints.api import create_app
 from knoarbor.semantic.llm import ChatCompletionRequest, ChatCompletionResponse, ChatCompletionStreamChunk
 from knoarbor.services import ApplicationServices
@@ -127,6 +127,14 @@ class FakeWikiSearch:
                     content="Agent Loop full maintained page content.",
                     vault_id="agent-engineering",
                     vault_name="Agent Engineering",
+                    atom_traces=[
+                        WikiAtomTrace(
+                            atom_id="fact_agent_loop_cycle",
+                            atom_type="fact",
+                            text="Agent loop alternates reasoning, action, and observation.",
+                            source_digest_id="sd_agent_loop",
+                        )
+                    ],
                 ),
                 WikiSearchResult(
                     path="concepts/Session-Memory-Architecture-for-Agent-Loops.md",
@@ -309,6 +317,9 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(response.tool_trace[0].result["answer_set"]["kind"], "multi_page")
         self.assertEqual(response.citations[0].role, "primary")
         self.assertIn("full maintained page content", response.tool_trace[0].result["primary_page"]["content"])
+        self.assertEqual(response.tool_trace[0].result["primary_page"]["atom_traces"][0]["atom_id"], "fact_agent_loop_cycle")
+        self.assertEqual(evidence_pack["primary_page"]["atom_traces"][0]["atom_id"], "fact_agent_loop_cycle")
+        self.assertEqual(evidence_pack["citation_pages"][0]["atom_traces"][0]["source_digest_id"], "sd_agent_loop")
         self.assertEqual(response.tool_trace[0].result["supporting_pages"][0]["path"], "concepts/Session-Memory-Architecture-for-Agent-Loops.md")
         self.assertIn("production agent loops", response.tool_trace[0].result["supporting_pages"][0]["content"])
         self.assertEqual(response.tool_trace[0].result["evidence_pack"]["recommended_action"], "answer_from_evidence")

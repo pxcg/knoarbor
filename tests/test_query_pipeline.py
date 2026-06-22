@@ -9,11 +9,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.pipelines import QueryPipeline, QueryPipelineRequest
 from knoarbor.audit.query_ledger import append_query_record, build_query_trend
+from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch, KnowledgeEvidenceSpan, KnowledgeFact
 from knoarbor.core.schemas.wiki_query import WikiSearchRequest
 from knoarbor.presenters.wiki_context import search_query
 from knoarbor.services.wiki_search import WikiSearchService
 from knoarbor.retrieval.index_provider import IndexRequest
 from knoarbor.retrieval.markdown import SearchPage
+from knoarbor.storage.knowledge_atom_index import KnowledgeAtomPageRef, upsert_knowledge_atom_batch
 
 
 class FakeIndexProvider:
@@ -97,6 +99,74 @@ class QueryPipelineTests(unittest.TestCase):
 
         self.assertEqual([item.page.relative_path for item in result.matches], ["entities/Agent.md"])
         self.assertEqual(result.stats["page_count"], 1)
+
+    def test_query_pipeline_filters_unified_page_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            pages = vault / "pages"
+            pages.mkdir()
+            (pages / "Routing.md").write_text(
+                "---\n"
+                "type: page\n"
+                "page_kind: concept\n"
+                "facets: [agent-routing]\n"
+                "---\n\n"
+                "# Routing\n\n## Summary\n\nRouting plans agent tasks and selects tools.\n",
+                encoding="utf-8",
+            )
+            (pages / "Routing-Source.md").write_text(
+                "---\n"
+                "type: page\n"
+                "page_kind: source_digest\n"
+                "facets: [agent-routing]\n"
+                "---\n\n"
+                "# Routing Source\n\n## Summary\n\nSource digest for routing notes.\n",
+                encoding="utf-8",
+            )
+            (pages / "Memory.md").write_text(
+                "---\n"
+                "type: page\n"
+                "page_kind: concept\n"
+                "facets: [agent-memory]\n"
+                "---\n\n"
+                "# Memory\n\n## Summary\n\nMemory stores dialogue facts.\n",
+                encoding="utf-8",
+            )
+
+            facet_result = QueryPipeline().run(
+                QueryPipelineRequest(
+                    vault_path=vault,
+                    query="routing",
+                    page_dirs=["agent-routing"],
+                    limit=5,
+                )
+            )
+            source_result = QueryPipeline().run(
+                QueryPipelineRequest(
+                    vault_path=vault,
+                    query="routing",
+                    page_roles=["source_digest"],
+                    limit=5,
+                )
+            )
+            concept_result = QueryPipeline().run(
+                QueryPipelineRequest(
+                    vault_path=vault,
+                    query="routing",
+                    page_kinds=["concept"],
+                    facets=["agent-routing"],
+                    limit=5,
+                )
+            )
+
+        self.assertEqual(
+            {item.page.relative_path for item in facet_result.matches},
+            {"Routing.md", "Routing-Source.md"},
+        )
+        self.assertEqual([item.page.relative_path for item in source_result.matches], ["Routing-Source.md"])
+        self.assertEqual([item.page.relative_path for item in concept_result.matches], ["Routing.md"])
+        self.assertIn("agent_routing", facet_result.stats["initial_scope_facets"])
+        self.assertEqual(facet_result.stats["initial_scope_roles"], ["knowledge_page", "source_digest"])
 
     def test_query_pipeline_uses_index_provider_boundary(self) -> None:
         page = SearchPage(
@@ -360,6 +430,57 @@ class QueryPipelineTests(unittest.TestCase):
         self.assertIn("Supporting implementation details should remain structured evidence", supporting.content or "")
         self.assertIn("OpenClaw supports production agent loop execution", response.context_pack)
         self.assertIn("Supporting implementation details should remain structured evidence", response.context_pack)
+
+    def test_query_results_include_page_atom_trace(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            (vault / "concepts").mkdir()
+            (vault / "concepts" / "Agent-Loop.md").write_text(
+                "# Agent Loop\n\n"
+                "## Summary\n\nAgent loop coordinates reasoning and tool execution.\n",
+                encoding="utf-8",
+            )
+            batch = KnowledgeAtomBatch(
+                source_digest_id="sd_agent_loop",
+                facts=[
+                    KnowledgeFact(
+                        id="fact_agent_loop_cycle",
+                        statement="Agent loop coordinates reasoning and tool execution.",
+                        evidence=[
+                            KnowledgeEvidenceSpan(
+                                source_digest_id="sd_agent_loop",
+                                source_path="raw/notes/agent.md",
+                                excerpt="Agent loop coordinates reasoning and tool execution.",
+                            )
+                        ],
+                    )
+                ],
+            )
+            upsert_knowledge_atom_batch(
+                vault,
+                batch,
+                [
+                    KnowledgeAtomPageRef(
+                        path="concepts/Agent-Loop.md",
+                        source_digest_ids=["sd_agent_loop"],
+                        atom_ids=["fact_agent_loop_cycle"],
+                    )
+                ],
+            )
+
+            response = search_query(
+                WikiSearchRequest(
+                    vault_path=str(vault),
+                    query="agent loop",
+                    record_query=False,
+                )
+            )
+
+        self.assertEqual(response.results[0].atom_traces[0].atom_id, "fact_agent_loop_cycle")
+        self.assertEqual(response.results[0].atom_traces[0].source_digest_id, "sd_agent_loop")
+        self.assertEqual(response.stats["atom_trace_count"], 1)
+        self.assertEqual(response.trace["atom_trace_counts"], {"concepts/Agent-Loop.md": 1})
+        self.assertEqual(response.trace["top_matches"][0]["atom_trace_count"], 1)
 
     def test_primary_page_body_is_preserved_even_when_context_budget_is_small(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

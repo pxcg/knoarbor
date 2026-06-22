@@ -9,7 +9,14 @@ from knoarbor.core.config import PrivacyConfig
 from knoarbor.core.markdown import adjacent_duplicate_headings, extract_list_items, extract_section, has_unclosed_fenced_code_blocks
 from knoarbor.core.redaction import detect_sensitive_text
 from knoarbor.core.schemas.wiki_lint import WikiLintIssue
-from knoarbor.core.wiki_schema import FRONTMATTER_TYPES, INDEX_EXCLUDED_DIRS, SYSTEM_PAGE_DIRS, is_index_excluded_file
+from knoarbor.core.wiki_schema import (
+    FRONTMATTER_TYPES,
+    GENERATED_VIEW_DIR,
+    INDEX_EXCLUDED_DIRS,
+    SYSTEM_PAGE_DIRS,
+    UNIFIED_KNOWLEDGE_PAGE_DIR,
+    is_index_excluded_file,
+)
 from knoarbor.maintenance.lint_collection import (
     extract_headings,
     extract_wiki_links,
@@ -23,7 +30,6 @@ from knoarbor.maintenance.lint_collection import (
 )
 from knoarbor.maintenance.lint_models import LintPage
 from knoarbor.maintenance.lint_rules import (
-    KNOWLEDGE_DIRS,
     OVERDENSE_LINK_THRESHOLD,
     OVERDENSE_RELATED_THRESHOLD,
     REQUIRED_FRONTMATTER_KEYS,
@@ -31,6 +37,7 @@ from knoarbor.maintenance.lint_rules import (
     WEAK_GRAPH_DIRS,
 )
 from knoarbor.storage.wiki_paths import content_root
+from knoarbor.storage.knowledge_atom_index import KnowledgeAtomRecord, read_knowledge_atom_records
 
 
 def lint_collected_pages(
@@ -53,6 +60,8 @@ def lint_collected_pages(
     issues.extend(_lint_repeated_list_sections(pages))
     issues.extend(_lint_specialized_page_contracts(pages))
     issues.extend(_lint_source_pages(vault_path, pages))
+    atom_issues, atom_stats = _lint_knowledge_atom_index(vault_path, pages)
+    issues.extend(atom_issues)
     issues.extend(_lint_sensitive_content(pages, privacy_config or PrivacyConfig()))
 
     severity_counts = Counter(issue.severity for issue in issues)
@@ -64,18 +73,24 @@ def lint_collected_pages(
         "warning_count": severity_counts.get("warning", 0),
         "info_count": severity_counts.get("info", 0),
         "directories": dict(Counter(page.directory for page in pages)),
+        "page_kinds": dict(Counter(page.page_kind for page in pages)),
+        "roles": dict(Counter(page.role for page in pages)),
+        "facets": dict(Counter(facet for page in pages for facet in page.facets)),
         "graph_health": graph_health,
+        "knowledge_atom_index": atom_stats,
     }
     return issues, stats
 
 
 def _lint_unexpected_markdown(vault_path: Path) -> list[WikiLintIssue]:
-    allowed_dirs = set(FRONTMATTER_TYPES) | set(SYSTEM_PAGE_DIRS) | INDEX_EXCLUDED_DIRS
+    allowed_dirs = set(FRONTMATTER_TYPES) | set(SYSTEM_PAGE_DIRS) | INDEX_EXCLUDED_DIRS | {GENERATED_VIEW_DIR}
     issues: list[WikiLintIssue] = []
     root = content_root(vault_path)
     for md_path in sorted(root.rglob("*.md")):
         relative = md_path.relative_to(root)
         if is_index_excluded_file(md_path.name):
+            continue
+        if len(relative.parts) == 1:
             continue
         if relative.parts and relative.parts[0] in allowed_dirs:
             continue
@@ -98,12 +113,33 @@ def _lint_page_structure(pages: list[LintPage]) -> list[WikiLintIssue]:
             issues.append(_issue("missing_h1", "warning", page.relative_path, "Page is missing a top-level title."))
         expected_type = FRONTMATTER_TYPES.get(page.directory)
         actual_type = page.metadata.get("type")
-        if expected_type and actual_type and actual_type != expected_type:
+        if page.directory != UNIFIED_KNOWLEDGE_PAGE_DIR and expected_type and actual_type and actual_type != expected_type:
             issues.append(_issue("frontmatter_type_mismatch", "error", page.relative_path, "Frontmatter type does not match the containing directory.", {"expected": expected_type, "actual": actual_type}))
-        for section in REQUIRED_SECTIONS_BY_DIR.get(page.directory, ()):
+        if page.directory == UNIFIED_KNOWLEDGE_PAGE_DIR and page.is_knowledge_page and page.page_kind == "unknown":
+            issues.append(_issue("missing_page_identity_metadata", "warning", page.relative_path, "Unified knowledge page is missing page_kind metadata.", {"role": page.role}))
+        if page.is_source_digest and page.directory != "sources":
+            issues.append(_issue("source_digest_wrong_location", "warning", page.relative_path, "Source digest pages should stay under the sources directory.", {"role": page.role, "page_kind": page.page_kind}))
+        for section in _required_sections_for_page(page):
             if not has_section(page.content, section):
                 issues.append(_issue("missing_required_section", "info", page.relative_path, f"Page is missing required {page.directory} section: {section}.", {"directory": page.directory, "page_type": expected_type, "section": section}))
     return issues
+
+
+def _required_sections_for_page(page: LintPage) -> tuple[str, ...]:
+    if page.is_source_digest:
+        return REQUIRED_SECTIONS_BY_DIR.get("sources", ())
+    if page.directory != UNIFIED_KNOWLEDGE_PAGE_DIR:
+        return REQUIRED_SECTIONS_BY_DIR.get(page.directory, ())
+    page_kind_to_legacy_dir = {
+        "entity": "entities",
+        "concept": "concepts",
+        "comparison": "comparisons",
+        "query": "queries",
+        "timeline": "timelines",
+        "workflow": "workflows",
+    }
+    legacy_dir = page_kind_to_legacy_dir.get(page.page_kind)
+    return REQUIRED_SECTIONS_BY_DIR.get(legacy_dir, ())
 
 
 def _lint_markdown_integrity(pages: list[LintPage]) -> list[WikiLintIssue]:
@@ -217,7 +253,7 @@ def _lint_graph_shape(pages: list[LintPage]) -> list[WikiLintIssue]:
             incoming[target_path].add(page.relative_path)
 
     for page in pages:
-        if page.directory in WEAK_GRAPH_DIRS and not incoming.get(page.relative_path) and not outgoing.get(page.relative_path):
+        if (page.is_knowledge_page or page.directory in WEAK_GRAPH_DIRS) and not incoming.get(page.relative_path) and not outgoing.get(page.relative_path):
             issues.append(_issue("weak_link_graph", "info", page.relative_path, "Generated knowledge page has no resolved incoming or outgoing wiki links.", {"incoming_count": 0, "outgoing_count": 0}))
 
         related_count = len(extract_wiki_links(extract_section(page.content, "Related Pages")))
@@ -231,15 +267,16 @@ def _lint_source_pages(vault_path: Path, pages: list[LintPage]) -> list[WikiLint
     issues: list[WikiLintIssue] = []
     pages_by_relative, pages_by_stem, pages_by_title = page_lookup_maps(pages)
     source_digest_by_source: dict[str, LintPage] = {}
+    knowledge_page_paths = {page.relative_path for page in pages if page.is_knowledge_page}
     for page in pages:
-        if page.directory != "sources":
+        if not page.is_source_digest:
             continue
         for source in _metadata_sources(page.metadata.get("source")):
             source_digest_by_source[source] = page
     knowledge_pages_by_source: dict[str, list[LintPage]] = defaultdict(list)
     for page in pages:
         for source in _metadata_sources(page.metadata.get("source")):
-            if page.directory in KNOWLEDGE_DIRS and source.startswith("raw/"):
+            if page.is_knowledge_page and source.startswith("raw/"):
                 knowledge_pages_by_source[source].append(page)
 
     for page in pages:
@@ -251,7 +288,7 @@ def _lint_source_pages(vault_path: Path, pages: list[LintPage]) -> list[WikiLint
             if source not in section_sources:
                 issues.append(_issue("source_section_mismatch", "info", page.relative_path, "Frontmatter source is missing from the Source section.", {"source": source, "section_sources": section_sources}))
 
-        if page.directory == "sources":
+        if page.is_source_digest:
             for source in raw_sources:
                 if not (vault_path / source).exists():
                     issues.append(_issue("missing_raw_source", "warning", page.relative_path, "Source digest points to a missing raw file.", {"source": source}))
@@ -262,13 +299,13 @@ def _lint_source_pages(vault_path: Path, pages: list[LintPage]) -> list[WikiLint
                 if missing_related:
                     issues.append(_issue("source_digest_missing_related_pages", "info", page.relative_path, "Source digest does not list all generated knowledge pages for the same raw source in Related Pages.", {"sources": raw_sources, "related_pages": missing_related}))
             else:
-                knowledge_links = [link for link in page.links if normalize_link_target(link).split("/", 1)[0] in KNOWLEDGE_DIRS]
-                if not knowledge_links:
+                related_paths = resolved_paths_from_links(page.links, pages_by_relative, pages_by_stem, pages_by_title)
+                if not related_paths.intersection(knowledge_page_paths):
                     issues.append(_issue("source_without_knowledge_links", "info", page.relative_path, "Source digest does not link to any generated knowledge page."))
             continue
 
         for source in raw_sources:
-            if page.directory not in KNOWLEDGE_DIRS:
+            if not page.is_knowledge_page:
                 continue
             source_digest = source_digest_by_source.get(source)
             if not source_digest:
@@ -314,6 +351,135 @@ def _lint_sensitive_content(pages: list[LintPage], config: PrivacyConfig) -> lis
     return issues
 
 
+def _lint_knowledge_atom_index(vault_path: Path, pages: list[LintPage]) -> tuple[list[WikiLintIssue], dict[str, Any]]:
+    records = read_knowledge_atom_records(vault_path)
+    if not records:
+        return [], {"record_count": 0, "issue_count": 0}
+
+    page_paths = {page.relative_path for page in pages}
+    atom_ids = {record.atom_id for record in records}
+    issues: list[WikiLintIssue] = []
+    for record in records:
+        existing_page_paths = [path for path in record.page_paths if path in page_paths]
+        if not record.page_paths:
+            issues.append(
+                _atom_issue(
+                    "atom_without_page_trace",
+                    "warning",
+                    record,
+                    "Knowledge atom is not associated with any generated wiki page.",
+                )
+            )
+        elif not existing_page_paths:
+            issues.append(
+                _atom_issue(
+                    "atom_missing_page",
+                    "warning",
+                    record,
+                    "Knowledge atom points only to missing wiki pages.",
+                    {"page_paths": record.page_paths},
+                )
+            )
+        if record.atom_type == "claim":
+            missing = [fact_id for fact_id in _string_list(record.payload.get("supporting_fact_ids")) if fact_id not in atom_ids]
+            if missing:
+                issues.append(
+                    _atom_issue(
+                        "atom_claim_missing_support",
+                        "warning",
+                        record,
+                        "Knowledge claim references supporting facts that are missing from the atom index.",
+                        {"missing_fact_ids": missing},
+                    )
+                )
+        if record.atom_type == "relation":
+            missing_sources = [
+                atom_id
+                for atom_id in [*_string_list(record.payload.get("source_fact_ids")), *_string_list(record.payload.get("source_claim_ids"))]
+                if atom_id not in atom_ids
+            ]
+            if missing_sources:
+                issues.append(
+                    _atom_issue(
+                        "atom_relation_missing_support",
+                        "warning",
+                        record,
+                        "Knowledge relation references source atoms that are missing from the atom index.",
+                        {"missing_atom_ids": missing_sources},
+                    )
+                )
+
+    issues.extend(_lint_conflicting_atom_relations(records))
+    return issues, {"record_count": len(records), "issue_count": len(issues)}
+
+
+def _lint_conflicting_atom_relations(records: list[KnowledgeAtomRecord]) -> list[WikiLintIssue]:
+    relation_states: dict[tuple[str, str], dict[str, list[KnowledgeAtomRecord]]] = defaultdict(lambda: {"supports": [], "contradicts": []})
+    for record in records:
+        if record.atom_type != "relation":
+            continue
+        predicate = str(record.payload.get("predicate") or "").strip()
+        if predicate not in {"supports", "contradicts"}:
+            continue
+        subject = _object_name(record.payload.get("subject"))
+        object_name = _object_name(record.payload.get("object"))
+        if not subject or not object_name:
+            continue
+        relation_states[(subject, object_name)][predicate].append(record)
+
+    issues: list[WikiLintIssue] = []
+    for (subject, object_name), states in relation_states.items():
+        if states["supports"] and states["contradicts"]:
+            involved = [record.atom_id for record in [*states["supports"], *states["contradicts"]]]
+            issues.append(
+                _issue(
+                    "atom_conflicting_relation",
+                    "warning",
+                    _atom_issue_path(states["supports"][0]),
+                    "Knowledge atom index contains both supports and contradicts relations for the same subject/object pair.",
+                    {"subject": subject, "object": object_name, "atom_ids": involved},
+                )
+            )
+    return issues
+
+
+def _atom_issue(
+    code: str,
+    severity: str,
+    record: KnowledgeAtomRecord,
+    message: str,
+    details: dict[str, Any] | None = None,
+) -> WikiLintIssue:
+    return _issue(
+        code,
+        severity,
+        _atom_issue_path(record),
+        message,
+        {
+            "atom_id": record.atom_id,
+            "atom_type": record.atom_type,
+            "source_digest_id": record.source_digest_id,
+            **(details or {}),
+        },
+    )
+
+
+def _atom_issue_path(record: KnowledgeAtomRecord) -> str:
+    return record.page_paths[0] if record.page_paths else ".knoarbor/index/knowledge_atoms.jsonl"
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _object_name(value: object) -> str:
+    if not isinstance(value, dict):
+        return ""
+    return str(value.get("name") or "").strip()
+
+
 def _lint_related_page_lists(pages: list[LintPage]) -> list[WikiLintIssue]:
     pages_by_relative, pages_by_stem, pages_by_title = page_lookup_maps(pages)
     issues: list[WikiLintIssue] = []
@@ -348,14 +514,7 @@ def _lint_specialized_page_contracts(pages: list[LintPage]) -> list[WikiLintIssu
     issues: list[WikiLintIssue] = []
     for page in pages:
         headings = {heading.strip().lower() for heading in extract_headings(page.content)}
-        if page.directory == "claims":
-            if not extract_section(page.content, "Evidence").strip():
-                issues.append(_issue("claim_missing_evidence_section", "warning", page.relative_path, "Claim page is missing an Evidence section."))
-            if "confidence" not in page.metadata:
-                issues.append(_issue("claim_missing_confidence", "info", page.relative_path, "Claim page is missing frontmatter confidence."))
-            elif not _valid_claim_confidence(page.metadata.get("confidence")):
-                issues.append(_issue("claim_invalid_confidence", "warning", page.relative_path, "Claim page frontmatter confidence must be a number between 0 and 1.", {"confidence": page.metadata.get("confidence")}))
-        elif page.directory == "timelines":
+        if page.directory == "timelines":
             if len(_date_tokens(_markdown_body(page.content))) < 2:
                 issues.append(_issue("timeline_missing_chronology", "info", page.relative_path, "Timeline page does not expose at least two date-like chronology markers."))
         elif page.directory == "workflows":
@@ -440,16 +599,6 @@ def _section_has_workflow_steps(content: str) -> bool:
         if _is_meaningful_list_item(item)
     ]
     return len(ordered_items) >= 2 or len(task_items) >= 2 or len(meaningful_bullets) >= 2
-
-
-def _valid_claim_confidence(value: str | None) -> bool:
-    if value is None:
-        return False
-    try:
-        number = float(str(value).strip().strip('"\''))
-    except ValueError:
-        return False
-    return 0 <= number <= 1
 
 
 def _issue(code: str, severity: str, path: str, message: str, details: dict[str, Any] | None = None) -> WikiLintIssue:

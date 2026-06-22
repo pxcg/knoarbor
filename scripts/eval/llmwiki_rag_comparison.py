@@ -46,7 +46,18 @@ def load_fixture(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def rag_source_files(source_dir: Path) -> list[Path]:
+def recommended_vault_id(fixture: dict[str, Any]) -> str:
+    scope = str(fixture.get("recommended_scope") or "").strip()
+    if scope and scope != "all_vaults":
+        return scope
+    return DEFAULT_LLMWIKI_VAULT_ID
+
+
+def rag_source_files(source_dir: Path, fixture: dict[str, Any] | None = None) -> list[Path]:
+    if fixture:
+        files = (fixture.get("rag_baseline") or {}).get("source_files") or []
+        if files:
+            return [Path(str(path)).expanduser() for path in files]
     base = source_dir.expanduser()
     return [base / name for name in DEFAULT_RAG_FILENAMES]
 
@@ -127,12 +138,13 @@ def run_rag_lite(
     config_path: Path | None,
     output_root: Path,
 ) -> Path:
+    fixture = load_fixture(fixture_path)
     module = load_rag_lite_module()
     args = argparse.Namespace(
         fixture=fixture_path,
         output_root=output_root / "rag-lite",
         preset="none",
-        file=rag_source_files(source_dir),
+        file=rag_source_files(source_dir, fixture),
         input_dir=[],
         allow_missing=False,
         chunk_chars=1600,
@@ -210,9 +222,7 @@ def build_comparison_report(runs: list[EvalRun], output_root: Path) -> Path:
         "# Fixed LLM-Wiki vs Markdown Chunk-RAG Evaluation",
         "",
         f"- created_at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        f"- fixture: `{DEFAULT_FIXTURE}`",
-        f"- LLM-Wiki vault: `{DEFAULT_LLMWIKI_VAULT_ID}`",
-        f"- RAG raw files: {', '.join(DEFAULT_RAG_FILENAMES)}",
+        f"- fixture: `{loaded[0][1].get('fixture') or loaded[0][1].get('metadata', {}).get('fixture', DEFAULT_FIXTURE)}`",
         "",
         "## Aggregate Metrics",
         "",
@@ -283,11 +293,14 @@ def preview_text(text: str, limit: int) -> str:
 
 
 def print_plan(args: argparse.Namespace) -> None:
-    source_files = rag_source_files(args.rag_source_dir)
+    fixture = load_fixture(args.fixture)
+    vault_id = args.llmwiki_vault_id or recommended_vault_id(fixture)
+    source_files = rag_source_files(args.rag_source_dir, fixture)
     print("Fixed evaluation protocol")
     print(f"- fixture: {args.fixture}")
+    print(f"- fixture id: {fixture.get('id')}")
     print(f"- providers: {', '.join(args.provider)}")
-    print(f"- llmwiki vault_id: {args.llmwiki_vault_id}")
+    print(f"- llmwiki vault_id: {vault_id}")
     print("- rag files:")
     for path in source_files:
         print(f"  - {path.expanduser()}")
@@ -305,7 +318,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--fixture", type=Path, default=DEFAULT_FIXTURE)
     parser.add_argument("--config", type=Path, default=None)
     parser.add_argument("--provider", action="append", choices=DEFAULT_PROVIDERS, default=[])
-    parser.add_argument("--llmwiki-vault-id", default=DEFAULT_LLMWIKI_VAULT_ID)
+    parser.add_argument("--llmwiki-vault-id", default=None)
     parser.add_argument("--rag-source-dir", type=Path, default=DEFAULT_RAG_SOURCE_DIR)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument("--run-llmwiki", action="store_true")
@@ -323,13 +336,15 @@ def main(argv: list[str] | None = None) -> int:
         print_plan(args)
         return 0
     config_path = args.config or default_config_path()
+    fixture = load_fixture(args.fixture)
+    llmwiki_vault_id = args.llmwiki_vault_id or recommended_vault_id(fixture)
     runs: list[EvalRun] = []
     for provider in args.provider:
         if args.run_llmwiki:
             path = run_llmwiki_chat(
                 fixture_path=args.fixture,
                 provider=provider,
-                vault_id=args.llmwiki_vault_id,
+                vault_id=llmwiki_vault_id,
                 config_path=config_path,
                 output_root=args.output_root,
             )

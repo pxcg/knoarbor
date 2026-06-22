@@ -20,13 +20,20 @@ from knoarbor.core.schemas.sources import SourceDocument
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
 from knoarbor.core.schemas.wiki_relation_plan import WikiRelationPlan
 from knoarbor.core.schemas.wiki_lint import LintRunRequest, LintRunResult
-from knoarbor.core.schemas.wiki_write import WikiDraftBatchWriteItem, WikiDraftBatchWriteRequest, WikiDraftInput
+from knoarbor.core.schemas.wiki_write import (
+    WikiDraftBatchWriteItem,
+    WikiDraftBatchWriteRequest,
+    WikiDraftInput,
+    WikiDraftWriteResponse,
+)
 from knoarbor.document_processing import DocumentProcessingPipeline, DocumentProcessingResult
 from knoarbor.audit.ingest_execution import write_ingest_execution_ledger
 from knoarbor.audit.ingest_report import write_ingest_run_artifacts
 from knoarbor.semantic.ingest_workflow import IngestSemanticWorkflow, IngestSemanticWorkflowResult
 from knoarbor.semantic.ingest_compile_context import build_ingest_compile_context
+from knoarbor.semantic.knowledge_atom_quality import evaluate_knowledge_atoms
 from knoarbor.semantic.metrics import empty_run_metrics, summarize_semantic_runs
+from knoarbor.semantic.source_digest import build_source_digest_from_extract
 from knoarbor.storage.wiki_index import relative_wiki_path
 from knoarbor.pipelines.ingest_context import IngestCandidatePageContext, IngestContextProvider
 from knoarbor.pipelines.ingest_quality import IngestQualityGate
@@ -55,6 +62,7 @@ from knoarbor.pipelines.source import SourcePipeline, SourcePipelineFailure, Sou
 from knoarbor.pipelines.source_segmentation import SourceSegmentBatch, SourceSegmenter
 from knoarbor.pipelines.write import WikiWritePipeline
 from knoarbor.runtime import current_run_monitor, vault_write_lock
+from knoarbor.storage.knowledge_atom_index import KnowledgeAtomPageRef, upsert_knowledge_atom_batches
 from knoarbor.storage.source_metrics import connector_source_metric_key, update_source_counts
 
 
@@ -313,6 +321,9 @@ class IngestSourceExecutor:
                 relative_wiki_path(vault_path, Path(item.wiki_file_path))
                 for item in write_response.results
             ]
+            atom_index_path = _upsert_atom_index(vault_path, [semantic_result], write_response.results)
+            if atom_index_path:
+                result.context["knowledge_atom_index_path"] = atom_index_path
             self.context_provider.clear_cache()
             result.wrote = True
             result.status = "written"
@@ -496,6 +507,13 @@ class IngestSourceExecutor:
             )
             generated_pages = [relative_wiki_path(vault_path, Path(item.wiki_file_path)) for item in write_response.results]
             _attach_written_pages_to_segment_records(result.segments, generated_pages, write_response.results)
+            atom_index_path = _upsert_atom_index(
+                vault_path,
+                [segment.semantic_result for segment in segment_results if segment.semantic_result is not None],
+                write_response.results,
+            )
+            if atom_index_path:
+                result.context["knowledge_atom_index_path"] = atom_index_path
             result.generated_pages = generated_pages
             self.context_provider.clear_cache()
             result.wrote = True
@@ -548,9 +566,17 @@ class IngestSourceExecutor:
     ) -> tuple[IngestSemanticWorkflowResult, dict[str, object], IngestCandidatePageContext]:
         history_start = _semantic_history_length(self.semantic_workflow)
         knowledge_extract = self.semantic_workflow.normalize(document, max_tokens=max_tokens)
+        source_digest = build_source_digest_from_extract(knowledge_extract)
+        knowledge_atom_batch = self.semantic_workflow.extract_atoms(
+            source_digest,
+            knowledge_extract=knowledge_extract,
+            max_tokens=max_tokens,
+        )
+        knowledge_atom_quality = evaluate_knowledge_atoms(knowledge_atom_batch)
         wiki_context = self.context_provider.build(vault_path, knowledge_extract)
         relation_plan = self.semantic_workflow.plan_relations(
             knowledge_extract,
+            knowledge_atom_batch=knowledge_atom_batch,
             existing_wiki_index=_index_summary_payload(index_payload),
             wiki_context=wiki_context.model_dump(),
             max_tokens=max_tokens,
@@ -561,6 +587,7 @@ class IngestSourceExecutor:
             return (
                 IngestSemanticWorkflowResult(
                     knowledge_extract=knowledge_extract,
+                    knowledge_atom_batch=knowledge_atom_batch,
                     wiki_relation_plan=relation_plan,
                     wiki_draft_batch=_empty_wiki_draft_batch(relation_plan),
                     ingest_draft_review=_empty_ingest_draft_review(relation_plan),
@@ -573,6 +600,12 @@ class IngestSourceExecutor:
                         "warnings": wiki_context.warnings,
                         "stats": wiki_context.stats,
                     },
+                    "source_digest": {
+                        "digest_id": source_digest.digest_id,
+                        "summary": source_digest.summary_counts(),
+                    },
+                    "knowledge_atoms": knowledge_atom_quality.summary(),
+                    "knowledge_atom_quality": knowledge_atom_quality.model_dump(),
                     "materialized_pages": candidate_page_context.stats,
                     "semantic_metrics": semantic_metrics,
                     "short_circuit": {
@@ -591,6 +624,7 @@ class IngestSourceExecutor:
         draft_batch = self.semantic_workflow.compile_drafts(
             knowledge_extract,
             relation_plan,
+            knowledge_atom_batch=knowledge_atom_batch,
             candidate_page_context=candidate_page_context.model_dump(),
             ingest_compile_context=ingest_compile_context,
             max_tokens=max_tokens,
@@ -608,6 +642,7 @@ class IngestSourceExecutor:
         return (
             IngestSemanticWorkflowResult(
                 knowledge_extract=knowledge_extract,
+                knowledge_atom_batch=knowledge_atom_batch,
                 wiki_relation_plan=relation_plan,
                 wiki_draft_batch=draft_batch,
                 ingest_draft_review=review,
@@ -620,6 +655,12 @@ class IngestSourceExecutor:
                     "warnings": wiki_context.warnings,
                     "stats": wiki_context.stats,
                 },
+                "source_digest": {
+                    "digest_id": source_digest.digest_id,
+                    "summary": source_digest.summary_counts(),
+                },
+                "knowledge_atoms": knowledge_atom_quality.summary(),
+                "knowledge_atom_quality": knowledge_atom_quality.model_dump(),
                 "materialized_pages": candidate_page_context.stats,
                 "compile_context": {
                     "context_policy": ingest_compile_context.context_policy,
@@ -735,12 +776,49 @@ def _semantic_result_operations(semantic_result: IngestSemanticWorkflowResult | 
             "action": operation.action,
             "target_page": operation.target_page,
             "page_dir": operation.page_dir,
+            "page_kind": operation.page_kind,
+            "subject_kind": operation.subject_kind,
+            "facets": list(operation.facets),
             "title": operation.title,
             "knowledge_object": operation.knowledge_object,
+            "selected_fact_ids": list(operation.selected_fact_ids),
+            "selected_claim_ids": list(operation.selected_claim_ids),
+            "selected_relation_ids": list(operation.selected_relation_ids),
+            "source_digest_ids": list(operation.source_digest_ids),
             "decision_reason": operation.decision_reason,
         }
         for index, operation in enumerate(semantic_result.wiki_relation_plan.operations)
     ]
+
+
+def _upsert_atom_index(
+    vault_path: Path,
+    semantic_results: list[IngestSemanticWorkflowResult],
+    write_results: list[WikiDraftWriteResponse],
+) -> str | None:
+    batches = [
+        result.knowledge_atom_batch
+        for result in semantic_results
+        if result.knowledge_atom_batch.facts or result.knowledge_atom_batch.claims or result.knowledge_atom_batch.relations
+    ]
+    if not batches:
+        return None
+    page_refs = [
+        KnowledgeAtomPageRef(
+            path=relative_wiki_path(vault_path, Path(write_result.wiki_file_path)),
+            source_digest_ids=_stats_string_list(write_result.stats.get("source_digest_ids")),
+            atom_ids=_stats_string_list(write_result.stats.get("atom_ids")),
+        )
+        for write_result in write_results
+    ]
+    atom_index_path = upsert_knowledge_atom_batches(vault_path, batches, page_refs)
+    return atom_index_path.resolve().relative_to(vault_path.expanduser().resolve()).as_posix()
+
+
+def _stats_string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
 
 
 def _semantic_result_warnings(semantic_result: IngestSemanticWorkflowResult | None) -> list[str]:

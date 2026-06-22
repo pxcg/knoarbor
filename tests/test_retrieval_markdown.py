@@ -53,6 +53,27 @@ class MarkdownRetrievalTests(unittest.TestCase):
         self.assertIn("concepts/Attention.md", scored)
         self.assertIn("title", scored["concepts/Attention.md"].matched_fields)
 
+    def test_collect_search_pages_supports_unified_root_pages(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            pages_root = vault / "pages"
+            pages_root.mkdir()
+            (pages_root / "Agent-Loop.md").write_text(
+                "---\npage_kind: concept\nfacets: agent_architecture\n---\n"
+                "# Agent Loop\n\n## Summary\n\nA unified root page about agent loops.\n",
+                encoding="utf-8",
+            )
+
+            pages = collect_search_pages(vault)
+            scored = score_pages(pages, query_terms("agent loop"), "agent loop")
+
+        self.assertEqual(len(pages), 1)
+        self.assertEqual(pages[0].relative_path, "Agent-Loop.md")
+        self.assertEqual(pages[0].directory, "pages")
+        self.assertEqual(pages[0].page_kind, "concept")
+        self.assertIn("agent_architecture", pages[0].facets)
+        self.assertIn("Agent-Loop.md", scored)
+
     def test_bm25_prefers_page_identity_over_repeated_body_mentions(self) -> None:
         title_page = _page(
             "concepts/Agent-Loop.md",

@@ -34,4 +34,6 @@ def _knowledge_source_type(document: SourceDocument) -> KnowledgeSourceType:
         return "markdown" if document.content.format == "markdown" else "document"
     if document.source_type == "text":
         return "text_note"
+    if document.source_type == "excerpt":
+        return "text_note"
     return "manual"

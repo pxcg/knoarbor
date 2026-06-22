@@ -8,6 +8,7 @@ from knoarbor.core.markdown import compact_inline_text
 from knoarbor.core.schemas.wiki_query import (
     WikiAnswerScope,
     WikiAnswerSet,
+    WikiAtomTrace,
     WikiEvidenceCoverage,
     WikiQueryGapSuggestion,
     WikiContextMatch,
@@ -27,6 +28,10 @@ from knoarbor.retrieval.markdown import (
     query_terms,
     relevance_label,
 )
+from knoarbor.storage.knowledge_atom_index import KnowledgeAtomRecord, read_knowledge_atom_records
+
+
+MAX_ATOM_TRACES_PER_PAGE = 8
 
 
 def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
@@ -45,6 +50,9 @@ def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
             mode=request.mode,
             limit=max(request.max_pages_to_read, request.max_results),
             page_dirs=request.page_dirs,
+            page_kinds=request.page_kinds,
+            page_roles=request.page_roles,
+            facets=request.facets,
             include_related=request.include_related,
         )
     )
@@ -53,6 +61,7 @@ def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
         for item in pipeline_result.matches[: request.max_results]
         if item.score > 0
     ]
+    results = attach_atom_traces(results, vault_path)
     answer_scope = build_answer_scope(request, pipeline_result.stats, results)
     selection = AnswerSetSelector().select(request.query, results, answer_scope)
     answer_set = selection.answer_set
@@ -79,6 +88,7 @@ def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
         "context_strategy": "page_first_primary_full",
         "context_pack_chars": len(context_pack),
         "context_pack_truncated": context_pack.endswith("... [truncated]"),
+        "atom_trace_count": sum(len(result.atom_traces) for result in results),
         "gap_count": len(pipeline_result.gaps),
         "gap_suggestion_count": len(gap_suggestions),
     }
@@ -119,6 +129,9 @@ def build_wiki_context(request: WikiContextRequest) -> WikiContextResponse:
             mode="balanced",
             limit=request.limit,
             page_dirs=request.page_dirs,
+            page_kinds=request.page_kinds,
+            page_roles=request.page_roles,
+            facets=request.facets,
             include_related=request.include_related,
         )
     )
@@ -150,8 +163,13 @@ def build_result(item: ScoredPage, terms: list[str], request: WikiSearchRequest)
     score = round(item.score, 3)
     return WikiSearchResult(
         path=page.relative_path,
+        canonical_path=page.canonical_path or page.relative_path,
+        legacy_paths=page.legacy_paths,
         title=page.title,
         type=page.page_type,
+        page_kind=page.page_kind,
+        page_role=page.role,
+        facets=page.facets,
         status=page.status,
         score=score,
         relevance=relevance_label(score),
@@ -167,6 +185,43 @@ def build_result(item: ScoredPage, terms: list[str], request: WikiSearchRequest)
         tags=page.tags,
         related_pages=page.related_pages[:10],
         content_truncated=False,
+    )
+
+
+def attach_atom_traces(results: list[WikiSearchResult], vault_path: Path) -> list[WikiSearchResult]:
+    if not results:
+        return []
+    atoms_by_page = _atom_traces_by_page(vault_path)
+    if not atoms_by_page:
+        return results
+    output: list[WikiSearchResult] = []
+    for result in results:
+        traces = atoms_by_page.get(result.path, [])
+        if not traces:
+            output.append(result)
+            continue
+        output.append(result.model_copy(update={"atom_traces": traces[:MAX_ATOM_TRACES_PER_PAGE]}))
+    return output
+
+
+def _atom_traces_by_page(vault_path: Path) -> dict[str, list[WikiAtomTrace]]:
+    records = read_knowledge_atom_records(vault_path)
+    traces_by_page: dict[str, list[WikiAtomTrace]] = {}
+    for record in records:
+        trace = _atom_trace(record)
+        for page_path in record.page_paths:
+            traces_by_page.setdefault(page_path, [])
+            if trace.atom_id not in {item.atom_id for item in traces_by_page[page_path]}:
+                traces_by_page[page_path].append(trace)
+    return traces_by_page
+
+
+def _atom_trace(record: KnowledgeAtomRecord) -> WikiAtomTrace:
+    return WikiAtomTrace(
+        atom_id=record.atom_id,
+        atom_type=record.atom_type,
+        text=compact_inline_text(record.text, 260),
+        source_digest_id=record.source_digest_id,
     )
 
 
@@ -201,9 +256,14 @@ def build_context_match(item: ScoredPage, terms: list[str], request: WikiContext
     content = compact_inline_text(page.body, request.max_chars_per_page) if request.include_content else None
     return WikiContextMatch(
         path=page.relative_path,
+        canonical_path=page.canonical_path or page.relative_path,
+        legacy_paths=page.legacy_paths,
         title=page.title,
         page_dir=page.directory,
         type=page.page_type,
+        page_kind=page.page_kind,
+        page_role=page.role,
+        facets=page.facets,
         status=page.status,
         source=page.source,
         summary=compact_inline_text(page.summary, 500),
@@ -343,7 +403,7 @@ def classify_answer_scope(query: str, results: list[WikiSearchResult]) -> tuple[
         "风险",
     }
     exploratory_terms = {"guide", "learn", "roadmap", "了解", "介绍", "入门", "学习", "导览"}
-    non_source = [result for result in results if result.type != "source"]
+    non_source = [result for result in results if not _is_source_result(result)]
     directories = {result.path.split("/", 1)[0] for result in non_source if "/" in result.path}
     top_scores = [result.score for result in non_source[:3]]
     close_top_scores = len(top_scores) >= 2 and top_scores[1] >= top_scores[0] * 0.72
@@ -407,7 +467,7 @@ def assign_result_roles(query: str, results: list[WikiSearchResult], *, answer_s
             output.append(result.model_copy(update={"role": "primary"}))
         elif result.path in supporting_paths:
             output.append(result.model_copy(update={"role": "supporting"}))
-        elif result.path in source_paths or result.type == "source":
+        elif result.path in source_paths or _is_source_result(result):
             output.append(result.model_copy(update={"role": "source"}))
         else:
             output.append(result.model_copy(update={"role": "supporting"}))
@@ -418,9 +478,13 @@ def _primary_result_path(query: str, results: list[WikiSearchResult]) -> str:
     if query_prefers_source_page(query):
         return results[0].path
     for result in results:
-        if result.type != "source":
+        if not _is_source_result(result):
             return result.path
     return results[0].path
+
+
+def _is_source_result(result: WikiSearchResult) -> bool:
+    return result.page_role == "source_digest" or result.page_kind == "source_digest" or result.type == "source"
 
 def build_answer_guidance(
     results: list[WikiSearchResult],
@@ -523,7 +587,7 @@ def order_results_for_context(results: list[WikiSearchResult]) -> list[WikiSearc
         enumerate(results),
         key=lambda pair: (
             role_order.get(pair[1].role, 1),
-            1 if pair[1].type == "source" and pair[1].role != "source" else 0,
+            1 if _is_source_result(pair[1]) and pair[1].role != "source" else 0,
             -pair[1].score,
             pair[0],
         ),
@@ -563,6 +627,7 @@ def build_query_trace(
         "returned_count": stats.get("returned_count", 0),
         "context_pack_chars": stats.get("context_pack_chars", 0),
         "context_pack_truncated": stats.get("context_pack_truncated", False),
+        "atom_trace_count": stats.get("atom_trace_count", 0),
         "gap_count": stats.get("gap_count", 0),
         "gap_suggestion_count": stats.get("gap_suggestion_count", 0),
         "origin_counts": origin_counts,
@@ -571,12 +636,18 @@ def build_query_trace(
         "answer_set": answer_set.model_dump(),
         "rejected_candidates": [item.model_dump() for item in answer_set.rejected_candidates],
         "returned_paths": [result.path for result in results],
+        "atom_trace_counts": {
+            result.path: len(result.atom_traces)
+            for result in results
+            if result.atom_traces
+        },
         "top_matches": [
             {
                 "path": result.path,
                 "score": result.score,
                 "relevance": result.relevance,
                 "matched_fields": result.matched_fields,
+                "atom_trace_count": len(result.atom_traces),
                 "reason": result.reason,
             }
             for result in results[:5]

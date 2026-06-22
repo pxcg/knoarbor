@@ -22,7 +22,7 @@ Do not return markdown fences or explanatory prose.
         "candidate_id": "provenance:concepts/example.md:knowledge_without_source_digest:0",
         "source": "structural | provenance",
         "target_page": "concepts/example.md",
-        "issue_type": "knowledge_without_source_digest | knowledge_missing_source_digest_link | source_digest_missing_related_pages | source_without_knowledge_links | duplicate_title | duplicate_content_hash | path_alias_conflict | weak_link_graph | overdense_link_graph | claim_missing_evidence_section | claim_missing_confidence | claim_invalid_confidence",
+        "issue_type": "knowledge_without_source_digest | knowledge_missing_source_digest_link | source_digest_missing_related_pages | source_without_knowledge_links | duplicate_title | duplicate_content_hash | path_alias_conflict | weak_link_graph | overdense_link_graph",
         "severity": "high | medium | low",
         "confidence": 0.8,
         "risk_hint": "safe | low | medium | high",
@@ -35,7 +35,7 @@ Do not return markdown fences or explanatory prose.
           }
         ],
         "recommended_action": {
-          "action": "replace_wikilink | normalize_wikilink | attach_related_pages | attach_source_digest | remove_related_links | deduplicate_section_items | remove_adjacent_duplicate_headings | add_missing_section | update_source_field | redact_sensitive_text | merge_pages | queue_merge_candidate | queue_graph_review | queue_claim_review | refresh_request | report_only | no_change",
+          "action": "replace_wikilink | normalize_wikilink | attach_related_pages | attach_source_digest | remove_related_links | deduplicate_section_items | remove_adjacent_duplicate_headings | add_missing_section | update_source_field | redact_sensitive_text | merge_pages | queue_merge_candidate | queue_graph_review | refresh_request | report_only | no_change",
           "params": {}
         },
         "related_pages": [],
@@ -68,8 +68,7 @@ Do not return markdown fences or explanatory prose.
 - `workflow_missing_steps` is not a scaffold issue. Use `report_only` or `refresh_request`; do not convert it to `missing_required_section` and do not use `add_missing_section`.
 - `duplicate_title`, `duplicate_content_hash`, and `path_alias_conflict` may use `merge_pages` with `executor_hint = "deterministic_wiki_operation"` only when scan evidence proves the pages are the same knowledge object and `params.source_pages` plus the target page are explicit. Otherwise use `queue_merge_candidate` with `executor_hint = "report_only"`.
 - `weak_link_graph` and `overdense_link_graph` should use `queue_graph_review` with `executor_hint = "report_only"`.
-- `claim_missing_evidence_section` should use `refresh_request` when the page has a source that should be rechecked; otherwise use `queue_claim_review` with `executor_hint = "report_only"`.
-- `claim_missing_confidence` and `claim_invalid_confidence` should use `queue_claim_review` with `executor_hint = "report_only"`; do not invent a confidence value.
+- Claim quality belongs to the knowledge atom index. Do not create claim-page maintenance candidates.
 
 ## Boundaries
 

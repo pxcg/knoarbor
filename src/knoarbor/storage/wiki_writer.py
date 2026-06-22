@@ -11,6 +11,7 @@ from knoarbor.retrieval.wiki_links import find_related_links
 from knoarbor.semantic.wiki_render import apply_patched_markdown, render_markdown
 from knoarbor.storage.wiki_paths import (
     available_title_path,
+    content_relative_path,
     content_root,
     resolve_existing_by_hash,
     resolve_required_target,
@@ -143,9 +144,10 @@ def write_draft(
     if target_path:
         wiki_path = target_path
     else:
-        output_dir = content_root(vault_path) / draft.page_dir
+        output_dir = _draft_output_dir(vault_path, draft)
         output_dir.mkdir(parents=True, exist_ok=True)
         wiki_path = resolve_existing_by_hash(vault_path, draft.page_dir, digest) or available_title_path(output_dir, draft.title)
+    draft = _draft_with_resolved_identity(vault_path, draft, wiki_path)
 
     created_at = None
     before_content = None
@@ -170,6 +172,12 @@ def write_draft(
         created=created,
         related_links=related_links,
         content_hash=digest,
+        canonical_path=draft.canonical_path,
+        legacy_paths=list(draft.legacy_paths),
+        page_kind=draft.page_kind,
+        subject_kind=draft.subject_kind,
+        role=draft.role,
+        facets=list(draft.facets),
         write_details=build_write_details(
             write_action,
             target_page,
@@ -181,3 +189,25 @@ def write_draft(
         ),
     )
     return result
+
+
+def _draft_output_dir(vault_path: Path, draft: WikiDraft) -> Path:
+    root = content_root(vault_path)
+    if draft.role == "source_digest" or draft.page_kind == "source_digest" or draft.page_dir == "sources":
+        return root / "sources"
+    return root
+
+
+def _draft_with_resolved_identity(vault_path: Path, draft: WikiDraft, wiki_path: Path) -> WikiDraft:
+    canonical_path = content_relative_path(vault_path, wiki_path)
+    legacy_paths = list(draft.legacy_paths)
+    if draft.role != "source_digest" and draft.page_dir != "sources":
+        legacy_path = f"{draft.page_dir}/{wiki_path.name}"
+        if legacy_path != canonical_path and legacy_path not in legacy_paths:
+            legacy_paths.append(legacy_path)
+    return draft.model_copy(
+        update={
+            "canonical_path": draft.canonical_path or canonical_path,
+            "legacy_paths": legacy_paths,
+        }
+    )

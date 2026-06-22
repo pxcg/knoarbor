@@ -11,22 +11,24 @@ PAGE_TYPE_RULES = {
     "queries": ("查询", "问题", "回答", "如何", "为什么", "怎么", "query", "question"),
     "entities": ("公司", "组织", "产品", "人物", "团队", "project", "product", "company"),
     "concepts": ("概念", "原则", "模式", "架构", "方法", "技术", "concept", "pattern", "architecture"),
-    "claims": ("断言", "主张", "证据", "claim", "evidence", "argument"),
     "timelines": ("时间线", "历史", "演进", "路线图", "timeline", "history", "roadmap"),
     "workflows": ("流程", "步骤", "操作", "workflow", "playbook", "procedure"),
 }
 
-CONTENT_PAGE_DIRS = ("sources", "entities", "concepts", "comparisons", "queries", "claims", "timelines", "workflows")
+CONTENT_PAGE_DIRS = ("sources", "entities", "concepts", "comparisons", "queries", "timelines", "workflows")
 SYSTEM_PAGE_DIRS = ("maintenance",)
 PAGE_TYPE_ORDER = CONTENT_PAGE_DIRS
+UNIFIED_KNOWLEDGE_PAGE_DIR = "pages"
+GENERATED_VIEW_DIR = "_views"
+INDEX_PAGE_DIRS = CONTENT_PAGE_DIRS
 
 FRONTMATTER_TYPES = {
+    "pages": "page",
     "sources": "source",
     "entities": "entity",
     "concepts": "concept",
     "comparisons": "comparison",
     "queries": "query",
-    "claims": "claim",
     "timelines": "timeline",
     "workflows": "workflow",
     "maintenance": "maintenance",
@@ -62,7 +64,6 @@ def normalize_page_dir(value: str | None) -> str:
         "concept": "concepts",
         "comparison": "comparisons",
         "query": "queries",
-        "claim": "claims",
         "timeline": "timelines",
         "workflow": "workflows",
     }

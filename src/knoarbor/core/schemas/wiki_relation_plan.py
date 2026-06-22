@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 WikiRelationAction = Literal["create", "update", "skip"]
-WikiPageDir = Literal["sources", "entities", "concepts", "comparisons", "queries", "claims", "timelines", "workflows"]
+WikiPageDir = Literal["sources", "entities", "concepts", "comparisons", "queries", "timelines", "workflows"]
 
 
 class WikiRelatedPage(BaseModel):
@@ -26,8 +26,15 @@ class WikiRelationOperation(BaseModel):
     action: WikiRelationAction
     target_page: str | None = None
     page_dir: WikiPageDir | None = None
+    page_kind: str | None = None
+    subject_kind: str | None = None
+    facets: list[str] = Field(default_factory=list)
     title: str | None = None
     knowledge_object: str | None = None
+    selected_fact_ids: list[str] = Field(default_factory=list)
+    selected_claim_ids: list[str] = Field(default_factory=list)
+    selected_relation_ids: list[str] = Field(default_factory=list)
+    source_digest_ids: list[str] = Field(default_factory=list)
     related_pages: list[WikiRelatedPage] = Field(default_factory=list)
     candidate_pages: list[WikiCandidatePage] = Field(default_factory=list)
     decision_reason: str = Field(..., min_length=1)
@@ -39,6 +46,20 @@ class WikiRelationOperation(BaseModel):
             return None
         text = value.strip()
         return text or None
+
+    @field_validator("selected_fact_ids", "selected_claim_ids", "selected_relation_ids", "source_digest_ids", mode="before")
+    @classmethod
+    def normalize_id_list(cls, value: object) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            value = [value]
+        ids: list[str] = []
+        for item in value if isinstance(value, list) else []:
+            text = str(item).strip()
+            if text and text not in ids:
+                ids.append(text)
+        return ids
 
     @model_validator(mode="after")
     def validate_target_page(self) -> WikiRelationOperation:

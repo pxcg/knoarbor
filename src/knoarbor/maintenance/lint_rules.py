@@ -3,8 +3,8 @@ from __future__ import annotations
 
 REQUIRED_FRONTMATTER_KEYS = ("created", "updated", "type", "status", "source", "content_hash")
 IGNORED_LINK_PREFIXES = ("http://", "https://", "mailto:", "#")
-KNOWLEDGE_DIRS = {"entities", "concepts", "comparisons", "queries", "claims", "timelines", "workflows"}
-WEAK_GRAPH_DIRS = KNOWLEDGE_DIRS - {"claims"}
+KNOWLEDGE_DIRS = {"entities", "concepts", "comparisons", "queries", "timelines", "workflows"}
+WEAK_GRAPH_DIRS = KNOWLEDGE_DIRS
 OVERDENSE_LINK_THRESHOLD = 30
 OVERDENSE_RELATED_THRESHOLD = 20
 REQUIRED_SECTIONS_BY_DIR = {
@@ -13,7 +13,6 @@ REQUIRED_SECTIONS_BY_DIR = {
     "concepts": ("Summary", "Answer", "Key Points", "Related Pages", "Tags", "Source"),
     "comparisons": ("Summary", "Answer", "Key Points", "Related Pages", "Tags", "Source"),
     "queries": ("Summary", "Question", "Answer", "Key Points", "Related Pages", "Tags", "Source"),
-    "claims": ("Summary", "Evidence", "Related Pages", "Tags", "Source"),
     "timelines": ("Summary", "Answer", "Related Pages", "Tags", "Source"),
     "workflows": ("Summary", "Answer", "Related Pages", "Tags", "Source"),
 }
@@ -51,9 +50,6 @@ SEMANTIC_STRUCTURAL_ISSUE_CODES = frozenset(
 
 GOVERNANCE_QUEUE_ISSUE_CODES = frozenset(
     {
-        "claim_invalid_confidence",
-        "claim_missing_confidence",
-        "claim_missing_evidence_section",
         "duplicate_content_hash",
         "duplicate_title",
         "overdense_link_graph",

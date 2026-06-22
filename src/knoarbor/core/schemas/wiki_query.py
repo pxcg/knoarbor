@@ -34,6 +34,9 @@ class WikiSearchRequest(BaseModel):
     query: str = Field(..., min_length=1)
     mode: Literal["quick", "balanced", "deep"] = "balanced"
     page_dirs: list[str] = Field(default_factory=list)
+    page_kinds: list[str] = Field(default_factory=list)
+    page_roles: list[str] = Field(default_factory=list)
+    facets: list[str] = Field(default_factory=list)
     max_results: int = Field(default=6, ge=1, le=20)
     max_pages_to_read: int = Field(default=10, ge=1, le=30)
     max_excerpts_per_page: int = Field(default=3, ge=0, le=8)
@@ -66,6 +69,13 @@ class WikiSearchExcerpt(BaseModel):
     section: str
     content: str
     score: float
+
+
+class WikiAtomTrace(BaseModel):
+    atom_id: str
+    atom_type: Literal["fact", "claim", "relation"]
+    text: str
+    source_digest_id: str
 
 
 class WikiQueryGapSuggestion(BaseModel):
@@ -115,11 +125,16 @@ class WikiQueryTrendResponse(BaseModel):
 
 class WikiSearchResult(BaseModel):
     path: str
+    canonical_path: str | None = None
+    legacy_paths: list[str] = Field(default_factory=list)
     vault_id: str | None = None
     vault_name: str | None = None
     vault_path: str | None = None
     title: str
     type: str
+    page_kind: str | None = None
+    page_role: str | None = None
+    facets: list[str] = Field(default_factory=list)
     status: str | None = None
     score: float
     relevance: Literal["high", "medium", "low"]
@@ -136,6 +151,7 @@ class WikiSearchResult(BaseModel):
     tags: list[str] = Field(default_factory=list)
     related_pages: list[str] = Field(default_factory=list)
     content_truncated: bool = False
+    atom_traces: list[WikiAtomTrace] = Field(default_factory=list)
 
 
 class WikiAnswerScope(BaseModel):
@@ -203,6 +219,9 @@ class WikiContextRequest(BaseModel):
     query: str = Field(..., min_length=1)
     purpose: Literal["ingest_relation", "lint_quality", "lint_freshness", "query", "manual"] = "manual"
     page_dirs: list[str] = Field(default_factory=list)
+    page_kinds: list[str] = Field(default_factory=list)
+    page_roles: list[str] = Field(default_factory=list)
+    facets: list[str] = Field(default_factory=list)
     limit: int = Field(default=8, ge=1, le=30)
     include_content: bool = False
     max_chars_per_page: int = Field(default=2500, ge=500, le=12000)
@@ -219,9 +238,14 @@ class WikiContextRequest(BaseModel):
 
 class WikiContextMatch(BaseModel):
     path: str
+    canonical_path: str | None = None
+    legacy_paths: list[str] = Field(default_factory=list)
     title: str
     page_dir: str
     type: str
+    page_kind: str | None = None
+    page_role: str | None = None
+    facets: list[str] = Field(default_factory=list)
     status: str | None = None
     source: str | None = None
     summary: str = ""

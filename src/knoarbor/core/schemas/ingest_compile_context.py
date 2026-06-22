@@ -25,6 +25,9 @@ class CompileOperationContext(BaseModel):
     action: str
     target_page: str | None = None
     page_dir: str | None = None
+    page_kind: str | None = None
+    subject_kind: str | None = None
+    facets: list[str] = Field(default_factory=list)
     title: str | None = None
     knowledge_object: str | None = None
     decision_reason: str = ""

@@ -12,6 +12,9 @@ class WikiGraphNode(BaseModel):
     id: str
     title: str
     type: str
+    page_kind: str | None = None
+    role: str | None = None
+    facets: list[str] = Field(default_factory=list)
     summary: str
     tags: list[str] = Field(default_factory=list)
     source: str | None = None
@@ -29,6 +32,9 @@ class WikiGraphStats(BaseModel):
     orphan_count: int
     unresolved_link_count: int
     directory_counts: dict[str, int] = Field(default_factory=dict)
+    page_kind_counts: dict[str, int] = Field(default_factory=dict)
+    role_counts: dict[str, int] = Field(default_factory=dict)
+    facet_counts: dict[str, int] = Field(default_factory=dict)
     tag_counts: dict[str, int] = Field(default_factory=dict)
 
 
@@ -55,6 +61,9 @@ def build_wiki_graph(vault_path: Path) -> WikiGraph:
     nodes: list[WikiGraphNode] = []
     edges: list[WikiGraphEdge] = []
     directory_counts: dict[str, int] = {}
+    page_kind_counts: dict[str, int] = {}
+    role_counts: dict[str, int] = {}
+    facet_counts: dict[str, int] = {}
     tag_counts: dict[str, int] = {}
     unresolved = sum(1 for link in link_records if not link.get("resolved"))
 
@@ -64,9 +73,17 @@ def build_wiki_graph(vault_path: Path) -> WikiGraph:
         if not page_id:
             continue
         page_type = str(page.get("type") or "page")
+        page_kind = str(page.get("page_kind") or page_type)
+        role = str(page.get("role") or "")
         directory = str(page.get("directory") or Path(page_id).parent.name)
+        facets = [str(facet) for facet in page.get("facets", []) if isinstance(facet, str)]
         tags = [str(tag) for tag in page.get("tags", []) if isinstance(tag, str)]
         directory_counts[directory] = directory_counts.get(directory, 0) + 1
+        page_kind_counts[page_kind] = page_kind_counts.get(page_kind, 0) + 1
+        if role:
+            role_counts[role] = role_counts.get(role, 0) + 1
+        for facet in facets:
+            facet_counts[facet] = facet_counts.get(facet, 0) + 1
         for tag in tags:
             tag_counts[tag] = tag_counts.get(tag, 0) + 1
         nodes.append(
@@ -74,6 +91,9 @@ def build_wiki_graph(vault_path: Path) -> WikiGraph:
                 id=page_id,
                 title=str(page.get("title") or Path(page_id).stem),
                 type=page_type,
+                page_kind=page_kind,
+                role=role,
+                facets=facets,
                 summary=str(page.get("summary") or ""),
                 tags=tags,
                 source=_metadata_text(page.get("source")),
@@ -101,6 +121,9 @@ def build_wiki_graph(vault_path: Path) -> WikiGraph:
         orphan_count=sum(1 for node in nodes if node.id not in connected),
         unresolved_link_count=unresolved,
         directory_counts=dict(sorted(directory_counts.items())),
+        page_kind_counts=dict(sorted(page_kind_counts.items())),
+        role_counts=dict(sorted(role_counts.items())),
+        facet_counts=dict(sorted(facet_counts.items(), key=lambda item: (-item[1], item[0]))[:30]),
         tag_counts=dict(sorted(tag_counts.items(), key=lambda item: (-item[1], item[0]))[:20]),
     )
     return WikiGraph(vault_path=str(vault_path), nodes=nodes, edges=edges, stats=stats)

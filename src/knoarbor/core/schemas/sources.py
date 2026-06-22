@@ -16,6 +16,7 @@ SourceType = Literal[
     "document",
     "web",
     "text",
+    "excerpt",
     "dataset",
 ]
 

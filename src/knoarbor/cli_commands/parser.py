@@ -68,6 +68,17 @@ def build_parser() -> argparse.ArgumentParser:
     add_vault_argument(vaults_migrate_parser)
     vaults_migrate_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
     vaults_migrate_parser.set_defaults(handler=run_vaults)
+    vaults_namespace_parser = vaults_subparsers.add_parser("migrate-namespace", help="Plan or apply legacy typed-page migration into the flat page namespace.")
+    add_vault_argument(vaults_namespace_parser)
+    vaults_namespace_parser.add_argument(
+        "--dir",
+        action="append",
+        default=None,
+        help="Legacy knowledge directory to migrate, such as concepts or entities. Can be repeated. Defaults to all non-source legacy knowledge dirs.",
+    )
+    vaults_namespace_parser.add_argument("--apply", action="store_true", help="Apply the migration. Omitted by default, which performs a dry-run.")
+    vaults_namespace_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
+    vaults_namespace_parser.set_defaults(handler=run_vaults)
     vaults_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
     vaults_parser.set_defaults(handler=run_vaults)
 

@@ -41,7 +41,13 @@
     "drafts": [
       {
         "answer": "This source describes Agent Loop.",
+        "atom_ids": [],
+        "claims": [
+          "Mentions Agent Loop."
+        ],
         "confidence": 0.8,
+        "definition": "Source digest for Agent notes.",
+        "facets": [],
         "key_points": [
           "Mentions Agent Loop."
         ],
@@ -49,10 +55,15 @@
         "model_provider": "fake",
         "operation_index": 0,
         "page_dir": "sources",
+        "page_kind": "",
         "patches": [],
         "question": "Source digest",
+        "relations": [],
+        "source_digest_ids": [],
         "source_file": "raw/notes/Agent.md",
+        "subject_kind": "",
         "summary": "Source digest for Agent notes.",
+        "synthesis": "This source describes Agent Loop.",
         "tags": [
           "source-digest"
         ],

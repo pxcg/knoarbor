@@ -24,7 +24,7 @@ Use the same `wiki_draft_batch.v1` output shape as ingest draft compilation:
         "target_page": "existing/page.md or null",
         "source_file": "raw/source/path or null",
         "title": "page title",
-        "page_dir": "sources | entities | concepts | comparisons | queries | claims | timelines | workflows",
+        "page_dir": "sources | entities | concepts | comparisons | queries | timelines | workflows",
         "question": "maintenance focus",
         "answer": "page body for create, or new material for update/merge",
         "summary": "short summary",

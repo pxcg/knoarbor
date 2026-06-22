@@ -34,6 +34,9 @@ class UiStatusResponse(BaseModel):
     warnings: int
     info: int
     directories: dict[str, int] = Field(default_factory=dict)
+    page_kinds: dict[str, int] = Field(default_factory=dict)
+    roles: dict[str, int] = Field(default_factory=dict)
+    facets: dict[str, int] = Field(default_factory=dict)
 
 
 class UiProjectDoc(BaseModel):
@@ -86,9 +89,20 @@ def create_ui_router() -> APIRouter:
         path = Path(vault_path or _summary_from_default_config().get("vault_path") or DEFAULT_VAULT_PATH).expanduser().resolve()
         index_pages = _read_machine_page_records(path)
         directories: dict[str, int] = {}
+        page_kinds: dict[str, int] = {}
+        roles: dict[str, int] = {}
+        facets: dict[str, int] = {}
         for page in index_pages:
             directory = str(page.get("directory") or "unknown")
             directories[directory] = directories.get(directory, 0) + 1
+            page_kind = str(page.get("page_kind") or "unknown")
+            page_kinds[page_kind] = page_kinds.get(page_kind, 0) + 1
+            role = str(page.get("role") or "")
+            if role:
+                roles[role] = roles.get(role, 0) + 1
+            for facet in page.get("facets", []):
+                if isinstance(facet, str) and facet:
+                    facets[facet] = facets.get(facet, 0) + 1
         issue_counts = _latest_lint_issue_counts(path)
         return UiStatusResponse(
             vault_path=str(path),
@@ -100,6 +114,9 @@ def create_ui_router() -> APIRouter:
             warnings=issue_counts["warnings"],
             info=issue_counts["info"],
             directories=directories,
+            page_kinds=page_kinds,
+            roles=roles,
+            facets=dict(sorted(facets.items(), key=lambda item: (-item[1], item[0]))[:30]),
         )
 
     @router.get("/ui/api/graph", response_model=WikiGraph, tags=["ui"])

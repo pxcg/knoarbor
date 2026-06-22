@@ -181,6 +181,7 @@ query:
   max_excerpts_per_page: 3
   max_chars_per_excerpt: 800
   max_context_chars: 8000
+  # Legacy directory/facet aliases for initial retrieval scope. Leave empty for normal page-first retrieval.
   page_dirs: []
   include_related: true
 

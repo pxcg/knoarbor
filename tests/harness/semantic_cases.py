@@ -67,6 +67,10 @@ def wiki_relation_output() -> dict[str, object]:
                     "page_dir": "concepts",
                     "title": "Agent Loop",
                     "knowledge_object": "Agent Loop",
+                    "selected_fact_ids": ["fact_agent_loop_cycle"],
+                    "selected_claim_ids": ["claim_agent_loop_control_pattern"],
+                    "selected_relation_ids": ["rel_agent_loop_mentions_control"],
+                    "source_digest_ids": ["sd_test_agent"],
                     "related_pages": [],
                     "candidate_pages": [],
                     "decision_reason": "The source defines a durable concept.",
@@ -74,6 +78,61 @@ def wiki_relation_output() -> dict[str, object]:
             ],
             "overall_summary": "Create one concept page.",
             "confidence": 0.9,
+            "warnings": [],
+        }
+    }
+
+
+def wiki_atom_extract_output() -> dict[str, object]:
+    return {
+        "output": {
+            "schema_version": "knowledge_atoms.v1",
+            "source_digest_id": "sd_test_agent",
+            "facts": [
+                {
+                    "id": "fact_agent_loop_cycle",
+                    "statement": "Agent loop is an observe, decide, act, feedback cycle.",
+                    "subject": {"object_type": "concept", "name": "Agent Loop"},
+                    "predicate": "is",
+                    "object": {"object_type": "concept", "name": "Observe Decide Act Feedback Cycle"},
+                    "qualifiers": {},
+                    "evidence": [
+                        {
+                            "source_digest_id": "sd_test_agent",
+                            "source_path": "raw/notes/Agent.md",
+                            "source_unit_index": 0,
+                            "excerpt": "Agent loop is observe, decide, act, feedback.",
+                        }
+                    ],
+                    "confidence": 0.9,
+                }
+            ],
+            "claims": [
+                {
+                    "id": "claim_agent_loop_control_pattern",
+                    "claim": "Agent loop is a reusable control pattern for agents.",
+                    "claim_type": "definition",
+                    "stance": "asserted",
+                    "supporting_fact_ids": ["fact_agent_loop_cycle"],
+                    "evidence": [],
+                    "scope": "Agent system design.",
+                    "limitations": [],
+                    "confidence": 0.9,
+                }
+            ],
+            "relations": [
+                {
+                    "id": "rel_agent_loop_mentions_control",
+                    "subject": {"object_type": "concept", "name": "Agent Loop"},
+                    "predicate": "mentions",
+                    "object": {"object_type": "concept", "name": "Agent Control"},
+                    "source_fact_ids": ["fact_agent_loop_cycle"],
+                    "source_claim_ids": [],
+                    "evidence": [],
+                    "reason": "Agent loop describes a control cycle.",
+                    "confidence": 0.8,
+                }
+            ],
             "warnings": [],
         }
     }
@@ -95,6 +154,12 @@ def wiki_draft_batch_output() -> dict[str, object]:
                     "summary": "Agent Loop is a basic control cycle for agents.",
                     "key_points": ["It includes feedback."],
                     "tags": ["agent", "control"],
+                    "source_digest_ids": ["sd_test_agent"],
+                    "atom_ids": [
+                        "fact_agent_loop_cycle",
+                        "claim_agent_loop_control_pattern",
+                        "rel_agent_loop_mentions_control",
+                    ],
                     "patches": [],
                     "confidence": 0.9,
                     "model_provider": "fake",

@@ -421,14 +421,9 @@ class WikiLintPipelineTests(unittest.TestCase):
     def test_lint_reports_specialized_page_contract_gaps(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "claims").mkdir()
             (vault / "timelines").mkdir()
             (vault / "workflows").mkdir()
             frontmatter = "---\ncreated: 2026-05-01\nupdated: 2026-05-01\nstatus: draft\nsource: raw/notes/source.md\ncontent_hash: a\n"
-            (vault / "claims" / "Claim.md").write_text(
-                frontmatter + "type: claim\n---\n# Claim\n\n## Summary\n\nOne claim.\n\n## Source\n\n- raw/notes/source.md\n",
-                encoding="utf-8",
-            )
             (vault / "timelines" / "Timeline.md").write_text(
                 frontmatter + "type: timeline\n---\n# Timeline\n\n## Summary\n\nOnly 2026 is mentioned.\n\n## Source\n\n- raw/notes/source.md\n",
                 encoding="utf-8",
@@ -447,8 +442,6 @@ class WikiLintPipelineTests(unittest.TestCase):
             )
 
         codes = {issue.code for issue in response.issues}
-        self.assertIn("claim_missing_evidence_section", codes)
-        self.assertIn("claim_missing_confidence", codes)
         self.assertIn("timeline_missing_chronology", codes)
         self.assertIn("workflow_missing_steps", codes)
 
@@ -488,27 +481,6 @@ class WikiLintPipelineTests(unittest.TestCase):
         graph_health = response.stats["graph_health"]
         self.assertGreaterEqual(graph_health["component_count"], 2)
         self.assertGreaterEqual(graph_health["isolated_page_count"], 1)
-
-    def test_lint_reports_invalid_claim_confidence_and_empty_evidence(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            vault = Path(tmp_dir)
-            (vault / "claims").mkdir()
-            (vault / "claims" / "Claim.md").write_text(
-                "---\ncreated: 2026-05-01\nupdated: 2026-05-01\ntype: claim\nstatus: draft\nsource: raw/notes/source.md\ncontent_hash: a\nconfidence: high\n---\n"
-                "# Claim\n\n## Summary\n\nOne claim.\n\n## Evidence\n\n\n## Related Pages\n\n- 暂无关联知识\n\n## Tags\n\n- claim\n\n## Source\n\n- raw/notes/source.md\n",
-                encoding="utf-8",
-            )
-
-            response = WikiLintPipeline().lint(
-                WikiLintRequest(
-                    vault_path=str(vault),
-                    write_report=False,
-                )
-            )
-
-        codes = {issue.code for issue in response.issues}
-        self.assertIn("claim_missing_evidence_section", codes)
-        self.assertIn("claim_invalid_confidence", codes)
 
     def test_run_maintenance_uses_explicit_scope(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -860,10 +832,10 @@ class WikiLintPipelineTests(unittest.TestCase):
     def test_run_maintenance_records_approved_queued_actions(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "claims").mkdir()
-            (vault / "claims" / "Claim.md").write_text(
-                "---\ncreated: 2026-05-01\nupdated: 2026-05-01\ntype: claim\nstatus: draft\nsource: raw/notes/source.md\ncontent_hash: a\n---\n"
-                "# Claim\n\n## Summary\n\nOne claim.\n\n## Source\n\n- raw/notes/source.md\n",
+            (vault / "concepts").mkdir()
+            (vault / "concepts" / "Agent.md").write_text(
+                "---\ncreated: 2026-05-01\nupdated: 2026-05-01\ntype: concept\nstatus: draft\nsource: raw/notes/source.md\ncontent_hash: a\n---\n"
+                "# Agent\n\n## Summary\n\nOne concept.\n\n## Source\n\n- raw/notes/source.md\n",
                 encoding="utf-8",
             )
 
@@ -874,7 +846,7 @@ class WikiLintPipelineTests(unittest.TestCase):
                         scope_id="manual:test",
                         trigger="manual",
                         source=MaintenanceScopeSource(kind="test"),
-                        changed_pages=["claims/Claim.md"],
+                        changed_pages=["concepts/Agent.md"],
                     ),
                     mode="semantic_structural",
                     auto_retry_deferred_actions=False,
@@ -883,7 +855,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
         self.assertEqual(len(response.queued_actions), 2)
         self.assertEqual(response.queued_actions[0]["queue_type"], "refresh_request")
-        self.assertEqual(response.queued_actions[0]["expected_effect"], "Queue source refresh for missing claim evidence.")
+        self.assertEqual(response.queued_actions[0]["expected_effect"], "Queue source refresh for missing provenance.")
         self.assertEqual(response.queued_actions[0]["evidence"][0]["kind"], "scan_issue")
         self.assertEqual(response.queued_actions[1]["queue_type"], "report_only")
 
@@ -1689,40 +1661,40 @@ class QueuedActionLintSemanticWorkflow(FakeLintSemanticWorkflow):
                 "schema_version": "maintenance_candidates.v1",
                 "candidates": [
                     {
-                        "candidate_id": "structural:claims/Claim.md:claim_missing_evidence_section:0",
-                        "source": "structural",
-                        "target_page": "claims/Claim.md",
-                        "issue_type": "claim_missing_evidence_section",
+                        "candidate_id": "provenance:concepts/Agent.md:knowledge_without_source_digest:0",
+                        "source": "provenance",
+                        "target_page": "concepts/Agent.md",
+                        "issue_type": "knowledge_without_source_digest",
                         "severity": "medium",
                         "confidence": 0.9,
                         "risk_hint": "medium",
                         "executor_hint": "refresh_request",
-                        "evidence": [{"kind": "scan_issue", "ref": "claims/Claim.md", "quote": "Missing evidence"}],
+                        "evidence": [{"kind": "scan_issue", "ref": "concepts/Agent.md", "quote": "Missing source digest"}],
                         "recommended_action": {
                             "action": "refresh_request",
                             "params": {"section": "Evidence", "source_file": "raw/notes/source.md"},
                         },
                         "related_pages": [],
-                        "expected_effect": "Queue source refresh for missing claim evidence.",
-                        "review_notes": "Do not invent evidence.",
+                        "expected_effect": "Queue source refresh for missing provenance.",
+                        "review_notes": "Refresh must use the raw source.",
                     },
                     {
-                        "candidate_id": "structural:claims/Claim.md:claim_missing_confidence:1",
-                        "source": "structural",
-                        "target_page": "claims/Claim.md",
-                        "issue_type": "claim_missing_confidence",
+                        "candidate_id": "graph:concepts/Agent.md:weak_link_graph:1",
+                        "source": "graph",
+                        "target_page": "concepts/Agent.md",
+                        "issue_type": "weak_link_graph",
                         "severity": "medium",
                         "confidence": 0.9,
                         "risk_hint": "medium",
                         "executor_hint": "report_only",
-                        "evidence": [{"kind": "scan_issue", "ref": "claims/Claim.md", "quote": "Missing confidence"}],
+                        "evidence": [{"kind": "scan_issue", "ref": "concepts/Agent.md", "quote": "Weak graph"}],
                         "recommended_action": {
-                            "action": "queue_claim_review",
-                            "params": {"field": "confidence"},
+                            "action": "queue_graph_review",
+                            "params": {"reason": "weak graph"},
                         },
                         "related_pages": [],
-                        "expected_effect": "Queue claim contract review.",
-                        "review_notes": "Confidence must not be guessed.",
+                        "expected_effect": "Queue graph review.",
+                        "review_notes": "Graph repair needs review.",
                     },
                 ],
                 "summary": "Two queued candidates.",
@@ -1744,7 +1716,7 @@ class QueuedActionLintSemanticWorkflow(FakeLintSemanticWorkflow):
                         "executor_fit": "supported_by_refresh_request",
                         "risk_level": "medium",
                         "confidence": 0.9,
-                        "reason": "Missing claim evidence should be refreshed from source.",
+                        "reason": "Missing provenance should be refreshed from source.",
                         "constraints": [],
                         "required_followups": ["refresh raw/notes/source.md"],
                     },
@@ -1757,7 +1729,7 @@ class QueuedActionLintSemanticWorkflow(FakeLintSemanticWorkflow):
                         "executor_fit": "supported_by_report_only",
                         "risk_level": "medium",
                         "confidence": 0.9,
-                        "reason": "Missing confidence should be visible in report queue.",
+                        "reason": "Weak graph should be visible in report queue.",
                         "constraints": [],
                         "required_followups": [],
                     },

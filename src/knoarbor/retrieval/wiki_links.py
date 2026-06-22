@@ -14,8 +14,9 @@ from knoarbor.core.markdown import (
     wiki_target_key,
 )
 from knoarbor.core.wiki_lists import merge_unique_items
-from knoarbor.core.wiki_schema import INDEX_EXCLUDED_DIRS, PAGE_TYPE_ORDER, is_index_excluded_file
-from knoarbor.storage.wiki_index import relative_wiki_path, wiki_link_for_path
+from knoarbor.core.wiki_schema import INDEX_EXCLUDED_DIRS, is_index_excluded_file
+from knoarbor.retrieval.page_resolver import resolve_page_reference_path
+from knoarbor.storage.wiki_index import wiki_link_for_path
 from knoarbor.storage.wiki_paths import content_root, resolve_existing_target
 
 
@@ -39,54 +40,21 @@ def resolve_wikilink_target(vault_path: Path, target: str) -> str | None:
     if not normalized:
         return None
 
-    relative_path = resolve_relative_wiki_path(vault_path, normalized)
-    if relative_path:
-        return relative_path
-
+    direct = resolve_page_reference_path(vault_path, target)
+    if direct:
+        return direct
     if "/" in normalized:
         directory, title = normalized.split("/", 1)
-        return resolve_wikilink_by_title(vault_path, title, directory)
-    return resolve_wikilink_by_title(vault_path, normalized, None)
+        return resolve_page_reference_path(vault_path, normalized) or resolve_page_reference_path(vault_path, title, directory=directory)
+    return resolve_page_reference_path(vault_path, normalized)
 
 
 def resolve_relative_wiki_path(vault_path: Path, target: str) -> str | None:
-    wanted = f"{target.removesuffix('.md')}.md".lower()
-    root = content_root(vault_path)
-    for page_dir in PAGE_TYPE_ORDER:
-        directory_path = root / page_dir
-        if not directory_path.exists():
-            continue
-        for md_path in directory_path.glob("*.md"):
-            if is_index_excluded_file(md_path.name):
-                continue
-            relative = relative_wiki_path(vault_path, md_path)
-            if relative.lower() == wanted:
-                return relative
-    return None
+    return resolve_page_reference_path(vault_path, target)
 
 
 def resolve_wikilink_by_title(vault_path: Path, title: str, directory: str | None) -> str | None:
-    matches: list[str] = []
-    target_title = normalize_title_key(title)
-    root = content_root(vault_path)
-    for page_dir in PAGE_TYPE_ORDER:
-        if directory and page_dir != directory:
-            continue
-        directory_path = root / page_dir
-        if not directory_path.exists():
-            continue
-        for md_path in directory_path.glob("*.md"):
-            if is_index_excluded_file(md_path.name):
-                continue
-            stem_matches = normalize_title_key(md_path.stem) == target_title
-            try:
-                heading = extract_heading(md_path.read_text(encoding="utf-8"), md_path.stem)
-            except UnicodeDecodeError:
-                heading = md_path.stem
-            title_matches = normalize_title_key(heading) == target_title
-            if stem_matches or title_matches:
-                matches.append(relative_wiki_path(vault_path, md_path))
-    return matches[0] if len(matches) == 1 else None
+    return resolve_page_reference_path(vault_path, title, directory=directory)
 
 
 def replace_wikilink_targets(content: str, old_target: str, new_target: str, link_text: str | None = None) -> tuple[str, int]:

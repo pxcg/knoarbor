@@ -490,7 +490,7 @@ def _turn_evidence_page_roles(trace: list[ChatToolTraceItem]) -> tuple[list[str]
         source_page_paths.extend(tool_source_paths)
         if item.tool == "read_wiki_page" and item.result.get("path"):
             path = str(item.result["path"])
-            if path.startswith("sources/"):
+            if _is_source_page_payload(item.result):
                 source_page_paths.append(path)
             else:
                 answer_page_paths.append(path)
@@ -691,14 +691,14 @@ def _evidence_page_roles(pack: object) -> tuple[list[str], list[str]]:
             if not isinstance(page, dict) or not page.get("path"):
                 continue
             path = str(page["path"])
-            if page.get("type") == "source" or path.startswith("sources/"):
+            if _is_source_page_payload(page):
                 source_paths.append(path)
             else:
                 answer_paths.append(path)
     primary_page = pack.get("primary_page")
     if isinstance(primary_page, dict) and primary_page.get("path"):
         path = str(primary_page["path"])
-        if primary_page.get("type") == "source" or path.startswith("sources/"):
+        if _is_source_page_payload(primary_page):
             source_paths.append(path)
         else:
             answer_paths.append(path)
@@ -707,6 +707,21 @@ def _evidence_page_roles(pack: object) -> tuple[list[str], list[str]]:
         if isinstance(page, dict) and page.get("path"):
             source_paths.append(str(page["path"]))
     return _unique_strings(answer_paths), _unique_strings(source_paths)
+
+
+def _is_source_page_payload(page: dict[str, object]) -> bool:
+    page_role = str(page.get("page_role") or "")
+    page_kind = str(page.get("page_kind") or "")
+    page_type = str(page.get("type") or "")
+    answer_role = str(page.get("role") or "")
+    path = str(page.get("path") or "")
+    return (
+        answer_role == "source"
+        or page_role == "source_digest"
+        or page_kind == "source_digest"
+        or page_type == "source"
+        or path.startswith("sources/")
+    )
 
 
 def _merge_usage(target: dict[str, int], usage: dict[str, int]) -> None:

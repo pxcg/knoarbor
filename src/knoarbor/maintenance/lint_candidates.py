@@ -147,7 +147,7 @@ def _quality_candidate_reasons(page: WikiScanPage, issues: list[WikiLintIssue]) 
             reasons.append(_reason_from_issue(issue, "graph", "low", 0.9))
         elif issue.code == "workflow_missing_steps":
             reasons.append(_reason_from_issue(issue, "quality", "medium", 2.0))
-        elif issue.code in {"missing_required_section", "claim_missing_evidence_section", "claim_missing_confidence", "claim_invalid_confidence", "timeline_missing_chronology"}:
+        elif issue.code in {"missing_required_section", "timeline_missing_chronology"}:
             reasons.append(_reason_from_issue(issue, "quality", "medium", 1.2))
 
     return reasons

@@ -8,7 +8,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pydantic import ValidationError
 
-from knoarbor.core.schemas import KnowledgeEvent, KnowledgeExtract, MaintenanceScope, SourceDocument, SourceRef
+from knoarbor.core.schemas import (
+    KnowledgeEvent,
+    KnowledgeExtract,
+    MaintenanceScope,
+    SourceDocument,
+    SourceRef,
+    UnifiedIngestRequest,
+    build_excerpt_source_document,
+)
 
 
 class CoreSchemaTests(unittest.TestCase):
@@ -45,6 +53,45 @@ class CoreSchemaTests(unittest.TestCase):
 
         self.assertEqual(document.checkpoint.mode, "full")
         self.assertEqual(document.origin.connector, "external")
+
+    def test_build_excerpt_source_document_has_stable_source_identity(self) -> None:
+        document = build_excerpt_source_document(
+            text="知识不是记忆的堆积，而是关系的生长。",
+            title="知识关系短句",
+        )
+        same_document = build_excerpt_source_document(
+            text="知识不是记忆的堆积，而是关系的生长。",
+            title="知识关系短句",
+        )
+
+        self.assertEqual(document.source_type, "excerpt")
+        self.assertEqual(document.origin.connector, "excerpt")
+        self.assertEqual(document.source_id, same_document.source_id)
+        self.assertTrue(document.origin.raw_path.startswith("raw/excerpts/"))
+        self.assertIn("## Selected Excerpt", document.content.text)
+        self.assertEqual(document.metadata["source_kind"], "selected_excerpt")
+
+    def test_unified_ingest_excerpt_builds_document_request(self) -> None:
+        request = UnifiedIngestRequest(
+            kind="excerpt",
+            excerpt_text="这是一条值得沉淀的短句。",
+            excerpt_title="短句摘录",
+            excerpt_context={
+                "source_app": "knoarbor_chat",
+                "session_id": "chat-1",
+                "message_ids": ["m1", "m1", "m2"],
+            },
+        )
+
+        document_request = request.to_excerpt_request()
+
+        self.assertEqual(document_request.source_document.source_type, "excerpt")
+        self.assertEqual(document_request.source_document.metadata["title"], "短句摘录")
+        self.assertEqual(document_request.source_document.metadata["excerpt_context"]["message_ids"], ["m1", "m2"])
+
+    def test_unified_ingest_excerpt_requires_text(self) -> None:
+        with self.assertRaises(ValidationError):
+            UnifiedIngestRequest(kind="excerpt")
 
     def test_source_document_rejects_unknown_source_type(self) -> None:
         with self.assertRaises(ValidationError):

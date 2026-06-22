@@ -6,17 +6,21 @@ from pydantic import BaseModel
 
 from knoarbor.core.schemas.ingest_review import IngestDraftReview
 from knoarbor.core.schemas.ingest_compile_context import IngestCompileContext
+from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
+from knoarbor.core.schemas.source_digest import SourceDigest
 from knoarbor.core.schemas.sources import SourceDocument
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
 from knoarbor.core.schemas.wiki_relation_plan import WikiRelationPlan
 from knoarbor.semantic.ingest_compile_context import build_ingest_compile_context
 from knoarbor.semantic.runner import SemanticRunner
+from knoarbor.semantic.source_digest import build_source_digest_from_extract
 from knoarbor.semantic.source_normalize import build_source_normalize_input
 
 
 class IngestSemanticWorkflowResult(BaseModel):
     knowledge_extract: KnowledgeExtract
+    knowledge_atom_batch: KnowledgeAtomBatch | None = None
     wiki_relation_plan: WikiRelationPlan
     wiki_draft_batch: WikiDraftBatch
     ingest_draft_review: IngestDraftReview
@@ -38,8 +42,15 @@ class IngestSemanticWorkflow:
         max_tokens: int | None = None,
     ) -> IngestSemanticWorkflowResult:
         knowledge_extract = self.normalize(document, max_tokens=max_tokens)
+        source_digest = build_source_digest_from_extract(knowledge_extract)
+        knowledge_atom_batch = self.extract_atoms(
+            source_digest,
+            knowledge_extract=knowledge_extract,
+            max_tokens=max_tokens,
+        )
         wiki_relation_plan = self.plan_relations(
             knowledge_extract,
+            knowledge_atom_batch=knowledge_atom_batch,
             existing_wiki_index=existing_wiki_index,
             wiki_context=wiki_context,
             max_tokens=max_tokens,
@@ -47,6 +58,7 @@ class IngestSemanticWorkflow:
         wiki_draft_batch = self.compile_drafts(
             knowledge_extract,
             wiki_relation_plan,
+            knowledge_atom_batch=knowledge_atom_batch,
             candidate_page_context=candidate_page_context,
             max_tokens=max_tokens,
         )
@@ -59,6 +71,7 @@ class IngestSemanticWorkflow:
         )
         return IngestSemanticWorkflowResult(
             knowledge_extract=knowledge_extract,
+            knowledge_atom_batch=knowledge_atom_batch,
             wiki_relation_plan=wiki_relation_plan,
             wiki_draft_batch=wiki_draft_batch,
             ingest_draft_review=ingest_draft_review,
@@ -72,10 +85,28 @@ class IngestSemanticWorkflow:
         )
         return _expect_output(result.output, KnowledgeExtract)
 
+    def extract_atoms(
+        self,
+        source_digest: SourceDigest,
+        *,
+        knowledge_extract: KnowledgeExtract | None = None,
+        max_tokens: int | None = None,
+    ) -> KnowledgeAtomBatch:
+        result = self.runner.run(
+            "wiki_atom_extract",
+            {
+                "source_digest": source_digest.model_dump(),
+                "knowledge_extract": knowledge_extract.model_dump() if knowledge_extract else {},
+            },
+            max_tokens=max_tokens,
+        )
+        return _expect_output(result.output, KnowledgeAtomBatch)
+
     def plan_relations(
         self,
         knowledge_extract: KnowledgeExtract,
         *,
+        knowledge_atom_batch: KnowledgeAtomBatch | None = None,
         existing_wiki_index: dict[str, Any] | None = None,
         wiki_context: dict[str, Any] | None = None,
         max_tokens: int | None = None,
@@ -84,6 +115,7 @@ class IngestSemanticWorkflow:
             "wiki_relation",
             {
                 "knowledge_extract": knowledge_extract.model_dump(),
+                "knowledge_atoms": knowledge_atom_batch.model_dump() if knowledge_atom_batch else {},
                 "existing_wiki_index": existing_wiki_index or {},
                 "wiki_context": wiki_context or {},
             },
@@ -96,6 +128,7 @@ class IngestSemanticWorkflow:
         knowledge_extract: KnowledgeExtract,
         wiki_relation_plan: WikiRelationPlan,
         *,
+        knowledge_atom_batch: KnowledgeAtomBatch | None = None,
         candidate_page_context: dict[str, Any] | None = None,
         ingest_compile_context: IngestCompileContext | dict[str, Any] | None = None,
         max_tokens: int | None = None,
@@ -115,6 +148,7 @@ class IngestSemanticWorkflow:
             "wiki_draft_compile",
             {
                 "knowledge_extract": knowledge_extract.model_dump(),
+                "knowledge_atoms": knowledge_atom_batch.model_dump() if knowledge_atom_batch else {},
                 "wiki_relation_plan": wiki_relation_plan.model_dump(),
                 "wiki_operations": actionable_operations,
                 "ingest_compile_context": compile_context,

@@ -14,6 +14,7 @@ from tests.harness.semantic_cases import (
     ingest_review_output,
     markdown_source_document,
     source_normalize_output,
+    wiki_atom_extract_output,
     wiki_draft_batch_output,
     wiki_relation_output,
 )
@@ -24,6 +25,7 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
         client = ScriptedChatClient(
             [
                 source_normalize_output(),
+                wiki_atom_extract_output(),
                 wiki_relation_output(),
                 wiki_draft_batch_output(),
                 ingest_review_output(),
@@ -32,8 +34,10 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
 
         result = IngestSemanticWorkflow(SemanticRunner(client)).run(markdown_source_document())
 
-        self.assertEqual(len(client.requests), 4)
+        self.assertEqual(len(client.requests), 5)
         self.assertEqual(result.knowledge_extract.source.title, "Agent")
+        self.assertIsNotNone(result.knowledge_atom_batch)
+        self.assertEqual(result.knowledge_atom_batch.summary()["facts"], 1)
         self.assertEqual(result.wiki_relation_plan.operations[0].title, "Agent Loop")
         self.assertEqual(result.wiki_draft_batch.drafts[0].title, "Agent Loop")
         self.assertEqual(result.ingest_draft_review.batch_decision, "approve")
@@ -42,6 +46,7 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
         client = ScriptedChatClient(
             [
                 source_normalize_output(),
+                wiki_atom_extract_output(),
                 wiki_relation_output(),
                 wiki_draft_batch_output(),
                 ingest_review_output(),
@@ -67,8 +72,14 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
             candidate_page_context=candidate_page_context,
         )
 
-        draft_payload = _dynamic_payload(client.requests[2])
-        review_payload = _dynamic_payload(client.requests[3])
+        atom_payload = _dynamic_payload(client.requests[1])
+        relation_payload = _dynamic_payload(client.requests[2])
+        draft_payload = _dynamic_payload(client.requests[3])
+        review_payload = _dynamic_payload(client.requests[4])
+        self.assertIn("source_digest", atom_payload)
+        self.assertEqual(relation_payload["knowledge_atoms"]["source_digest_id"], "sd_test_agent")
+        self.assertEqual(relation_payload["knowledge_atoms"]["facts"][0]["id"], "fact_agent_loop_cycle")
+        self.assertEqual(draft_payload["knowledge_atoms"]["source_digest_id"], "sd_test_agent")
         self.assertIn("ingest_compile_context", draft_payload)
         self.assertEqual(
             draft_payload["ingest_compile_context"],

@@ -48,7 +48,7 @@ Do not return markdown fences or explanatory prose.
 - Medium and high risk operations require stronger evidence and more specific constraints.
 - Refresh requests may be approved as requests, but this reviewer must not claim refreshed facts.
 - Report-only items can be approved when they are useful audit findings but should not write pages.
-- Queue actions such as `queue_merge_candidate`, `queue_conflict_review`, `queue_graph_review`, and `queue_claim_review` are audit/queue outputs. Approve them only when the evidence is useful and the item should be visible in the lint report.
+- Queue actions such as `queue_merge_candidate`, `queue_conflict_review`, and `queue_graph_review` are audit/queue outputs. Approve them only when the evidence is useful and the item should be visible in the lint report.
 - Do not approve a high-risk queue as a write operation unless the candidate already has complete executor parameters and the executor fit explicitly supports it.
 
 ## Executor Fit

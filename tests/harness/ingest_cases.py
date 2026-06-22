@@ -8,6 +8,7 @@ from knoarbor.core.schemas.ingest_review import (
     IngestReviewChecks,
     IngestReviewDimensionScores,
 )
+from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch
 from knoarbor.core.schemas.knowledge_extract import CompileContext, ContentUnit, KnowledgeExtract, KnowledgeSource
 from knoarbor.core.schemas.sources import SourceContent, SourceDocument, SourceFingerprint, SourceOrigin
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch, WikiDraftBatchItem
@@ -103,6 +104,9 @@ class SourceDigestOnlyWorkflow:
             confidence=0.9,
             warnings=[],
         )
+
+    def extract_atoms(self, source_digest, **_: object) -> KnowledgeAtomBatch:
+        return KnowledgeAtomBatch(source_digest_id=source_digest.digest_id)
 
     def plan_relations(self, knowledge_extract: KnowledgeExtract, **_: object) -> WikiRelationPlan:
         return WikiRelationPlan(
@@ -231,6 +235,9 @@ class MultiObjectSegmentWorkflow:
             confidence=0.9,
             warnings=[],
         )
+
+    def extract_atoms(self, source_digest, **_: object) -> KnowledgeAtomBatch:
+        return KnowledgeAtomBatch(source_digest_id=source_digest.digest_id)
 
     def plan_relations(self, knowledge_extract: KnowledgeExtract, **_: object) -> WikiRelationPlan:
         topic = _topic_for_extract(knowledge_extract)
