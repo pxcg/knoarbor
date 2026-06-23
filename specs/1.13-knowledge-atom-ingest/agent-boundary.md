@@ -41,6 +41,24 @@ Connector / Document Processor
   -> Update Graph Index + Manifest + Atom Index + Reports
 ```
 
+## Claims-First Page Invariant
+
+For non-source wiki pages, selected claims are the page spine. A page operation
+must select claim atom ids before it can select relation atom ids. Relation
+atoms, entity lists, evidence rows, summaries, and synthesis are projections
+around those selected claims:
+
+```text
+selected claim atoms
+  -> page claims
+  -> entities + relation triples + evidence rows
+  -> summary + synthesis
+```
+
+This keeps page identity auditable. A relation-only operation can describe a
+graph edge, but it cannot create or update a non-source page unless the claims
+supporting that edge are selected for the same operation.
+
 ## Agent Decisions
 
 ### Source Normalize Agent

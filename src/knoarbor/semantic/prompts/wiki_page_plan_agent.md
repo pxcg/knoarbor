@@ -7,7 +7,7 @@ Do not return markdown fences or explanatory prose.
 
 - Plan page-level operations for one `source_digest.v1` plus optional `knowledge_atoms.v2`.
 - Decide page boundaries, page identity, compatibility classification, and create/update/skip actions.
-- Select the claim and relation atom ids that support each page operation.
+- Select the claim atom ids that form each page operation's knowledge spine, plus relation atom ids only when they connect those selected claims.
 - Use `wiki_context.candidates` as the authoritative lightweight candidate pool when provided.
 - Treat `existing_wiki_index` as supplemental routing metadata only; do not build a separate candidate set from it when `wiki_context.candidates` is available.
 - Do not write page bodies.
@@ -82,7 +82,9 @@ Do not return markdown fences or explanatory prose.
 - For non-source create operations, include one legacy alias in `legacy_paths` using the compatibility page directory, such as `concepts/<Title>.md`.
 - Choose one strongest primary knowledge page when the source contains durable knowledge.
 - Add secondary operations only for independently reusable objects that would be useful without reading the primary page.
-- Use `knowledge_atoms` when available. Every actionable operation must include `source_digest_ids`. Non-source operations must select directly relevant claim or relation atom ids.
+- Use `knowledge_atoms` when available. Every actionable operation must include `source_digest_ids`. Non-source operations must select directly relevant claim atom ids; relation atom ids are auxiliary and cannot substitute for selected claims.
+- Treat a non-source page as a durable cluster of selected claims around one knowledge object. Page identity follows the claims first; entities, relations, evidence, and synthesis are projections of those claims.
+- Select relation atom ids only when they help connect or explain selected claims. If a relation atom has source claim ids, include those claim ids in the same operation unless they are outside the page boundary.
 - If `knowledge_atoms` is empty, leave atom id lists empty and plan from `source_digest`.
 - Prefer `update` when one existing page clearly covers the same object.
 - Prefer `create` when overlap is only broad topical similarity.

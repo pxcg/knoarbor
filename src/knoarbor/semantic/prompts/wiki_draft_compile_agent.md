@@ -94,7 +94,12 @@ Do not return markdown fences or explanatory prose.
   language of the source material. Preserve precise technical terms, model
   names, API names, and established English labels when they are the natural
   term in the source domain.
-- Use the provided `knowledge_atoms` and the matching operation's selected atom ids from `ingest_compile_context.operations` to structure the draft. These atoms are already scoped to the planned pages. `claims`, `entities`, `relations`, and `evidence` should expose the evidence skeleton; `synthesis` should be a readable projection of selected claims, entities, relations, and evidence, not an unrelated free-form rewrite.
+- Use the provided `knowledge_atoms` and the matching operation's selected atom ids from `ingest_compile_context.operations` to structure the draft. These atoms are already scoped to the planned pages.
+- For non-source pages, build `claims` first. Each selected claim atom should normally become one numbered page claim; do not hide selected claims inside synthesis only.
+- Derive `entities` from the numbered page claims and selected relation endpoints.
+- Derive `relations` from selected relation atoms and express each relation as a triple backed by numbered page claim ids.
+- Derive `evidence` by mapping every numbered page claim to its source, range, basis, and confidence.
+- Write `synthesis` last as a readable projection of the claims, entities, relations, and evidence, not an unrelated free-form rewrite.
 - Do not invent or expand atom ids. If the operation selected too little evidence for a safe non-source page, return a draft with a warning-worthy narrow synthesis rather than broad unsupported content.
 - If source metadata indicates a segmented long source, write only what is supported by the current segment, avoid duplicate source digests across sibling segments, and prefer update patches when the segment extends an object already represented in retrieved context.
 - Use `ingest_compile_context` as the authoritative compile context. `target` pages carry existing body content; `related` and `candidate` pages are background only.

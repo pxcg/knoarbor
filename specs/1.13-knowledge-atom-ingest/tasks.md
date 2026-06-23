@@ -71,6 +71,8 @@
 - [x] Move checkpoint commit eligibility into `ingest_checkpoint`.
 - [x] Rename ingest agent-facing page profiles from legacy key-point/tag
   language to claim/entity language.
+- [x] Enforce claims-first page planning and quality-gate invariants for
+  non-source pages.
 - [ ] Add deterministic claim/relation/evidence closure as a reusable service.
 - [ ] Add deterministic `PageAssemblyService` for identity, entities,
   relations, evidence, and Markdown skeleton.

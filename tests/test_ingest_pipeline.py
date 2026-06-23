@@ -215,6 +215,20 @@ class AtomTraceSemanticWorkflow(FakeIngestSemanticWorkflow):
         return batch
 
 
+class RelationOnlySemanticWorkflow(AtomTraceSemanticWorkflow):
+    def plan_pages(self, knowledge_extract, **kwargs):
+        plan = super().plan_pages(knowledge_extract, **kwargs)
+        plan.operations[0].selected_claim_ids = []
+        plan.operations[0].selected_relation_ids = ["rel_agent_loop_mentions_workflow"]
+        plan.operations[0].source_digest_ids = [kwargs["knowledge_atom_batch"].source_digest_id]
+        return plan
+
+    def compile_drafts(self, knowledge_extract, wiki_page_plan, **kwargs):
+        batch = super().compile_drafts(knowledge_extract, wiki_page_plan, **kwargs)
+        batch.drafts[0].atom_ids = ["rel_agent_loop_mentions_workflow"]
+        return batch
+
+
 def _approved_decision(operation_index: int, *, write_safety: str = "safe_create") -> IngestDraftReviewDecision:
     return IngestDraftReviewDecision(
         operation_index=operation_index,
@@ -1244,6 +1258,34 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertEqual(source.error_code, "KA-INPUT-001")
         self.assertIn("missing_selected_atom_trace", source.error_message or "")
         self.assertIn("missing_source_digest_trace", source.error_message or "")
+
+    def test_quality_gate_blocks_relation_only_non_source_operation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "vaults" / "all"
+            notes = root / "notes"
+            vault.mkdir(parents=True)
+            notes.mkdir()
+            (notes / "agent.md").write_text("# Agent\n\nAgent loop relates to workflow.", encoding="utf-8")
+            config = KnoArborConfig(
+                vault=VaultConfig(path=vault),
+                connectors={
+                    "markdown": ConnectorConfig(
+                        enabled=True,
+                        settings={"roots": [str(notes)]},
+                    )
+                },
+            )
+
+            result = IngestPipeline(RelationOnlySemanticWorkflow()).run(config, connector_names=["markdown"], write=True)  # type: ignore[arg-type]
+            source = result.results[0]
+
+        self.assertEqual(source.status, "failed")
+        self.assertEqual(source.error_stage, "quality_gate")
+        self.assertEqual(source.error_code, "KA-INPUT-001")
+        self.assertIn("missing_operation_claim_trace", source.error_message or "")
+        self.assertIn("relation_selected_without_source_claim", source.error_message or "")
+        self.assertEqual(source.generated_pages, [])
 
     def test_relation_update_operation_patches_existing_page(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
