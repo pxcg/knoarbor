@@ -139,9 +139,10 @@ The index layer provides routing and retrieval context for agents and query flow
 
 Current implementation:
 
-- generated `vaults/default/pages/index.md` for human-readable routing and debugging;
-- local Markdown retrieval with field-weighted BM25 over title, path, tags, summary, key points, headings, and body;
-- graph expansion through outbound wikilinks, backlinks, source relationships, and related pages;
+- machine index artifacts under `vaults/default/.knoarbor/index/`, with `manifest.json` and `graph_index.json` as the durable graph boundary;
+- compatibility retrieval payloads such as `pages.json`, `links.json`, `sources.json`, and `search.json` for current UI/query services;
+- local Markdown retrieval with field-weighted BM25 over title, path, entities, summary, claims, relations, headings, and body;
+- graph expansion through claim-backed relations, outbound wikilinks, backlinks, and source relationships;
 - query context packs for host AI tools.
 
 Long-term direction:
@@ -154,7 +155,7 @@ IndexProvider
   -> Hybrid provider
 ```
 
-Workflow code should depend on stable retrieval payloads, not on the physical format of `index.md`.
+Workflow code should depend on stable retrieval payloads and graph index artifacts, not on a human-maintained `index.md`.
 
 ### Answer Set Selection
 
@@ -220,7 +221,7 @@ connector discovery
   -> source segmentation
   -> source normalize agent
   -> candidate page retrieval
-  -> relation planning
+  -> page planning
   -> candidate page materialization
   -> draft compilation
   -> draft review
@@ -367,7 +368,7 @@ Boundaries:
 
 KnoArbor remains a local-first wiki engine, but it still needs explicit runtime infrastructure. These concerns are architecture layers, not scattered safeguards inside individual endpoints.
 
-- **Machine index layer**: program-readable page, link, source, and retrieval metadata. This is separate from human-readable `index.md`. The current implementation uses Markdown scanning, stable retrieval payloads, and page-level BM25 scoring; future providers can materialize `.knoarbor/index/*.json`, SQLite FTS, or vector indexes behind the same `IndexProvider` boundary.
+- **Machine index layer**: program-readable page, relation, link, source, and retrieval metadata. The default durable boundary is `.knoarbor/index/manifest.json` plus `.knoarbor/index/graph_index.json`; `index.md` is optional export material rather than source of truth. The current implementation uses Markdown scanning, graph index artifacts, compatibility retrieval payloads, and page-level BM25 scoring; future providers can materialize SQLite FTS or vector indexes behind the same `IndexProvider` boundary.
 - **Run queue and lifecycle**: queued execution, status transitions, heartbeat timestamps, cancellation requests, recovery metadata, and run events live in the runtime layer. Pipelines report progress through this boundary and do not write run-state files directly.
 - **Run events**: long workflows emit structured events for stages, model calls, retries, page writes, query results, and failures. UI, CLI, reports, and skills consume the same event stream instead of reconstructing progress from ad hoc logs.
 - **Recovery**: recoverable runs are derived from stored run metadata and reports. Recovery creates a new run with scoped input rather than mutating or resuming a finished run record in place.

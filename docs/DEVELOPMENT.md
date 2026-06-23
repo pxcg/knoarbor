@@ -307,7 +307,7 @@ Checklist:
 4. Keep source-specific parsing inside the connector. Do not add connector
    branches to ingest semantic prompts, page writers, or API routes.
 5. Emit normalized `SourceDocument` values before checkpointing, segmentation,
-   relation planning, or drafting.
+   page planning, or drafting.
 6. Add connector tests for discovery, normalization, capability metadata, and
    malformed input.
 7. Update API/CLI/config docs only when the public connector surface changes.

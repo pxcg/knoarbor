@@ -87,9 +87,9 @@ KnoArbor 1.0.0 是第一个公开的本地优先版本，已经具备知识编�
 
 重点：
 
-- 引入独立于人类可读 `index.md` 的机器索引层。
+- 使用 `.knoarbor/index/manifest.json` 和 `.knoarbor/index/graph_index.json` 作为默认机器索引边界。
 - 保持页面级 BM25 排序作为默认词面检索信号。
-- 引入 SQLite FTS 一类轻量持久本地索引。
+- 保留 UI/query 所需的兼容 retrieval payload，并逐步把图遍历逻辑迁移到 graph index。
 - 向量检索作为可选增强，不作为默认安装依赖。
 - 记录索引新鲜度、重建状态和失败状态。
 - ingest、lint、query 共享一致的 index provider 契约。
@@ -97,7 +97,7 @@ KnoArbor 1.0.0 是第一个公开的本地优先版本，已经具备知识编�
 完成标准：
 
 - 中等规模 vault 的 query 质量提升，同时不要求用户部署向量基础设施。
-- `index.md` 保持给人阅读，机器检索使用专用索引。
+- query 和 lint 使用专用 index artifact；`index.md` 仅在后续需要时作为可选导出视图。
 
 ## 1.5.x：知识治理
 

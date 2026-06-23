@@ -95,7 +95,7 @@ models:
 
 Model calls pass through the `ModelGateway` boundary. Providers use the `openai_compatible` adapter by default. Ollama can use `adapter: ollama` to call the native `/api/chat` endpoint; this is recommended for Ollama thinking models because KnoArbor can send `think: false` and avoid reasoning-only responses. Hosted providers usually need `api_key_env`; local or private endpoints such as Ollama and vLLM may set `api_key_env: null`.
 
-`default_max_tokens` and `request_timeout_seconds` are intentionally generous. Ingest and lint are wiki compilation tasks, not short chat replies; relation planning, page drafting, and maintenance review often need longer outputs and more time. A provider can override the global output limit with `max_output_tokens`. `context_window` records the model's usable context window for diagnostics and budget checks. Runtime diagnostics try to detect context length from vLLM `/v1/models` metadata and Ollama `/api/show`; when detection is unavailable, KnoArbor falls back to the configured `context_window`.
+`default_max_tokens` and `request_timeout_seconds` are intentionally generous. Ingest and lint are wiki compilation tasks, not short chat replies; page planning, page drafting, and maintenance review often need longer outputs and more time. A provider can override the global output limit with `max_output_tokens`. `context_window` records the model's usable context window for diagnostics and budget checks. Runtime diagnostics try to detect context length from vLLM `/v1/models` metadata and Ollama `/api/show`; when detection is unavailable, KnoArbor falls back to the configured `context_window`.
 
 Configuration design follows the common shape used by AI workflow projects:
 

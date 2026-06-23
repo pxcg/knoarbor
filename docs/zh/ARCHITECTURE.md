@@ -125,9 +125,10 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 
 当前实现：
 
-- 生成的 `vaults/default/pages/index.md` 作为人类可读路由目录和调试制品；
-- 基于本地 Markdown 的标题、路径、标签、摘要、Key Points、标题层级和正文做字段加权 BM25 检索；
-- 通过出站 wikilink、反向链接、来源关系和相关页做图谱扩展；
+- 在 `vaults/default/.knoarbor/index/` 下生成机器索引，其中 `manifest.json` 和 `graph_index.json` 是持久图索引边界；
+- 保留 `pages.json`、`links.json`、`sources.json`、`search.json` 等兼容 retrieval payload，供当前 UI/query 服务使用；
+- 基于本地 Markdown 的标题、路径、entities、summary、claims、relations、标题层级和正文做字段加权 BM25 检索；
+- 通过 claim-backed relations、出站 wikilink、反向链接和来源关系做图谱扩展；
 - 为宿主 AI 工具返回 query context pack。
 
 长期方向：
@@ -140,7 +141,7 @@ IndexProvider
   -> Hybrid provider
 ```
 
-工作流代码应依赖稳定 retrieval payload，而不是依赖 `index.md` 的物理格式。
+工作流代码应依赖稳定 retrieval payload 和 graph index artifact，而不是依赖人工维护的 `index.md`。
 
 ### 答案页面选择层
 
@@ -200,7 +201,7 @@ connector discovery
   -> source segmentation
   -> source normalize agent
   -> candidate page retrieval
-  -> relation planning
+  -> page planning
   -> candidate page materialization
   -> draft compilation
   -> draft review
@@ -343,7 +344,7 @@ chat request
 
 KnoArbor 是本地优先的 Wiki 引擎，但仍需要明确运行时基础设施。
 
-- **机器索引层**：面向程序读取的页面、链接、来源和检索元数据，区别于人类可读的 `index.md`。当前实现使用 Markdown 扫描、稳定 retrieval payload 和页面级 BM25 排序；后续 provider 可以在同一 `IndexProvider` 边界后面落地 `.knoarbor/index/*.json`、SQLite FTS 或向量索引。
+- **机器索引层**：面向程序读取的页面、关系、链接、来源和检索元数据。默认持久边界是 `.knoarbor/index/manifest.json` 与 `.knoarbor/index/graph_index.json`；`index.md` 只是后续可选导出视图，不是 source of truth。当前实现使用 Markdown 扫描、graph index artifact、兼容 retrieval payload 和页面级 BM25 排序；后续 provider 可以在同一 `IndexProvider` 边界后面落地 SQLite FTS 或向量索引。
 - **单机队列**：`LocalRunQueue` 是第一版队列后端，按 vault 串行化运行，避免写入重叠。恢复失败项时创建新的 run，而不是修改已完成 run。
 - **运行生命周期**：排队、运行、心跳、取消、恢复元数据和事件记录属于 Runtime 层。Pipeline 只通过该边界上报进度，不直接写 run-state 文件。
 - **运行事件**：长流程使用结构化事件记录阶段、模型调用、重试、页面写入、查询结果和失败。UI、CLI、报告和 skill 读取同一事件流，不从临时日志中重建进度。

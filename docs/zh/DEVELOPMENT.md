@@ -203,7 +203,7 @@ KnoArbor 使用小型发布分支模型。目标是在保持公开历史清晰�
    - `settings_schema`；
    - checkpoint、分段提示和外部服务标志。
 4. 来源特定解析留在 connector 内部。不要把 connector 分支写进 ingest 语义 prompt、页面 writer 或 API route。
-5. 在 checkpoint、segmentation、relation planning 或 drafting 前输出标准 `SourceDocument`。
+5. 在 checkpoint、segmentation、page planning 或 drafting 前输出标准 `SourceDocument`。
 6. 为 discovery、normalization、能力元数据和异常输入添加 connector 测试。
 7. 只有公开 connector 行为变化时，才更新 API/CLI/config 文档。
 

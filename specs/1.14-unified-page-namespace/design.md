@@ -54,7 +54,6 @@ require immediate physical migration.
 Current hot spots:
 
 - `src/knoarbor/core/wiki_schema.py`
-- `src/knoarbor/core/schemas/wiki_relation_plan.py`
 - `src/knoarbor/core/schemas/wiki_page_plan.py`
 - `src/knoarbor/core/schemas/wiki_write.py`
 

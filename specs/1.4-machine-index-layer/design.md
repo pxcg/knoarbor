@@ -16,15 +16,36 @@
 ```text
 wikis pages
   -> PageIndexRecord
-  -> IndexProvider
+  -> MachineIndexProvider
       -> MarkdownIndexProvider
       -> SQLiteFtsIndexProvider
       -> optional VectorIndexProvider
+  -> Query BM25 seed retrieval
+  -> graph_index relation expansion
   -> Query / Lint / Ingest related-page lookup
 ```
 
-`index.md` remains human-facing. Machine retrieval must not parse `index.md` as
-its primary source once a durable machine index exists.
+The durable local graph boundary is:
+
+```text
+.knoarbor/
+  index/
+    manifest.json
+    graph_index.json
+```
+
+Compatibility payloads such as `pages.json`, `links.json`, `sources.json`, and
+`search.json` can remain while UI/query code is migrated. `index.md` is not a
+default retrieval surface; if introduced again, it should be generated as an
+optional export view from the machine index.
+
+Query consumes the machine index in two steps:
+
+1. `pages.json` materializes searchable pages and keeps page-level BM25 as the
+   deterministic entry retrieval layer.
+2. `graph_index.json` expands those seed pages through shared entities,
+   explicit relation triples, and source-audit links. This preserves wiki-style
+   page recall without turning the system back into chunk-level RAG.
 
 ## Public Contract Candidates
 

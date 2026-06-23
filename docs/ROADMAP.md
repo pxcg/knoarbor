@@ -90,9 +90,9 @@ Active spec: [1.4 Machine Index Layer](../specs/1.4-machine-index-layer/requirem
 
 Focus areas:
 
-- Add a machine index layer separate from the human-facing `index.md`.
+- Use `.knoarbor/index/manifest.json` and `.knoarbor/index/graph_index.json` as the default machine index boundary.
 - Keep page-level BM25 ranking as the default lexical retrieval signal.
-- Add SQLite FTS-style retrieval as the first durable local index.
+- Keep compatibility retrieval payloads for UI/query while gradually moving traversal logic to the graph index.
 - Keep vector search optional, not required for the default install.
 - Track index freshness, rebuild status, and failure states.
 - Let ingest and lint use the same index provider contracts.
@@ -100,7 +100,7 @@ Focus areas:
 Done when:
 
 - Query quality improves on medium-sized vaults without requiring vector infrastructure.
-- `index.md` remains useful for humans, while machine retrieval uses purpose-built indexes.
+- Query and lint use purpose-built index artifacts; `index.md` is only an optional export view if needed later.
 
 ## 1.5.x: Knowledge Governance
 

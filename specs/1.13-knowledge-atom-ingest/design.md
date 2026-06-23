@@ -93,10 +93,13 @@ Responsibilities:
   `facets`, `canonical_path`, and `legacy_paths`;
 - choose related pages and relation reasons;
 - expose rejected page candidates.
+- carry `source_digest_ids` for every actionable operation;
+- carry selected fact, claim, or relation atom ids for non-source page
+  operations.
 
-The current `WikiRelationPlan` behaves like a page write plan. The new design
-will either rename it to `WikiPagePlan` or introduce `WikiPagePlan` beside it
-before deprecating relation-plan wording.
+`WikiPagePlan` is the page write-planning contract. It selects page operations
+from source digests and knowledge atoms, while typed relations remain
+page-internal semantic edges rather than the name of the ingest planning stage.
 
 Page planning follows [ADR 0002](../../docs/adr/0002-unified-page-namespace.md):
 physical directories are not the canonical knowledge type boundary. The
@@ -120,15 +123,49 @@ Responsibilities:
 - attach source digest ids and atom ids in frontmatter or report metadata;
 - reject page statements that cannot be linked to source evidence or approved
   atoms.
+- review each draft against the same page-plan evidence trace used by the draft
+  compiler;
+- treat source trace, atom coverage, page identity, synthesis quality, and
+  update safety as write gates before persistence.
 
-Canonical page sections:
+### Wiki Page Projection Contract
+
+A wiki page is a Markdown projection of a structured knowledge object. It is not
+the durable fact boundary. The durable boundary is the combination of page
+identity, claims, evidence, relations, source digests, and atom traces.
+
+The frozen page design separates three concerns:
+
+- identity and routing metadata in frontmatter;
+- auditable knowledge sections for claims, evidence, and relations;
+- readable Markdown sections for human and host-AI consumption.
+
+Recommended frontmatter fields:
+
+- `schema_version`: page schema version, starting with `wiki_page.v1`;
+- `page_profile`: `full`, `compact`, or `micro`;
+- `role`: `knowledge_page`, `source_digest`, `generated_view`, or
+  `micro_note`;
+- `page_kind`: `concept`, `entity`, `workflow`, `comparison`, `timeline`,
+  `query`, `note`, or `source_digest`;
+- `subject_kind`: optional finer-grained subject classification;
+- `facets`: virtual browsing and filtering categories;
+- `aliases`: alternative names and legacy titles;
+- `source_digest_ids`: source digest references used by the page;
+- `atom_ids`, `claim_ids`, `relation_ids`: structured trace references;
+- `canonical_path` and `legacy_paths`: stable page identity and migration
+  aliases;
+- `confidence`, `status`, `created`, and `updated`.
+
+Canonical Markdown sections:
 
 - `Summary`: short page-level abstract for scanning, cards, and quick query
-  previews.
+  previews. It should identify what the page answers in one or two sentences.
 - `Scope`: the page subject boundary, including what the page covers, excludes,
   or treats as version/time scoped.
 - `Source Focus`: the source topic, question, or context this page was compiled
-  from. Source focus is provenance context, not the page subject boundary.
+  from. Source focus is provenance context, not the page subject boundary. It is
+  primarily useful on source digest pages or as collapsed provenance context.
 - `Definition`: stable identity or definition for the page subject.
 - `Claims`: auditable statements backed by selected atoms or direct source
   evidence.
@@ -138,9 +175,64 @@ Canonical page sections:
   relations for human and host-AI reading.
 - `Key Points`: compact reading and retrieval hints; useful for cards and
   skimming, but not the primary evidence boundary.
+- `Limitations / Open Questions`: evidence gaps, conflicts, weak claims,
+  version caveats, or unresolved questions.
 - `Related Pages`: navigation links for wiki browsing.
 - `Tags`: lightweight categorization for filtering and retrieval.
 - `Source`: source paths used to compile or update the page.
+
+The sections are a projection contract, not a forced long-form template. Ingest
+must choose the smallest page profile that preserves evidence and meaning:
+
+#### Full Profile
+
+Use `page_profile: full` for complex topics, multi-source synthesis, contested
+material, or pages that define a reusable architecture or process.
+
+Expected sections:
+
+- `Summary`
+- `Scope`
+- `Definition`
+- `Claims`
+- `Evidence`
+- `Relations`
+- `Synthesis`
+- `Key Points`
+- `Limitations / Open Questions`
+- `Related Pages`
+- `Source`
+
+#### Compact Profile
+
+Use `page_profile: compact` for normal single-topic knowledge pages.
+
+Expected sections:
+
+- `Summary`
+- `Definition` or `Core Idea`
+- `Claims`
+- `Relations` when explicit relations are supported;
+- `Synthesis` when a readable integration is useful;
+- `Related Pages`
+- `Source`
+
+Evidence may be inline inside `Claims` instead of a standalone section.
+
+#### Micro Profile
+
+Use `page_profile: micro` for short selected text, quote-like material, a single
+chat insight, or thin evidence that should not be expanded into a full page.
+
+Expected sections:
+
+- `Summary`
+- `Claim` or `Note`
+- `Evidence`
+- `Source`
+
+Micro pages must preserve the compactness of the input. They should not invent
+relations, broad background, or article-length synthesis from thin evidence.
 
 `Synthesis` is a derived reading layer. It may explain, connect, and organize
 claims and relations, but it must not introduce unsupported facts that are
@@ -148,12 +240,40 @@ missing from the selected atoms or direct source evidence. If the synthesis were
 removed, the page should still retain its knowledge skeleton through identity,
 scope, claims, relations, and source evidence.
 
+Section boundaries:
+
+- `Summary` is routing and preview text, not a condensed version of every
+  section.
+- `Definition` or `Core Idea` is the stable subject identity, not source
+  provenance.
+- `Claims` are evidence-backed statements that can be updated, rejected,
+  contradicted, or cited.
+- `Evidence` links claims to source spans, source digests, or approved atoms. It
+  is not a duplicate copy of all raw source text.
+- `Relations` are typed semantic edges with direction, target, support,
+  confidence, and status.
+- `Related Pages` are navigation links. They are not the same as typed
+  relations.
+- `Sources` are provenance references. They are not the same as evidence
+  mappings.
+- `Key Points` are quick reading and retrieval hints. They must not create a
+  second, conflicting set of claims.
+
 ### Source Digest Boundary
 
 Source digest pages describe what a raw source or source segment contributes.
 They are audit and provenance views. They are not concept pages and should not
 be treated as the primary answer object unless the user is asking about the
 source itself.
+
+The detailed source digest boundary is frozen in
+[Source Digest Boundary](source-digest-boundary.md).
+
+The schema storage and rule boundary is frozen in
+[Schema Boundary](schema-boundary.md).
+
+The graph-first machine index boundary is frozen in
+[Index Boundary](index-boundary.md).
 
 Source digests answer:
 
@@ -198,6 +318,22 @@ not be expanded into article-length pages by default. They can produce:
 Short sources should preserve their compactness. The semantic workflow should
 prefer one or a few evidence-backed claims over broad synthesis, and reports
 should make unsupported expansion visible.
+
+## Rejected Design Alternatives
+
+- A fixed full-section Markdown template for every page. This makes short
+  sources look complete when evidence is thin and encourages unsupported
+  expansion.
+- Treating `Synthesis` or legacy `Answer` prose as the durable fact boundary.
+  Readable prose remains a projection over claims, relations, and evidence.
+- Treating `Source Focus` as the page subject. Source focus is provenance
+  context; `Scope`, `Definition`, and page identity define the subject.
+- Treating every wikilink as a typed relation. Wikilinks support reading;
+  accepted relations require explicit type, direction, evidence, and status.
+- Treating every related page as answer evidence. Related pages are navigation
+  unless selected into the answer set by query/chat.
+- Requiring a standalone `Evidence` section on every page. Evidence is required
+  semantically, but compact pages may inline evidence references inside claims.
 
 ### Index / Report Layer
 

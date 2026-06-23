@@ -2,18 +2,19 @@
 
 ## Problem
 
-KnoArbor currently retrieves from Markdown pages and a human-readable
-`index.md`. This works for small vaults, but it couples machine retrieval to
-human routing artifacts and makes freshness, rebuild state, and retrieval
-quality harder to reason about.
+KnoArbor retrieves from Markdown wiki pages and machine index artifacts. Earlier
+drafts used a human-readable `index.md` as a routing artifact, but the durable
+retrieval boundary is now `.knoarbor/index/manifest.json` plus
+`.knoarbor/index/graph_index.json`.
 
 The 1.4 line should introduce a machine index layer that improves retrieval
 without requiring a vector database or heavyweight service.
 
 ## Goals
 
-- Add a machine-readable index boundary separate from `index.md`.
-- Preserve `index.md` as a human debugging and routing artifact.
+- Use `manifest.json` and `graph_index.json` as the default machine-readable
+  index boundary.
+- Treat `index.md` as a future optional export view, not as source of truth.
 - Prefer local BM25 ranking and SQLite FTS-style durable retrieval before optional vector search.
 - Give ingest, lint, query, and UI a shared index provider contract.
 - Track index freshness, rebuild status, and failure states.
@@ -27,7 +28,8 @@ without requiring a vector database or heavyweight service.
 - Do not replace wiki Markdown pages as the source of truth.
 - Do not make query depend on a network service.
 - Do not add multi-user search permissions.
-- Do not remove current Markdown retrieval until the machine index is proven.
+- Do not replace current compatibility retrieval payloads until query, UI, and
+  graph traversal are migrated behind the provider boundary.
 
 ## User Scenarios
 
@@ -72,7 +74,9 @@ Acceptance criteria:
 Implemented:
 
 - Markdown-based retrieval with field-weighted BM25 page scoring.
-- Human-readable `index.md`.
+- Durable `.knoarbor/index/manifest.json` and `.knoarbor/index/graph_index.json`.
+- Compatibility retrieval payloads: `pages.json`, `links.json`, `sources.json`,
+  and `search.json`.
 - Query context packs and trace metadata.
 - `IndexProvider` direction documented in architecture and roadmap.
 - Query trace records the active scoring model.
@@ -81,7 +85,5 @@ Implemented:
 
 Still in scope for 1.4:
 
-- Formalize provider freshness model.
-- Add durable local machine index storage.
 - Add rebuild command/API/reporting.
-- Update query to use the provider boundary by default when available.
+- Move more query graph traversal from compatibility payloads to `graph_index.json`.

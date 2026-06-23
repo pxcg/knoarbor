@@ -31,8 +31,7 @@
 
 ## P3 Page Planning
 
-- [x] Introduce `WikiPagePlan` or rename relation-plan usage to page-plan
-  semantics.
+- [x] Use `WikiPagePlan` as the ingest page-planning contract.
 - [x] Make page planning consume atom batches plus existing page context.
 - [x] Record atom ids selected for each page operation.
 - [x] Keep old page output behavior during the migration window.
@@ -44,6 +43,12 @@
 - [x] Add page metadata for source digest ids and atom ids.
 - [x] Update Markdown templates to expose Definition, Claims, Relations, and
   Synthesis instead of centering on legacy Answer prose.
+- [x] Pass selected fact, claim, relation, and source digest ids through the
+  shared ingest compile context.
+- [x] Update draft review scoring from directory fit to source trace, atom
+  coverage, identity fit, synthesis quality, and update safety.
+- [x] Add deterministic quality-gate checks for missing source digest trace and
+  missing non-source atom trace before write.
 
 ## P5 Index, Lint, Query, Chat
 

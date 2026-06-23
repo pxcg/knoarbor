@@ -103,6 +103,11 @@ inventing a broad article from thin evidence.
   consume atom data.
 - New Wiki pages expose `Definition`, `Claims`, `Relations`, and `Synthesis`
   sections, with `source_digest_ids` and `atom_ids` retained as trace metadata.
+- Page planning, draft compilation, draft review, and the deterministic quality
+  gate share the same source digest and atom trace contract.
+- Approved writes are rejected before persistence when the page plan or draft
+  lacks source digest trace, or when a non-source page lacks selected atom
+  trace.
 - `Synthesis` is treated as a derived reading layer. Major factual statements in
   synthesis must map back to selected atoms or direct source evidence.
 - Typed relations and Markdown wikilinks are separate concepts. Relations carry

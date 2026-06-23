@@ -277,7 +277,7 @@ First public alpha release.
 - Single-file ingest for Markdown and preprocessed documents.
 - Optional MinerU-compatible document preprocessing into Markdown.
 - Source segmentation for long Markdown and conversation sources.
-- Semantic ingest workflow with source normalization, relation planning, draft compilation, draft review, quality gate, scoped lint, reports, and checkpoints.
+- Semantic ingest workflow with source normalization, page planning, draft compilation, draft review, quality gate, scoped lint, reports, and checkpoints.
 - Lint maintenance workflow with deterministic scan, semantic structural diagnosis, semantic quality diagnosis, maintenance review, operation execution, verification, reports, and ledgers.
 - Retrieval-only query workflow for host AI tools, including ranked pages, excerpts, source pointers, graph context, context packs, and optional query reports.
 - FastAPI service, CLI commands, local run queue, run monitor, structured logs, vault file locks, and bundled local web console.
