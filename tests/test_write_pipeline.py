@@ -25,9 +25,15 @@ class WikiWritePipelineTests(unittest.TestCase):
                         wiki_draft=WikiDraftInput(
                             title="Agent Loop",
                             page_dir="concepts",
+                            canonical_path="pages/Agent Loop.md",
                             question="Agent loop",
                             answer="Agent loop repeats observe, decide, act, and feedback.",
                             summary="Agent loop is a repeated control pattern.",
+                            claims=["C1: [[Agent Loop]] repeats observe, decide, act, and feedback."],
+                            entities=["[[Agent Loop]]"],
+                            relations=["[[Agent Loop]] | repeats | [[Control Cycle]] | C1"],
+                            evidence=["C1 | raw/notes/agent.md | section:Agent Loop | source states the loop cycle | high"],
+                            synthesis="Agent loop repeats observe, decide, act, and feedback.",
                             key_points=["Observe and act in a loop."],
                             tags=["agent", "loop"],
                             confidence=0.8,
@@ -45,16 +51,23 @@ class WikiWritePipelineTests(unittest.TestCase):
             self.assertEqual(response.stats["written_count"], 1)
             self.assertTrue(output_path.exists())
             self.assertEqual(output_path.resolve().relative_to((vault / "pages").resolve()).as_posix(), "Agent-Loop.md")
-            self.assertTrue((vault / "pages" / "index.md").exists())
+            self.assertTrue((vault / ".knoarbor" / "index" / "manifest.json").exists())
+            self.assertTrue((vault / ".knoarbor" / "index" / "graph_index.json").exists())
             self.assertEqual(response.results[0].stats["directory"], "concepts")
             self.assertEqual(response.results[0].stats["canonical_path"], "Agent-Loop.md")
-            self.assertEqual(response.results[0].stats["legacy_paths"], ["concepts/Agent-Loop.md"])
+            self.assertEqual(
+                response.results[0].stats["legacy_paths"],
+                ["pages/Agent Loop.md", "Agent Loop.md", "concepts/Agent-Loop.md"],
+            )
             self.assertEqual(response.results[0].stats["page_kind"], "concept")
             self.assertEqual(response.results[0].stats["role"], "knowledge_page")
-            self.assertIn("canonical_path: Agent-Loop.md", content)
-            self.assertIn('legacy_paths: ["concepts/Agent-Loop.md"]', content)
-            self.assertIn("page_kind: concept", content)
-            self.assertIn("role: knowledge_page", content)
+            self.assertIn("created:", content)
+            self.assertIn("updated:", content)
+            self.assertIn("content_hash:", content)
+            self.assertNotIn("canonical_path:", content)
+            self.assertNotIn("legacy_paths:", content)
+            self.assertNotIn("page_kind:", content)
+            self.assertNotIn("role:", content)
 
     def test_write_pipeline_sanitizes_unresolved_wikilinks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -72,6 +85,11 @@ class WikiWritePipelineTests(unittest.TestCase):
                             question="LLM Wiki",
                             answer="Use [[concepts]] carefully and link [[LLM Wiki Source]] only when it exists.",
                             summary="A wiki method.",
+                            claims=["C1: [[LLM Wiki]] precompiles durable knowledge."],
+                            entities=["[[LLM Wiki]]"],
+                            relations=["[[LLM Wiki]] | precompiles | [[Durable Knowledge]] | C1"],
+                            evidence=["C1 | raw/notes/wiki.md | section:LLM Wiki | source states the method | high"],
+                            synthesis="Use [[concepts]] carefully and link [[LLM Wiki Source]] only when it exists.",
                             key_points=["Precompile durable knowledge."],
                             tags=["wiki"],
                             confidence=0.8,
@@ -88,7 +106,7 @@ class WikiWritePipelineTests(unittest.TestCase):
             self.assertIn("concepts carefully", content)
             self.assertNotIn("[[concepts]]", content)
             self.assertIn("unresolved_wikilinks_sanitized", response.results[0].stats)
-            self.assertEqual(response.stats["unresolved_wikilinks_sanitized_count"], 2)
+            self.assertEqual(response.stats["unresolved_wikilinks_sanitized_count"], 3)
 
     def test_write_pipeline_can_display_redacted_source_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -106,6 +124,11 @@ class WikiWritePipelineTests(unittest.TestCase):
                             question="Claude Code",
                             answer="Claude Code is a coding assistant.",
                             summary="Claude Code is a coding assistant.",
+                            claims=["C1: [[Claude Code]] is a coding assistant."],
+                            entities=["[[Claude Code]]"],
+                            relations=["[[Claude Code]] | is_a | [[Coding Assistant]] | C1"],
+                            evidence=["C1 | /Users/[REDACTED_USER]/.claude/projects/session.jsonl | session:summary | source identifies Claude Code | high"],
+                            synthesis="Claude Code is a coding assistant.",
                             key_points=["It records coding sessions."],
                             tags=["claude-code"],
                             confidence=0.8,
@@ -126,6 +149,8 @@ class WikiWritePipelineTests(unittest.TestCase):
     def test_write_pipeline_persists_atom_trace_frontmatter(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
+            (vault / "pages").mkdir()
+            (vault / "pages" / "Tool-Use.md").write_text("# Tool Use\n", encoding="utf-8")
             request = WikiDraftBatchWriteRequest(
                 vault_path=str(vault),
                 auto_related_links=False,
@@ -138,6 +163,11 @@ class WikiWritePipelineTests(unittest.TestCase):
                             question="Agent Loop",
                             answer="Agent loop repeats reasoning and tool use.",
                             summary="Agent loop is a control pattern.",
+                            claims=["C1: [[Agent Loop]] repeats reasoning and tool use."],
+                            entities=["[[Agent Loop]]"],
+                            relations=["[[Agent Loop]] | repeats | [[Tool Use]] | C1"],
+                            evidence=["C1 | sd_agent_loop | unit:0 | atom trace supports the loop cycle | high"],
+                            synthesis="Agent loop repeats reasoning and tool use.",
                             key_points=["Reason and act."],
                             tags=["agent"],
                             confidence=0.8,
@@ -153,13 +183,16 @@ class WikiWritePipelineTests(unittest.TestCase):
             response = WikiWritePipeline().run(request)
             content = Path(response.results[0].wiki_file_path).read_text(encoding="utf-8")
 
-            self.assertIn('source_digest_ids: ["sd_agent_loop"]', content)
-            self.assertIn('atom_ids: ["fact_agent_loop_cycle", "claim_agent_loop_boundary"]', content)
-            self.assertIn("## Definition", content)
+            self.assertNotIn("source_digest_ids:", content)
+            self.assertNotIn("atom_ids:", content)
+            self.assertNotIn("## Definition", content)
             self.assertIn("## Claims", content)
-            self.assertIn("- Reason and act.", content)
+            self.assertIn("- C1: [[Agent Loop]] repeats reasoning and tool use.", content)
+            self.assertIn("## Entities", content)
             self.assertIn("## Relations", content)
-            self.assertIn("- 暂无显式关系", content)
+            self.assertIn("| [[Agent Loop]] | repeats | [[Tool Use]] | C1 |", content)
+            self.assertIn("## Evidence", content)
+            self.assertIn("| C1 | sd_agent_loop | unit:0 | atom trace supports the loop cycle | high |", content)
             self.assertIn("## Synthesis", content)
             self.assertNotIn("## Answer", content)
 
@@ -184,8 +217,12 @@ class WikiWritePipelineTests(unittest.TestCase):
                                 "Production Agent Loop requires observability and error recovery.",
                             ],
                             relations=[
-                                "Agent Loop contrasts Workflow",
-                                "Agent Loop depends_on Tool Execution",
+                                "Agent Loop | contrasts_with | Workflow | C1",
+                                "Agent Loop | depends_on | Tool Execution | C2",
+                            ],
+                            evidence=[
+                                "C1 | raw/notes/agent.md | section:Workflow | source contrasts runtime decisions with workflow | high",
+                                "C2 | raw/notes/agent.md | section:Production | source names observability and recovery | high",
                             ],
                             synthesis="Agent Loop should be read as a dynamic control layer rather than a static workflow.",
                             key_points=["Dynamic control loop."],
@@ -201,10 +238,10 @@ class WikiWritePipelineTests(unittest.TestCase):
             response = WikiWritePipeline().run(request)
             content = Path(response.results[0].wiki_file_path).read_text(encoding="utf-8")
 
-        self.assertIn("## Source Focus\n\nAgent Loop source notes", content)
-        self.assertIn("## Definition\n\nAgent Loop is a control loop", content)
-        self.assertIn("- Agent Loop differs from workflow", content)
-        self.assertIn("- Agent Loop contrasts Workflow", content)
+        self.assertNotIn("## Source Focus", content)
+        self.assertNotIn("## Definition", content)
+        self.assertIn("- C1: Agent Loop differs from workflow", content)
+        self.assertIn("| Agent Loop | contrasts_with | Workflow | C1 |", content)
         self.assertIn("## Synthesis\n\nAgent Loop should be read as a dynamic control layer", content)
 
     def test_write_pipeline_scopes_source_digest_title(self) -> None:
@@ -239,8 +276,10 @@ class WikiWritePipelineTests(unittest.TestCase):
             self.assertEqual(output_path.resolve().relative_to((vault / "pages").resolve()).as_posix(), "sources/LLM-Wiki-Source.md")
             self.assertEqual(output_path.name, "LLM-Wiki-Source.md")
             self.assertIn("# LLM-Wiki Source", content)
-            self.assertIn("page_kind: source_digest", content)
-            self.assertIn("role: source_digest", content)
+            self.assertNotIn("page_kind: source_digest", content)
+            self.assertNotIn("role: source_digest", content)
+            self.assertEqual(response.results[0].stats["page_kind"], "source_digest")
+            self.assertEqual(response.results[0].stats["role"], "source_digest")
 
     def test_write_pipeline_surfaces_index_update_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -257,6 +296,11 @@ class WikiWritePipelineTests(unittest.TestCase):
                             question="Agent loop",
                             answer="Agent loop repeats observe and act.",
                             summary="Agent loop is a control pattern.",
+                            claims=["C1: [[Agent Loop]] repeats observe and act."],
+                            entities=["[[Agent Loop]]"],
+                            relations=["[[Agent Loop]] | repeats | [[Control Cycle]] | C1"],
+                            evidence=["C1 | raw/notes/agent.md | section:Agent Loop | source states observe and act | high"],
+                            synthesis="Agent loop repeats observe and act.",
                             key_points=["Observe and act."],
                             tags=["agent"],
                             confidence=0.8,

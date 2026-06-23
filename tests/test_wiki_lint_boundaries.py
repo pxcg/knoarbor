@@ -22,7 +22,7 @@ class WikiLintBoundaryTests(unittest.TestCase):
                 "# Lint Run Report\n\nRuntime maintenance artifact.",
                 encoding="utf-8",
             )
-            (vault / "index.md").write_text("# Index\n", encoding="utf-8")
+            update_index(vault)
 
             issues, stats = lint_vault(vault)
 

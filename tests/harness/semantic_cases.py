@@ -57,7 +57,7 @@ def source_normalize_output(*, title: str = "Agent", content: str = "Agent loop 
     }
 
 
-def wiki_relation_output() -> dict[str, object]:
+def wiki_page_plan_output() -> dict[str, object]:
     return {
         "output": {
             "operations": [
@@ -65,6 +65,11 @@ def wiki_relation_output() -> dict[str, object]:
                     "action": "create",
                     "target_page": None,
                     "page_dir": "concepts",
+                    "canonical_path": "Agent-Loop.md",
+                    "legacy_paths": ["concepts/Agent-Loop.md"],
+                    "page_kind": "concept",
+                    "subject_kind": "control_pattern",
+                    "facets": ["agent_loop", "agent_architecture"],
                     "title": "Agent Loop",
                     "knowledge_object": "Agent Loop",
                     "selected_fact_ids": ["fact_agent_loop_cycle"],
@@ -149,6 +154,11 @@ def wiki_draft_batch_output() -> dict[str, object]:
                     "source_file": "raw/notes/Agent.md",
                     "title": "Agent Loop",
                     "page_dir": "concepts",
+                    "canonical_path": "Agent-Loop.md",
+                    "legacy_paths": ["concepts/Agent-Loop.md"],
+                    "page_kind": "concept",
+                    "subject_kind": "control_pattern",
+                    "facets": ["agent_loop", "agent_architecture"],
                     "question": "Agent Loop",
                     "answer": "Agent Loop is an observe, decide, act, feedback cycle.",
                     "summary": "Agent Loop is a basic control cycle for agents.",
@@ -186,25 +196,29 @@ def ingest_review_output() -> dict[str, object]:
                     "reason": "The draft is source-supported.",
                     "required_changes": [],
                     "dimension_scores": {
+                        "source_trace": 0.9,
+                        "atom_coverage": 0.9,
                         "source_support": 0.9,
                         "page_boundary": 0.9,
-                        "directory_fit": 0.9,
+                        "identity_fit": 0.9,
                         "duplication_risk": 0.9,
                         "relation_quality": 0.9,
-                        "completeness": 0.9,
+                        "synthesis_quality": 0.9,
                         "maintainability": 0.9,
-                        "patch_safety": 0.9,
+                        "update_safety": 0.9,
                     },
                     "checks": {
                         "operation_aligned": True,
+                        "source_trace_complete": True,
+                        "atom_coverage_sufficient": True,
                         "page_boundary_clear": True,
-                        "directory_fit": True,
+                        "identity_fit": True,
                         "source_supported": True,
                         "not_duplicate": True,
                         "relation_quality": True,
-                        "complete_enough": True,
+                        "synthesis_quality": True,
                         "maintainable": True,
-                        "patch_safe": True,
+                        "update_safe": True,
                         "write_safe": True,
                     },
                 }
@@ -289,6 +303,11 @@ def lint_draft_batch_output() -> dict[str, object]:
                     "source_file": "raw/notes/Agent.md",
                     "title": "Agent Source Digest",
                     "page_dir": "sources",
+                    "canonical_path": "sources/Agent-Source-Digest.md",
+                    "legacy_paths": [],
+                    "page_kind": "source_digest",
+                    "subject_kind": "source_digest",
+                    "facets": ["source_digest"],
                     "question": "Source digest",
                     "answer": "This source describes Agent Loop.",
                     "summary": "Source digest for Agent notes.",

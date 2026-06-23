@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch, WikiDraftBatchItem
-from knoarbor.core.schemas.wiki_relation_plan import WikiRelationOperation, WikiRelationPlan
+from knoarbor.core.schemas.wiki_page_plan import WikiPageOperation, WikiPagePlan
 from knoarbor.semantic.ingest_workflow import IngestSemanticWorkflow
 from knoarbor.semantic.lint_workflow import LintSemanticWorkflow
 from knoarbor.semantic.runner import SemanticRunResult
@@ -55,7 +55,7 @@ class SemanticWorkflowTests(unittest.TestCase):
     def test_ingest_compile_drafts_uses_runtime_model_metadata(self) -> None:
         workflow = IngestSemanticWorkflow(FakeDraftCompileRunner())  # type: ignore[arg-type]
 
-        batch = workflow.compile_drafts(_knowledge_extract(), _relation_plan())
+        batch = workflow.compile_drafts(_knowledge_extract(), _page_plan())
 
         self.assertEqual(batch.drafts[0].model_provider, "deepseek")
         self.assertEqual(batch.drafts[0].model_name, "deepseek-v4-flash")
@@ -87,10 +87,10 @@ def _knowledge_extract() -> KnowledgeExtract:
     )
 
 
-def _relation_plan() -> WikiRelationPlan:
-    return WikiRelationPlan(
+def _page_plan() -> WikiPagePlan:
+    return WikiPagePlan(
         operations=[
-            WikiRelationOperation(
+            WikiPageOperation(
                 action="create",
                 page_dir="concepts",
                 title="Agent Loop",

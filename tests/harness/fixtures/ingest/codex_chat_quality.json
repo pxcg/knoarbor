@@ -1,5 +1,5 @@
 {
-  "report": "# Ingest Report\n\n- run_id: golden-quality-ingest-run\n- started_at: 2026-01-01 00:00:00\n- finished_at: 2026-01-01 00:00:01\n- sources: 1\n- processed: 1\n- skipped: 0\n- failed: 0\n- written_pages: 4\n- segments: 3 total, 0 failed, max 1677 chars\n- document_processing: 0 processed, 0 failed\n- elapsed_seconds: <elapsed>\n- semantic_calls: 3\n- total_tokens: 0\n- tokens_per_second: <tokens_per_second>\n- lifecycle_candidates: 0\n- recovery_candidates: 0\n- source_concurrency: 1 effective / 1 configured\n- execution_ledger: n/a\n- repeated_failed_sources: 0\n- repeated_skipped_sources: 0\n\n## Semantic Token Usage\n\n- semantic_calls: 3\n- prompt_tokens: 0\n- prompt_cached_tokens: 0\n- prompt_cache_rate: n/a\n- prompt_stable_chars: 0\n- prompt_dynamic_chars: 0\n- dynamic_to_stable_ratio: n/a\n- completion_tokens: 0\n- total_tokens: 0\n- semantic_elapsed_seconds: n/a\n- tokens_per_second: <tokens_per_second>\n\n## Run Summary\n\n- source_status: written=1\n- segment_status: processed=3\n- write_summary: 4 page(s) written across 1 source(s)\n- failure_summary: none\n- recovery_summary: none\n\n## Sources\n\n### raw/chats/codex-golden-session.json\n\n- connector: codex\n- source_id: codex:golden-session\n- mode: full\n- status: written\n- checkpoint_type: source\n- should_process: True\n- wrote: True\n- reason: Explicit source document input.\n- semantic_skip_reason: n/a\n- redacted_count: 0\n- candidate_count: 0\n- quality_gate_passed: True\n- touched_pages: 4\n- scoped_lint_issues: not_run\n- maintenance_policy: not_run\n- maintenance_policy_triggered: False\n- elapsed_seconds: <elapsed>\n- semantic_calls: 0\n- total_tokens: 0\n- tokens_per_second: <tokens_per_second>\n- approved_operations: [0, 1, 1000, 1001, 2000, 2001]\n- segmentation: turns / 3 segment(s)\n- segment_status: processed=3\n\nRelation operations:\n- None.\n\nSegments:\n- [0] turns 0-1 / 1572 chars / status: processed / semantic_calls: 0 / tokens: 0 / cached: 0 / elapsed: <elapsed>s\n  - `create` `sources` Codex Golden Session Source Digest -> new page\n  - `create` `queries` Agent Loop In KnoArbor -> new page\n  - written_pages: sources/Codex-Golden-Session-Source-Digest.md, Agent-Loop-In-KnoArbor.md\n  - page_change: `sources/Codex-Golden-Session-Source-Digest.md` action=create sections=none\n  - page_change: `Agent-Loop-In-KnoArbor.md` action=create sections=none\n- [1] turns 2-3 / 1677 chars / status: processed / semantic_calls: 0 / tokens: 0 / cached: 0 / elapsed: <elapsed>s\n  - `create` `sources` Codex Golden Session Source Digest -> new page\n  - `create` `workflows` Workflow Boundary Design -> new page\n  - written_pages: Workflow-Boundary-Design.md\n  - page_change: `Workflow-Boundary-Design.md` action=create sections=none\n- [2] turns 4-5 / 1632 chars / status: processed / semantic_calls: 0 / tokens: 0 / cached: 0 / elapsed: <elapsed>s\n  - `create` `sources` Codex Golden Session Source Digest -> new page\n  - `create` `concepts` Golden Harness Evaluation -> new page\n  - written_pages: Golden-Harness-Evaluation.md\n  - page_change: `Golden-Harness-Evaluation.md` action=create sections=none\n\nGenerated pages:\n- sources/Codex-Golden-Session-Source-Digest.md\n- Agent-Loop-In-KnoArbor.md\n- Workflow-Boundary-Design.md\n- Golden-Harness-Evaluation.md\n\nScoped lint pages:\n- sources/Codex-Golden-Session-Source-Digest.md\n- Agent-Loop-In-KnoArbor.md\n- Workflow-Boundary-Design.md\n- Golden-Harness-Evaluation.md\n\n## Source Lifecycle Candidates\n\n- None.\n\n## Recovery Candidates\n\n- None.\n",
+  "report": "# Ingest Report\n\n- run_id: golden-quality-ingest-run\n- started_at: 2026-01-01 00:00:00\n- finished_at: 2026-01-01 00:00:01\n- sources: 1\n- processed: 1\n- skipped: 0\n- failed: 0\n- written_pages: 4\n- segments: 3 total, 0 failed, max 1677 chars\n- document_processing: 0 processed, 0 failed\n- elapsed_seconds: <elapsed>\n- semantic_calls: 3\n- total_tokens: 0\n- tokens_per_second: <tokens_per_second>\n- lifecycle_candidates: 0\n- recovery_candidates: 0\n- source_concurrency: 1 effective / 1 configured\n- execution_ledger: n/a\n- repeated_failed_sources: 0\n- repeated_skipped_sources: 0\n\n## Semantic Token Usage\n\n- semantic_calls: 3\n- prompt_tokens: 0\n- prompt_cached_tokens: 0\n- prompt_cache_rate: n/a\n- prompt_stable_chars: 0\n- prompt_dynamic_chars: 0\n- dynamic_to_stable_ratio: n/a\n- completion_tokens: 0\n- total_tokens: 0\n- semantic_elapsed_seconds: n/a\n- tokens_per_second: <tokens_per_second>\n\n## Run Summary\n\n- source_status: written=1\n- segment_status: processed=3\n- write_summary: 4 page(s) written across 1 source(s)\n- failure_summary: none\n- recovery_summary: none\n\n## Sources\n\n### raw/chats/codex-golden-session.json\n\n- connector: codex\n- source_id: codex:golden-session\n- mode: full\n- status: written\n- checkpoint_type: source\n- should_process: True\n- wrote: True\n- reason: Explicit source document input.\n- semantic_skip_reason: n/a\n- redacted_count: 0\n- candidate_count: 0\n- quality_gate_passed: True\n- touched_pages: 4\n- scoped_lint_issues: not_run\n- maintenance_policy: not_run\n- maintenance_policy_triggered: False\n- elapsed_seconds: <elapsed>\n- semantic_calls: 0\n- total_tokens: 0\n- tokens_per_second: <tokens_per_second>\n- approved_operations: [0, 1, 1000, 1001, 2000, 2001]\n- segmentation: turns / 3 segment(s)\n- segment_status: processed=3\n\nPage plan operations:\n- None.\n\nSegments:\n- [0] turns 0-1 / 1572 chars / status: processed / semantic_calls: 0 / tokens: 0 / cached: 0 / elapsed: <elapsed>s\n  - `create` `sources` Codex Golden Session Source Digest -> new page\n  - `create` `queries` Agent Loop In KnoArbor -> new page\n  - written_pages: sources/Codex-Golden-Session-Source-Digest.md, Agent-Loop-In-KnoArbor.md\n  - page_change: `sources/Codex-Golden-Session-Source-Digest.md` action=create sections=none\n  - page_change: `Agent-Loop-In-KnoArbor.md` action=create sections=none\n- [1] turns 2-3 / 1677 chars / status: processed / semantic_calls: 0 / tokens: 0 / cached: 0 / elapsed: <elapsed>s\n  - `create` `sources` Codex Golden Session Source Digest -> new page\n  - `create` `workflows` Workflow Boundary Design -> new page\n  - written_pages: Workflow-Boundary-Design.md\n  - page_change: `Workflow-Boundary-Design.md` action=create sections=none\n- [2] turns 4-5 / 1632 chars / status: processed / semantic_calls: 0 / tokens: 0 / cached: 0 / elapsed: <elapsed>s\n  - `create` `sources` Codex Golden Session Source Digest -> new page\n  - `create` `concepts` Golden Harness Evaluation -> new page\n  - written_pages: Golden-Harness-Evaluation.md\n  - page_change: `Golden-Harness-Evaluation.md` action=create sections=none\n\nGenerated pages:\n- sources/Codex-Golden-Session-Source-Digest.md\n- Agent-Loop-In-KnoArbor.md\n- Workflow-Boundary-Design.md\n- Golden-Harness-Evaluation.md\n\nScoped lint pages:\n- sources/Codex-Golden-Session-Source-Digest.md\n- Agent-Loop-In-KnoArbor.md\n- Workflow-Boundary-Design.md\n- Golden-Harness-Evaluation.md\n\n## Source Lifecycle Candidates\n\n- None.\n\n## Recovery Candidates\n\n- None.\n",
   "source": {
     "approved_operation_indexes": [
       0,
@@ -68,35 +68,45 @@
             "total_tokens": 0
           }
         },
-        "relation_operations": [
+        "page_plan_operations": [
           {
             "action": "create",
+            "canonical_path": null,
             "decision_reason": "One source digest represents the whole source across segments.",
             "facets": [],
             "knowledge_object": "Codex Golden Session provenance",
+            "legacy_paths": [],
             "operation_index": 0,
             "page_dir": "sources",
             "page_kind": null,
             "selected_claim_ids": [],
             "selected_fact_ids": [],
             "selected_relation_ids": [],
-            "source_digest_ids": [],
+            "source_digest_ids": [
+              "sd_09a370e2dd4de036"
+            ],
             "subject_kind": null,
             "target_page": null,
             "title": "Codex Golden Session Source Digest"
           },
           {
             "action": "create",
+            "canonical_path": null,
             "decision_reason": "Agent loop control is the durable object in this segment.",
             "facets": [],
             "knowledge_object": "agent loop control pattern",
+            "legacy_paths": [],
             "operation_index": 1,
             "page_dir": "queries",
             "page_kind": null,
-            "selected_claim_ids": [],
+            "selected_claim_ids": [
+              "claim_agent_loop_in_knoarbor"
+            ],
             "selected_fact_ids": [],
             "selected_relation_ids": [],
-            "source_digest_ids": [],
+            "source_digest_ids": [
+              "sd_09a370e2dd4de036"
+            ],
             "subject_kind": null,
             "target_page": null,
             "title": "Agent Loop In KnoArbor"
@@ -129,35 +139,45 @@
             "total_tokens": 0
           }
         },
-        "relation_operations": [
+        "page_plan_operations": [
           {
             "action": "create",
+            "canonical_path": null,
             "decision_reason": "One source digest represents the whole source across segments.",
             "facets": [],
             "knowledge_object": "Codex Golden Session provenance",
+            "legacy_paths": [],
             "operation_index": 0,
             "page_dir": "sources",
             "page_kind": null,
             "selected_claim_ids": [],
             "selected_fact_ids": [],
             "selected_relation_ids": [],
-            "source_digest_ids": [],
+            "source_digest_ids": [
+              "sd_9b57fcafe59273b6"
+            ],
             "subject_kind": null,
             "target_page": null,
             "title": "Codex Golden Session Source Digest"
           },
           {
             "action": "create",
+            "canonical_path": null,
             "decision_reason": "Workflow boundaries are a reusable process design object.",
             "facets": [],
             "knowledge_object": "workflow boundary design",
+            "legacy_paths": [],
             "operation_index": 1,
             "page_dir": "workflows",
             "page_kind": null,
-            "selected_claim_ids": [],
+            "selected_claim_ids": [
+              "claim_workflow_boundary_design"
+            ],
             "selected_fact_ids": [],
             "selected_relation_ids": [],
-            "source_digest_ids": [],
+            "source_digest_ids": [
+              "sd_9b57fcafe59273b6"
+            ],
             "subject_kind": null,
             "target_page": null,
             "title": "Workflow Boundary Design"
@@ -190,35 +210,45 @@
             "total_tokens": 0
           }
         },
-        "relation_operations": [
+        "page_plan_operations": [
           {
             "action": "create",
+            "canonical_path": null,
             "decision_reason": "One source digest represents the whole source across segments.",
             "facets": [],
             "knowledge_object": "Codex Golden Session provenance",
+            "legacy_paths": [],
             "operation_index": 0,
             "page_dir": "sources",
             "page_kind": null,
             "selected_claim_ids": [],
             "selected_fact_ids": [],
             "selected_relation_ids": [],
-            "source_digest_ids": [],
+            "source_digest_ids": [
+              "sd_83a0983aaf107dc9"
+            ],
             "subject_kind": null,
             "target_page": null,
             "title": "Codex Golden Session Source Digest"
           },
           {
             "action": "create",
+            "canonical_path": null,
             "decision_reason": "Golden harnesses are a reusable evaluation method.",
             "facets": [],
             "knowledge_object": "golden harness evaluation",
+            "legacy_paths": [],
             "operation_index": 1,
             "page_dir": "concepts",
             "page_kind": null,
-            "selected_claim_ids": [],
+            "selected_claim_ids": [
+              "claim_golden_harness_evaluation"
+            ],
             "selected_fact_ids": [],
             "selected_relation_ids": [],
-            "source_digest_ids": [],
+            "source_digest_ids": [
+              "sd_83a0983aaf107dc9"
+            ],
             "subject_kind": null,
             "target_page": null,
             "title": "Golden Harness Evaluation"
@@ -241,44 +271,38 @@
   "written_pages": [
     {
       "path": "sources/Codex-Golden-Session-Source-Digest.md",
-      "source": "raw/chats/codex-golden-session.json",
+      "source": null,
       "tags": [],
       "title": "Codex Golden Session Source Digest",
-      "type": "source",
-      "wikilinks": [
-        "Agent-Loop-In-KnoArbor",
-        "Golden-Harness-Evaluation",
-        "Workflow-Boundary-Design"
-      ]
+      "type": null,
+      "wikilinks": []
     },
     {
       "path": "Agent-Loop-In-KnoArbor.md",
-      "source": "raw/chats/codex-golden-session.json",
+      "source": null,
       "tags": [],
       "title": "Agent Loop In KnoArbor",
-      "type": "page",
-      "wikilinks": [
-        "sources/Codex-Golden-Session-Source-Digest"
-      ]
+      "type": null,
+      "wikilinks": []
     },
     {
       "path": "Workflow-Boundary-Design.md",
-      "source": "raw/chats/codex-golden-session.json",
+      "source": null,
       "tags": [],
       "title": "Workflow Boundary Design",
-      "type": "page",
+      "type": null,
       "wikilinks": [
-        "sources/Codex-Golden-Session-Source-Digest"
+        "Workflow Boundary Design"
       ]
     },
     {
       "path": "Golden-Harness-Evaluation.md",
-      "source": "raw/chats/codex-golden-session.json",
+      "source": null,
       "tags": [],
       "title": "Golden Harness Evaluation",
-      "type": "page",
+      "type": null,
       "wikilinks": [
-        "sources/Codex-Golden-Session-Source-Digest"
+        "Golden Harness Evaluation"
       ]
     }
   ]

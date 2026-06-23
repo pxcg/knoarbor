@@ -18,7 +18,7 @@ from tests.harness.semantic_cases import (
     source_normalize_output,
     wiki_atom_extract_output,
     wiki_draft_batch_output,
-    wiki_relation_output,
+    wiki_page_plan_output,
 )
 from tests.harness.snapshot import assert_json_snapshot
 
@@ -32,7 +32,7 @@ class SemanticGoldenTests(unittest.TestCase):
             [
                 source_normalize_output(),
                 wiki_atom_extract_output(),
-                wiki_relation_output(),
+                wiki_page_plan_output(),
                 wiki_draft_batch_output(),
                 ingest_review_output(),
             ]

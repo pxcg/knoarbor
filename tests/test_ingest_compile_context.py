@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
-from knoarbor.core.schemas.wiki_relation_plan import WikiRelationOperation, WikiRelationPlan
+from knoarbor.core.schemas.wiki_page_plan import WikiPageOperation, WikiPagePlan
 from knoarbor.semantic.ingest_compile_context import build_ingest_compile_context
 
 from tests.harness.semantic_cases import source_normalize_output
@@ -12,12 +12,14 @@ from tests.harness.semantic_cases import source_normalize_output
 class IngestCompileContextTests(unittest.TestCase):
     def test_build_groups_pages_by_context_role(self) -> None:
         extract = KnowledgeExtract.model_validate(source_normalize_output()["output"])
-        relation_plan = WikiRelationPlan(
+        page_plan = WikiPagePlan(
             operations=[
-                WikiRelationOperation(
+                WikiPageOperation(
                     action="update",
                     target_page="concepts/Agent.md",
                     page_dir="concepts",
+                    canonical_path="Agent.md",
+                    legacy_paths=["concepts/Agent.md"],
                     title="Agent",
                     knowledge_object="Agent",
                     decision_reason="Update existing page.",
@@ -61,11 +63,13 @@ class IngestCompileContextTests(unittest.TestCase):
             },
         }
 
-        context = build_ingest_compile_context(extract, relation_plan, candidate_page_context)
+        context = build_ingest_compile_context(extract, page_plan, candidate_page_context)
 
         self.assertEqual(context.schema_version, "ingest_compile_context.v1")
         self.assertEqual(context.current_content.title, "Agent")
         self.assertEqual(context.operations[0].target_page, "concepts/Agent.md")
+        self.assertEqual(context.operations[0].canonical_path, "Agent.md")
+        self.assertEqual(context.operations[0].legacy_paths, ["concepts/Agent.md"])
         self.assertEqual(context.page_context.targets[0].content_kind, "full")
         self.assertEqual(context.page_context.related[0].content_kind, "excerpt")
         self.assertEqual(context.page_context.candidates[0].content_kind, "profile")

@@ -156,7 +156,7 @@ def _stable_source_result(result: Any) -> dict[str, object]:
                 "approved_operation_indexes": segment.get("approved_operation_indexes"),
                 "generated_pages": segment.get("generated_pages"),
                 "warnings": segment.get("warnings"),
-                "relation_operations": segment.get("relation_operations"),
+                "page_plan_operations": segment.get("page_plan_operations"),
                 "metrics": {
                     "semantic": _stable_semantic_metrics(dict(segment.get("metrics") or {}).get("semantic")),
                 },

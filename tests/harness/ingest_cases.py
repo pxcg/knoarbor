@@ -12,7 +12,7 @@ from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch
 from knoarbor.core.schemas.knowledge_extract import CompileContext, ContentUnit, KnowledgeExtract, KnowledgeSource
 from knoarbor.core.schemas.sources import SourceContent, SourceDocument, SourceFingerprint, SourceOrigin
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch, WikiDraftBatchItem
-from knoarbor.core.schemas.wiki_relation_plan import WikiRelationOperation, WikiRelationPlan
+from knoarbor.core.schemas.wiki_page_plan import WikiPageOperation, WikiPagePlan
 
 
 def long_markdown_text() -> str:
@@ -108,14 +108,16 @@ class SourceDigestOnlyWorkflow:
     def extract_atoms(self, source_digest, **_: object) -> KnowledgeAtomBatch:
         return KnowledgeAtomBatch(source_digest_id=source_digest.digest_id)
 
-    def plan_relations(self, knowledge_extract: KnowledgeExtract, **_: object) -> WikiRelationPlan:
-        return WikiRelationPlan(
+    def plan_pages(self, knowledge_extract: KnowledgeExtract, **kwargs: object) -> WikiPagePlan:
+        source_digest_id = kwargs["knowledge_atom_batch"].source_digest_id  # type: ignore[index,union-attr]
+        return WikiPagePlan(
             operations=[
-                WikiRelationOperation(
+                WikiPageOperation(
                     action="create",
                     page_dir="sources",
                     title="Long Source Digest",
                     knowledge_object="Long source provenance",
+                    source_digest_ids=[source_digest_id],
                     decision_reason="Create one digest for the source, not one page per segment.",
                 )
             ],
@@ -127,9 +129,10 @@ class SourceDigestOnlyWorkflow:
     def compile_drafts(
         self,
         knowledge_extract: KnowledgeExtract,
-        wiki_relation_plan: WikiRelationPlan,
-        **_: object,
+        wiki_page_plan: WikiPagePlan,
+        **kwargs: object,
     ) -> WikiDraftBatch:
+        source_digest_id = kwargs["knowledge_atom_batch"].source_digest_id  # type: ignore[index,union-attr]
         return WikiDraftBatch(
             drafts=[
                 WikiDraftBatchItem(
@@ -140,8 +143,14 @@ class SourceDigestOnlyWorkflow:
                     question="Long source",
                     answer=f"Segment evidence: {knowledge_extract.compile_context.primary_content[:80]}",
                     summary="Digest for a long source processed through segmentation.",
+                    claims=["C1: Source segmentation aggregates multiple source segments into one source digest."],
+                    entities=["[[Source Segmentation]]", "[[Long Source Digest]]"],
+                    relations=["[[Source Segmentation]] | produces | [[Long Source Digest]] | C1"],
+                    evidence=[f"C1 | {source_digest_id} | segment:{knowledge_extract.source.title} | segmented source content supports this digest | high"],
+                    synthesis="The source digest preserves segmented source provenance without creating duplicate source pages.",
                     key_points=["Segment evidence is aggregated before writing."],
                     tags=["source", "segmentation"],
+                    source_digest_ids=[source_digest_id],
                     confidence=0.9,
                     model_provider="scripted",
                     model_name="ingest-harness",
@@ -154,7 +163,7 @@ class SourceDigestOnlyWorkflow:
     def review_drafts(
         self,
         knowledge_extract: KnowledgeExtract,
-        wiki_relation_plan: WikiRelationPlan,
+        wiki_page_plan: WikiPagePlan,
         wiki_draft_batch: WikiDraftBatch,
         **_: object,
     ) -> IngestDraftReview:
@@ -169,25 +178,29 @@ class SourceDigestOnlyWorkflow:
                     reason="Source digest is supported and safe to create.",
                     required_changes=[],
                     dimension_scores=IngestReviewDimensionScores(
+                        source_trace=0.9,
+                        atom_coverage=0.9,
                         source_support=0.92,
                         page_boundary=0.9,
-                        directory_fit=0.95,
+                        identity_fit=0.95,
                         duplication_risk=0.9,
                         relation_quality=0.9,
-                        completeness=0.88,
+                        synthesis_quality=0.88,
                         maintainability=0.9,
-                        patch_safety=0.95,
+                        update_safety=0.95,
                     ),
                     checks=IngestReviewChecks(
                         operation_aligned=True,
+                        source_trace_complete=True,
+                        atom_coverage_sufficient=True,
                         page_boundary_clear=True,
-                        directory_fit=True,
+                        identity_fit=True,
                         source_supported=True,
                         not_duplicate=True,
                         relation_quality=True,
-                        complete_enough=True,
+                        synthesis_quality=True,
                         maintainable=True,
-                        patch_safe=True,
+                        update_safe=True,
                         write_safe=True,
                     ),
                 )
@@ -239,22 +252,27 @@ class MultiObjectSegmentWorkflow:
     def extract_atoms(self, source_digest, **_: object) -> KnowledgeAtomBatch:
         return KnowledgeAtomBatch(source_digest_id=source_digest.digest_id)
 
-    def plan_relations(self, knowledge_extract: KnowledgeExtract, **_: object) -> WikiRelationPlan:
+    def plan_pages(self, knowledge_extract: KnowledgeExtract, **kwargs: object) -> WikiPagePlan:
         topic = _topic_for_extract(knowledge_extract)
-        return WikiRelationPlan(
+        source_digest_id = kwargs["knowledge_atom_batch"].source_digest_id  # type: ignore[index,union-attr]
+        atom_id = f"claim_{topic['title'].lower().replace(' ', '_').replace('-', '_')}"
+        return WikiPagePlan(
             operations=[
-                WikiRelationOperation(
+                WikiPageOperation(
                     action="create",
                     page_dir="sources",
                     title=f"{_source_label(knowledge_extract)} Source Digest",
                     knowledge_object=f"{_source_label(knowledge_extract)} provenance",
+                    source_digest_ids=[source_digest_id],
                     decision_reason="One source digest represents the whole source across segments.",
                 ),
-                WikiRelationOperation(
+                WikiPageOperation(
                     action="create",
                     page_dir=topic["page_dir"],
                     title=topic["title"],
                     knowledge_object=topic["knowledge_object"],
+                    selected_claim_ids=[atom_id],
+                    source_digest_ids=[source_digest_id],
                     decision_reason=topic["decision_reason"],
                 ),
             ],
@@ -266,12 +284,14 @@ class MultiObjectSegmentWorkflow:
     def compile_drafts(
         self,
         knowledge_extract: KnowledgeExtract,
-        wiki_relation_plan: WikiRelationPlan,
-        **_: object,
+        wiki_page_plan: WikiPagePlan,
+        **kwargs: object,
     ) -> WikiDraftBatch:
         topic = _topic_for_extract(knowledge_extract)
         source_label = _source_label(knowledge_extract)
         segment_title = knowledge_extract.source.title or "Segment"
+        source_digest_id = kwargs["knowledge_atom_batch"].source_digest_id  # type: ignore[index,union-attr]
+        atom_id = f"claim_{topic['title'].lower().replace(' ', '_').replace('-', '_')}"
         return WikiDraftBatch(
             drafts=[
                 WikiDraftBatchItem(
@@ -282,8 +302,14 @@ class MultiObjectSegmentWorkflow:
                     question=f"Source segment: {segment_title}",
                     answer=f"Evidence from segment `{segment_title}`: {knowledge_extract.compile_context.primary_content[:160]}",
                     summary=f"Source digest for {source_label}, aggregated from segmented ingest.",
+                    claims=[f"C1: {source_label} contains segment evidence for {segment_title}."],
+                    entities=[f"[[{source_label}]]", f"[[{segment_title}]]"],
+                    relations=[f"[[{source_label}]] | contains_segment | [[{segment_title}]] | C1"],
+                    evidence=[f"C1 | {source_digest_id} | segment:{segment_title} | source segment supports this digest entry | high"],
+                    synthesis=f"{source_label} source digest keeps provenance for segment {segment_title}.",
                     key_points=[f"Includes evidence from {segment_title}."],
                     tags=["source", "segmented-ingest", source_label.lower().replace(" ", "-")],
+                    source_digest_ids=[source_digest_id],
                     confidence=0.9,
                     model_provider="scripted",
                     model_name="ingest-quality-harness",
@@ -296,8 +322,15 @@ class MultiObjectSegmentWorkflow:
                     question=topic["question"],
                     answer=topic["answer"],
                     summary=topic["summary"],
+                    claims=topic["claims"],
+                    entities=topic["entities"],
+                    relations=topic["relations"],
+                    evidence=[f"{claim_id} | {source_digest_id} | segment:{segment_title} | segment evidence supports {claim_id} | high" for claim_id in topic["claim_ids"]],
+                    synthesis=topic["synthesis"],
                     key_points=topic["key_points"],
                     tags=topic["tags"],
+                    source_digest_ids=[source_digest_id],
+                    atom_ids=[atom_id],
                     confidence=0.88,
                     model_provider="scripted",
                     model_name="ingest-quality-harness",
@@ -310,7 +343,7 @@ class MultiObjectSegmentWorkflow:
     def review_drafts(
         self,
         knowledge_extract: KnowledgeExtract,
-        wiki_relation_plan: WikiRelationPlan,
+        wiki_page_plan: WikiPagePlan,
         wiki_draft_batch: WikiDraftBatch,
         **_: object,
     ) -> IngestDraftReview:
@@ -326,25 +359,29 @@ class MultiObjectSegmentWorkflow:
                     reason="The draft is directly supported by this segment and has a stable page boundary.",
                     required_changes=[],
                     dimension_scores=IngestReviewDimensionScores(
+                        source_trace=0.9,
+                        atom_coverage=0.9,
                         source_support=0.92,
                         page_boundary=0.9,
-                        directory_fit=0.9,
+                        identity_fit=0.9,
                         duplication_risk=0.85,
                         relation_quality=0.88,
-                        completeness=0.86,
+                        synthesis_quality=0.86,
                         maintainability=0.9,
-                        patch_safety=0.95,
+                        update_safety=0.95,
                     ),
                     checks=IngestReviewChecks(
                         operation_aligned=True,
+                        source_trace_complete=True,
+                        atom_coverage_sufficient=True,
                         page_boundary_clear=True,
-                        directory_fit=True,
+                        identity_fit=True,
                         source_supported=True,
                         not_duplicate=True,
                         relation_quality=True,
-                        complete_enough=True,
+                        synthesis_quality=True,
                         maintainable=True,
-                        patch_safe=True,
+                        update_safe=True,
                         write_safe=True,
                     ),
                 )
@@ -383,6 +420,17 @@ def _topic_for_extract(knowledge_extract: KnowledgeExtract) -> dict[str, object]
             "question": "How should workflow boundaries be designed?",
             "answer": "Workflow boundaries make deterministic execution explicit before semantic steps are invoked.",
             "summary": "Workflow boundaries separate deterministic orchestration from model-driven reasoning.",
+            "claims": [
+                "C1: Workflow boundaries make deterministic execution explicit before semantic steps are invoked.",
+                "C2: Workflow boundaries separate orchestration from model-driven reasoning.",
+            ],
+            "claim_ids": ["C1", "C2"],
+            "entities": ["[[Workflow Boundary Design]]", "[[Deterministic Execution]]", "[[Semantic Step]]"],
+            "relations": [
+                "[[Workflow Boundary Design]] | clarifies | [[Deterministic Execution]] | C1",
+                "[[Workflow Boundary Design]] | separates | [[Semantic Step]] | C2",
+            ],
+            "synthesis": "Workflow boundary design keeps deterministic orchestration explicit while leaving semantic decisions inside reviewed contracts.",
             "key_points": ["Use workflows for predictable execution.", "Keep semantic decisions inside explicit contracts."],
             "tags": ["workflow", "architecture", "boundaries"],
         }
@@ -395,6 +443,17 @@ def _topic_for_extract(knowledge_extract: KnowledgeExtract) -> dict[str, object]
             "question": "What does a golden harness evaluate?",
             "answer": "A golden harness locks expected behavior for prompts, schemas, reports, and pipeline outputs.",
             "summary": "Golden harness evaluation makes semantic workflow changes reviewable without live model calls.",
+            "claims": [
+                "C1: Golden harness evaluation locks expected behavior for prompts, schemas, reports, and pipeline outputs.",
+                "C2: Golden harness evaluation makes semantic workflow changes reviewable without live model calls.",
+            ],
+            "claim_ids": ["C1", "C2"],
+            "entities": ["[[Golden Harness Evaluation]]", "[[Prompt Contract]]", "[[Pipeline Output]]"],
+            "relations": [
+                "[[Golden Harness Evaluation]] | validates | [[Prompt Contract]] | C1",
+                "[[Golden Harness Evaluation]] | stabilizes | [[Pipeline Output]] | C2",
+            ],
+            "synthesis": "Golden harness evaluation provides deterministic review coverage for semantic workflow changes without requiring live model calls.",
             "key_points": ["Snapshot stable outputs.", "Use scripted semantic workflows for deterministic review."],
             "tags": ["testing", "harness", "evaluation"],
         }
@@ -406,6 +465,17 @@ def _topic_for_extract(knowledge_extract: KnowledgeExtract) -> dict[str, object]
         "question": "What is the agent loop control pattern?",
         "answer": "An agent loop coordinates observation, reasoning, action, and feedback under explicit control boundaries.",
         "summary": "Agent loop control describes how an AI system repeatedly reasons, acts, observes results, and stops.",
+        "claims": [
+            "C1: Agent loop control coordinates observation, reasoning, action, and feedback.",
+            "C2: Agent loop control requires explicit boundaries to stay auditable.",
+        ],
+        "claim_ids": ["C1", "C2"],
+        "entities": ["[[Agent Loop Control Pattern]]", "[[Observation]]", "[[Tool Action]]", "[[Control Boundary]]"],
+        "relations": [
+            "[[Agent Loop Control Pattern]] | coordinates | [[Tool Action]] | C1",
+            "[[Agent Loop Control Pattern]] | depends_on | [[Control Boundary]] | C2",
+        ],
+        "synthesis": "Agent loop control should be treated as a bounded execution pattern that ties reasoning, action, observation, and stopping conditions together.",
         "key_points": ["Model decisions are looped through tool results.", "Control boundaries keep the loop auditable."],
         "tags": ["agent-loop", "control", "ai-system"],
     }

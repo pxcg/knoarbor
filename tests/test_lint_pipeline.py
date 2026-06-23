@@ -897,9 +897,9 @@ class WikiLintPipelineTests(unittest.TestCase):
         self.assertIn("sources/", response.written_pages[0])
         self.assertTrue(any(operation["action"] == "create_source_digest" for operation in response.applied_operations))
         self.assertTrue(any(operation["action"] == "attach_source_digest" for operation in response.applied_operations))
-        self.assertIn("- raw/notes/agent.md", source_content)
-        self.assertIn("[[concepts/Agent|Agent]]", source_content)
-        self.assertIn("[[sources/", target_content)
+        self.assertIn("| C1 | raw/notes/agent.md | source-level | direct source support | medium |", source_content)
+        self.assertNotIn("## Related Pages", source_content)
+        self.assertNotIn("[[sources/", target_content)
         self.assertIsNotNone(response.rescan)
         self.assertNotIn("knowledge_without_source_digest", {issue.code for issue in response.rescan.issues})
 
@@ -942,8 +942,8 @@ class WikiLintPipelineTests(unittest.TestCase):
         self.assertEqual(len(source_pages), 1)
         self.assertFalse(response.written_pages)
         self.assertTrue(any(operation["action"] == "attach_source_digest" for operation in response.applied_operations))
-        self.assertIn("[[concepts/Agent|Agent]]", source_content)
-        self.assertIn("[[sources/Agent-Source|Agent Source]]", target_content)
+        self.assertNotIn("[[concepts/Agent|Agent]]", source_content)
+        self.assertNotIn("[[sources/Agent-Source|Agent Source]]", target_content)
 
     def test_run_maintenance_executes_safe_graph_repair_queue(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

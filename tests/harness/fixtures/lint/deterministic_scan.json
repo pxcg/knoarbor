@@ -107,10 +107,10 @@
     },
     {
       "action": "rebuild_index",
-      "description": "Rebuild index.md from generated wiki pages.",
-      "issue_code": "missing_index",
+      "description": "Rebuild machine graph index from current wiki pages.",
+      "issue_code": "missing_machine_index",
       "mode": "safe_auto",
-      "path": "index.md"
+      "path": ".knoarbor/index"
     },
     {
       "action": "repair_wikilink",
@@ -157,23 +157,9 @@
     {
       "action": "repair_source_provenance",
       "description": "Review source provenance and connect the source digest to generated knowledge pages.",
-      "issue_code": "source_digest_missing_related_pages",
-      "mode": "manual",
-      "path": "sources/Agent-Loop-Source.md"
-    },
-    {
-      "action": "repair_source_provenance",
-      "description": "Review source provenance and connect the source digest to generated knowledge pages.",
       "issue_code": "knowledge_without_source_digest",
       "mode": "manual",
       "path": "entities/OpenClaw.md"
-    },
-    {
-      "action": "repair_source_provenance",
-      "description": "Review source provenance and connect the source digest to generated knowledge pages.",
-      "issue_code": "knowledge_missing_source_digest_link",
-      "mode": "manual",
-      "path": "concepts/Agent-Loop.md"
     }
   ],
   "issues": [
@@ -343,10 +329,10 @@
       "severity": "info"
     },
     {
-      "code": "missing_index",
+      "code": "missing_machine_index",
       "details": {},
-      "message": "Wiki index.md is missing.",
-      "path": "index.md",
+      "message": "Machine graph index is missing.",
+      "path": ".knoarbor/index",
       "severity": "error"
     },
     {
@@ -400,36 +386,12 @@
       "severity": "info"
     },
     {
-      "code": "source_digest_missing_related_pages",
-      "details": {
-        "related_pages": [
-          "concepts/Agent-Loop.md"
-        ],
-        "sources": [
-          "raw/notes/agent.md"
-        ]
-      },
-      "message": "Source digest does not list all generated knowledge pages for the same raw source in Related Pages.",
-      "path": "sources/Agent-Loop-Source.md",
-      "severity": "info"
-    },
-    {
       "code": "knowledge_without_source_digest",
       "details": {
         "source": "raw/notes/openclaw.md"
       },
       "message": "Generated knowledge page points to a raw source without a matching source digest page.",
       "path": "entities/OpenClaw.md",
-      "severity": "info"
-    },
-    {
-      "code": "knowledge_missing_source_digest_link",
-      "details": {
-        "source": "raw/notes/agent.md",
-        "source_digest": "sources/Agent-Loop-Source.md"
-      },
-      "message": "Generated knowledge page does not link back to its matching source digest.",
-      "path": "concepts/Agent-Loop.md",
       "severity": "info"
     }
   ],
@@ -511,8 +473,8 @@
       "node_count": 3,
       "small_component_count": 0
     },
-    "info_count": 23,
-    "issue_count": 25,
+    "info_count": 21,
+    "issue_count": 23,
     "knowledge_atom_index": {
       "issue_count": 0,
       "record_count": 0

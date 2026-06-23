@@ -16,7 +16,7 @@ from tests.harness.semantic_cases import (
     source_normalize_output,
     wiki_atom_extract_output,
     wiki_draft_batch_output,
-    wiki_relation_output,
+    wiki_page_plan_output,
 )
 
 
@@ -26,7 +26,7 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
             [
                 source_normalize_output(),
                 wiki_atom_extract_output(),
-                wiki_relation_output(),
+                wiki_page_plan_output(),
                 wiki_draft_batch_output(),
                 ingest_review_output(),
             ]
@@ -38,7 +38,7 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
         self.assertEqual(result.knowledge_extract.source.title, "Agent")
         self.assertIsNotNone(result.knowledge_atom_batch)
         self.assertEqual(result.knowledge_atom_batch.summary()["facts"], 1)
-        self.assertEqual(result.wiki_relation_plan.operations[0].title, "Agent Loop")
+        self.assertEqual(result.wiki_page_plan.operations[0].title, "Agent Loop")
         self.assertEqual(result.wiki_draft_batch.drafts[0].title, "Agent Loop")
         self.assertEqual(result.ingest_draft_review.batch_decision, "approve")
 
@@ -47,7 +47,7 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
             [
                 source_normalize_output(),
                 wiki_atom_extract_output(),
-                wiki_relation_output(),
+                wiki_page_plan_output(),
                 wiki_draft_batch_output(),
                 ingest_review_output(),
             ]
@@ -87,6 +87,10 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
         )
         context = draft_payload["ingest_compile_context"]
         self.assertEqual(context["schema_version"], "ingest_compile_context.v1")
+        self.assertEqual(context["operations"][0]["selected_fact_ids"], ["fact_agent_loop_cycle"])
+        self.assertEqual(context["operations"][0]["selected_claim_ids"], ["claim_agent_loop_control_pattern"])
+        self.assertEqual(context["operations"][0]["selected_relation_ids"], ["rel_agent_loop_mentions_control"])
+        self.assertEqual(context["operations"][0]["source_digest_ids"], ["sd_test_agent"])
         self.assertEqual(context["page_context"]["targets"][0]["content_kind"], "full")
         self.assertEqual(context["context_policy"], "target_full_related_excerpt_candidate_profile")
 

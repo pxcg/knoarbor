@@ -23,7 +23,7 @@ def test_build_ingest_token_records_from_segment_metrics():
                             "semantic": {
                                 "calls": [
                                     {
-                                        "contract_name": "wiki_relation",
+                                        "contract_name": "wiki_page_plan",
                                         "provider": "deepseek",
                                         "model": "deepseek-v4-flash",
                                         "prompt_tokens": 100,
@@ -53,7 +53,7 @@ def test_build_ingest_token_records_from_segment_metrics():
 
     assert len(rows) == 1
     assert rows[0]["flow"] == "ingest"
-    assert rows[0]["agent"] == "wiki_relation"
+    assert rows[0]["agent"] == "wiki_page_plan"
     assert rows[0]["source_file"] == "raw/chats/example.jsonl"
     assert rows[0]["page_paths"] == ["concepts/Agent-Loop.md"]
     assert rows[0]["prompt_cache_rate"] == 0.4
@@ -69,7 +69,7 @@ def test_build_token_analysis_groups_by_flow_agent_source_and_page():
     records = [
         {
             "flow": "ingest",
-            "agent": "wiki_relation",
+            "agent": "wiki_page_plan",
             "source_file": "raw/a.md",
             "connector": "markdown",
             "model": "m",
@@ -112,7 +112,7 @@ def test_build_token_analysis_groups_by_flow_agent_source_and_page():
     assert analysis["totals"]["prompt_dynamic_chars"] == 5500
     assert analysis["totals"]["dynamic_to_stable_ratio"] == 2.75
     assert analysis["by_flow"][0]["name"] == "ingest"
-    assert analysis["by_agent"][0]["name"] == "wiki_relation"
+    assert analysis["by_agent"][0]["name"] == "wiki_page_plan"
     assert analysis["by_page"][0]["name"] == "concepts/A.md"
     assert analysis["by_payload_field"][0]["name"] == "wiki_context"
     assert analysis["by_payload_field"][0]["payload_chars"] == 3000

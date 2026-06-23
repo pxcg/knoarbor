@@ -13,7 +13,7 @@ from knoarbor.core.schemas.lint_candidates import MaintenanceCandidates
 from knoarbor.core.schemas.lint_review import LintMaintenanceReview
 from knoarbor.core.schemas.sources import SourceContent, SourceDocument, SourceFingerprint, SourceOrigin
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
-from knoarbor.core.schemas.wiki_relation_plan import WikiRelationPlan
+from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
 from knoarbor.semantic import build_source_normalize_input, load_semantic_contract
 
 
@@ -22,7 +22,7 @@ class SemanticContractTests(unittest.TestCase):
         expected = {
             "source_normalize": ("knowledge_extract.v1", KnowledgeExtract),
             "wiki_atom_extract": ("knowledge_atoms.v1", KnowledgeAtomBatch),
-            "wiki_relation": ("wiki_relation_plan.v1", WikiRelationPlan),
+            "wiki_page_plan": ("wiki_page_plan.v1", WikiPagePlan),
             "wiki_draft_compile": ("wiki_draft_batch.v1", WikiDraftBatch),
             "ingest_draft_review": ("ingest_draft_review.v2", IngestDraftReview),
             "lint_diagnose": ("maintenance_candidates.v1", MaintenanceCandidates),
@@ -126,14 +126,16 @@ class SemanticContractTests(unittest.TestCase):
         self.assertEqual(payload["source_hint"]["source_path"], "raw/notes/Agent.md")
         self.assertEqual(payload["source_document"]["schema_version"], "source_document.v1")
 
-    def test_wiki_relation_plan_schema_accepts_actionable_operations(self) -> None:
-        plan = WikiRelationPlan.model_validate(
+    def test_wiki_page_plan_schema_accepts_actionable_operations(self) -> None:
+        plan = WikiPagePlan.model_validate(
             {
                 "operations": [
                     {
                         "action": "create",
                         "target_page": None,
                         "page_dir": "concepts",
+                        "canonical_path": "/Agent-Loop.md",
+                        "legacy_paths": ["concepts/Agent-Loop.md"],
                         "title": "Agent Loop",
                         "knowledge_object": "Agent Loop control pattern",
                         "selected_fact_ids": [" fact_agent_loop_cycle ", "fact_agent_loop_cycle"],
@@ -169,12 +171,14 @@ class SemanticContractTests(unittest.TestCase):
         )
 
         self.assertEqual(len(plan.operations), 2)
+        self.assertEqual(plan.operations[0].canonical_path, "Agent-Loop.md")
+        self.assertEqual(plan.operations[0].legacy_paths, ["concepts/Agent-Loop.md"])
         self.assertEqual(plan.operations[0].selected_fact_ids, ["fact_agent_loop_cycle"])
         self.assertEqual(plan.operations[0].source_digest_ids, ["sd_agent_loop"])
         self.assertEqual(plan.operations[1].target_page, "entities/OpenClaw.md")
 
-    def test_wiki_relation_plan_drops_redundant_mixed_skip(self) -> None:
-        plan = WikiRelationPlan.model_validate(
+    def test_wiki_page_plan_drops_redundant_mixed_skip(self) -> None:
+        plan = WikiPagePlan.model_validate(
             {
                 "operations": [
                     {
@@ -208,8 +212,8 @@ class SemanticContractTests(unittest.TestCase):
         self.assertEqual(plan.operations[0].action, "create")
         self.assertIn("Dropped redundant skip operation", plan.warnings[0])
 
-    def test_wiki_relation_plan_accepts_skip_without_title(self) -> None:
-        plan = WikiRelationPlan.model_validate(
+    def test_wiki_page_plan_accepts_skip_without_title(self) -> None:
+        plan = WikiPagePlan.model_validate(
             {
                 "operations": [
                     {
@@ -232,9 +236,9 @@ class SemanticContractTests(unittest.TestCase):
         self.assertEqual(plan.operations[0].title, "Skipped source")
         self.assertEqual(plan.operations[0].knowledge_object, "No durable wiki object")
 
-    def test_wiki_relation_plan_rejects_ingest_merge(self) -> None:
+    def test_wiki_page_plan_rejects_ingest_merge(self) -> None:
         with self.assertRaises(ValueError):
-            WikiRelationPlan.model_validate(
+            WikiPagePlan.model_validate(
                 {
                     "operations": [
                         {
@@ -265,6 +269,8 @@ class SemanticContractTests(unittest.TestCase):
                         "source_file": "raw/notes/Agent.md",
                         "title": "Agent Loop",
                         "page_dir": "concepts",
+                        "canonical_path": "Agent-Loop.md",
+                        "legacy_paths": ["concepts/Agent-Loop.md"],
                         "question": "Agent Loop",
                         "answer": "Agent Loop coordinates tool use.",
                         "summary": "Agent Loop is a control pattern.",
@@ -283,6 +289,8 @@ class SemanticContractTests(unittest.TestCase):
 
         draft = batch.drafts[0]
         self.assertEqual(draft.source_digest_ids, ["sd_agent"])
+        self.assertEqual(draft.canonical_path, "Agent-Loop.md")
+        self.assertEqual(draft.legacy_paths, ["concepts/Agent-Loop.md"])
         self.assertEqual(draft.atom_ids, ["fact_agent_loop_cycle"])
         self.assertEqual(draft.definition, "Agent Loop is a control pattern.")
         self.assertEqual(draft.claims, ["Coordinates tool use."])
@@ -442,7 +450,7 @@ class SemanticContractTests(unittest.TestCase):
             {
                 "drafts": [],
                 "batch_summary": "No durable wiki page is needed for this source.",
-                "warnings": ["Skipped by relation plan."],
+                "warnings": ["Skipped by page plan."],
             }
         )
 
@@ -462,25 +470,29 @@ class SemanticContractTests(unittest.TestCase):
                         "reason": "The draft is source-supported and has a clear page boundary.",
                         "required_changes": [],
                         "dimension_scores": {
+                            "source_trace": 0.9,
+                            "atom_coverage": 0.9,
                             "source_support": 0.94,
                             "page_boundary": 0.9,
-                            "directory_fit": 0.92,
+                            "identity_fit": 0.92,
                             "duplication_risk": 0.86,
                             "relation_quality": 0.82,
-                            "completeness": 0.88,
+                            "synthesis_quality": 0.88,
                             "maintainability": 0.9,
-                            "patch_safety": 0.95,
+                            "update_safety": 0.95,
                         },
                         "checks": {
                             "operation_aligned": True,
+                            "source_trace_complete": True,
+                            "atom_coverage_sufficient": True,
                             "page_boundary_clear": True,
-                            "directory_fit": True,
+                            "identity_fit": True,
                             "source_supported": True,
                             "not_duplicate": True,
                             "relation_quality": True,
-                            "complete_enough": True,
+                            "synthesis_quality": True,
                             "maintainable": True,
-                            "patch_safe": True,
+                            "update_safe": True,
                             "write_safe": True,
                         },
                     }

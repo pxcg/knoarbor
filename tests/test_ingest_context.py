@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
-from knoarbor.core.schemas.wiki_relation_plan import WikiRelationOperation, WikiRelationPlan
+from knoarbor.core.schemas.wiki_page_plan import WikiPageOperation, WikiPagePlan
 from knoarbor.pipelines.ingest_context import IngestContextProvider
 from knoarbor.pipelines.query import QueryPipelineResult
 from knoarbor.retrieval.markdown import ScoredPage, SearchPage
@@ -68,8 +68,8 @@ class IngestContextProviderTests(unittest.TestCase):
         self.assertEqual(query_pipeline.calls, 1)
         self.assertEqual(first.candidates[0].path, "concepts/Agent.md")
         self.assertEqual(second.candidates[0].path, "concepts/Agent.md")
-        self.assertFalse(first.stats["relation_candidate_body_included"])
-        self.assertEqual(first.stats["relation_context_policy"], "lightweight_page_profiles_without_page_body")
+        self.assertFalse(first.stats["page_plan_candidate_body_included"])
+        self.assertEqual(first.stats["page_plan_context_policy"], "lightweight_page_profiles_without_page_body")
 
     def test_relation_candidates_are_profiles_without_body_or_field_slicing(self) -> None:
         page = SearchPage(
@@ -101,7 +101,7 @@ class IngestContextProviderTests(unittest.TestCase):
         self.assertEqual(candidate["tags"], page.tags)
         self.assertEqual(candidate["key_points"], page.key_points)
         self.assertEqual(candidate["related_pages"], page.related_pages)
-        self.assertGreater(context.stats["relation_profile_chars"], 0)
+        self.assertGreater(context.stats["page_plan_profile_chars"], 0)
 
     def test_materialize_cache_is_local_and_clearable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -110,9 +110,9 @@ class IngestContextProviderTests(unittest.TestCase):
             page = vault / "concepts" / "Agent.md"
             page.write_text("# Agent\n\nOld content.", encoding="utf-8")
             provider = IngestContextProvider()
-            relation_plan = WikiRelationPlan(
+            page_plan = WikiPagePlan(
                 operations=[
-                    WikiRelationOperation(
+                    WikiPageOperation(
                         action="update",
                         target_page="concepts/Agent.md",
                         page_dir="concepts",
@@ -124,11 +124,11 @@ class IngestContextProviderTests(unittest.TestCase):
                 overall_summary="Update one page.",
             )
 
-            first = provider.materialize(vault, relation_plan)
+            first = provider.materialize(vault, page_plan)
             page.write_text("# Agent\n\nNew content.", encoding="utf-8")
-            second = provider.materialize(vault, relation_plan)
+            second = provider.materialize(vault, page_plan)
             provider.clear_cache()
-            third = provider.materialize(vault, relation_plan)
+            third = provider.materialize(vault, page_plan)
 
         self.assertIn("Old content", first.pages[0].content)
         self.assertIn("Old content", second.pages[0].content)
@@ -150,9 +150,9 @@ class IngestContextProviderTests(unittest.TestCase):
                 vault / "concepts" / "Candidate.md",
                 "# Candidate\n\n## Summary\n\nCandidate summary.\n\n## Answer\n\nCandidate body should not enter context.",
             )
-            relation_plan = WikiRelationPlan(
+            page_plan = WikiPagePlan(
                 operations=[
-                    WikiRelationOperation(
+                    WikiPageOperation(
                         action="update",
                         target_page="concepts/Target.md",
                         page_dir="concepts",
@@ -179,7 +179,7 @@ class IngestContextProviderTests(unittest.TestCase):
                 overall_summary="Layered context.",
             )
 
-            context = IngestContextProvider().materialize(vault, relation_plan)
+            context = IngestContextProvider().materialize(vault, page_plan)
 
         pages = {page.path: page for page in context.pages}
         self.assertEqual(pages["concepts/Target.md"].context_role, "target")
@@ -202,9 +202,9 @@ class IngestContextProviderTests(unittest.TestCase):
             vault = Path(tmp_dir)
             (vault / "concepts").mkdir()
             _write_page(vault / "concepts" / "Agent.md", "# Agent\n\n## Answer\n\nFull target body.")
-            relation_plan = WikiRelationPlan(
+            page_plan = WikiPagePlan(
                 operations=[
-                    WikiRelationOperation(
+                    WikiPageOperation(
                         action="update",
                         target_page="concepts/Agent",
                         page_dir="concepts",
@@ -223,7 +223,7 @@ class IngestContextProviderTests(unittest.TestCase):
                 overall_summary="Update one page.",
             )
 
-            context = IngestContextProvider().materialize(vault, relation_plan)
+            context = IngestContextProvider().materialize(vault, page_plan)
 
         self.assertEqual(len(context.pages), 1)
         self.assertEqual(context.pages[0].context_role, "target")

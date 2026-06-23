@@ -27,7 +27,7 @@ from knoarbor.core.schemas.knowledge_extract import CompileContext, ContentUnit,
 from knoarbor.core.schemas.sources import RawSource, SourceContent, SourceDocument, SourceFingerprint, SourceOrigin, SourceRef
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch, WikiDraftBatchItem
 from knoarbor.core.schemas.wiki_write import WikiPatchInput
-from knoarbor.core.schemas.wiki_relation_plan import WikiCandidatePage, WikiRelationOperation, WikiRelationPlan
+from knoarbor.core.schemas.wiki_page_plan import WikiCandidatePage, WikiPageOperation, WikiPagePlan
 from knoarbor.connectors.registry import ConnectorRegistry
 from knoarbor.document_processing.schemas import DocumentProcessingItem, DocumentProcessingResult
 from knoarbor.pipelines.ingest import IngestPipeline
@@ -54,10 +54,10 @@ class FakeIngestSemanticWorkflow:
     def extract_atoms(self, source_digest, **kwargs):
         return KnowledgeAtomBatch(source_digest_id=source_digest.digest_id)
 
-    def plan_relations(self, knowledge_extract, **kwargs):
+    def plan_pages(self, knowledge_extract, **kwargs):
         self.last_existing_wiki_index = kwargs.get("existing_wiki_index")
         self.last_wiki_context = kwargs.get("wiki_context")
-        result = IngestSemanticWorkflowFixtures.result_from_extract(knowledge_extract).wiki_relation_plan
+        result = IngestSemanticWorkflowFixtures.result_from_extract(knowledge_extract).wiki_page_plan
         candidates = (self.last_wiki_context or {}).get("candidates", [])
         if candidates:
             result.operations[0].candidate_pages = [
@@ -69,11 +69,11 @@ class FakeIngestSemanticWorkflow:
             ]
         return result
 
-    def compile_drafts(self, knowledge_extract, wiki_relation_plan, **kwargs):
+    def compile_drafts(self, knowledge_extract, wiki_page_plan, **kwargs):
         self.last_candidate_page_context = kwargs.get("candidate_page_context")
         return IngestSemanticWorkflowFixtures.result_from_extract(knowledge_extract).wiki_draft_batch
 
-    def review_drafts(self, knowledge_extract, wiki_relation_plan, wiki_draft_batch, **kwargs):
+    def review_drafts(self, knowledge_extract, wiki_page_plan, wiki_draft_batch, **kwargs):
         self.last_review_draft_batch = wiki_draft_batch
         return IngestSemanticWorkflowFixtures.result_from_extract(knowledge_extract).ingest_draft_review
 
@@ -109,15 +109,30 @@ class FailingSemanticWorkflow(FakeIngestSemanticWorkflow):
 
 
 class InvalidDraftSemanticWorkflow(FakeIngestSemanticWorkflow):
-    def compile_drafts(self, knowledge_extract, wiki_relation_plan, **kwargs):
-        batch = super().compile_drafts(knowledge_extract, wiki_relation_plan, **kwargs)
-        batch.drafts[0].tags = []
+    def compile_drafts(self, knowledge_extract, wiki_page_plan, **kwargs):
+        batch = super().compile_drafts(knowledge_extract, wiki_page_plan, **kwargs)
+        batch.drafts[0].evidence = []
         return batch
 
 
+class UnsupportedAtomSemanticWorkflow(FakeIngestSemanticWorkflow):
+    def extract_atoms(self, source_digest, **kwargs):
+        return KnowledgeAtomBatch(
+            source_digest_id=source_digest.digest_id,
+            claims=[
+                KnowledgeClaim(
+                    id="claim_agent_loop_unsupported",
+                    claim="Agent loop is supported by a missing fact.",
+                    claim_type="definition",
+                    supporting_fact_ids=["missing_fact"],
+                )
+            ],
+        )
+
+
 class MismatchedWriteActionSemanticWorkflow(FakeIngestSemanticWorkflow):
-    def compile_drafts(self, knowledge_extract, wiki_relation_plan, **kwargs):
-        batch = super().compile_drafts(knowledge_extract, wiki_relation_plan, **kwargs)
+    def compile_drafts(self, knowledge_extract, wiki_page_plan, **kwargs):
+        batch = super().compile_drafts(knowledge_extract, wiki_page_plan, **kwargs)
         batch.drafts[0] = batch.drafts[0].model_copy(
             update={
                 "write_action": "update",
@@ -135,8 +150,8 @@ class MismatchedWriteActionSemanticWorkflow(FakeIngestSemanticWorkflow):
 
 
 class MissingAtomTraceSemanticWorkflow(FakeIngestSemanticWorkflow):
-    def plan_relations(self, knowledge_extract, **kwargs):
-        plan = super().plan_relations(knowledge_extract, **kwargs)
+    def plan_pages(self, knowledge_extract, **kwargs):
+        plan = super().plan_pages(knowledge_extract, **kwargs)
         plan.operations[0].selected_fact_ids = ["fact_agent_loop_cycle"]
         plan.operations[0].source_digest_ids = ["sd_test_agent"]
         return plan
@@ -178,15 +193,16 @@ class AtomTraceSemanticWorkflow(FakeIngestSemanticWorkflow):
             ],
         )
 
-    def plan_relations(self, knowledge_extract, **kwargs):
-        plan = super().plan_relations(knowledge_extract, **kwargs)
+    def plan_pages(self, knowledge_extract, **kwargs):
+        plan = super().plan_pages(knowledge_extract, **kwargs)
         plan.operations[0].selected_fact_ids = ["fact_agent_loop_cycle"]
         plan.operations[0].selected_claim_ids = ["claim_agent_loop_control"]
         plan.operations[0].selected_relation_ids = ["rel_agent_loop_mentions_workflow"]
+        plan.operations[0].source_digest_ids = [kwargs["knowledge_atom_batch"].source_digest_id]
         return plan
 
-    def compile_drafts(self, knowledge_extract, wiki_relation_plan, **kwargs):
-        batch = super().compile_drafts(knowledge_extract, wiki_relation_plan, **kwargs)
+    def compile_drafts(self, knowledge_extract, wiki_page_plan, **kwargs):
+        batch = super().compile_drafts(knowledge_extract, wiki_page_plan, **kwargs)
         batch.drafts[0].atom_ids = [
             "fact_agent_loop_cycle",
             "claim_agent_loop_control",
@@ -205,46 +221,52 @@ def _approved_decision(operation_index: int, *, write_safety: str = "safe_create
         write_safety=write_safety,
         reason="Draft is supported.",
         dimension_scores=IngestReviewDimensionScores(
+            source_trace=0.9,
+            atom_coverage=0.9,
             source_support=0.9,
             page_boundary=0.9,
-            directory_fit=0.9,
+            identity_fit=0.9,
             duplication_risk=0.9,
             relation_quality=0.9,
-            completeness=0.9,
+            synthesis_quality=0.9,
             maintainability=0.9,
-            patch_safety=0.9,
+            update_safety=0.9,
         ),
         checks=IngestReviewChecks(
             operation_aligned=True,
+            source_trace_complete=True,
+            atom_coverage_sufficient=True,
             page_boundary_clear=True,
-            directory_fit=True,
+            identity_fit=True,
             source_supported=True,
             not_duplicate=True,
             relation_quality=True,
-            complete_enough=True,
+            synthesis_quality=True,
             maintainable=True,
-            patch_safe=True,
+            update_safe=True,
             write_safe=True,
         ),
     )
 
 
 class SourceOnlySemanticWorkflow(FakeIngestSemanticWorkflow):
-    def plan_relations(self, knowledge_extract, **kwargs):
-        return WikiRelationPlan(
+    def plan_pages(self, knowledge_extract, **kwargs):
+        source_digest_id = kwargs["knowledge_atom_batch"].source_digest_id
+        return WikiPagePlan(
             operations=[
-                WikiRelationOperation(
+                WikiPageOperation(
                     action="create",
                     page_dir="sources",
                     title="Long Source Digest",
                     knowledge_object="Long source provenance",
+                    source_digest_ids=[source_digest_id],
                     decision_reason="Create source digest.",
                 )
             ],
             overall_summary="Create source digest.",
         )
 
-    def compile_drafts(self, knowledge_extract, wiki_relation_plan, **kwargs):
+    def compile_drafts(self, knowledge_extract, wiki_page_plan, **kwargs):
         return WikiDraftBatch(
             drafts=[
                 WikiDraftBatchItem(
@@ -255,8 +277,14 @@ class SourceOnlySemanticWorkflow(FakeIngestSemanticWorkflow):
                     question="Long source",
                     answer=f"Segment evidence: {knowledge_extract.compile_context.primary_content[:30]}",
                     summary="Long source digest.",
+                    claims=["C1: Source segments describe long source provenance."],
+                    entities=["[[Long Source]]"],
+                    relations=["[[Long Source]] | has_digest | [[Long Source Digest]] | C1"],
+                    evidence=["C1 | source-level | full-source | source digest aggregates segmented input | high"],
+                    synthesis="The source digest aggregates segmented source provenance into one audit page.",
                     key_points=["Source provenance."],
                     tags=["source"],
+                    source_digest_ids=[kwargs["knowledge_atom_batch"].source_digest_id],
                     model_provider="test",
                     model_name="fake",
                 )
@@ -264,7 +292,7 @@ class SourceOnlySemanticWorkflow(FakeIngestSemanticWorkflow):
             batch_summary="One source draft.",
         )
 
-    def review_drafts(self, knowledge_extract, wiki_relation_plan, wiki_draft_batch, **kwargs):
+    def review_drafts(self, knowledge_extract, wiki_page_plan, wiki_draft_batch, **kwargs):
         return IngestDraftReview(
             decisions=[_approved_decision(0)],
             batch_decision="approve",
@@ -273,28 +301,32 @@ class SourceOnlySemanticWorkflow(FakeIngestSemanticWorkflow):
 
 
 class SourceAndConceptSemanticWorkflow(FakeIngestSemanticWorkflow):
-    def plan_relations(self, knowledge_extract, **kwargs):
-        return WikiRelationPlan(
+    def plan_pages(self, knowledge_extract, **kwargs):
+        source_digest_id = kwargs["knowledge_atom_batch"].source_digest_id
+        return WikiPagePlan(
             operations=[
-                WikiRelationOperation(
+                WikiPageOperation(
                     action="create",
                     page_dir="sources",
                     title="Agent Source Digest",
                     knowledge_object="Agent source provenance",
+                    source_digest_ids=[source_digest_id],
                     decision_reason="Create source digest.",
                 ),
-                WikiRelationOperation(
+                WikiPageOperation(
                     action="create",
                     page_dir="concepts",
                     title="Agent Loop Control",
                     knowledge_object="Agent loop control",
+                    selected_claim_ids=["claim_agent_loop_control"],
+                    source_digest_ids=[source_digest_id],
                     decision_reason="Create durable concept.",
                 ),
             ],
             overall_summary="Create source and concept.",
         )
 
-    def compile_drafts(self, knowledge_extract, wiki_relation_plan, **kwargs):
+    def compile_drafts(self, knowledge_extract, wiki_page_plan, **kwargs):
         return WikiDraftBatch(
             drafts=[
                 WikiDraftBatchItem(
@@ -305,8 +337,14 @@ class SourceAndConceptSemanticWorkflow(FakeIngestSemanticWorkflow):
                     question="Agent loop source",
                     answer="Source digest for agent loop control.",
                     summary="Source digest for agent loop control.",
+                    claims=["C1: Source digest documents agent loop control."],
+                    entities=["[[Agent Loop]]"],
+                    relations=["[[Agent Source]] | mentions | [[Agent Loop]] | C1"],
+                    evidence=["C1 | raw/source | source-level | source digest support | medium"],
+                    synthesis="Source digest for agent loop control.",
                     key_points=["Source provenance."],
                     tags=["source", "agent"],
+                    source_digest_ids=[kwargs["knowledge_atom_batch"].source_digest_id],
                     model_provider="test",
                     model_name="fake",
                 ),
@@ -318,8 +356,15 @@ class SourceAndConceptSemanticWorkflow(FakeIngestSemanticWorkflow):
                     question="Agent loop source",
                     answer="Agent loop control repeats observe, decide, act, and feedback.",
                     summary="Agent loop control is a repeated control pattern.",
+                    claims=["C1: [[Agent Loop]] control repeats observe, decide, act, and feedback."],
+                    entities=["[[Agent Loop]]"],
+                    relations=["[[Agent Loop]] | repeats | [[Control Cycle]] | C1"],
+                    evidence=["C1 | sd_test | unit:0 | source states the loop cycle | high"],
+                    synthesis="Agent loop control repeats observe, decide, act, and feedback.",
                     key_points=["Observe, decide, act."],
                     tags=["agent", "loop"],
+                    source_digest_ids=[kwargs["knowledge_atom_batch"].source_digest_id],
+                    atom_ids=["claim_agent_loop_control"],
                     model_provider="test",
                     model_name="fake",
                 ),
@@ -327,7 +372,7 @@ class SourceAndConceptSemanticWorkflow(FakeIngestSemanticWorkflow):
             batch_summary="Source plus concept.",
         )
 
-    def review_drafts(self, knowledge_extract, wiki_relation_plan, wiki_draft_batch, **kwargs):
+    def review_drafts(self, knowledge_extract, wiki_page_plan, wiki_draft_batch, **kwargs):
         return IngestDraftReview(
             decisions=[_approved_decision(0), _approved_decision(1)],
             batch_decision="approve",
@@ -342,13 +387,14 @@ class ScenarioSemanticWorkflow(FakeIngestSemanticWorkflow):
         self.page_dir = page_dir
         self.target_page = target_page
 
-    def plan_relations(self, knowledge_extract, **kwargs):
+    def plan_pages(self, knowledge_extract, **kwargs):
         self.last_existing_wiki_index = kwargs.get("existing_wiki_index")
         self.last_wiki_context = kwargs.get("wiki_context")
+        source_digest_id = kwargs["knowledge_atom_batch"].source_digest_id
         if self.action == "skip":
-            return WikiRelationPlan(
+            return WikiPagePlan(
                 operations=[
-                    WikiRelationOperation(
+                    WikiPageOperation(
                         action="skip",
                         page_dir="queries",
                         title="Low Value Source",
@@ -359,14 +405,16 @@ class ScenarioSemanticWorkflow(FakeIngestSemanticWorkflow):
                 overall_summary="Skip low value source.",
                 warnings=["low_value_source:too_thin"],
             )
-        return WikiRelationPlan(
+        return WikiPagePlan(
             operations=[
-                WikiRelationOperation(
+                WikiPageOperation(
                     action=self.action,
                     target_page=self.target_page,
                     page_dir=self.page_dir,
                     title=f"{self.page_dir.title()} Page",
                     knowledge_object=f"{self.page_dir} object",
+                    selected_claim_ids=[] if self.page_dir == "sources" else ["claim_scenario"],
+                    source_digest_ids=[source_digest_id],
                     candidate_pages=[
                         WikiCandidatePage(path=self.target_page, title="Existing", match_reason="Scenario target.")
                     ]
@@ -378,10 +426,10 @@ class ScenarioSemanticWorkflow(FakeIngestSemanticWorkflow):
             overall_summary=f"Scenario {self.action}.",
         )
 
-    def compile_drafts(self, knowledge_extract, wiki_relation_plan, **kwargs):
+    def compile_drafts(self, knowledge_extract, wiki_page_plan, **kwargs):
         self.last_candidate_page_context = kwargs.get("candidate_page_context")
         if self.action == "skip":
-            raise AssertionError("skip relation plan should not compile drafts")
+            raise AssertionError("skip page plan should not compile drafts")
         patches = []
         if self.action == "update":
             patches = [
@@ -403,8 +451,15 @@ class ScenarioSemanticWorkflow(FakeIngestSemanticWorkflow):
                     question="Scenario question",
                     answer=f"Scenario answer for {self.page_dir}.",
                     summary=f"Scenario summary for {self.page_dir}.",
+                    claims=[f"C1: [[{self.page_dir.title()} Page]] has durable scenario evidence."],
+                    entities=[f"[[{self.page_dir.title()} Page]]"],
+                    relations=[f"[[{self.page_dir.title()} Page]] | mentions | [[Scenario]] | C1"],
+                    evidence=["C1 | sd_test | unit:0 | scenario source support | high"],
+                    synthesis=f"Scenario answer for {self.page_dir}.",
                     key_points=[f"{self.page_dir} key point."],
                     tags=[self.page_dir],
+                    source_digest_ids=[kwargs["knowledge_atom_batch"].source_digest_id],
+                    atom_ids=[] if self.page_dir == "sources" else ["claim_scenario"],
                     patches=patches,
                     model_provider="test",
                     model_name="fake",
@@ -413,10 +468,10 @@ class ScenarioSemanticWorkflow(FakeIngestSemanticWorkflow):
             batch_summary="Scenario draft.",
         )
 
-    def review_drafts(self, knowledge_extract, wiki_relation_plan, wiki_draft_batch, **kwargs):
+    def review_drafts(self, knowledge_extract, wiki_page_plan, wiki_draft_batch, **kwargs):
         self.last_review_draft_batch = wiki_draft_batch
         if self.action == "skip":
-            raise AssertionError("skip relation plan should not review drafts")
+            raise AssertionError("skip page plan should not review drafts")
         return IngestDraftReview(
             decisions=[
                 IngestDraftReviewDecision(
@@ -427,25 +482,29 @@ class ScenarioSemanticWorkflow(FakeIngestSemanticWorkflow):
                     write_safety="safe_create" if self.action == "create" else "safe_update",
                     reason="Scenario draft is supported.",
                     dimension_scores=IngestReviewDimensionScores(
+                        source_trace=0.9,
+                        atom_coverage=0.9,
                         source_support=0.9,
                         page_boundary=0.9,
-                        directory_fit=0.9,
+                        identity_fit=0.9,
                         duplication_risk=0.9,
                         relation_quality=0.9,
-                        completeness=0.9,
+                        synthesis_quality=0.9,
                         maintainability=0.9,
-                        patch_safety=0.9,
+                        update_safety=0.9,
                     ),
                     checks=IngestReviewChecks(
                         operation_aligned=True,
+                        source_trace_complete=True,
+                        atom_coverage_sufficient=True,
                         page_boundary_clear=True,
-                        directory_fit=True,
+                        identity_fit=True,
                         source_supported=True,
                         not_duplicate=True,
                         relation_quality=True,
-                        complete_enough=True,
+                        synthesis_quality=True,
                         maintainable=True,
-                        patch_safe=True,
+                        update_safe=True,
                         write_safe=True,
                     ),
                 )
@@ -512,13 +571,15 @@ class IngestSemanticWorkflowFixtures:
         return __import__("knoarbor.semantic.ingest_workflow", fromlist=["IngestSemanticWorkflowResult"]).IngestSemanticWorkflowResult(
             knowledge_extract=knowledge_extract,
             knowledge_atom_batch=KnowledgeAtomBatch(source_digest_id="test-digest"),
-            wiki_relation_plan=WikiRelationPlan(
+            wiki_page_plan=WikiPagePlan(
                 operations=[
-                    WikiRelationOperation(
+                    WikiPageOperation(
                         action="create",
                         page_dir="concepts",
                         title="Agent Loop",
                         knowledge_object="Agent Loop",
+                        selected_claim_ids=["claim_agent_loop"],
+                        source_digest_ids=["test-digest"],
                         decision_reason="Useful concept page.",
                     )
                 ],
@@ -534,8 +595,15 @@ class IngestSemanticWorkflowFixtures:
                         question="Agent Loop",
                         answer="Agent loop repeats observe, decide, act, and feedback.",
                         summary="Agent loop is a control pattern.",
+                        claims=["C1: [[Agent Loop]] repeats observe, decide, act, and feedback."],
+                        entities=["[[Agent Loop]]"],
+                        relations=["[[Agent Loop]] | repeats | [[Control Cycle]] | C1"],
+                        evidence=["C1 | test-digest | unit:0 | source states the loop cycle | high"],
+                        synthesis="Agent loop repeats observe, decide, act, and feedback.",
                         key_points=["Observe, decide, act."],
                         tags=["agent", "loop"],
+                        source_digest_ids=["test-digest"],
+                        atom_ids=["claim_agent_loop"],
                         model_provider="test",
                         model_name="fake",
                     )
@@ -552,25 +620,29 @@ class IngestSemanticWorkflowFixtures:
                         write_safety="safe_create",
                         reason="Draft is supported.",
                         dimension_scores=IngestReviewDimensionScores(
+                            source_trace=0.9,
+                            atom_coverage=0.9,
                             source_support=0.9,
                             page_boundary=0.9,
-                            directory_fit=0.9,
+                            identity_fit=0.9,
                             duplication_risk=0.9,
                             relation_quality=0.9,
-                            completeness=0.9,
+                            synthesis_quality=0.9,
                             maintainability=0.9,
-                            patch_safety=0.9,
+                            update_safety=0.9,
                         ),
                         checks=IngestReviewChecks(
                             operation_aligned=True,
+                            source_trace_complete=True,
+                            atom_coverage_sufficient=True,
                             page_boundary_clear=True,
-                            directory_fit=True,
+                            identity_fit=True,
                             source_supported=True,
                             not_duplicate=True,
                             relation_quality=True,
-                            complete_enough=True,
+                            synthesis_quality=True,
                             maintainable=True,
-                            patch_safe=True,
+                            update_safe=True,
                             write_safe=True,
                         ),
                     )
@@ -712,8 +784,10 @@ class IngestPipelineTests(unittest.TestCase):
             self.assertEqual(result.stats["written_count"], 2)
             source_page = (vault / "sources" / "Agent-Source-Digest.md").read_text(encoding="utf-8")
             concept_page = (vault / "Agent-Loop-Control.md").read_text(encoding="utf-8")
-            self.assertIn("[[Agent-Loop-Control|Agent Loop Control]]", source_page)
-            self.assertIn("[[sources/Agent-Source-Digest|Agent Source Digest]]", concept_page)
+            self.assertNotIn("## Related Pages", source_page)
+            self.assertNotIn("## Related Pages", concept_page)
+            self.assertIn("## Evidence", source_page)
+            self.assertIn("## Evidence", concept_page)
             self.assertNotIn("Existing-Agent", source_page)
             self.assertNotIn("Existing-Agent", concept_page)
 
@@ -832,7 +906,8 @@ class IngestPipelineTests(unittest.TestCase):
 
         self.assertEqual(result.stats["processed_count"], 1)
         self.assertIsNotNone(semantic.last_wiki_context)
-        self.assertEqual(semantic.last_existing_wiki_index["content_length"], 0)
+        self.assertGreater(semantic.last_existing_wiki_index["content_length"], 0)
+        self.assertEqual(semantic.last_existing_wiki_index["path"], ".knoarbor/index/manifest.json")
         self.assertIn("candidate", semantic.last_existing_wiki_index["note"])
         self.assertGreaterEqual(len(semantic.last_wiki_context["candidates"]), 1)
         self.assertEqual(semantic.last_wiki_context["candidates"][0]["path"], "concepts/Agent-Control-Patterns.md")
@@ -938,7 +1013,7 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertIn("unsupported=0", report)
         self.assertIn("conflicting=0", report)
         self.assertIn("rejected=0", report)
-        self.assertIn("Relation operations:", report)
+        self.assertIn("Page plan operations:", report)
         self.assertEqual(ledger_record["schema_version"], "ingest_run.v1")
         self.assertEqual(ledger_record["stats"]["processed_count"], 1)
         self.assertEqual(ledger_record["stats"]["segment_count"], 1)
@@ -1068,9 +1143,38 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertEqual(source.status, "failed")
         self.assertEqual(source.error_stage, "quality_gate")
         self.assertEqual(source.error_code, "KA-INPUT-001")
-        self.assertIn("missing_tags", source.error_message or "")
+        self.assertIn("missing_evidence", source.error_message or "")
         self.assertEqual(source.generated_pages, [])
         self.assertFalse((vault / "concepts" / "Agent-Loop.md").exists())
+        self.assertIn("quality_gate_passed: False", report)
+
+    def test_quality_gate_blocks_atom_quality_errors_before_write(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "vaults" / "all"
+            notes = root / "notes"
+            vault.mkdir(parents=True)
+            notes.mkdir()
+            (notes / "agent.md").write_text("# Agent Loop\n\nObserve and act.", encoding="utf-8")
+            config = KnoArborConfig(
+                vault=VaultConfig(path=vault),
+                connectors={
+                    "markdown": ConnectorConfig(
+                        enabled=True,
+                        settings={"roots": [str(notes)]},
+                    )
+                },
+            )
+
+            result = IngestPipeline(UnsupportedAtomSemanticWorkflow()).run(config, connector_names=["markdown"], write=True)  # type: ignore[arg-type]
+            source = result.results[0]
+            report = (vault / (result.report_path or "")).read_text(encoding="utf-8")
+
+        self.assertEqual(source.status, "failed")
+        self.assertEqual(source.error_stage, "quality_gate")
+        self.assertEqual(source.error_code, "KA-INPUT-001")
+        self.assertIn("knowledge_atom_unsupported_claim", source.error_message or "")
+        self.assertEqual(source.generated_pages, [])
         self.assertIn("quality_gate_passed: False", report)
 
     def test_quality_gate_blocks_write_action_mismatch(self) -> None:
@@ -1240,8 +1344,8 @@ class IngestPipelineTests(unittest.TestCase):
                 page = content_root(vault) / result.results[0].generated_pages[0]
                 content = page.read_text(encoding="utf-8")
 
-            self.assertIn("type: page", content)
-            self.assertIn(f"page_kind: {page_type}", content)
+            self.assertNotIn("type: page", content)
+            self.assertNotIn(f"page_kind: {page_type}", content)
             self.assertFalse(result.results[0].generated_pages[0].startswith(f"{page_dir}/"))
 
     def test_hermes_connector_uses_incremental_session_window(self) -> None:
