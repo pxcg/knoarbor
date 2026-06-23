@@ -61,8 +61,8 @@
 
 - [x] Freeze first-principles ingest agent ownership in
   `agent-boundary.md`.
-- [ ] Add graph-first ingest candidate provider before page planning.
-- [ ] Keep text/BM25 candidate retrieval as supplemental retrieval.
+- [x] Add graph-first ingest candidate provider before page planning.
+- [x] Keep text/BM25 candidate retrieval as supplemental retrieval.
 - [ ] Add deterministic selected-atom closure as a reusable service.
 - [ ] Add deterministic `PageAssemblyService` for identity, entities,
   relations, evidence, and Markdown skeleton.

@@ -8,8 +8,10 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from knoarbor.core.markdown import compact_inline_text, extract_heading, extract_list_items, extract_section, extract_tags, parse_frontmatter
+from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
+from knoarbor.pipelines.ingest_candidate_provider import graph_first_ingest_candidates, merge_candidate_matches
 from knoarbor.pipelines.query import QueryPipeline, QueryPipelineRequest
 from knoarbor.retrieval.markdown import ScoredPage, extract_headings, query_terms, strip_frontmatter
 from knoarbor.storage.vault import VaultStore
@@ -89,7 +91,7 @@ class IngestContextProvider:
             self._query_cache.clear()
             self._materialize_cache.clear()
 
-    def build(self, vault_path: Path, extract: KnowledgeExtract) -> IngestWikiContext:
+    def build(self, vault_path: Path, extract: KnowledgeExtract, knowledge_atom_batch: KnowledgeAtomBatch | None = None) -> IngestWikiContext:
         query = build_ingest_query(extract)
         if not query:
             return IngestWikiContext(
@@ -107,7 +109,15 @@ class IngestContextProvider:
             include_related=True,
         )
         result = self._cached_query(query_request)
-        matches = rerank_ingest_candidates(extract, result.matches)
+        graph_matches = graph_first_ingest_candidates(
+            vault_path=vault_path,
+            extract=extract,
+            atom_batch=knowledge_atom_batch,
+            index_provider=self.query_pipeline.index_provider,
+            limit=self.candidate_limit,
+        )
+        merged_matches = merge_candidate_matches(result.matches, graph_matches)
+        matches = rerank_ingest_candidates(extract, merged_matches)
         candidates = [
             IngestCandidatePage(
                 path=item.page.relative_path,
@@ -127,18 +137,23 @@ class IngestContextProvider:
             for item in matches
         ]
         profile_chars = _candidate_profile_chars(candidates)
+        graph_paths = [item.page.relative_path for item in graph_matches]
         return IngestWikiContext(
-            retrieval_mode=result.retrieval_mode,
+            retrieval_mode=f"graph_first+{result.retrieval_mode}" if graph_matches else result.retrieval_mode,
             query=query,
             candidates=candidates,
             warnings=result.warnings + result.gaps,
             stats={
                 **result.stats,
+                "graph_first_candidate_count": len(graph_matches),
+                "graph_first_result_paths": graph_paths,
+                "graph_first_reasons": {item.page.relative_path: item.graph_reasons for item in graph_matches},
+                "text_candidate_count": len(result.matches),
                 "pre_rerank_candidate_count": len(result.matches),
                 "candidate_count": len(candidates),
                 "page_plan_profile_chars": profile_chars,
                 "page_plan_candidate_body_included": False,
-                "page_plan_context_policy": "lightweight_page_profiles_without_page_body",
+                "page_plan_context_policy": "graph_first_lightweight_page_profiles_without_page_body",
             },
         )
 

@@ -7,11 +7,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch, KnowledgeAtomObject, KnowledgeEvidenceSpan, KnowledgeFact
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 from knoarbor.core.schemas.wiki_page_plan import WikiPageOperation, WikiPagePlan
 from knoarbor.pipelines.ingest_context import IngestContextProvider
 from knoarbor.pipelines.query import QueryPipelineResult
 from knoarbor.retrieval.markdown import ScoredPage, SearchPage
+from knoarbor.storage import update_machine_index
 
 from tests.harness.semantic_cases import source_normalize_output
 
@@ -69,7 +71,7 @@ class IngestContextProviderTests(unittest.TestCase):
         self.assertEqual(first.candidates[0].path, "concepts/Agent.md")
         self.assertEqual(second.candidates[0].path, "concepts/Agent.md")
         self.assertFalse(first.stats["page_plan_candidate_body_included"])
-        self.assertEqual(first.stats["page_plan_context_policy"], "lightweight_page_profiles_without_page_body")
+        self.assertEqual(first.stats["page_plan_context_policy"], "graph_first_lightweight_page_profiles_without_page_body")
 
     def test_relation_candidates_are_profiles_without_body_or_field_slicing(self) -> None:
         page = SearchPage(
@@ -102,6 +104,46 @@ class IngestContextProviderTests(unittest.TestCase):
         self.assertEqual(candidate["key_points"], page.key_points)
         self.assertEqual(candidate["related_pages"], page.related_pages)
         self.assertGreater(context.stats["page_plan_profile_chars"], 0)
+
+    def test_graph_first_candidates_use_atom_entities_before_text_match(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            (vault / "concepts").mkdir()
+            _write_page(
+                vault / "concepts" / "Graph-Candidate.md",
+                "# Graph Candidate\n\n"
+                "## Summary\n\nA page that should be found through entity graph signals.\n\n"
+                "## Claims\n\n- C1: [[GraphOnlyEntity]] is represented in the graph.\n\n"
+                "## Entities\n\n- [[GraphOnlyEntity]]\n",
+            )
+            update_machine_index(vault)
+            extract = KnowledgeExtract.model_validate(
+                source_normalize_output(title="Zzzqxv", content="Plomter qivrax zednort.")["output"]
+            )
+            atom_batch = KnowledgeAtomBatch(
+                source_digest_id="sd_graph_only",
+                facts=[
+                    KnowledgeFact(
+                        id="fact_graph_only",
+                        statement="GraphOnlyEntity appears in the source.",
+                        subject=KnowledgeAtomObject(object_type="entity", name="GraphOnlyEntity"),
+                        evidence=[
+                            KnowledgeEvidenceSpan(
+                                source_digest_id="sd_graph_only",
+                                source_path="raw/notes/graph-only.md",
+                                excerpt="GraphOnlyEntity appears in the source.",
+                            )
+                        ],
+                    )
+                ],
+            )
+
+            context = IngestContextProvider().build(vault, extract, knowledge_atom_batch=atom_batch)
+
+        self.assertEqual(context.candidates[0].path, "concepts/Graph-Candidate.md")
+        self.assertEqual(context.stats["graph_first_candidate_count"], 1)
+        self.assertEqual(context.stats["text_candidate_count"], 0)
+        self.assertIn("graph_first", context.candidates[0].matched_fields)
 
     def test_materialize_cache_is_local_and_clearable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

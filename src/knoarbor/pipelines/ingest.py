@@ -573,7 +573,11 @@ class IngestSourceExecutor:
             max_tokens=max_tokens,
         )
         knowledge_atom_quality = evaluate_knowledge_atoms(knowledge_atom_batch)
-        wiki_context = self.context_provider.build(vault_path, knowledge_extract)
+        wiki_context = self.context_provider.build(
+            vault_path,
+            knowledge_extract,
+            knowledge_atom_batch=knowledge_atom_batch,
+        )
         page_plan = self.semantic_workflow.plan_pages(
             knowledge_extract,
             source_digest=source_digest,
