@@ -15,7 +15,7 @@ ingest line. It applies first-principles ownership rules to each ingest agent:
 Ingest exists to answer four questions:
 
 1. Which parts of the raw source are substantive knowledge material?
-2. Which facts, claims, relations, and evidence can be reused later?
+2. Which claims, entities, relations, and evidence can be reused later?
 3. Which stable wiki page or source digest should receive those atoms?
 4. Is the resulting write traceable, maintainable, connected, and safe?
 
@@ -82,7 +82,6 @@ Question answered: which reusable knowledge atoms are present in this source?
 
 Semantic responsibilities:
 
-- extract source-backed facts;
 - extract durable claims such as definitions, assessments, decisions,
   recommendations, comparisons, causal statements, and open questions;
 - extract typed relations between durable knowledge objects;
@@ -92,10 +91,11 @@ Semantic responsibilities:
 
 Deterministic responsibilities:
 
-- validate evidence requirements for facts, claims, and relations;
+- validate evidence requirements for claims and relations;
 - normalize ids, hashes, confidence ranges, and relation vocabulary;
 - reject unsupported atoms before page planning;
-- compute dependency closure between selected relations, claims, and facts;
+- compute dependency closure between selected claims, relations, entities, and
+  evidence spans;
 - deduplicate equivalent atom ids within the source batch;
 - emit quality signals for reports and lint.
 
@@ -118,7 +118,7 @@ Semantic responsibilities:
 - choose page boundaries;
 - decide create, update, or skip operations;
 - choose the stable knowledge object and page identity;
-- select the fact, claim, and relation ids for each page operation;
+- select the claim and relation ids for each page operation;
 - decide whether a source supports one primary page or several independently
   reusable pages;
 - choose between updating an existing candidate and creating a new page.

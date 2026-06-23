@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch, KnowledgeAtomObject, KnowledgeEvidenceSpan, KnowledgeFact
+from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch, KnowledgeAtomObject, KnowledgeEvidenceSpan, KnowledgeRelation
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 from knoarbor.core.schemas.wiki_page_plan import WikiPageOperation, WikiPagePlan
 from knoarbor.pipelines.ingest_context import IngestContextProvider
@@ -122,11 +122,12 @@ class IngestContextProviderTests(unittest.TestCase):
             )
             atom_batch = KnowledgeAtomBatch(
                 source_digest_id="sd_graph_only",
-                facts=[
-                    KnowledgeFact(
-                        id="fact_graph_only",
-                        statement="GraphOnlyEntity appears in the source.",
+                relations=[
+                    KnowledgeRelation(
+                        id="rel_graph_only",
                         subject=KnowledgeAtomObject(object_type="entity", name="GraphOnlyEntity"),
+                        predicate="mentions",
+                        object=KnowledgeAtomObject(object_type="concept", name="Graph Candidate"),
                         evidence=[
                             KnowledgeEvidenceSpan(
                                 source_digest_id="sd_graph_only",

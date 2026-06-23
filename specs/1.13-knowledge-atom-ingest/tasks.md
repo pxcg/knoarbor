@@ -63,7 +63,7 @@
   `agent-boundary.md`.
 - [x] Add graph-first ingest candidate provider before page planning.
 - [x] Keep text/BM25 candidate retrieval as supplemental retrieval.
-- [ ] Add deterministic selected-atom closure as a reusable service.
+- [ ] Add deterministic claim/relation/evidence closure as a reusable service.
 - [ ] Add deterministic `PageAssemblyService` for identity, entities,
   relations, evidence, and Markdown skeleton.
 - [ ] Narrow `wiki_draft_compile` into synthesis-generation behavior.

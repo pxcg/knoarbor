@@ -168,9 +168,6 @@ def _graph_source_rows(graph: dict[str, object]) -> list[dict[str, object]]:
 
 def _atom_entity_terms(batch: KnowledgeAtomBatch) -> list[str]:
     entities: list[str] = []
-    for fact in batch.facts:
-        _append_object_terms(entities, fact.subject)
-        _append_object_terms(entities, fact.object)
     for relation in batch.relations:
         _append_object_terms(entities, relation.subject)
         _append_object_terms(entities, relation.object)
@@ -181,9 +178,6 @@ def _atom_relation_terms(batch: KnowledgeAtomBatch) -> list[tuple[str, str]]:
     relations: list[tuple[str, str]] = []
     for relation in batch.relations:
         relations.append((relation.subject.name, relation.object.name))
-    for fact in batch.facts:
-        if fact.subject and fact.object:
-            relations.append((fact.subject.name, fact.object.name))
     seen: set[tuple[str, str]] = set()
     result: list[tuple[str, str]] = []
     for subject, obj in relations:
@@ -201,8 +195,6 @@ def _source_lineage_terms(extract: KnowledgeExtract, batch: KnowledgeAtomBatch) 
         extract.source.source_id or "",
         extract.source.title,
     ]
-    for fact in batch.facts:
-        values.extend(span.source_path or "" for span in fact.evidence)
     for claim in batch.claims:
         values.extend(span.source_path or "" for span in claim.evidence)
     for relation in batch.relations:
