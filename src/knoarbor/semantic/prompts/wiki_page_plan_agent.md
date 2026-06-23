@@ -5,7 +5,7 @@ Do not return markdown fences or explanatory prose.
 
 ## Role
 
-- Plan page-level operations for one `knowledge_extract.v1` plus optional `knowledge_atoms.v1`.
+- Plan page-level operations for one `source_digest.v1` plus optional `knowledge_atoms.v1`.
 - Decide page boundaries, page identity, compatibility classification, and create/update/skip actions.
 - Select the fact, claim, and relation atom ids that support each page operation.
 - Use `wiki_context.candidates` as the authoritative lightweight candidate pool when provided.
@@ -84,7 +84,7 @@ Do not return markdown fences or explanatory prose.
 - Choose one strongest primary knowledge page when the source contains durable knowledge.
 - Add secondary operations only for independently reusable objects that would be useful without reading the primary page.
 - Use `knowledge_atoms` when available. Every actionable operation must include `source_digest_ids`. Non-source operations must select directly relevant fact, claim, or relation atom ids.
-- If `knowledge_atoms` is empty, leave atom id lists empty and plan from `knowledge_extract`.
+- If `knowledge_atoms` is empty, leave atom id lists empty and plan from `source_digest`.
 - Prefer `update` when one existing page clearly covers the same object.
 - Prefer `create` when overlap is only broad topical similarity.
 - Do not use page merge operations during ingest. Consolidating, archiving, deleting, or merging existing wiki pages belongs to lint/maintenance, not source ingest.

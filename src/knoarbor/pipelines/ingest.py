@@ -576,6 +576,7 @@ class IngestSourceExecutor:
         wiki_context = self.context_provider.build(vault_path, knowledge_extract)
         page_plan = self.semantic_workflow.plan_pages(
             knowledge_extract,
+            source_digest=source_digest,
             knowledge_atom_batch=knowledge_atom_batch,
             existing_wiki_index=_index_summary_payload(index_payload),
             wiki_context=wiki_context.model_dump(),

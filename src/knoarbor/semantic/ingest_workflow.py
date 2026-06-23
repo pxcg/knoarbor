@@ -51,6 +51,7 @@ class IngestSemanticWorkflow:
         )
         wiki_page_plan = self.plan_pages(
             knowledge_extract,
+            source_digest=source_digest,
             knowledge_atom_batch=knowledge_atom_batch,
             existing_wiki_index=existing_wiki_index,
             wiki_context=wiki_context,
@@ -107,15 +108,17 @@ class IngestSemanticWorkflow:
         self,
         knowledge_extract: KnowledgeExtract,
         *,
+        source_digest: SourceDigest | None = None,
         knowledge_atom_batch: KnowledgeAtomBatch | None = None,
         existing_wiki_index: dict[str, Any] | None = None,
         wiki_context: dict[str, Any] | None = None,
         max_tokens: int | None = None,
     ) -> WikiPagePlan:
+        resolved_source_digest = source_digest or build_source_digest_from_extract(knowledge_extract)
         result = self.runner.run(
             "wiki_page_plan",
             {
-                "knowledge_extract": knowledge_extract.model_dump(),
+                "source_digest": _source_digest_plan_payload(resolved_source_digest),
                 "knowledge_atoms": knowledge_atom_batch.model_dump() if knowledge_atom_batch else {},
                 "existing_wiki_index": existing_wiki_index or {},
                 "wiki_context": wiki_context or {},
@@ -226,6 +229,41 @@ def _model_compile_context_payload(compile_context: dict[str, Any]) -> dict[str,
             "Use selected knowledge_atoms evidence excerpts for draft and review."
         )
     return payload
+
+
+def _source_digest_plan_payload(source_digest: SourceDigest) -> dict[str, Any]:
+    return {
+        "schema_version": source_digest.schema_version,
+        "digest_id": source_digest.digest_id,
+        "source": source_digest.source.model_dump(),
+        "source_focus": source_digest.source_focus,
+        "summary": source_digest.summary,
+        "units": [
+            {
+                "index": unit.index,
+                "unit_type": unit.unit_type,
+                "title": unit.title,
+                "summary": unit.summary,
+                "source_unit_index": unit.evidence.source_unit_index,
+                "excerpt_hash": unit.evidence.excerpt_hash,
+                "metadata": dict(unit.metadata),
+            }
+            for unit in source_digest.units
+        ],
+        "observations": [
+            {
+                "id": observation.id,
+                "observation_type": observation.observation_type,
+                "statement": observation.statement,
+                "confidence": observation.confidence,
+            }
+            for observation in source_digest.observations
+        ],
+        "mentioned_objects": [item.model_dump() for item in source_digest.mentioned_objects],
+        "limitations": list(source_digest.limitations),
+        "confidence": source_digest.confidence,
+        "warnings": list(source_digest.warnings),
+    }
 
 
 def _selected_knowledge_atoms_for_plan(
