@@ -69,7 +69,14 @@ Do not return markdown fences or explanatory prose.
 - `operation_index`, `write_action`, `target_page`, `title`, `page_dir`, `canonical_path`, `legacy_paths`, `page_kind`, `subject_kind`, and `facets` must follow the matching operation unless the operation omitted optional identity fields.
 - `canonical_path` is the durable page path relative to the wiki content root. `page_dir` is a compatibility classification, not the physical storage contract. KnoArbor writes new non-source knowledge pages to the unified page namespace and stores semantic classification in `page_kind` and `facets`.
 - `question` means source focus. For chat use the user question when available; for notes/documents use the source title or topic.
-- `summary`, `claims`, `entities`, `relations`, `evidence`, and `synthesis` are the canonical page body fields.
+- For non-source pages, `summary`, `claims`, `entities`, `relations`, `evidence`, and `synthesis` are the canonical page body fields.
+- For `page_dir: "sources"`, these transport fields are projected into the source digest audit template instead of the ordinary knowledge-page template:
+  - `summary`: short source-level summary.
+  - `claims`: accepted source contributions, as short claim ids/text for the contribution map.
+  - `relations`: accepted source-to-page or source-to-atom contribution links for the contribution map.
+  - `evidence`: source unit rows in the form `U1 | raw source | range | basis | confidence`.
+  - `key_points`: unresolved or rejected material only.
+  - `synthesis`: transport text only; it is not rendered as a source digest section.
 - `answer` is a transport field for older writer contracts. Set it to the same text as `synthesis`; do not treat it as a separate page section.
 - `summary` is for fast scanning and cards. Keep it short.
 - `question` is source context. It should identify the source topic or source-side question, not repeat the page title mechanically.
@@ -104,7 +111,8 @@ Do not return markdown fences or explanatory prose.
 - If source metadata indicates a segmented long source, write only what is supported by the current segment, avoid duplicate source digests across sibling segments, and prefer update patches when the segment extends an object already represented in retrieved context.
 - Use `ingest_compile_context` as the authoritative compile context. `target` pages carry existing body content; `related` and `candidate` pages are background only.
 - Use `ingest_compile_context.page_context` only when it adds relevant provenance, update targets, or duplicate-avoidance context.
-- If `page_dir` is `sources`, write a source digest: provenance, source focus, compact summary, selected claims/objects, evidence notes, and unresolved material when needed. Use `claims` for selected atom claims, `entities` for selected atom objects, `relations` for source-to-page/source-to-entity links, `evidence` for source ranges, and `synthesis` for the compact source digest.
+- If `page_dir` is `sources`, write a source digest audit view, not an ordinary knowledge page. It should answer how this raw source was understood and what it contributed to maintained wiki pages. Do not write subject-level `Synthesis`, broad related pages, tags, or full raw excerpts for source digests.
+- For source digests, prefer a compact contribution map over full duplicate atom lists. Use `claims` for accepted contribution items, `relations` for accepted source-to-page/source-to-atom links, `evidence` for source unit references, and `key_points` only for unresolved or rejected material. Do not use `entities` as a second entity page.
 - For non-source pages, major claims in `claims` and `synthesis` should be supported by selected atom ids or direct source evidence.
 - If `page_dir` is `timelines`, make chronology the organizing structure.
 - If `page_dir` is `workflows`, make the procedure actionable and ordered.

@@ -20,12 +20,17 @@ from knoarbor.storage.wiki_paths import (
 
 TRACKED_WRITE_SECTIONS = (
     "Summary",
-    "Source Focus",
-    "Answer",
-    "Key Points",
-    "Related Pages",
-    "Tags",
-    "Source",
+    "Claims",
+    "Entities",
+    "Relations",
+    "Evidence",
+    "Synthesis",
+    "Source Identity",
+    "Source Summary",
+    "Source Units",
+    "Contribution Map",
+    "Unresolved / Rejected",
+    "Raw Source",
 )
 
 MAX_WRITE_DIFF_LINES = 320

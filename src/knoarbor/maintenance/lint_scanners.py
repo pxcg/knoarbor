@@ -317,8 +317,15 @@ def _metadata_sources(value: object) -> list[str]:
 
 def _page_sources(page: LintPage) -> list[str]:
     sources: list[str] = []
-    for source in [*_metadata_sources(page.metadata.get("source")), *_evidence_sources(page.content), *extract_list_items(extract_section(page.content, "Source"))]:
+    for source in [
+        *_metadata_sources(page.metadata.get("source")),
+        *_evidence_sources(page.content),
+        *extract_list_items(extract_section(page.content, "Source")),
+        *extract_list_items(extract_section(page.content, "Raw Source")),
+    ]:
         text = source.strip().strip("`")
+        if text.lower().startswith("raw source:"):
+            text = text.split(":", 1)[1].strip().strip("`")
         if text and text not in sources:
             sources.append(text)
     return sources

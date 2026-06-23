@@ -18,7 +18,7 @@ Do not return markdown fences or explanatory prose.
 - `canonical_path` is the durable page path relative to the wiki content root. New non-source knowledge pages should use `<Title>.md`; source digest pages should use `sources/<Title>.md`.
 - `legacy_paths` records old directory-style aliases such as `concepts/<Title>.md` when helpful.
 - `page_dir` is a compatibility classification, not the physical storage contract. Semantic identity lives in `canonical_path`, `page_kind`, `subject_kind`, `facets`, and the page body.
-- `sources`: source digest pages for one raw source. Include provenance, compact source summary, selected atom claims/objects, and evidence notes. Do not copy the raw source.
+- `sources`: source digest audit pages for one raw source. They record source identity, compact source summary, source units, contribution map, unresolved/rejected material, and raw source pointers. They are not ordinary knowledge pages and must not duplicate subject-level claims, synthesis, or raw text.
 - `entities`: named people, organizations, schools, companies, products, projects, standards, places, datasets, or concrete artifacts.
 - `concepts`: reusable ideas, methods, architectures, patterns, principles, learning strategies, or technical practices.
 - `comparisons`: comparison-first artifacts where the contrast or trade-off is the durable object.

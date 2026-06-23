@@ -353,6 +353,31 @@ def apply_add_missing_section(vault_path: Path, operation: WikiOperationInput) -
 
 def _default_missing_section_content(content: str, section: str) -> str:
     metadata = parse_frontmatter(content)
+    if section == "Source Identity":
+        source = metadata.get("source", "").strip()
+        rows = [
+            f"- Raw source: {source or 'unknown'}",
+            f"- Content hash: {metadata.get('content_hash', 'unknown')}",
+        ]
+        return "\n".join(rows)
+    if section == "Source Summary":
+        return extract_section(content, "Summary") or extract_heading(content, "Untitled")
+    if section == "Source Units":
+        source = metadata.get("source", "").strip() or "unknown"
+        return "\n".join(
+            [
+                "| Unit | Source | Range | Basis | Confidence |",
+                "|---|---|---|---|---|",
+                f"| U1 | {source} | source-level | source digest placeholder | low |",
+            ]
+        )
+    if section == "Contribution Map":
+        return "- No accepted contribution map was generated."
+    if section == "Unresolved / Rejected":
+        return "- No unresolved or rejected material recorded."
+    if section == "Raw Source":
+        source = metadata.get("source", "").strip()
+        return f"- Raw source: {source}" if source else "- Raw source: unknown"
     if section == "Tags":
         return render_list_section(_default_tags(content, metadata), "暂无标签")
     if section == "Question":

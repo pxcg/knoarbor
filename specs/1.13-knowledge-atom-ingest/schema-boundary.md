@@ -151,17 +151,19 @@ Recommended source digest sections:
 
 - `Source Identity`
 - `Source Summary`
-- `Extracted Claims`
-- `Mentioned Entities`
-- `Generated Or Updated Pages`
-- `Rejected Or Unresolved Material`
+- `Source Units`
+- `Contribution Map`
+- `Unresolved / Rejected`
 - `Raw Source`
 
 Source digest rules:
 
 - The digest is organized by source, not by subject.
-- It should record extracted claims, mentioned entities, page impacts, rejected
-  material, unresolved material, and raw source references.
+- It should record stable source units, downstream page contributions,
+  rejected material, unresolved material, and raw source references.
+- It should not duplicate ordinary wiki-page `Claims`, `Entities`,
+  `Relations`, `Evidence`, or `Synthesis` sections. Accepted claim and relation
+  ids may appear inside `Contribution Map` only as audit pointers.
 - It should support audit and source-level query.
 - It should not be selected as the primary answer object for ordinary subject
   questions.

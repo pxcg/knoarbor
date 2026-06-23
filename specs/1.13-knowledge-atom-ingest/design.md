@@ -133,7 +133,10 @@ Responsibilities:
 - assemble readable Markdown pages from selected atoms and existing page
   context;
 - expose `Summary`, `Claims`, `Entities`, `Relations`, `Evidence`, and
-  `Synthesis` as the canonical user-facing page body;
+  `Synthesis` as the canonical user-facing body for ordinary knowledge pages;
+- expose `Source Identity`, `Source Summary`, `Source Units`,
+  `Contribution Map`, `Unresolved / Rejected`, and `Raw Source` as the
+  canonical source digest audit body;
 - keep legacy `answer` as a schema compatibility input that maps to
   `Synthesis`, not as the primary knowledge boundary;
 - attach source digest ids and atom ids in frontmatter or report metadata;
@@ -224,8 +227,8 @@ The graph-first machine index boundary is frozen in
 Source digests answer:
 
 - what the source says;
-- which evidence spans were extracted;
-- which entities, claims, or relations were proposed;
+- which source units anchor the extracted evidence;
+- which accepted claim or relation ids contributed to downstream pages;
 - which wiki pages were created or updated;
 - which source material was rejected or left unresolved.
 

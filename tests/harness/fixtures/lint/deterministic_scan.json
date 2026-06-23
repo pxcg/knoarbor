@@ -40,6 +40,13 @@
       "description": "Add the missing standard section through reviewed deterministic wiki operation.",
       "issue_code": "missing_required_section",
       "mode": "manual",
+      "path": "sources/Agent-Loop-Source.md"
+    },
+    {
+      "action": "add_missing_section",
+      "description": "Add the missing standard section through reviewed deterministic wiki operation.",
+      "issue_code": "missing_required_section",
+      "mode": "manual",
       "path": "entities/OpenClaw.md"
     },
     {
@@ -168,9 +175,9 @@
       "details": {
         "directory": "sources",
         "page_type": "source",
-        "section": "Claims"
+        "section": "Source Identity"
       },
-      "message": "Page is missing required sources section: Claims.",
+      "message": "Page is missing required sources section: Source Identity.",
       "path": "sources/Agent-Loop-Source.md",
       "severity": "info"
     },
@@ -179,9 +186,9 @@
       "details": {
         "directory": "sources",
         "page_type": "source",
-        "section": "Entities"
+        "section": "Source Summary"
       },
-      "message": "Page is missing required sources section: Entities.",
+      "message": "Page is missing required sources section: Source Summary.",
       "path": "sources/Agent-Loop-Source.md",
       "severity": "info"
     },
@@ -190,9 +197,9 @@
       "details": {
         "directory": "sources",
         "page_type": "source",
-        "section": "Relations"
+        "section": "Source Units"
       },
-      "message": "Page is missing required sources section: Relations.",
+      "message": "Page is missing required sources section: Source Units.",
       "path": "sources/Agent-Loop-Source.md",
       "severity": "info"
     },
@@ -201,9 +208,9 @@
       "details": {
         "directory": "sources",
         "page_type": "source",
-        "section": "Evidence"
+        "section": "Contribution Map"
       },
-      "message": "Page is missing required sources section: Evidence.",
+      "message": "Page is missing required sources section: Contribution Map.",
       "path": "sources/Agent-Loop-Source.md",
       "severity": "info"
     },
@@ -212,9 +219,20 @@
       "details": {
         "directory": "sources",
         "page_type": "source",
-        "section": "Synthesis"
+        "section": "Unresolved / Rejected"
       },
-      "message": "Page is missing required sources section: Synthesis.",
+      "message": "Page is missing required sources section: Unresolved / Rejected.",
+      "path": "sources/Agent-Loop-Source.md",
+      "severity": "info"
+    },
+    {
+      "code": "missing_required_section",
+      "details": {
+        "directory": "sources",
+        "page_type": "source",
+        "section": "Raw Source"
+      },
+      "message": "Page is missing required sources section: Raw Source.",
       "path": "sources/Agent-Loop-Source.md",
       "severity": "info"
     },
@@ -473,8 +491,8 @@
       "node_count": 3,
       "small_component_count": 0
     },
-    "info_count": 21,
-    "issue_count": 23,
+    "info_count": 22,
+    "issue_count": 24,
     "knowledge_atom_index": {
       "issue_count": 0,
       "record_count": 0

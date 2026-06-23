@@ -223,27 +223,21 @@ Default behavior:
 This source mainly discusses Agent Loop, tool calling, memory, and multi-agent
 orchestration.
 
-## Extracted Claims
+## Source Units
 
-- Agent Loop advances tasks through repeated reasoning, action, observation,
-  and state update.
-- Production Agent Loops require tool calling, context management, and
-  observability.
+| Unit | Source | Range | Basis | Confidence |
+|---|---|---|---|---|
+| U1 | raw/notes/Agent.md | section:Agent Loop | source introduces the loop cycle | high |
+| U2 | raw/notes/Agent.md | section:Production | source describes production modules | medium |
 
-## Mentioned Entities
+## Contribution Map
 
-- Agent Loop
-- Tool Calling
-- Session Memory
-- OpenClaw
+| Item | Contribution | Evidence Units | Target Page |
+|---|---|---|---|
+| C1 | Agent Loop advances tasks through repeated reasoning, action, observation, and state update. | U1 | pages/Agent-Loop.md |
+| C2 | Production Agent Loops require tool calling, context management, and observability. | U2 | pages/Agent-Infrastructure.md |
 
-## Generated Or Updated Pages
-
-- Agent Loop.md
-- Tool Calling.md
-- Session Memory.md
-
-## Rejected Or Unresolved Material
+## Unresolved / Rejected
 
 - Some OpenClaw implementation details were left unresolved because the source
   did not provide enough direct evidence.
@@ -259,6 +253,10 @@ orchestration.
   extraction and page drafting.
 - Source digests can be written as Markdown views, but they remain provenance
   artifacts rather than primary knowledge objects.
+- Source digest Markdown should use source identity, source summary, source
+  units, contribution map, unresolved/rejected material, and raw source
+  pointers. It should not use the ordinary knowledge-page
+  `Claims`/`Entities`/`Relations`/`Evidence`/`Synthesis` section set.
 - Knowledge pages may reference source digests in their `Sources` or evidence
   mappings.
 - Reports should show which source digests contributed to written pages.

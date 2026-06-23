@@ -15,8 +15,16 @@ KNOWLEDGE_PAGE_SECTIONS = (
     "Evidence",
     "Synthesis",
 )
+SOURCE_DIGEST_SECTIONS = (
+    "Source Identity",
+    "Source Summary",
+    "Source Units",
+    "Contribution Map",
+    "Unresolved / Rejected",
+    "Raw Source",
+)
 REQUIRED_SECTIONS_BY_DIR = {
-    "sources": KNOWLEDGE_PAGE_SECTIONS,
+    "sources": SOURCE_DIGEST_SECTIONS,
     "entities": KNOWLEDGE_PAGE_SECTIONS,
     "concepts": KNOWLEDGE_PAGE_SECTIONS,
     "comparisons": KNOWLEDGE_PAGE_SECTIONS,
