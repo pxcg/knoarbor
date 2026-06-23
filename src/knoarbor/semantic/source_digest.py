@@ -8,11 +8,7 @@ from knoarbor.core.schemas.source_digest import SourceDigest, SourceDigestUnit
 
 
 def build_source_digest_from_extract(extract: KnowledgeExtract, *, digest_id: str | None = None) -> SourceDigest:
-    """Project the current normalized-source contract into source digest shape.
-
-    This compatibility bridge keeps existing ingest behavior stable while the
-    semantic workflow migrates toward a native source digest contract.
-    """
+    """Project normalized source units into the source digest audit contract."""
 
     resolved_digest_id = digest_id or _digest_id(extract)
     units = [

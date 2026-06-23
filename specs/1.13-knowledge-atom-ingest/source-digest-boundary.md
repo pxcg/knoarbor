@@ -149,8 +149,8 @@ A source digest records the intermediate trace:
 
 ```text
 raw source
-  -> extracted observations
-  -> proposed claims/entities/relations
+  -> normalized source units
+  -> evidence-backed atoms
   -> generated or updated pages
   -> rejected or unresolved material
 ```

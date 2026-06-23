@@ -55,10 +55,10 @@ This weakens long-term wiki maintenance:
 
 ### Source Compiles Into Evidence-Backed Wiki
 
-When a user ingests a technical note, KnoArbor should extract source-level
-observations, durable claims, entities, and relations before drafting pages. The
-final page should remain readable, while the report should show the extracted
-atom counts and unsupported atom rejections.
+When a user ingests a technical note, KnoArbor should preserve source units,
+then extract durable claims, entities, relations, and evidence before drafting
+pages. The final page should remain readable, while the report should show the
+extracted atom counts and unsupported atom rejections.
 
 ### New Source Updates Existing Knowledge
 

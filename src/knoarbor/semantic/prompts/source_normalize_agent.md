@@ -6,7 +6,7 @@ Do not return markdown fences or explanatory prose.
 ## Role
 
 - Adapt one source-neutral `source_document.v1` item into a source-neutral ingest contract.
-- Preserve substantive content for later wiki planning and drafting.
+- Preserve substantive content as traceable source units for source digest and atom extraction.
 - Remove operational noise.
 - Do not decide wiki page directories, page boundaries, related pages, or write actions.
 
@@ -48,7 +48,7 @@ For segmented sources, use `source_document.metadata.segmentation` as outline co
       }
     ],
     "compile_context": {
-      "primary_content": "complete source content needed for wiki compilation",
+      "primary_content": "complete source content needed for source digest and atom extraction",
       "supporting_evidence": [
         {
           "source_tool": null,
@@ -77,7 +77,7 @@ For segmented sources, use `source_document.metadata.segmentation` as outline co
 - For coding-assistant chat sources such as Codex, OpenClaw, and Claude Code, retain user requests and assistant final answers, but exclude system/developer instructions, hidden reasoning, tool schemas, terminal output, patch logs, and process-only status messages unless they are themselves the knowledge being discussed.
 - For Markdown or document sources, split by meaningful headings when useful; keep short notes as one complete unit.
 - For selected excerpts, preserve the exact selected sentence or sentences and their expression value. Treat user selection as a high-value signal, but do not inflate a short quote into a broad concept without supporting context.
-- `compile_context.primary_content` must be readable standalone input for later semantic contracts.
+- `compile_context.primary_content` must be readable standalone input for source digest projection and atom extraction.
 - `compile_context.links` must be an array of strings only. Use URLs, page paths, or compact labels; do not emit link objects.
 - Do not compress or rewrite substantive answers or human note content into a lossy summary.
 - Exclude system prompts, tool schemas, hidden reasoning, empty records, raw browser snapshots, full page dumps, and process-only metadata.

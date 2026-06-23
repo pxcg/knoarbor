@@ -472,7 +472,6 @@ def _context_strategy_lines(context: dict[str, Any]) -> list[str]:
                 "- source_digest: "
                 f"id={source_digest.get('digest_id', 'n/a')}, "
                 f"units={source_digest_summary.get('units', 0)}, "
-                f"observations={source_digest_summary.get('observations', 0)}, "
                 f"evidence_spans={source_digest_summary.get('evidence_spans', 0)}"
             )
         if knowledge_atoms:

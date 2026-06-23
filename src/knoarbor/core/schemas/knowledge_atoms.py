@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 KnowledgeAtomObjectType = Literal["page", "source", "entity", "concept", "claim", "workflow", "comparison", "timeline", "unknown"]
@@ -24,10 +24,13 @@ KnowledgeAtomIssueType = Literal[
     "unsupported_claim",
     "unsupported_relation",
     "conflicting_relation",
+    "unused_entity",
 ]
 
 
 class KnowledgeEvidenceSpan(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     source_digest_id: str = Field(..., min_length=1)
     source_path: str | None = None
     source_unit_index: int | None = Field(default=None, ge=0)
@@ -52,6 +55,8 @@ class KnowledgeEvidenceSpan(BaseModel):
 
 
 class KnowledgeAtomObject(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     object_type: KnowledgeAtomObjectType = "unknown"
     name: str = Field(..., min_length=1)
     page_path: str | None = None
@@ -82,6 +87,8 @@ class KnowledgeAtomObject(BaseModel):
 
 
 class KnowledgeClaim(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     id: str = Field(..., min_length=1)
     claim: str = Field(..., min_length=1)
     claim_type: KnowledgeClaimType
@@ -120,6 +127,8 @@ class KnowledgeClaim(BaseModel):
 
 
 class KnowledgeRelation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     id: str = Field(..., min_length=1)
     subject: KnowledgeAtomObject
     predicate: KnowledgeRelationPredicate
@@ -159,6 +168,8 @@ class KnowledgeRelation(BaseModel):
 
 
 class KnowledgeAtomBatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     schema_version: Literal["knowledge_atoms.v2"] = "knowledge_atoms.v2"
     source_digest_id: str = Field(..., min_length=1)
     entities: list[KnowledgeAtomObject] = Field(default_factory=list)
@@ -199,6 +210,8 @@ class KnowledgeAtomBatch(BaseModel):
 
 
 class KnowledgeAtomQualityIssue(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     issue_type: KnowledgeAtomIssueType
     severity: KnowledgeAtomIssueSeverity = "warning"
     atom_id: str | None = None
@@ -214,6 +227,8 @@ class KnowledgeAtomQualityIssue(BaseModel):
 
 
 class KnowledgeAtomQualityReport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     schema_version: Literal["knowledge_atom_quality.v1"] = "knowledge_atom_quality.v1"
     source_digest_id: str = Field(..., min_length=1)
     extracted: dict[str, int] = Field(default_factory=dict)

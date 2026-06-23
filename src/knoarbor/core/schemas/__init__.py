@@ -29,7 +29,7 @@ from knoarbor.core.schemas.knowledge_atoms import (
     KnowledgeEvidenceSpan,
     KnowledgeRelation,
 )
-from knoarbor.core.schemas.source_digest import SourceDigest, SourceDigestUnit, SourceObservation
+from knoarbor.core.schemas.source_digest import SourceDigest, SourceDigestUnit
 from knoarbor.core.schemas.lint_candidates import (
     MaintenanceCandidate,
     MaintenanceCandidates,
@@ -155,7 +155,6 @@ __all__ = [
     "KnowledgeRelation",
     "SourceDigest",
     "SourceDigestUnit",
-    "SourceObservation",
     "ContentUnit",
     "CompileContext",
     "SupportingEvidence",

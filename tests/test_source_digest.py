@@ -2,24 +2,14 @@ from __future__ import annotations
 
 import unittest
 
-from pydantic import ValidationError
-
 from knoarbor.core.schemas.knowledge_atoms import KnowledgeEvidenceSpan
-from knoarbor.core.schemas.source_digest import SourceDigest, SourceObservation
+from knoarbor.core.schemas.source_digest import SourceDigest
 from knoarbor.semantic.source_digest import build_source_digest_from_extract
 from tests.harness.semantic_cases import source_normalize_output
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 
 
 class SourceDigestSchemaTest(unittest.TestCase):
-    def test_observation_requires_evidence(self) -> None:
-        with self.assertRaises(ValidationError):
-            SourceObservation(
-                id="obs_without_evidence",
-                statement="SoundAnalysis is activity-level.",
-                evidence=[],
-            )
-
     def test_digest_collects_unit_evidence(self) -> None:
         extract = KnowledgeExtract.model_validate(source_normalize_output()["output"])
         digest = build_source_digest_from_extract(extract)

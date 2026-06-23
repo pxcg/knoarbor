@@ -97,6 +97,29 @@ class KnowledgeAtomQualityTests(unittest.TestCase):
         self.assertEqual(report.summary()["conflicting"], 1)
         self.assertEqual(report.summary()["rejected"], 2)
 
+    def test_quality_report_flags_entities_not_used_by_claims_or_relations(self) -> None:
+        batch = KnowledgeAtomBatch(
+            source_digest_id="sd_agent",
+            entities=[
+                KnowledgeAtomObject(object_type="concept", name="Agent Loop", atom_id="entity_agent_loop"),
+                KnowledgeAtomObject(object_type="concept", name="Unused Object", atom_id="entity_unused"),
+            ],
+            claims=[
+                KnowledgeClaim(
+                    id="claim_agent_loop",
+                    claim="Agent Loop coordinates tool use.",
+                    claim_type="definition",
+                    evidence=[_evidence()],
+                    entity_names=["Agent Loop"],
+                )
+            ],
+        )
+
+        report = evaluate_knowledge_atoms(batch)
+
+        self.assertIn("unused_entity", {issue.issue_type for issue in report.issues})
+        self.assertEqual(report.summary()["rejected"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

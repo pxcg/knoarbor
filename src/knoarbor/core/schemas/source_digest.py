@@ -2,17 +2,18 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomObject, KnowledgeEvidenceSpan
+from knoarbor.core.schemas.knowledge_atoms import KnowledgeEvidenceSpan
 from knoarbor.core.schemas.knowledge_extract import KnowledgeSource
 
 
 SourceDigestUnitType = Literal["conversation_turn", "note", "section", "excerpt", "evidence"]
-SourceObservationType = Literal["fact_candidate", "claim_candidate", "decision", "workflow_step", "limitation", "open_question"]
 
 
 class SourceDigestUnit(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     index: int = Field(..., ge=0)
     unit_type: SourceDigestUnitType
     title: str | None = None
@@ -21,32 +22,15 @@ class SourceDigestUnit(BaseModel):
     metadata: dict[str, object] = Field(default_factory=dict)
 
 
-class SourceObservation(BaseModel):
-    id: str = Field(..., min_length=1)
-    observation_type: SourceObservationType = "fact_candidate"
-    statement: str = Field(..., min_length=1)
-    evidence: list[KnowledgeEvidenceSpan] = Field(..., min_length=1)
-    confidence: float = Field(default=0.8, ge=0, le=1)
-
-    @field_validator("id", "statement")
-    @classmethod
-    def strip_required_text(cls, value: str) -> str:
-        text = value.strip()
-        if not text:
-            raise ValueError("source observation fields cannot be empty")
-        return text
-
-
 class SourceDigest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     schema_version: Literal["source_digest.v1"] = "source_digest.v1"
     digest_id: str = Field(..., min_length=1)
     source: KnowledgeSource
     source_focus: str = ""
     summary: str = ""
     units: list[SourceDigestUnit] = Field(default_factory=list)
-    observations: list[SourceObservation] = Field(default_factory=list)
-    mentioned_objects: list[KnowledgeAtomObject] = Field(default_factory=list)
-    limitations: list[str] = Field(default_factory=list)
     evidence_spans: list[KnowledgeEvidenceSpan] = Field(default_factory=list)
     confidence: float = Field(default=0.8, ge=0, le=1)
     warnings: list[str] = Field(default_factory=list)
@@ -59,7 +43,7 @@ class SourceDigest(BaseModel):
             raise ValueError("digest_id cannot be empty")
         return text
 
-    @field_validator("limitations", "warnings", mode="before")
+    @field_validator("warnings", mode="before")
     @classmethod
     def normalize_string_list(cls, value: object) -> list[str]:
         if value is None:
@@ -91,8 +75,5 @@ class SourceDigest(BaseModel):
     def summary_counts(self) -> dict[str, int]:
         return {
             "units": len(self.units),
-            "observations": len(self.observations),
-            "mentioned_objects": len(self.mentioned_objects),
-            "limitations": len(self.limitations),
             "evidence_spans": len(self.evidence_spans),
         }

@@ -104,7 +104,7 @@ Do not return markdown fences or explanatory prose.
 - If source metadata indicates a segmented long source, write only what is supported by the current segment, avoid duplicate source digests across sibling segments, and prefer update patches when the segment extends an object already represented in retrieved context.
 - Use `ingest_compile_context` as the authoritative compile context. `target` pages carry existing body content; `related` and `candidate` pages are background only.
 - Use `ingest_compile_context.page_context` only when it adds relevant provenance, update targets, or duplicate-avoidance context.
-- If `page_dir` is `sources`, write a source digest: provenance, source focus, compact summary, extracted claims/objects, evidence notes, and unresolved material when needed. Use `claims` for extracted observations, `entities` for mentioned objects, `relations` for source-to-page/source-to-entity links, `evidence` for source ranges, and `synthesis` for the compact source digest.
+- If `page_dir` is `sources`, write a source digest: provenance, source focus, compact summary, selected claims/objects, evidence notes, and unresolved material when needed. Use `claims` for selected atom claims, `entities` for selected atom objects, `relations` for source-to-page/source-to-entity links, `evidence` for source ranges, and `synthesis` for the compact source digest.
 - For non-source pages, major claims in `claims` and `synthesis` should be supported by selected atom ids or direct source evidence.
 - If `page_dir` is `timelines`, make chronology the organizing structure.
 - If `page_dir` is `workflows`, make the procedure actionable and ordered.

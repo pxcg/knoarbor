@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 KnowledgeSourceType = Literal["chat", "markdown", "html", "text_note", "document", "web", "manual"]
@@ -11,6 +11,8 @@ ContentUnitRole = Literal["user", "assistant", "note", "excerpt", "evidence"]
 
 
 class KnowledgeSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     source_type: KnowledgeSourceType
     source_app: str = Field(..., min_length=1)
     source_id: str | None = None
@@ -29,6 +31,8 @@ class KnowledgeSource(BaseModel):
 
 
 class ContentUnit(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     index: int = Field(..., ge=0)
     unit_type: ContentUnitType
     role: ContentUnitRole
@@ -40,6 +44,8 @@ class ContentUnit(BaseModel):
 
 
 class SupportingEvidence(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     source_tool: str | None = None
     tool_call_id: str | None = None
     content: str = ""
@@ -48,6 +54,8 @@ class SupportingEvidence(BaseModel):
 
 
 class CompileContext(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     primary_content: str = ""
     supporting_evidence: list[SupportingEvidence] = Field(default_factory=list)
     links: list[str] = Field(default_factory=list)
@@ -76,6 +84,8 @@ class CompileContext(BaseModel):
 
 
 class KnowledgeExtract(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     schema_version: Literal["knowledge_extract.v1"] = "knowledge_extract.v1"
     source: KnowledgeSource
     content_units: list[ContentUnit] = Field(default_factory=list)

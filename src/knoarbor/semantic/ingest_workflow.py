@@ -251,17 +251,6 @@ def _source_digest_plan_payload(source_digest: SourceDigest) -> dict[str, Any]:
             }
             for unit in source_digest.units
         ],
-        "observations": [
-            {
-                "id": observation.id,
-                "observation_type": observation.observation_type,
-                "statement": observation.statement,
-                "confidence": observation.confidence,
-            }
-            for observation in source_digest.observations
-        ],
-        "mentioned_objects": [item.model_dump() for item in source_digest.mentioned_objects],
-        "limitations": list(source_digest.limitations),
         "confidence": source_digest.confidence,
         "warnings": list(source_digest.warnings),
     }

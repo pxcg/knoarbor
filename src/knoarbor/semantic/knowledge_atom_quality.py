@@ -18,6 +18,7 @@ def evaluate_knowledge_atoms(batch: KnowledgeAtomBatch) -> KnowledgeAtomQualityR
     issues.extend(_unsupported_claim_issues(batch))
     issues.extend(_unsupported_relation_issues(batch))
     issues.extend(_conflicting_relation_issues(batch.relations))
+    issues.extend(_unused_entity_issues(batch))
     return KnowledgeAtomQualityReport(
         source_digest_id=batch.source_digest_id,
         extracted=batch.summary(),
@@ -100,6 +101,25 @@ def _conflicting_relation_issues(relations: list[KnowledgeRelation]) -> list[Kno
                     severity="warning",
                     atom_id=", ".join(relation_ids[pair]),
                     message=f"Relation pair `{pair[0]}` -> `{pair[1]}` contains both supports and contradicts.",
+                )
+            )
+    return issues
+
+
+def _unused_entity_issues(batch: KnowledgeAtomBatch) -> list[KnowledgeAtomQualityIssue]:
+    used = {_object_key(name) for claim in batch.claims for name in claim.entity_names}
+    used.update(_object_key(relation.subject.name) for relation in batch.relations)
+    used.update(_object_key(relation.object.name) for relation in batch.relations)
+
+    issues: list[KnowledgeAtomQualityIssue] = []
+    for entity in batch.entities:
+        if _object_key(entity.name) not in used:
+            issues.append(
+                KnowledgeAtomQualityIssue(
+                    issue_type="unused_entity",
+                    severity="info",
+                    atom_id=entity.atom_id,
+                    message=f"Entity `{entity.name}` is not referenced by any claim or relation.",
                 )
             )
     return issues

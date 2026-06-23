@@ -55,14 +55,13 @@ This layer does not interpret source meaning.
 
 ### Source Digest Layer
 
-Owner: semantic source normalization and source digest extraction.
+Owner: semantic source normalization and deterministic source digest projection.
 
 Responsibilities:
 
-- summarize one source or source segment;
-- list source-level observations and limitations;
-- preserve mentioned entities and source focus;
-- provide evidence spans that downstream atoms can cite.
+- identify one source or source segment;
+- preserve source focus and compact source summary;
+- provide stable source units and evidence spans that downstream atoms can cite.
 
 Source digest Markdown is a view. It is not the only storage shape.
 
