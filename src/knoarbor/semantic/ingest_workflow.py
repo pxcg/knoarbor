@@ -142,7 +142,10 @@ class IngestSemanticWorkflow:
         result = self.runner.run(
             "wiki_draft_compile",
             {
-                "knowledge_atoms": knowledge_atom_batch.model_dump() if knowledge_atom_batch else {},
+                "knowledge_atoms": _selected_knowledge_atoms_for_plan(
+                    knowledge_atom_batch,
+                    wiki_page_plan,
+                ),
                 "ingest_compile_context": compile_context,
             },
             max_tokens=max_tokens,
@@ -206,3 +209,51 @@ def _compile_context_payload(
         wiki_page_plan,
         candidate_page_context,
     ).model_dump()
+
+
+def _selected_knowledge_atoms_for_plan(
+    knowledge_atom_batch: KnowledgeAtomBatch | None,
+    wiki_page_plan: WikiPagePlan,
+) -> dict[str, Any]:
+    if knowledge_atom_batch is None:
+        return {}
+
+    selected_fact_ids: set[str] = set()
+    selected_claim_ids: set[str] = set()
+    selected_relation_ids: set[str] = set()
+    for operation in wiki_page_plan.operations:
+        if operation.action == "skip":
+            continue
+        selected_fact_ids.update(operation.selected_fact_ids)
+        selected_claim_ids.update(operation.selected_claim_ids)
+        selected_relation_ids.update(operation.selected_relation_ids)
+
+    claims_by_id = {claim.id: claim for claim in knowledge_atom_batch.claims}
+    relations_by_id = {relation.id: relation for relation in knowledge_atom_batch.relations}
+
+    for relation_id in list(selected_relation_ids):
+        relation = relations_by_id.get(relation_id)
+        if relation is None:
+            continue
+        selected_fact_ids.update(relation.source_fact_ids)
+        selected_claim_ids.update(relation.source_claim_ids)
+
+    changed = True
+    while changed:
+        changed = False
+        for claim_id in list(selected_claim_ids):
+            claim = claims_by_id.get(claim_id)
+            if claim is None:
+                continue
+            before = len(selected_fact_ids)
+            selected_fact_ids.update(claim.supporting_fact_ids)
+            changed = changed or len(selected_fact_ids) != before
+
+    selected_batch = KnowledgeAtomBatch(
+        source_digest_id=knowledge_atom_batch.source_digest_id,
+        facts=[fact for fact in knowledge_atom_batch.facts if fact.id in selected_fact_ids],
+        claims=[claim for claim in knowledge_atom_batch.claims if claim.id in selected_claim_ids],
+        relations=[relation for relation in knowledge_atom_batch.relations if relation.id in selected_relation_ids],
+        warnings=list(knowledge_atom_batch.warnings),
+    )
+    return selected_batch.model_dump()

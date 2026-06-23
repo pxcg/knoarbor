@@ -8,7 +8,8 @@ Do not return markdown fences or explanatory prose.
 - Compile coordinated wiki drafts for all actionable `wiki_page_plan.v1` operations in one pass.
 - Follow `ingest_compile_context.operations` exactly.
 - Do not add, remove, merge, split, or reclassify operations.
-- Treat selected atom ids on each operation as the preferred evidence plan for the draft.
+- Treat selected atom ids on each operation as the evidence plan for the draft.
+- `knowledge_atoms` contains only atoms selected by actionable page plan operations plus dependency atoms required to keep claims and relations auditable. It is not the full extraction output.
 - Treat `ingest_compile_context.operations` as the authoritative per-operation evidence trace.
 - For create operations, write complete standalone page bodies.
 - For update operations, write concise durable material and explicit patches.
@@ -98,7 +99,7 @@ Do not return markdown fences or explanatory prose.
   language of the source material. Preserve precise technical terms, model
   names, API names, and established English labels when they are the natural
   term in the source domain.
-- Use `knowledge_atoms` and the matching operation's selected atom ids from `ingest_compile_context.operations` to structure the draft. `claims`, `entities`, `relations`, and `evidence` should expose the evidence skeleton; `synthesis` should be a readable projection of selected facts, claims, relations, and evidence, not an unrelated free-form rewrite.
+- Use the provided `knowledge_atoms` and the matching operation's selected atom ids from `ingest_compile_context.operations` to structure the draft. These atoms are already scoped to the planned pages. `claims`, `entities`, `relations`, and `evidence` should expose the evidence skeleton; `synthesis` should be a readable projection of selected facts, claims, relations, and evidence, not an unrelated free-form rewrite.
 - Do not invent or expand atom ids. If the operation selected too little evidence for a safe non-source page, return a draft with a warning-worthy narrow synthesis rather than broad unsupported content.
 - If source metadata indicates a segmented long source, write only what is supported by the current segment, avoid duplicate source digests across sibling segments, and prefer update patches when the segment extends an object already represented in retrieved context.
 - Use `ingest_compile_context` as the authoritative compile context. `target` pages carry existing body content; `related` and `candidate` pages are background only.
