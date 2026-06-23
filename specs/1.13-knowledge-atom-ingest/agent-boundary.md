@@ -219,11 +219,23 @@ output names describe data contracts.
 
 Boundary rules:
 
-- `Normalize Source Segment` preserves source units and removes process noise;
-- `Build Source Digest` is deterministic source audit projection;
-- `Extract Knowledge Atoms` is the only substep that creates claims;
+- `Normalize Source Segment` preserves source units and removes process noise.
+  It may use a model because mixed chat, notes, and tool output require
+  semantic judgment.
+- `Build Source Digest` is deterministic source audit projection. It owns the
+  structured data for `Source Identity`, `Source Summary`, `Source Units`, raw
+  source pointers, and source-level unresolved/warning items. It does not own
+  final `Contribution Map` targets because page planning has not happened yet.
+- `Extract Knowledge Atoms` is the only substep that creates claims. Entities,
+  relations, and evidence are extracted around those claims rather than as
+  independent page decisions.
 - `Validate Knowledge Atoms` reports atom consistency issues without deciding
-  wiki page writes.
+  wiki page writes. It is code-owned and produces `KnowledgeAtomQualityReport`
+  for reports, gating, and later lint signals.
+
+Step 3 output is source-local. It may be aggregated across segments in Step 4,
+but it must not create pages, choose paths, write Markdown, or commit
+checkpoints.
 
 ### Wiki Page Plan Agent
 

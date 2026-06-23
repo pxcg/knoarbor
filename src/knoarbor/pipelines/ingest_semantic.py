@@ -133,7 +133,9 @@ class IngestSemanticRunner:
             return IngestSemanticRun(
                 semantic_result=IngestSemanticWorkflowResult(
                     knowledge_extract=knowledge_extract,
+                    source_digest=source_digest,
                     knowledge_atom_batch=knowledge_atom_batch,
+                    knowledge_atom_quality=knowledge_atom_quality,
                     wiki_page_plan=page_plan,
                     wiki_draft_batch=empty_wiki_draft_batch(page_plan),
                     ingest_draft_review=empty_ingest_draft_review(page_plan),
@@ -186,7 +188,9 @@ class IngestSemanticRunner:
         return IngestSemanticRun(
             semantic_result=IngestSemanticWorkflowResult(
                 knowledge_extract=knowledge_extract,
+                source_digest=source_digest,
                 knowledge_atom_batch=knowledge_atom_batch,
+                knowledge_atom_quality=knowledge_atom_quality,
                 wiki_page_plan=page_plan,
                 wiki_draft_batch=draft_batch,
                 ingest_draft_review=review,

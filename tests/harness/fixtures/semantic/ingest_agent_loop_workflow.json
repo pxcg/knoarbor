@@ -124,6 +124,17 @@
     "source_digest_id": "sd_test_agent",
     "warnings": []
   },
+  "knowledge_atom_quality": {
+    "extracted": {
+      "claims": 1,
+      "entities": 2,
+      "evidence_spans": 1,
+      "relations": 1
+    },
+    "issues": [],
+    "schema_version": "knowledge_atom_quality.v1",
+    "source_digest_id": "sd_test_agent"
+  },
   "knowledge_extract": {
     "compile_context": {
       "latest_unit_indexes": [
@@ -156,6 +167,56 @@
       "title": "Agent",
       "updated_at": null
     },
+    "warnings": []
+  },
+  "source_digest": {
+    "confidence": 0.9,
+    "content_hash": "d5f063c8ad88ba402fe9b34c35e235479d9a6fb1",
+    "contribution_map": [],
+    "digest_id": "sd_c8f296e5a816ca8d",
+    "evidence_spans": [
+      {
+        "char_end": null,
+        "char_start": null,
+        "excerpt": "Agent loop is observe, decide, act, feedback.",
+        "excerpt_hash": "d5f063c8ad88ba402fe9b34c35e235479d9a6fb1",
+        "source_digest_id": "sd_c8f296e5a816ca8d",
+        "source_path": "raw/notes/Agent.md",
+        "source_unit_index": 0
+      }
+    ],
+    "raw_source": "raw/notes/Agent.md",
+    "schema_version": "source_digest.v1",
+    "source": {
+      "created_at": null,
+      "source_app": "markdown",
+      "source_id": "markdown:agent",
+      "source_path": "raw/notes/Agent.md",
+      "source_type": "markdown",
+      "title": "Agent",
+      "updated_at": null
+    },
+    "source_focus": "Agent",
+    "summary": "Agent loop is observe, decide, act, feedback.",
+    "units": [
+      {
+        "evidence": {
+          "char_end": null,
+          "char_start": null,
+          "excerpt": "Agent loop is observe, decide, act, feedback.",
+          "excerpt_hash": "d5f063c8ad88ba402fe9b34c35e235479d9a6fb1",
+          "source_digest_id": "sd_c8f296e5a816ca8d",
+          "source_path": "raw/notes/Agent.md",
+          "source_unit_index": 0
+        },
+        "index": 0,
+        "metadata": {},
+        "summary": "Agent",
+        "title": "Agent",
+        "unit_type": "note"
+      }
+    ],
+    "unresolved_items": [],
     "warnings": []
   },
   "wiki_draft_batch": {

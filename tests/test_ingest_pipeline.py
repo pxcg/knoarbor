@@ -32,6 +32,8 @@ from knoarbor.document_processing.schemas import DocumentProcessingItem, Documen
 from knoarbor.pipelines.ingest import IngestPipeline
 from knoarbor.pipelines.source import SourcePipeline
 from knoarbor.runtime import RunMonitor, run_monitor_context
+from knoarbor.semantic.knowledge_atom_quality import evaluate_knowledge_atoms
+from knoarbor.semantic.source_digest import build_source_digest_from_extract
 from knoarbor.storage.knowledge_atom_index import read_knowledge_atom_records
 from knoarbor.storage.wiki_paths import content_root
 
@@ -51,7 +53,7 @@ class FakeIngestSemanticWorkflow:
         return IngestSemanticWorkflowFixtures.result(document).knowledge_extract
 
     def extract_atoms(self, source_digest, **kwargs):
-        return KnowledgeAtomBatch(source_digest_id=source_digest.digest_id)
+        return IngestSemanticWorkflowFixtures.atom_batch(source_digest.digest_id)
 
     def plan_pages(self, knowledge_extract, **kwargs):
         self.last_existing_wiki_index = kwargs.get("existing_wiki_index")
@@ -585,9 +587,13 @@ class IngestSemanticWorkflowFixtures:
 
     @staticmethod
     def result_from_extract(knowledge_extract) -> object:
+        source_digest = build_source_digest_from_extract(knowledge_extract, digest_id="test-digest")
+        knowledge_atom_batch = IngestSemanticWorkflowFixtures.atom_batch(source_digest.digest_id)
         return __import__("knoarbor.semantic.ingest_workflow", fromlist=["IngestSemanticWorkflowResult"]).IngestSemanticWorkflowResult(
             knowledge_extract=knowledge_extract,
-            knowledge_atom_batch=KnowledgeAtomBatch(source_digest_id="test-digest"),
+            source_digest=source_digest,
+            knowledge_atom_batch=knowledge_atom_batch,
+            knowledge_atom_quality=evaluate_knowledge_atoms(knowledge_atom_batch),
             wiki_page_plan=WikiPagePlan(
                 operations=[
                     WikiPageOperation(
@@ -620,7 +626,7 @@ class IngestSemanticWorkflowFixtures:
                         key_points=["Observe, decide, act."],
                         tags=["agent", "loop"],
                         source_digest_ids=["test-digest"],
-                        atom_ids=["claim_agent_loop"],
+                        atom_ids=["claim_agent_loop", "rel_agent_loop_control_cycle"],
                         model_provider="test",
                         model_name="fake",
                     )
@@ -667,6 +673,44 @@ class IngestSemanticWorkflowFixtures:
                 batch_decision="approve",
                 summary="Approved.",
             ),
+        )
+
+    @staticmethod
+    def atom_batch(source_digest_id: str) -> KnowledgeAtomBatch:
+        evidence = KnowledgeEvidenceSpan(
+            source_digest_id=source_digest_id,
+            source_path="raw/notes/agent.md",
+            source_unit_index=0,
+            excerpt="Agent loop repeats observe, decide, act, and feedback.",
+        )
+        return KnowledgeAtomBatch(
+            source_digest_id=source_digest_id,
+            entities=[
+                KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
+                KnowledgeAtomObject(object_type="concept", name="Control Cycle"),
+            ],
+            claims=[
+                KnowledgeClaim(
+                    id="claim_agent_loop",
+                    claim="Agent loop repeats observe, decide, act, and feedback.",
+                    claim_type="definition",
+                    evidence=[evidence],
+                    entity_names=["Agent Loop", "Control Cycle"],
+                    confidence=0.9,
+                )
+            ],
+            relations=[
+                KnowledgeRelation(
+                    id="rel_agent_loop_control_cycle",
+                    subject=KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
+                    predicate="relates_to",
+                    object=KnowledgeAtomObject(object_type="concept", name="Control Cycle"),
+                    source_claim_ids=["claim_agent_loop"],
+                    evidence=[evidence],
+                    reason="The source describes agent loop as a repeated control cycle.",
+                    confidence=0.85,
+                )
+            ],
         )
 
 

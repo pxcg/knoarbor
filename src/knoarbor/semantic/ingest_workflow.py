@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from knoarbor.core.schemas.ingest_review import IngestDraftReview
 from knoarbor.core.schemas.ingest_compile_context import IngestCompileContext
-from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch
+from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch, KnowledgeAtomQualityReport
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 from knoarbor.core.schemas.source_digest import SourceDigest
 from knoarbor.core.schemas.sources import SourceDocument
@@ -15,6 +15,7 @@ from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
 from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
 from knoarbor.semantic.ingest_compile_context import build_ingest_compile_context
 from knoarbor.semantic.knowledge_atom_closure import close_plan_atoms
+from knoarbor.semantic.knowledge_atom_quality import evaluate_knowledge_atoms
 from knoarbor.semantic.runner import SemanticRunner
 from knoarbor.semantic.source_digest import build_source_digest_from_extract
 from knoarbor.semantic.source_normalize import build_source_normalize_input
@@ -22,7 +23,9 @@ from knoarbor.semantic.source_normalize import build_source_normalize_input
 
 class IngestSemanticWorkflowResult(BaseModel):
     knowledge_extract: KnowledgeExtract
+    source_digest: SourceDigest
     knowledge_atom_batch: KnowledgeAtomBatch | None = None
+    knowledge_atom_quality: KnowledgeAtomQualityReport | None = None
     wiki_page_plan: WikiPagePlan
     wiki_draft_batch: WikiDraftBatch
     ingest_draft_review: IngestDraftReview
@@ -50,6 +53,7 @@ class IngestSemanticWorkflow:
             knowledge_extract=knowledge_extract,
             max_tokens=max_tokens,
         )
+        knowledge_atom_quality = self.validate_atoms(knowledge_atom_batch)
         wiki_page_plan = self.plan_pages(
             knowledge_extract,
             source_digest=source_digest,
@@ -74,7 +78,9 @@ class IngestSemanticWorkflow:
         )
         return IngestSemanticWorkflowResult(
             knowledge_extract=knowledge_extract,
+            source_digest=source_digest,
             knowledge_atom_batch=knowledge_atom_batch,
+            knowledge_atom_quality=knowledge_atom_quality,
             wiki_page_plan=wiki_page_plan,
             wiki_draft_batch=wiki_draft_batch,
             ingest_draft_review=ingest_draft_review,
@@ -104,6 +110,9 @@ class IngestSemanticWorkflow:
             max_tokens=max_tokens,
         )
         return _expect_output(result.output, KnowledgeAtomBatch)
+
+    def validate_atoms(self, knowledge_atom_batch: KnowledgeAtomBatch) -> KnowledgeAtomQualityReport:
+        return evaluate_knowledge_atoms(knowledge_atom_batch)
 
     def plan_pages(
         self,
@@ -237,6 +246,8 @@ def _source_digest_plan_payload(source_digest: SourceDigest) -> dict[str, Any]:
         "schema_version": source_digest.schema_version,
         "digest_id": source_digest.digest_id,
         "source": source_digest.source.model_dump(),
+        "raw_source": source_digest.raw_source,
+        "content_hash": source_digest.content_hash,
         "source_focus": source_digest.source_focus,
         "summary": source_digest.summary,
         "units": [
@@ -251,6 +262,8 @@ def _source_digest_plan_payload(source_digest: SourceDigest) -> dict[str, Any]:
             }
             for unit in source_digest.units
         ],
+        "contribution_map": [item.model_dump() for item in source_digest.contribution_map],
+        "unresolved_items": [item.model_dump() for item in source_digest.unresolved_items],
         "confidence": source_digest.confidence,
         "warnings": list(source_digest.warnings),
     }

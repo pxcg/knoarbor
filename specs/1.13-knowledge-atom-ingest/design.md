@@ -61,7 +61,10 @@ Responsibilities:
 
 - identify one source or source segment;
 - preserve source focus and compact source summary;
-- provide stable source units and evidence spans that downstream atoms can cite.
+- provide stable source units and evidence spans that downstream atoms can cite;
+- expose the structured inputs needed by the source digest Markdown view:
+  source identity, source summary, source units, contribution map placeholders,
+  unresolved/rejected items, and raw source pointers.
 
 Source digest Markdown is a view. It is not the only storage shape.
 

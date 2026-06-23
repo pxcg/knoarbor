@@ -22,16 +22,55 @@ class SourceDigestUnit(BaseModel):
     metadata: dict[str, object] = Field(default_factory=dict)
 
 
+class SourceDigestContribution(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    item_id: str = Field(..., min_length=1)
+    contribution: str = Field(..., min_length=1)
+    evidence_unit_ids: list[str] = Field(default_factory=list)
+    target_page: str | None = None
+    status: Literal["pending", "accepted", "rejected", "unresolved"] = "pending"
+
+    @field_validator("item_id", "contribution")
+    @classmethod
+    def strip_required_text(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("source digest contribution fields cannot be empty")
+        return text
+
+
+class SourceDigestUnresolvedItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    item_id: str = Field(..., min_length=1)
+    item_type: Literal["warning", "rejected", "unresolved"] = "unresolved"
+    reason: str = Field(..., min_length=1)
+    evidence_unit_ids: list[str] = Field(default_factory=list)
+
+    @field_validator("item_id", "reason")
+    @classmethod
+    def strip_required_text(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("source digest unresolved fields cannot be empty")
+        return text
+
+
 class SourceDigest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_version: Literal["source_digest.v1"] = "source_digest.v1"
     digest_id: str = Field(..., min_length=1)
     source: KnowledgeSource
+    raw_source: str | None = None
+    content_hash: str | None = None
     source_focus: str = ""
     summary: str = ""
     units: list[SourceDigestUnit] = Field(default_factory=list)
     evidence_spans: list[KnowledgeEvidenceSpan] = Field(default_factory=list)
+    contribution_map: list[SourceDigestContribution] = Field(default_factory=list)
+    unresolved_items: list[SourceDigestUnresolvedItem] = Field(default_factory=list)
     confidence: float = Field(default=0.8, ge=0, le=1)
     warnings: list[str] = Field(default_factory=list)
 
@@ -76,4 +115,6 @@ class SourceDigest(BaseModel):
         return {
             "units": len(self.units),
             "evidence_spans": len(self.evidence_spans),
+            "contributions": len(self.contribution_map),
+            "unresolved": len(self.unresolved_items),
         }

@@ -32,6 +32,16 @@ The step boundary is claims-first: claims are created only in 3.3. Step 3 does
 not decide page identity, page write action, Markdown page body, or checkpoint
 commit eligibility.
 
+Step 3 artifacts are first-class outputs:
+
+- `KnowledgeExtract` preserves normalized source units after semantic cleanup.
+- `SourceDigest` provides the data layer for source digest audit pages:
+  source identity, source summary, source units, raw source pointer,
+  source-level unresolved items, and later contribution-map fields.
+- `KnowledgeAtomBatch` carries claims, entities, relations, and evidence.
+- `KnowledgeAtomQualityReport` records unsupported, conflicting, duplicate, or
+  unused atom signals before page planning.
+
 ## P0 Atom Contract
 
 - [x] Create SDD requirements, design, tasks, and verification.
