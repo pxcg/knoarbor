@@ -48,10 +48,21 @@ and ledgers.
 Ingest compiles new source material into wiki pages:
 
 ```text
-SourceDocument -> KnowledgeExtract -> RelationPlan -> DraftBatch -> Review -> Write
+Connector / Document Processor
+  -> SourceDocument
+  -> Checkpoint / Segmentation
+  -> Source Normalize
+  -> Source Digest
+  -> Knowledge Atoms
+  -> Page Plan
+  -> Draft Compile / Review
+  -> Write / Index / Report
 ```
 
-Ingest decides whether to create, update, or skip pages. It should not blindly create one page per source. Merge, archive, delete, rename, and long-term page lifecycle governance belong to lint/maintenance.
+Connectors and document processors only prepare source material. Semantic ingest
+decides whether to create, update, or skip pages. It should not blindly create
+one page per source. Merge, archive, delete, rename, and long-term page lifecycle
+governance belong to lint/maintenance.
 
 ## Lint
 

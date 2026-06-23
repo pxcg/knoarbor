@@ -59,6 +59,40 @@ This keeps page identity auditable. A relation-only operation can describe a
 graph edge, but it cannot create or update a non-source page unless the claims
 supporting that edge are selected for the same operation.
 
+## Source Input Boundary
+
+The first ingest boundary is deterministic and source-specific:
+
+```text
+Connector / Document Processor
+  -> SourceRef
+  -> RawSource
+  -> SourceDocument
+  -> Checkpoint Window
+  -> Source Segmentation
+```
+
+Responsibilities:
+
+- connectors discover source references, fetch immutable raw metadata, and
+  normalize source-specific records into `SourceDocument`;
+- document processors convert rich files such as PDFs or Office documents into
+  Markdown before the shared connector path;
+- checkpointing selects the source/window to process without interpreting
+  source meaning;
+- segmentation splits a normalized `SourceDocument` by source structure:
+  headings for Markdown, turn groups for chat transcripts, sections/pages for
+  parsed documents, and paragraphs for plain text.
+
+Boundaries:
+
+- this layer may parse source formats, normalize roles, remove empty or
+  process-only records, and preserve source ranges;
+- this layer does not decide page identity, page type, claim importance,
+  relation meaning, create/update/skip actions, or wiki write policy;
+- hard splitting is a last-resort budget operation and must remain visible in
+  segment warnings.
+
 ## Agent Decisions
 
 ### Source Normalize Agent
