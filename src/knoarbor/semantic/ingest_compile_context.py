@@ -12,12 +12,12 @@ from knoarbor.core.schemas.ingest_compile_context import (
     IngestCompileContext,
 )
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
-from knoarbor.core.schemas.wiki_relation_plan import WikiRelationPlan
+from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
 
 
 def build_ingest_compile_context(
     knowledge_extract: KnowledgeExtract,
-    relation_plan: WikiRelationPlan,
+    page_plan: WikiPagePlan,
     candidate_page_context: dict[str, Any] | None = None,
 ) -> IngestCompileContext:
     pages = _page_groups(candidate_page_context or {})
@@ -39,14 +39,20 @@ def build_ingest_compile_context(
                 action=operation.action,
                 target_page=operation.target_page,
                 page_dir=operation.page_dir,
+                canonical_path=operation.canonical_path,
+                legacy_paths=list(operation.legacy_paths),
                 page_kind=operation.page_kind,
                 subject_kind=operation.subject_kind,
                 facets=list(operation.facets),
                 title=operation.title,
                 knowledge_object=operation.knowledge_object,
+                selected_fact_ids=list(operation.selected_fact_ids),
+                selected_claim_ids=list(operation.selected_claim_ids),
+                selected_relation_ids=list(operation.selected_relation_ids),
+                source_digest_ids=list(operation.source_digest_ids),
                 decision_reason=operation.decision_reason,
             )
-            for index, operation in enumerate(relation_plan.operations)
+            for index, operation in enumerate(page_plan.operations)
             if operation.action != "skip"
         ],
         page_context=pages,

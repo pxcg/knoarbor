@@ -11,26 +11,30 @@ IngestWriteSafety = Literal["safe_create", "safe_update", "needs_revision", "rej
 
 
 class IngestReviewDimensionScores(BaseModel):
+    source_trace: float = Field(..., ge=0, le=1)
+    atom_coverage: float = Field(..., ge=0, le=1)
     source_support: float = Field(..., ge=0, le=1)
     page_boundary: float = Field(..., ge=0, le=1)
-    directory_fit: float = Field(..., ge=0, le=1)
+    identity_fit: float = Field(..., ge=0, le=1)
     duplication_risk: float = Field(..., ge=0, le=1)
     relation_quality: float = Field(..., ge=0, le=1)
-    completeness: float = Field(..., ge=0, le=1)
+    synthesis_quality: float = Field(..., ge=0, le=1)
     maintainability: float = Field(..., ge=0, le=1)
-    patch_safety: float = Field(..., ge=0, le=1)
+    update_safety: float = Field(..., ge=0, le=1)
 
 
 class IngestReviewChecks(BaseModel):
     operation_aligned: bool
+    source_trace_complete: bool
+    atom_coverage_sufficient: bool
     page_boundary_clear: bool
-    directory_fit: bool
+    identity_fit: bool
     source_supported: bool
     not_duplicate: bool
     relation_quality: bool
-    complete_enough: bool
+    synthesis_quality: bool
     maintainable: bool
-    patch_safe: bool
+    update_safe: bool
     write_safe: bool
 
 

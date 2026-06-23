@@ -13,7 +13,7 @@ from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 from knoarbor.core.schemas.lint_candidates import MaintenanceCandidates
 from knoarbor.core.schemas.lint_review import LintMaintenanceReview
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
-from knoarbor.core.schemas.wiki_relation_plan import WikiRelationPlan
+from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
 
 
 @dataclass(frozen=True)
@@ -30,7 +30,7 @@ def load_semantic_contract(name: str) -> SemanticContract:
     registry: dict[str, tuple[str, type[BaseModel], str]] = {
         "source_normalize": ("knowledge_extract.v1", KnowledgeExtract, "source_normalize_agent.md"),
         "wiki_atom_extract": ("knowledge_atoms.v1", KnowledgeAtomBatch, "wiki_atom_extract_agent.md"),
-        "wiki_relation": ("wiki_relation_plan.v1", WikiRelationPlan, "wiki_relation_agent.md"),
+        "wiki_page_plan": ("wiki_page_plan.v1", WikiPagePlan, "wiki_page_plan_agent.md"),
         "wiki_draft_compile": ("wiki_draft_batch.v1", WikiDraftBatch, "wiki_draft_compile_agent.md"),
         "ingest_draft_review": ("ingest_draft_review.v2", IngestDraftReview, "ingest_draft_review_agent.md"),
         "lint_diagnose": ("maintenance_candidates.v1", MaintenanceCandidates, "lint_diagnose_agent.md"),

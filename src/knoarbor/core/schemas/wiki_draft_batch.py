@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from knoarbor.core.schemas.wiki_relation_plan import WikiPageDir
+from knoarbor.core.schemas.wiki_page_plan import WikiPageDir
 from knoarbor.core.schemas.wiki_write import WikiPatchInput, WikiWriteAction
 
 
@@ -17,6 +17,8 @@ class WikiDraftBatchItem(BaseModel):
     source_file: str | None = None
     title: str = Field(..., min_length=1)
     page_dir: WikiPageDir
+    canonical_path: str = ""
+    legacy_paths: list[str] = Field(default_factory=list)
     page_kind: str = ""
     subject_kind: str = ""
     facets: list[str] = Field(default_factory=list)
@@ -25,7 +27,9 @@ class WikiDraftBatchItem(BaseModel):
     summary: str = Field(..., min_length=1)
     definition: str = ""
     claims: list[str] = Field(default_factory=list)
+    entities: list[str] = Field(default_factory=list)
     relations: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
     synthesis: str = ""
     key_points: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
@@ -44,14 +48,14 @@ class WikiDraftBatchItem(BaseModel):
         text = value.strip()
         return text or None
 
-    @field_validator("page_kind", "subject_kind", mode="before")
+    @field_validator("canonical_path", "page_kind", "subject_kind", mode="before")
     @classmethod
     def null_identity_text_to_empty_string(cls, value: Any) -> str:
         if value is None:
             return ""
-        return str(value).strip()
+        return str(value).strip().lstrip("/")
 
-    @field_validator("facets", "source_digest_ids", "atom_ids", mode="before")
+    @field_validator("legacy_paths", "facets", "source_digest_ids", "atom_ids", mode="before")
     @classmethod
     def normalize_id_list(cls, value: object) -> list[str]:
         if value is None:

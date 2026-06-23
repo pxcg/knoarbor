@@ -56,7 +56,9 @@ class WikiDraftInput(BaseModel):
     summary: str = Field(..., min_length=1)
     definition: str = ""
     claims: list[str] = Field(default_factory=list)
+    entities: list[str] = Field(default_factory=list)
     relations: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
     synthesis: str = ""
     key_points: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
@@ -91,7 +93,7 @@ class WikiDraftInput(BaseModel):
                 seen.add(text)
         return normalized
 
-    @field_validator("claims", "relations", mode="before")
+    @field_validator("claims", "entities", "relations", "evidence", mode="before")
     @classmethod
     def normalize_optional_list(cls, value: Any) -> list[str]:
         if value is None:
@@ -149,7 +151,9 @@ class WikiDraft(BaseModel):
     summary: str
     definition: str = ""
     claims: list[str] = Field(default_factory=list)
+    entities: list[str] = Field(default_factory=list)
     relations: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
     synthesis: str = ""
     key_points: list[str]
     tags: list[str]

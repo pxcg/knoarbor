@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from knoarbor.core.markdown import compact_inline_text, extract_heading, extract_list_items, extract_section, extract_tags, parse_frontmatter
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
-from knoarbor.core.schemas.wiki_relation_plan import WikiRelationPlan
+from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
 from knoarbor.pipelines.query import QueryPipeline, QueryPipelineRequest
 from knoarbor.retrieval.markdown import ScoredPage, extract_headings, query_terms, strip_frontmatter
 from knoarbor.storage.vault import VaultStore
@@ -136,14 +136,14 @@ class IngestContextProvider:
                 **result.stats,
                 "pre_rerank_candidate_count": len(result.matches),
                 "candidate_count": len(candidates),
-                "relation_profile_chars": profile_chars,
-                "relation_candidate_body_included": False,
-                "relation_context_policy": "lightweight_page_profiles_without_page_body",
+                "page_plan_profile_chars": profile_chars,
+                "page_plan_candidate_body_included": False,
+                "page_plan_context_policy": "lightweight_page_profiles_without_page_body",
             },
         )
 
-    def materialize(self, vault_path: Path, relation_plan: WikiRelationPlan) -> IngestCandidatePageContext:
-        path_roles = selected_relation_path_roles(relation_plan)
+    def materialize(self, vault_path: Path, page_plan: WikiPagePlan) -> IngestCandidatePageContext:
+        path_roles = selected_page_plan_path_roles(page_plan)
         paths = [item[0] for item in path_roles]
         cache_key = _materialize_cache_key(
             vault_path,
@@ -275,14 +275,14 @@ def _same_source(page_source: str, extract_source_path: str) -> bool:
     return page_source.strip().strip("/") == extract_source_path.strip().strip("/")
 
 
-def selected_relation_paths(relation_plan: WikiRelationPlan) -> list[str]:
-    return [path for path, _role in selected_relation_path_roles(relation_plan)]
+def selected_page_plan_paths(page_plan: WikiPagePlan) -> list[str]:
+    return [path for path, _role in selected_page_plan_path_roles(page_plan)]
 
 
-def selected_relation_path_roles(relation_plan: WikiRelationPlan) -> list[tuple[str, MaterializedContextRole]]:
+def selected_page_plan_path_roles(page_plan: WikiPagePlan) -> list[tuple[str, MaterializedContextRole]]:
     paths: list[str] = []
     seen: set[str] = set()
-    for operation in relation_plan.operations:
+    for operation in page_plan.operations:
         for raw_path, role in _operation_path_roles(operation):
             path = VaultStore.normalize_page_path(raw_path)
             if not path:
@@ -291,7 +291,7 @@ def selected_relation_path_roles(relation_plan: WikiRelationPlan) -> list[tuple[
                 continue
             seen.add(path)
             paths.append(path)
-    return [(path, _highest_relation_role(path, relation_plan)) for path in paths]
+    return [(path, _highest_page_plan_role(path, page_plan)) for path in paths]
 
 
 def _query_cache_key(request: QueryPipelineRequest, index_provider_name: str) -> tuple[object, ...]:
@@ -342,10 +342,10 @@ def _operation_path_roles(operation: object) -> list[tuple[str, MaterializedCont
     return paths
 
 
-def _highest_relation_role(path: str, relation_plan: WikiRelationPlan) -> MaterializedContextRole:
+def _highest_page_plan_role(path: str, page_plan: WikiPagePlan) -> MaterializedContextRole:
     rank: dict[MaterializedContextRole, int] = {"candidate": 0, "related": 1, "target": 2}
     selected: MaterializedContextRole = "candidate"
-    for operation in relation_plan.operations:
+    for operation in page_plan.operations:
         for raw_path, role in _operation_path_roles(operation):
             current_path = VaultStore.normalize_page_path(raw_path)
             if current_path == path and rank[role] > rank[selected]:
@@ -376,8 +376,8 @@ def _materialized_page_content(
     metadata = parse_frontmatter(content)
     title = extract_heading(content, Path(path).stem)
     summary = _inline_text(extract_section(content, "Summary"))
-    key_points = [_inline_text(item) for item in extract_list_items(extract_section(content, "Key Points"))]
-    tags = extract_tags(content, metadata)
+    key_points = [_inline_text(item) for item in (extract_list_items(extract_section(content, "Key Points")) or extract_list_items(extract_section(content, "Claims")))]
+    tags = extract_tags(content, metadata) or _entities_as_tags(content)
     headings = extract_headings(content)
     source = metadata.get("source")
     if role == "target":
@@ -442,6 +442,20 @@ def _related_page_excerpt(content: str, *, summary: str, key_points: list[str], 
     if body and not parts:
         parts.append(compact_inline_text(body, 1200))
     return "\n\n".join(parts)
+
+
+def _entities_as_tags(content: str) -> list[str]:
+    tags: list[str] = []
+    for item in extract_list_items(extract_section(content, "Entities")):
+        text = item.strip()
+        if not text or text.startswith("暂无"):
+            continue
+        text = text.removeprefix("[[").removesuffix("]]")
+        if "|" in text:
+            text = text.split("|", 1)[-1]
+        if text and text not in tags:
+            tags.append(text)
+    return tags[:24]
 
 
 def _relevance_label(score: float) -> str:

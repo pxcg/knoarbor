@@ -9,10 +9,6 @@ from knoarbor.core.schemas.wiki_write import (
     WikiDraftBatchWriteResponse,
     WikiDraftWriteResponse,
 )
-from knoarbor.maintenance.wiki_links import (
-    reconcile_batch_related_links,
-    reconcile_expected_related_pages,
-)
 from knoarbor.pipelines.draft_canonicalizer import DraftCanonicalizer
 from knoarbor.runtime import runtime_logger, vault_write_lock
 from knoarbor.storage import append_ingest_log, update_index
@@ -74,15 +70,6 @@ class WikiWritePipeline:
             response.stats["canonicalization_changes"] = canonicalized.changes
             responses.append(response)
 
-        provenance_related_links = request.auto_related_links if request.provenance_related_links is None else request.provenance_related_links
-        reconciled_paths = reconcile_batch_related_links(vault_path, entries) if provenance_related_links else set()
-        if reconciled_paths:
-            for response in responses:
-                path = Path(response.wiki_file_path)
-                if path in reconciled_paths:
-                    response.wiki_md_content = path.read_text(encoding="utf-8")
-                    response.stats["batch_links_reconciled"] = True
-
         semantic_related_added_count = 0
         semantic_related_missing_count = 0
         for response in responses:
@@ -90,12 +77,8 @@ class WikiWritePipeline:
             expected_related_pages = expected_related_by_path.get(path, [])
             if not expected_related_pages:
                 continue
-            link_stats = reconcile_expected_related_pages(vault_path, path, expected_related_pages)
-            response.wiki_md_content = path.read_text(encoding="utf-8")
             response.stats["expected_related_pages"] = expected_related_pages
-            response.stats["semantic_related_links"] = link_stats
-            semantic_related_added_count += int(link_stats.get("added_count", 0))
-            semantic_related_missing_count += len(link_stats.get("missing", []))
+            response.stats["semantic_related_links"] = {"added_count": 0, "added": [], "missing": []}
 
         unresolved_removed_count = 0
         for response in responses:
@@ -114,7 +97,7 @@ class WikiWritePipeline:
             results=responses,
             stats={
                 "written_count": len(responses),
-                "batch_links_reconciled_count": len(reconciled_paths),
+                "batch_links_reconciled_count": 0,
                 "semantic_related_links_added_count": semantic_related_added_count,
                 "semantic_related_links_missing_count": semantic_related_missing_count,
                 "unresolved_wikilinks_sanitized_count": unresolved_removed_count,

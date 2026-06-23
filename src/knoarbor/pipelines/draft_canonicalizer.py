@@ -64,7 +64,9 @@ class DraftCanonicalizer:
         patches = self._canonicalize_patches(draft.patches, changes)
         key_points = [str(item).strip() for item in draft.key_points if str(item).strip()][:8]
         claims = [str(item).strip() for item in (draft.claims or key_points) if str(item).strip()][:12]
+        entities = [str(item).strip() for item in draft.entities if str(item).strip()][:24]
         relations = [str(item).strip() for item in draft.relations if str(item).strip()][:12]
+        evidence = [str(item).strip() for item in draft.evidence if str(item).strip()][:24]
         tags = [str(item).strip().lower().replace(" ", "-") for item in draft.tags if str(item).strip()][:8]
         page_kind = _page_kind_from_draft(draft.page_kind, page_dir)
         page_role = _page_role_from_draft(draft.role, page_kind)
@@ -86,7 +88,9 @@ class DraftCanonicalizer:
             summary=summary,
             definition=definition,
             claims=claims,
+            entities=entities,
             relations=relations,
+            evidence=evidence,
             synthesis=synthesis,
             key_points=key_points,
             tags=tags,
@@ -116,8 +120,12 @@ class DraftCanonicalizer:
         validate_body_markdown(draft.synthesis, "synthesis")
         for claim in draft.claims:
             validate_body_markdown(claim, "claim")
+        for entity in draft.entities:
+            validate_body_markdown(entity, "entity")
         for relation in draft.relations:
             validate_body_markdown(relation, "relation")
+        for evidence in draft.evidence:
+            validate_body_markdown(evidence, "evidence")
 
     def _canonical_source_file(self, source_file: str | None, write_action: str) -> str | None:
         text = source_file.strip() if isinstance(source_file, str) else None

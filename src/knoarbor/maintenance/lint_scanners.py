@@ -38,6 +38,7 @@ from knoarbor.maintenance.lint_rules import (
 )
 from knoarbor.storage.wiki_paths import content_root
 from knoarbor.storage.knowledge_atom_index import KnowledgeAtomRecord, read_knowledge_atom_records
+from knoarbor.storage.wiki_index import is_machine_index_stale, machine_index_dir
 
 
 def lint_collected_pages(
@@ -159,16 +160,12 @@ def _lint_adjacent_duplicate_headings(pages: list[LintPage]) -> list[WikiLintIss
 
 
 def _lint_index_coverage(vault_path: Path, pages: list[LintPage]) -> list[WikiLintIssue]:
-    index_path = content_root(vault_path) / "index.md"
-    if not index_path.exists():
-        return [_issue("missing_index", "error", "index.md", "Wiki index.md is missing.")]
-
-    index_content = index_path.read_text(encoding="utf-8")
-    indexed_targets = {normalize_link_target(link) for link in extract_wiki_links(index_content)}
     issues: list[WikiLintIssue] = []
-    for page in pages:
-        if page.relative_path.removesuffix(".md") not in indexed_targets:
-            issues.append(_issue("page_missing_from_index", "warning", page.relative_path, "Page is not listed in index.md."))
+    index_dir = machine_index_dir(vault_path)
+    if not (index_dir / "manifest.json").exists() or not (index_dir / "graph_index.json").exists():
+        return [_issue("missing_machine_index", "error", ".knoarbor/index", "Machine graph index is missing.")]
+    if is_machine_index_stale(vault_path):
+        issues.append(_issue("stale_machine_index", "warning", ".knoarbor/index", "Machine graph index is stale and should be rebuilt."))
     return issues
 
 
@@ -271,34 +268,29 @@ def _lint_source_pages(vault_path: Path, pages: list[LintPage]) -> list[WikiLint
     for page in pages:
         if not page.is_source_digest:
             continue
-        for source in _metadata_sources(page.metadata.get("source")):
+        for source in _page_sources(page):
             source_digest_by_source[source] = page
     knowledge_pages_by_source: dict[str, list[LintPage]] = defaultdict(list)
     for page in pages:
-        for source in _metadata_sources(page.metadata.get("source")):
+        for source in _page_sources(page):
             if page.is_knowledge_page and source.startswith("raw/"):
                 knowledge_pages_by_source[source].append(page)
 
     for page in pages:
-        sources = _metadata_sources(page.metadata.get("source"))
+        sources = _page_sources(page)
         raw_sources = [source for source in sources if source.startswith("raw/")]
-        section_sources = extract_list_items(extract_section(page.content, "Source"))
-        for source in raw_sources:
+        if page.metadata.get("source") and has_section(page.content, "Source"):
             section_sources = extract_list_items(extract_section(page.content, "Source"))
-            if source not in section_sources:
-                issues.append(_issue("source_section_mismatch", "info", page.relative_path, "Frontmatter source is missing from the Source section.", {"source": source, "section_sources": section_sources}))
+            for source in _metadata_sources(page.metadata.get("source")):
+                if source.startswith("raw/") and source not in section_sources:
+                    issues.append(_issue("source_section_mismatch", "info", page.relative_path, "Frontmatter source is missing from the Source section.", {"source": source, "section_sources": section_sources}))
 
         if page.is_source_digest:
             for source in raw_sources:
                 if not (vault_path / source).exists():
                     issues.append(_issue("missing_raw_source", "warning", page.relative_path, "Source digest points to a missing raw file.", {"source": source}))
             expected_knowledge_pages = [item for source in raw_sources for item in knowledge_pages_by_source.get(source, [])]
-            if expected_knowledge_pages:
-                related_paths = resolved_paths_from_links(extract_wiki_links(extract_section(page.content, "Related Pages")), pages_by_relative, pages_by_stem, pages_by_title)
-                missing_related = [item.relative_path for item in expected_knowledge_pages if item.relative_path not in related_paths]
-                if missing_related:
-                    issues.append(_issue("source_digest_missing_related_pages", "info", page.relative_path, "Source digest does not list all generated knowledge pages for the same raw source in Related Pages.", {"sources": raw_sources, "related_pages": missing_related}))
-            else:
+            if not expected_knowledge_pages:
                 related_paths = resolved_paths_from_links(page.links, pages_by_relative, pages_by_stem, pages_by_title)
                 if not related_paths.intersection(knowledge_page_paths):
                     issues.append(_issue("source_without_knowledge_links", "info", page.relative_path, "Source digest does not link to any generated knowledge page."))
@@ -311,9 +303,6 @@ def _lint_source_pages(vault_path: Path, pages: list[LintPage]) -> list[WikiLint
             if not source_digest:
                 issues.append(_issue("knowledge_without_source_digest", "info", page.relative_path, "Generated knowledge page points to a raw source without a matching source digest page.", {"source": source}))
                 continue
-            related_paths = resolved_paths_from_links(extract_wiki_links(extract_section(page.content, "Related Pages")), pages_by_relative, pages_by_stem, pages_by_title)
-            if source_digest.relative_path not in related_paths:
-                issues.append(_issue("knowledge_missing_source_digest_link", "info", page.relative_path, "Generated knowledge page does not link back to its matching source digest.", {"source": source, "source_digest": source_digest.relative_path}))
     return issues
 
 
@@ -324,6 +313,30 @@ def _metadata_sources(value: object) -> list[str]:
     if isinstance(value, list):
         return [str(item).strip() for item in value if str(item).strip()]
     return []
+
+
+def _page_sources(page: LintPage) -> list[str]:
+    sources: list[str] = []
+    for source in [*_metadata_sources(page.metadata.get("source")), *_evidence_sources(page.content), *extract_list_items(extract_section(page.content, "Source"))]:
+        text = source.strip().strip("`")
+        if text and text not in sources:
+            sources.append(text)
+    return sources
+
+
+def _evidence_sources(content: str) -> list[str]:
+    sources: list[str] = []
+    for line in extract_section(content, "Evidence").splitlines():
+        text = line.strip()
+        if not text.startswith("|") or text.startswith("|---") or "Source" in text and "Claim" in text:
+            continue
+        cells = [cell.strip() for cell in text.strip("|").split("|")]
+        if len(cells) < 2:
+            continue
+        source = cells[1]
+        if source and source not in sources:
+            sources.append(source)
+    return sources
 
 
 def _lint_sensitive_content(pages: list[LintPage], config: PrivacyConfig) -> list[WikiLintIssue]:

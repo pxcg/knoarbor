@@ -18,7 +18,7 @@ from knoarbor.core.schemas.ingest_review import IngestDraftReview
 from knoarbor.core.schemas.maintenance import MaintenanceScope, MaintenanceScopeSource
 from knoarbor.core.schemas.sources import SourceDocument
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
-from knoarbor.core.schemas.wiki_relation_plan import WikiRelationPlan
+from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
 from knoarbor.core.schemas.wiki_lint import LintRunRequest, LintRunResult
 from knoarbor.core.schemas.wiki_write import (
     WikiDraftBatchWriteItem,
@@ -574,23 +574,23 @@ class IngestSourceExecutor:
         )
         knowledge_atom_quality = evaluate_knowledge_atoms(knowledge_atom_batch)
         wiki_context = self.context_provider.build(vault_path, knowledge_extract)
-        relation_plan = self.semantic_workflow.plan_relations(
+        page_plan = self.semantic_workflow.plan_pages(
             knowledge_extract,
             knowledge_atom_batch=knowledge_atom_batch,
             existing_wiki_index=_index_summary_payload(index_payload),
             wiki_context=wiki_context.model_dump(),
             max_tokens=max_tokens,
         )
-        if not _has_executable_relation_operations(relation_plan):
+        if not _has_executable_page_plan_operations(page_plan):
             semantic_metrics = summarize_semantic_runs(_semantic_history_slice(self.semantic_workflow, history_start))
             candidate_page_context = IngestCandidatePageContext()
             return (
                 IngestSemanticWorkflowResult(
                     knowledge_extract=knowledge_extract,
                     knowledge_atom_batch=knowledge_atom_batch,
-                    wiki_relation_plan=relation_plan,
-                    wiki_draft_batch=_empty_wiki_draft_batch(relation_plan),
-                    ingest_draft_review=_empty_ingest_draft_review(relation_plan),
+                    wiki_page_plan=page_plan,
+                    wiki_draft_batch=_empty_wiki_draft_batch(page_plan),
+                    ingest_draft_review=_empty_ingest_draft_review(page_plan),
                 ),
                 {
                     "retrieval": {
@@ -609,21 +609,21 @@ class IngestSourceExecutor:
                     "materialized_pages": candidate_page_context.stats,
                     "semantic_metrics": semantic_metrics,
                     "short_circuit": {
-                        "stage": "relation",
-                        "reason": _semantic_relation_skip_reason(relation_plan),
+                        "stage": "page_plan",
+                        "reason": _semantic_page_plan_skip_reason(page_plan),
                     },
                 },
                 candidate_page_context,
             )
-        candidate_page_context = self.context_provider.materialize(vault_path, relation_plan)
+        candidate_page_context = self.context_provider.materialize(vault_path, page_plan)
         ingest_compile_context = build_ingest_compile_context(
             knowledge_extract,
-            relation_plan,
+            page_plan,
             candidate_page_context.model_dump(),
         )
         draft_batch = self.semantic_workflow.compile_drafts(
             knowledge_extract,
-            relation_plan,
+            page_plan,
             knowledge_atom_batch=knowledge_atom_batch,
             candidate_page_context=candidate_page_context.model_dump(),
             ingest_compile_context=ingest_compile_context,
@@ -632,7 +632,7 @@ class IngestSourceExecutor:
         draft_batch = _materialize_draft_source_files(draft_batch, source_file)
         review = self.semantic_workflow.review_drafts(
             knowledge_extract,
-            relation_plan,
+            page_plan,
             draft_batch,
             candidate_page_context=candidate_page_context.model_dump(),
             ingest_compile_context=ingest_compile_context,
@@ -643,7 +643,7 @@ class IngestSourceExecutor:
             IngestSemanticWorkflowResult(
                 knowledge_extract=knowledge_extract,
                 knowledge_atom_batch=knowledge_atom_batch,
-                wiki_relation_plan=relation_plan,
+                wiki_page_plan=page_plan,
                 wiki_draft_batch=draft_batch,
                 ingest_draft_review=review,
             ),
@@ -682,33 +682,33 @@ def _materialize_draft_source_files(draft_batch: WikiDraftBatch, source_file: st
     return draft_batch.model_copy(update={"drafts": drafts})
 
 
-def _has_executable_relation_operations(relation_plan: WikiRelationPlan) -> bool:
-    return any(operation.action in {"create", "update"} for operation in relation_plan.operations)
+def _has_executable_page_plan_operations(page_plan: WikiPagePlan) -> bool:
+    return any(operation.action in {"create", "update"} for operation in page_plan.operations)
 
 
-def _empty_wiki_draft_batch(relation_plan: WikiRelationPlan) -> WikiDraftBatch:
+def _empty_wiki_draft_batch(page_plan: WikiPagePlan) -> WikiDraftBatch:
     return WikiDraftBatch(
         drafts=[],
-        batch_summary=_semantic_relation_skip_reason(relation_plan),
-        warnings=list(relation_plan.warnings),
+        batch_summary=_semantic_page_plan_skip_reason(page_plan),
+        warnings=list(page_plan.warnings),
     )
 
 
-def _empty_ingest_draft_review(relation_plan: WikiRelationPlan) -> IngestDraftReview:
+def _empty_ingest_draft_review(page_plan: WikiPagePlan) -> IngestDraftReview:
     return IngestDraftReview(
         decisions=[],
         batch_decision="reject",
-        summary=_semantic_relation_skip_reason(relation_plan),
-        warnings=list(relation_plan.warnings),
+        summary=_semantic_page_plan_skip_reason(page_plan),
+        warnings=list(page_plan.warnings),
     )
 
 
-def _semantic_relation_skip_reason(relation_plan: WikiRelationPlan) -> str:
-    operations = relation_plan.operations
+def _semantic_page_plan_skip_reason(page_plan: WikiPagePlan) -> str:
+    operations = page_plan.operations
     if not operations:
-        return "Relation plan contains no executable operations."
+        return "Page plan contains no executable operations."
     skip_reasons = [operation.decision_reason for operation in operations if operation.action == "skip" and operation.decision_reason]
-    return skip_reasons[0] if skip_reasons else "Relation plan contains no executable operations."
+    return skip_reasons[0] if skip_reasons else "Page plan contains no executable operations."
 
 
 def _segment_write_items(
@@ -763,7 +763,7 @@ def _segment_record(batch: SourceSegmentBatch, index: int, result: IngestSourceR
         "touched_pages": list(result.touched_pages),
         "metrics": dict(result.metrics),
         "warnings": [*segment.warnings, *_semantic_result_warnings(semantic_result)],
-        "relation_operations": _semantic_result_operations(semantic_result),
+        "page_plan_operations": _semantic_result_operations(semantic_result),
     }
 
 
@@ -776,6 +776,8 @@ def _semantic_result_operations(semantic_result: IngestSemanticWorkflowResult | 
             "action": operation.action,
             "target_page": operation.target_page,
             "page_dir": operation.page_dir,
+            "canonical_path": operation.canonical_path,
+            "legacy_paths": list(operation.legacy_paths),
             "page_kind": operation.page_kind,
             "subject_kind": operation.subject_kind,
             "facets": list(operation.facets),
@@ -787,7 +789,7 @@ def _semantic_result_operations(semantic_result: IngestSemanticWorkflowResult | 
             "source_digest_ids": list(operation.source_digest_ids),
             "decision_reason": operation.decision_reason,
         }
-        for index, operation in enumerate(semantic_result.wiki_relation_plan.operations)
+        for index, operation in enumerate(semantic_result.wiki_page_plan.operations)
     ]
 
 
@@ -826,7 +828,7 @@ def _semantic_result_warnings(semantic_result: IngestSemanticWorkflowResult | No
         return []
     return [
         *semantic_result.knowledge_extract.warnings,
-        *semantic_result.wiki_relation_plan.warnings,
+        *semantic_result.wiki_page_plan.warnings,
         *semantic_result.wiki_draft_batch.warnings,
         *semantic_result.ingest_draft_review.warnings,
     ]
@@ -835,7 +837,7 @@ def _semantic_result_warnings(semantic_result: IngestSemanticWorkflowResult | No
 def _combined_segment_skip_reason(segment_results: list[IngestSourceResult]) -> str | None:
     reasons = [result.semantic_skip_reason for result in segment_results if result.semantic_skip_reason]
     if len(reasons) == len(segment_results) and reasons:
-        return "All source segments were skipped by semantic relation planning."
+        return "All source segments were skipped by semantic page planning."
     return None
 
 
@@ -1195,12 +1197,25 @@ class IngestPipeline:
 
 
 def _read_index_payload(vault_path: Path) -> dict[str, object]:
-    from knoarbor.storage.wiki_paths import content_root
+    import json
 
-    index_path = content_root(vault_path) / "index.md"
-    if not index_path.exists():
-        return {"available": False, "path": "index.md", "content": ""}
-    return {"available": True, "path": "index.md", "content": index_path.read_text(encoding="utf-8")}
+    from knoarbor.storage.wiki_index import ensure_machine_index, machine_index_dir
+
+    ensure_machine_index(vault_path)
+    index_dir = machine_index_dir(vault_path)
+    manifest_path = index_dir / "manifest.json"
+    graph_path = index_dir / "graph_index.json"
+    if not manifest_path.exists() or not graph_path.exists():
+        return {"available": False, "path": ".knoarbor/index", "content": ""}
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    graph = json.loads(graph_path.read_text(encoding="utf-8"))
+    summary = {
+        "manifest": manifest,
+        "node_count": len(graph.get("nodes", [])) if isinstance(graph.get("nodes"), list) else 0,
+        "edge_count": len(graph.get("edges", [])) if isinstance(graph.get("edges"), list) else 0,
+        "source_count": len(graph.get("sources", [])) if isinstance(graph.get("sources"), list) else 0,
+    }
+    return {"available": True, "path": ".knoarbor/index/manifest.json", "content": json.dumps(summary, ensure_ascii=False, sort_keys=True)}
 
 
 def _effective_source_concurrency(config: KnoArborConfig, write: bool) -> int:
@@ -1226,7 +1241,7 @@ def _index_summary_payload(index_payload: dict[str, object]) -> dict[str, object
     content = index_payload.get("content")
     return {
         "available": bool(index_payload.get("available")),
-        "path": index_payload.get("path", "index.md"),
+        "path": index_payload.get("path", ".knoarbor/index/manifest.json"),
         "content_length": len(content) if isinstance(content, str) else 0,
         "note": "Ingest uses wiki_context.candidates as the authoritative lightweight candidate pool; full index content is not duplicated in the model input.",
     }
@@ -1245,7 +1260,9 @@ def _approved_ingest_operation_indexes(result: IngestSemanticWorkflowResult) -> 
     decisions = {
         decision.operation_index: decision
         for decision in result.ingest_draft_review.decisions
-        if decision.decision == "approve" and decision.write_safety in {"safe_create", "safe_update"}
+        if decision.decision == "approve"
+        and decision.write_safety in {"safe_create", "safe_update"}
+        and _review_checks_allow_write(decision.checks.model_dump())
     }
     return {
         draft.operation_index
@@ -1254,11 +1271,28 @@ def _approved_ingest_operation_indexes(result: IngestSemanticWorkflowResult) -> 
     }
 
 
+def _review_checks_allow_write(checks: dict[str, object]) -> bool:
+    hard_checks = [
+        "operation_aligned",
+        "source_trace_complete",
+        "atom_coverage_sufficient",
+        "page_boundary_clear",
+        "identity_fit",
+        "source_supported",
+        "not_duplicate",
+        "synthesis_quality",
+        "maintainable",
+        "update_safe",
+        "write_safe",
+    ]
+    return all(bool(checks.get(check)) for check in hard_checks)
+
+
 def _semantic_skip_reason(result: IngestSemanticWorkflowResult) -> str | None:
-    operations = result.wiki_relation_plan.operations
+    operations = result.wiki_page_plan.operations
     if not operations or any(operation.action != "skip" for operation in operations):
         return None
-    return operations[0].decision_reason or "Semantic relation planning skipped this source."
+    return operations[0].decision_reason or "Semantic page planning skipped this source."
 
 
 def _checkpointable_semantic_skip(result: IngestSourceResult) -> bool:

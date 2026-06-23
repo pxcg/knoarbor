@@ -25,11 +25,17 @@ class CompileOperationContext(BaseModel):
     action: str
     target_page: str | None = None
     page_dir: str | None = None
+    canonical_path: str | None = None
+    legacy_paths: list[str] = Field(default_factory=list)
     page_kind: str | None = None
     subject_kind: str | None = None
     facets: list[str] = Field(default_factory=list)
     title: str | None = None
     knowledge_object: str | None = None
+    selected_fact_ids: list[str] = Field(default_factory=list)
+    selected_claim_ids: list[str] = Field(default_factory=list)
+    selected_relation_ids: list[str] = Field(default_factory=list)
+    source_digest_ids: list[str] = Field(default_factory=list)
     decision_reason: str = ""
 
 

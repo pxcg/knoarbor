@@ -11,7 +11,7 @@ from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 from knoarbor.core.schemas.source_digest import SourceDigest
 from knoarbor.core.schemas.sources import SourceDocument
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
-from knoarbor.core.schemas.wiki_relation_plan import WikiRelationPlan
+from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
 from knoarbor.semantic.ingest_compile_context import build_ingest_compile_context
 from knoarbor.semantic.runner import SemanticRunner
 from knoarbor.semantic.source_digest import build_source_digest_from_extract
@@ -21,7 +21,7 @@ from knoarbor.semantic.source_normalize import build_source_normalize_input
 class IngestSemanticWorkflowResult(BaseModel):
     knowledge_extract: KnowledgeExtract
     knowledge_atom_batch: KnowledgeAtomBatch | None = None
-    wiki_relation_plan: WikiRelationPlan
+    wiki_page_plan: WikiPagePlan
     wiki_draft_batch: WikiDraftBatch
     ingest_draft_review: IngestDraftReview
 
@@ -48,7 +48,7 @@ class IngestSemanticWorkflow:
             knowledge_extract=knowledge_extract,
             max_tokens=max_tokens,
         )
-        wiki_relation_plan = self.plan_relations(
+        wiki_page_plan = self.plan_pages(
             knowledge_extract,
             knowledge_atom_batch=knowledge_atom_batch,
             existing_wiki_index=existing_wiki_index,
@@ -57,14 +57,14 @@ class IngestSemanticWorkflow:
         )
         wiki_draft_batch = self.compile_drafts(
             knowledge_extract,
-            wiki_relation_plan,
+            wiki_page_plan,
             knowledge_atom_batch=knowledge_atom_batch,
             candidate_page_context=candidate_page_context,
             max_tokens=max_tokens,
         )
         ingest_draft_review = self.review_drafts(
             knowledge_extract,
-            wiki_relation_plan,
+            wiki_page_plan,
             wiki_draft_batch,
             candidate_page_context=candidate_page_context,
             max_tokens=max_tokens,
@@ -72,7 +72,7 @@ class IngestSemanticWorkflow:
         return IngestSemanticWorkflowResult(
             knowledge_extract=knowledge_extract,
             knowledge_atom_batch=knowledge_atom_batch,
-            wiki_relation_plan=wiki_relation_plan,
+            wiki_page_plan=wiki_page_plan,
             wiki_draft_batch=wiki_draft_batch,
             ingest_draft_review=ingest_draft_review,
         )
@@ -102,7 +102,7 @@ class IngestSemanticWorkflow:
         )
         return _expect_output(result.output, KnowledgeAtomBatch)
 
-    def plan_relations(
+    def plan_pages(
         self,
         knowledge_extract: KnowledgeExtract,
         *,
@@ -110,9 +110,9 @@ class IngestSemanticWorkflow:
         existing_wiki_index: dict[str, Any] | None = None,
         wiki_context: dict[str, Any] | None = None,
         max_tokens: int | None = None,
-    ) -> WikiRelationPlan:
+    ) -> WikiPagePlan:
         result = self.runner.run(
-            "wiki_relation",
+            "wiki_page_plan",
             {
                 "knowledge_extract": knowledge_extract.model_dump(),
                 "knowledge_atoms": knowledge_atom_batch.model_dump() if knowledge_atom_batch else {},
@@ -121,12 +121,12 @@ class IngestSemanticWorkflow:
             },
             max_tokens=max_tokens,
         )
-        return _expect_output(result.output, WikiRelationPlan)
+        return _expect_output(result.output, WikiPagePlan)
 
     def compile_drafts(
         self,
         knowledge_extract: KnowledgeExtract,
-        wiki_relation_plan: WikiRelationPlan,
+        wiki_page_plan: WikiPagePlan,
         *,
         knowledge_atom_batch: KnowledgeAtomBatch | None = None,
         candidate_page_context: dict[str, Any] | None = None,
@@ -135,12 +135,12 @@ class IngestSemanticWorkflow:
     ) -> WikiDraftBatch:
         actionable_operations = [
             operation.model_dump()
-            for operation in wiki_relation_plan.operations
+            for operation in wiki_page_plan.operations
             if operation.action != "skip"
         ]
         compile_context = _compile_context_payload(
             knowledge_extract,
-            wiki_relation_plan,
+            wiki_page_plan,
             candidate_page_context,
             ingest_compile_context,
         )
@@ -149,7 +149,7 @@ class IngestSemanticWorkflow:
             {
                 "knowledge_extract": knowledge_extract.model_dump(),
                 "knowledge_atoms": knowledge_atom_batch.model_dump() if knowledge_atom_batch else {},
-                "wiki_relation_plan": wiki_relation_plan.model_dump(),
+                "wiki_page_plan": wiki_page_plan.model_dump(),
                 "wiki_operations": actionable_operations,
                 "ingest_compile_context": compile_context,
                 "candidate_page_context": candidate_page_context or {},
@@ -162,7 +162,7 @@ class IngestSemanticWorkflow:
     def review_drafts(
         self,
         knowledge_extract: KnowledgeExtract,
-        wiki_relation_plan: WikiRelationPlan,
+        wiki_page_plan: WikiPagePlan,
         wiki_draft_batch: WikiDraftBatch,
         *,
         candidate_page_context: dict[str, Any] | None = None,
@@ -171,7 +171,7 @@ class IngestSemanticWorkflow:
     ) -> IngestDraftReview:
         compile_context = _compile_context_payload(
             knowledge_extract,
-            wiki_relation_plan,
+            wiki_page_plan,
             candidate_page_context,
             ingest_compile_context,
         )
@@ -179,7 +179,7 @@ class IngestSemanticWorkflow:
             "ingest_draft_review",
             {
                 "knowledge_extract": knowledge_extract.model_dump(),
-                "wiki_relation_plan": wiki_relation_plan.model_dump(),
+                "wiki_page_plan": wiki_page_plan.model_dump(),
                 "wiki_draft_batch": wiki_draft_batch.model_dump(),
                 "ingest_compile_context": compile_context,
                 "candidate_page_context": candidate_page_context or {},
@@ -205,7 +205,7 @@ def _with_runtime_model_metadata(batch: WikiDraftBatch, *, provider: str, model:
 
 def _compile_context_payload(
     knowledge_extract: KnowledgeExtract,
-    wiki_relation_plan: WikiRelationPlan,
+    wiki_page_plan: WikiPagePlan,
     candidate_page_context: dict[str, Any] | None,
     ingest_compile_context: IngestCompileContext | dict[str, Any] | None,
 ) -> dict[str, Any]:
@@ -215,6 +215,6 @@ def _compile_context_payload(
         return ingest_compile_context
     return build_ingest_compile_context(
         knowledge_extract,
-        wiki_relation_plan,
+        wiki_page_plan,
         candidate_page_context,
     ).model_dump()

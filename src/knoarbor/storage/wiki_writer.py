@@ -139,7 +139,7 @@ def write_draft(
         raise PolicyRejection("create must not set target_page")
     if write_action == "create" and not source_file:
         raise PolicyRejection("create requires source_file")
-    digest = content_hash(draft.question, draft.answer)
+    digest = _draft_content_hash(draft)
     target_path = resolve_required_target(vault_path, target_page, write_action) if write_action in {"update", "merge"} else None
     if target_path:
         wiki_path = target_path
@@ -198,16 +198,47 @@ def _draft_output_dir(vault_path: Path, draft: WikiDraft) -> Path:
     return root
 
 
+def _draft_content_hash(draft: WikiDraft) -> str:
+    payload = "\n\n".join(
+        [
+            f"summary:\n{draft.summary}",
+            "claims:\n" + "\n".join(draft.claims),
+            "entities:\n" + "\n".join(draft.entities),
+            "relations:\n" + "\n".join(draft.relations),
+            "evidence:\n" + "\n".join(draft.evidence),
+            f"synthesis:\n{draft.synthesis or draft.answer}",
+        ]
+    )
+    return content_hash("wiki_draft_v2", payload)
+
+
 def _draft_with_resolved_identity(vault_path: Path, draft: WikiDraft, wiki_path: Path) -> WikiDraft:
     canonical_path = content_relative_path(vault_path, wiki_path)
     legacy_paths = list(draft.legacy_paths)
+    for alias in _draft_canonical_path_aliases(draft.canonical_path):
+        if alias != canonical_path and alias not in legacy_paths:
+            legacy_paths.append(alias)
     if draft.role != "source_digest" and draft.page_dir != "sources":
         legacy_path = f"{draft.page_dir}/{wiki_path.name}"
         if legacy_path != canonical_path and legacy_path not in legacy_paths:
             legacy_paths.append(legacy_path)
     return draft.model_copy(
         update={
-            "canonical_path": draft.canonical_path or canonical_path,
+            "canonical_path": canonical_path,
             "legacy_paths": legacy_paths,
         }
     )
+
+
+def _draft_canonical_path_aliases(value: str | None) -> list[str]:
+    text = str(value or "").strip().replace("\\", "/").lstrip("/")
+    if not text:
+        return []
+    aliases = [text]
+    if text.startswith("pages/"):
+        aliases.append(text.removeprefix("pages/"))
+    result: list[str] = []
+    for alias in aliases:
+        if alias and alias not in result:
+            result.append(alias)
+    return result

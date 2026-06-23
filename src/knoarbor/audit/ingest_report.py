@@ -121,7 +121,7 @@ def render_ingest_report(record: dict[str, object]) -> str:
         lines.append("- No sources discovered.")
     for source in sources:
         generated_pages = as_list(source.get("generated_pages"))
-        relation_operations = as_list(source.get("relation_operations"))
+        page_plan_operations = as_list(source.get("page_plan_operations"))
         redaction = as_dict(source.get("redaction"))
         context = as_dict(source.get("context"))
         quality_gate = as_dict(source.get("quality_gate"))
@@ -167,7 +167,7 @@ def render_ingest_report(record: dict[str, object]) -> str:
                 f"- segment_status: {_status_summary(segments, 'status') if segments else 'n/a'}",
                 *context_strategy_lines,
                 "",
-                "Relation operations:",
+                "Page plan operations:",
             ]
         )
         if source.get("status") == "failed":
@@ -183,8 +183,8 @@ def render_ingest_report(record: dict[str, object]) -> str:
                     "",
                 ]
             )
-        if relation_operations:
-            for operation in relation_operations:
+        if page_plan_operations:
+            for operation in page_plan_operations:
                 lines.append(
                     f"- `{operation.get('action')}` `{operation.get('page_dir')}` "
                     f"{operation.get('title')} -> {operation.get('target_page') or 'new page'}"
@@ -220,7 +220,7 @@ def render_ingest_report(record: dict[str, object]) -> str:
                         f"  - error: {segment.get('error_stage') or 'segment'} / "
                         f"{segment.get('error_code') or segment.get('error_type')}: {segment.get('error_message')}"
                     )
-                segment_operations = as_list(segment.get("relation_operations"))
+                segment_operations = as_list(segment.get("page_plan_operations"))
                 if segment_operations:
                     for operation in segment_operations:
                         lines.append(
@@ -445,7 +445,7 @@ def _source_record(source_result: Any) -> dict[str, object]:
         "metrics": dict(source_result.metrics),
         "segmentation": dict(getattr(source_result, "segmentation", {}) or {}),
         "segments": list(getattr(source_result, "segments", []) or []),
-        "relation_operations": _relation_operations(semantic_result),
+        "page_plan_operations": _page_plan_operations(semantic_result),
         "draft_atom_traces": _draft_atom_traces(semantic_result),
         "review_decisions": _review_decisions(semantic_result),
         "semantic_stage_warnings": _semantic_stage_warnings(semantic_result),
@@ -465,8 +465,8 @@ def _context_strategy_lines(context: dict[str, Any]) -> list[str]:
     compile_context = as_dict(context.get("compile_context"))
     lines: list[str] = []
     if retrieval_stats or source_digest_summary or knowledge_atoms or materialized or compile_context:
-        lines.append(f"- relation_context_policy: {retrieval_stats.get('relation_context_policy', 'n/a')}")
-        lines.append(f"- relation_profile_chars: {retrieval_stats.get('relation_profile_chars', 'n/a')}")
+        lines.append(f"- page_plan_context_policy: {retrieval_stats.get('page_plan_context_policy', 'n/a')}")
+        lines.append(f"- page_plan_profile_chars: {retrieval_stats.get('page_plan_profile_chars', 'n/a')}")
         if source_digest_summary:
             lines.append(
                 "- source_digest: "
@@ -502,17 +502,19 @@ def _context_strategy_lines(context: dict[str, Any]) -> list[str]:
     return lines
 
 
-def _relation_operations(semantic_result: Any | None) -> list[dict[str, object]]:
+def _page_plan_operations(semantic_result: Any | None) -> list[dict[str, object]]:
     if semantic_result is None:
         return []
     operations = []
-    for index, operation in enumerate(semantic_result.wiki_relation_plan.operations):
+    for index, operation in enumerate(semantic_result.wiki_page_plan.operations):
         operations.append(
             {
                 "operation_index": index,
                 "action": operation.action,
                 "target_page": operation.target_page,
                 "page_dir": operation.page_dir,
+                "canonical_path": operation.canonical_path,
+                "legacy_paths": list(operation.legacy_paths),
                 "title": operation.title,
                 "knowledge_object": operation.knowledge_object,
                 "selected_fact_ids": list(operation.selected_fact_ids),
@@ -562,7 +564,7 @@ def _semantic_stage_warnings(semantic_result: Any | None) -> dict[str, list[str]
         return {}
     return {
         "normalize": list(semantic_result.knowledge_extract.warnings),
-        "relation": list(semantic_result.wiki_relation_plan.warnings),
+        "page_plan": list(semantic_result.wiki_page_plan.warnings),
         "draft": list(semantic_result.wiki_draft_batch.warnings),
         "review": list(semantic_result.ingest_draft_review.warnings),
     }
@@ -574,7 +576,7 @@ def _final_warnings(source_result: Any, semantic_result: Any | None) -> list[str
     stage_warnings = _semantic_stage_warnings(semantic_result)
     warnings = [
         *stage_warnings.get("normalize", []),
-        *stage_warnings.get("relation", []),
+        *stage_warnings.get("page_plan", []),
     ]
     if not getattr(source_result, "wrote", False):
         warnings.extend(stage_warnings.get("draft", []))

@@ -101,10 +101,10 @@ def apply_safe_fixes(
         applied.append(
             WikiLintFix(
                 issue_code="index_coverage",
-                path="index.md",
+                path=".knoarbor/index",
                 action="rebuild_index",
                 mode="auto_applied",
-                description="Rebuilt index.md from current schema directories.",
+                description="Rebuilt machine graph index from current wiki pages.",
             )
         )
     for index, issue in enumerate(issues):
@@ -171,13 +171,13 @@ def write_lint_report(vault_path: Path, content: str, report_path: str | None = 
 
 
 def _fix_for_issue(issue: WikiLintIssue) -> WikiLintFix:
-    if issue.code in {"missing_index", "page_missing_from_index"}:
+    if issue.code in {"missing_machine_index", "stale_machine_index"}:
         return WikiLintFix(
             issue_code=issue.code,
             path=issue.path,
             action="rebuild_index",
             mode="safe_auto",
-            description="Rebuild index.md from generated wiki pages.",
+            description="Rebuild machine graph index from current wiki pages.",
         )
     if issue.code == "unexpected_markdown_location":
         return WikiLintFix(

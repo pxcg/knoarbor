@@ -6,7 +6,6 @@ from pathlib import Path
 
 from knoarbor.core.markdown import extract_list_items, extract_section, parse_frontmatter
 from knoarbor.core.schemas.wiki_write import WikiDraftBatchWriteItem, WikiDraftBatchWriteRequest, WikiDraftBatchWriteResponse, WikiDraftInput
-from knoarbor.maintenance.related_pages_repair import reconcile_related_pages
 from knoarbor.pipelines.write import WikiWritePipeline
 from knoarbor.storage.wiki_index import relative_wiki_path, update_index
 from knoarbor.storage.wiki_paths import content_root, normalize_source_digest_title, resolve_existing_target
@@ -155,37 +154,27 @@ class ProvenanceRefreshExecutor:
 
     def _attach_digest_links(self, vault_path: Path, source: str, digest_page: str, target_pages: list[str]) -> dict[str, object]:
         applied: list[dict[str, object]] = []
-        digest_path = resolve_existing_target(vault_path, digest_page)
-        if digest_path is not None and digest_path.exists():
-            operation = reconcile_related_pages(vault_path, digest_path, target_pages, "source_digest_missing_related_pages")
-            if operation:
-                operation.update(
-                    {
-                        "operation_id": f"refresh:{source}:source_digest_links",
-                        "action": "attach_related_pages",
-                        "source_file": source,
-                        "target_page": digest_page,
-                        "reason": "Attached generated wiki pages to source digest from approved refresh_request.",
-                    }
-                )
-                applied.append(operation)
-
         for target_page in target_pages:
             target_path = resolve_existing_target(vault_path, target_page)
             if target_path is None or not target_path.exists():
                 continue
-            operation = reconcile_related_pages(vault_path, target_path, [digest_page], "knowledge_missing_source_digest_link")
-            if operation:
-                operation.update(
-                    {
-                        "operation_id": f"refresh:{source}:knowledge_link:{target_page}",
-                        "action": "attach_source_digest",
-                        "source_file": source,
-                        "target_page": target_page,
-                        "reason": "Attached source digest link to generated wiki page from approved refresh_request.",
-                    }
-                )
-                applied.append(operation)
+            applied.append(
+                {
+                    "operation_id": f"refresh:{source}:knowledge_source_digest_association:{target_page}",
+                    "action": "attach_source_digest",
+                    "source_file": source,
+                    "target_page": target_page,
+                    "source_digest_page": digest_page,
+                    "status": "applied",
+                    "reason": "Recorded source digest association without mutating wiki page body.",
+                    "write_details": {
+                        "patched_sections": [],
+                        "semantic_related_links": {"added_count": 0, "added": [], "missing": []},
+                        "diff": "",
+                        "diff_truncated": False,
+                    },
+                }
+            )
         return {"applied_operations": applied}
 
 
@@ -197,7 +186,7 @@ def _source_digest_by_source(vault_path: Path) -> dict[str, str]:
     for page_path in sorted(sources_dir.glob("*.md")):
         content = page_path.read_text(encoding="utf-8")
         metadata = parse_frontmatter(content)
-        candidates = [*_source_values(metadata.get("source")), *_source_values_from_section(content)]
+        candidates = [*_source_values(metadata.get("source")), *_source_values_from_section(content), *_source_values_from_evidence(content)]
         for source in candidates:
             digest_page = relative_wiki_path(vault_path, page_path)
             for alias in _source_aliases(source):
@@ -277,6 +266,21 @@ def _source_values(value: object) -> list[str]:
 
 def _source_values_from_section(content: str) -> list[str]:
     return [item.strip("`").strip() for item in extract_list_items(extract_section(content, "Source")) if item.strip()]
+
+
+def _source_values_from_evidence(content: str) -> list[str]:
+    sources: list[str] = []
+    for line in extract_section(content, "Evidence").splitlines():
+        text = line.strip()
+        if not text.startswith("|") or text.startswith("|---") or ("Claim" in text and "Source" in text):
+            continue
+        cells = [cell.strip() for cell in text.strip("|").split("|")]
+        if len(cells) < 2:
+            continue
+        source = cells[1]
+        if source and source not in sources:
+            sources.append(source)
+    return sources
 
 
 def _written_page_paths(vault_path: Path, response: WikiDraftBatchWriteResponse) -> list[str]:

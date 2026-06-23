@@ -100,13 +100,14 @@ from knoarbor.core.schemas.wiki_write import (
     WikiWriteAction,
 )
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch, WikiDraftBatchItem
-from knoarbor.core.schemas.wiki_relation_plan import (
+from knoarbor.core.schemas.wiki_page_plan import (
     WikiCandidatePage,
+    WikiPageDir,
     WikiRelatedPage,
-    WikiRelationOperation,
-    WikiRelationPlan,
+    WikiPagePlanAction,
+    WikiPageOperation,
+    WikiPagePlan,
 )
-from knoarbor.core.schemas.wiki_page_plan import WikiPageOperation, WikiPagePlan
 from knoarbor.core.schemas.wiki_operation import (
     WikiOperationAction,
     WikiOperationApplyRequest,
@@ -215,9 +216,9 @@ __all__ = [
     "WikiPatchOperation",
     "WikiWriteAction",
     "WikiCandidatePage",
+    "WikiPageDir",
     "WikiRelatedPage",
-    "WikiRelationOperation",
-    "WikiRelationPlan",
+    "WikiPagePlanAction",
     "WikiPageOperation",
     "WikiPagePlan",
     "WikiOperationAction",

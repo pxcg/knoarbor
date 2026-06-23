@@ -151,7 +151,7 @@ def filter_lint_scope(
         selected = expand_related_scope(selected, pages, pages_by_relative, pages_by_stem, pages_by_title)
 
     selected_pages = [page for page in pages if page.relative_path in selected]
-    selected_issues = [issue for issue in issues if issue.path in selected or issue.path == "index.md"]
+    selected_issues = [issue for issue in issues if issue.path in selected or issue.path in {"index.md", ".knoarbor/index"}]
     severity_counts = Counter(issue.severity for issue in selected_issues)
     scoped_stats = {
         **stats,

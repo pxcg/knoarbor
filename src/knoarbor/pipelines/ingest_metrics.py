@@ -133,7 +133,7 @@ def semantic_metrics(result: IngestSourceResult) -> dict[str, object]:
 
 
 def source_processed(result: IngestSourceResult) -> bool:
-    return result.semantic_result is not None or any(as_dict(segment).get("relation_operations") for segment in result.segments)
+    return result.semantic_result is not None or any(as_dict(segment).get("page_plan_operations") for segment in result.segments)
 
 
 def tokens_per_second(completion_tokens: int, elapsed_seconds: float) -> float | None:
