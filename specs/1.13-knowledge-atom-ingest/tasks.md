@@ -75,7 +75,7 @@
   non-source pages.
 - [x] Aggregate segmented source atoms before page planning so long sources are
   planned and written from a source-level view.
-- [ ] Add deterministic claim/relation/evidence closure as a reusable service.
+- [x] Add deterministic claim/relation/evidence closure as a reusable service.
 - [ ] Add deterministic `PageAssemblyService` for identity, entities,
   relations, evidence, and Markdown skeleton.
 - [ ] Narrow `wiki_draft_compile` into synthesis-generation behavior.

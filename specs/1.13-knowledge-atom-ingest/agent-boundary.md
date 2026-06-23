@@ -362,6 +362,33 @@ The write gate is deterministic and runs before persistence. It owns hard
 checks. The semantic review agent owns meaning-level risk. Reports should show
 which layer accepted, rejected, or requested regeneration.
 
+## Selected Atom Closure Boundary
+
+Selected atom closure is deterministic and claims-first. It answers one narrow
+question: after a page operation selects claim atoms, which relations, entities,
+evidence spans, and source digest traces must travel with those claims?
+
+Responsibilities:
+
+- keep selected claim ids as the page spine;
+- include relation atoms whose `source_claim_ids` are fully covered by the
+  selected claims;
+- include explicitly selected relation atoms and report when their supporting
+  claims were not selected by the same operation;
+- derive entity names from selected claim entity markers and selected relation
+  subjects/objects;
+- derive evidence keys from selected claim and relation evidence;
+- produce the selected atom batch consumed by compile and review agents.
+
+Boundaries:
+
+- closure does not choose page identity, write action, title, or path;
+- closure does not invent claims, relations, entities, or evidence;
+- closure does not repair unsupported atoms;
+- closure does not make unknown atom-id existence a new hard gate in this
+  phase. Atom existence and schema validity remain part of atom contract and
+  quality-gate evolution.
+
 ## Deferred Implementation
 
 - Deterministic `PageAssemblyService`.

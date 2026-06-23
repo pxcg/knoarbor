@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 from knoarbor.core.wiki_schema import normalize_page_dir
 from knoarbor.semantic.ingest_workflow import IngestSemanticWorkflowResult
+from knoarbor.semantic.knowledge_atom_closure import close_operation_atoms
 from knoarbor.semantic.knowledge_atom_quality import evaluate_knowledge_atoms
 from knoarbor.pipelines.ingest_context import IngestCandidatePageContext
 
@@ -37,7 +38,7 @@ class IngestQualityGate:
         }
         materialized_paths = {page.path for page in candidate_page_context.pages if page.exists}
         issues: list[IngestQualityGateIssue] = []
-        relations_by_id = {relation.id: relation for relation in semantic_result.knowledge_atom_batch.relations}
+        atom_batch = semantic_result.knowledge_atom_batch
         atom_quality = evaluate_knowledge_atoms(semantic_result.knowledge_atom_batch)
         for issue_item in atom_quality.issues:
             if issue_item.severity == "error":
@@ -69,9 +70,14 @@ class IngestQualityGate:
                     )
                 )
 
+            closure = close_operation_atoms(atom_batch, operation)
+            for closure_issue in closure.issues:
+                if closure_issue.code == "relation_selected_without_source_claim":
+                    issues.append(_issue(operation_index, closure_issue.code, closure_issue.message))
             expected_atom_ids = {
                 *operation.selected_claim_ids,
                 *operation.selected_relation_ids,
+                *closure.relation_ids,
             }
             if operation.page_dir != "sources" and not operation.selected_claim_ids:
                 issues.append(
@@ -81,21 +87,6 @@ class IngestQualityGate:
                         "Non-source page plan operation must select at least one claim atom id; relation atoms are auxiliary.",
                     )
                 )
-            for relation_id in operation.selected_relation_ids:
-                relation = relations_by_id.get(relation_id)
-                if not relation or not relation.source_claim_ids:
-                    continue
-                missing_source_claim_ids = sorted(set(relation.source_claim_ids).difference(set(operation.selected_claim_ids)))
-                if missing_source_claim_ids:
-                    issues.append(
-                        _issue(
-                            operation_index,
-                            "relation_selected_without_source_claim",
-                            "Selected relation atom "
-                            f"{relation_id} references claim atom ids not selected by the same operation: "
-                            f"{', '.join(missing_source_claim_ids)}.",
-                        )
-                    )
             if expected_atom_ids and not expected_atom_ids.issubset(set(draft.atom_ids)):
                 missing = sorted(expected_atom_ids.difference(set(draft.atom_ids)))
                 issues.append(
@@ -105,7 +96,7 @@ class IngestQualityGate:
                         f"Draft is missing selected atom ids from the page plan: {', '.join(missing)}.",
                     )
                 )
-            expected_source_digest_ids = set(operation.source_digest_ids)
+            expected_source_digest_ids = set(closure.source_digest_ids)
             if expected_source_digest_ids and not expected_source_digest_ids.issubset(set(draft.source_digest_ids)):
                 missing = sorted(expected_source_digest_ids.difference(set(draft.source_digest_ids)))
                 issues.append(

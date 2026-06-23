@@ -14,6 +14,7 @@ from knoarbor.core.schemas.sources import SourceDocument
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
 from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
 from knoarbor.semantic.ingest_compile_context import build_ingest_compile_context
+from knoarbor.semantic.knowledge_atom_closure import close_plan_atoms
 from knoarbor.semantic.runner import SemanticRunner
 from knoarbor.semantic.source_digest import build_source_digest_from_extract
 from knoarbor.semantic.source_normalize import build_source_normalize_input
@@ -270,61 +271,7 @@ def _selected_knowledge_atoms_for_plan(
     knowledge_atom_batch: KnowledgeAtomBatch | None,
     wiki_page_plan: WikiPagePlan,
 ) -> dict[str, Any]:
-    if knowledge_atom_batch is None:
+    selected_batch = close_plan_atoms(knowledge_atom_batch, wiki_page_plan)
+    if selected_batch is None:
         return {}
-
-    selected_claim_ids: set[str] = set()
-    selected_relation_ids: set[str] = set()
-    for operation in wiki_page_plan.operations:
-        if operation.action == "skip":
-            continue
-        selected_claim_ids.update(operation.selected_claim_ids)
-        selected_relation_ids.update(operation.selected_relation_ids)
-
-    relations_by_id = {relation.id: relation for relation in knowledge_atom_batch.relations}
-
-    for relation_id in list(selected_relation_ids):
-        relation = relations_by_id.get(relation_id)
-        if relation is None:
-            continue
-        selected_claim_ids.update(relation.source_claim_ids)
-
-    selected_batch = KnowledgeAtomBatch(
-        source_digest_id=knowledge_atom_batch.source_digest_id,
-        claims=[claim for claim in knowledge_atom_batch.claims if claim.id in selected_claim_ids],
-        relations=[relation for relation in knowledge_atom_batch.relations if relation.id in selected_relation_ids],
-        warnings=list(knowledge_atom_batch.warnings),
-    )
-    selected_entity_names = {
-        entity_name.casefold()
-        for claim in selected_batch.claims
-        for entity_name in claim.entity_names
-    }
-    for relation in selected_batch.relations:
-        selected_entity_names.add(relation.subject.name.casefold())
-        selected_entity_names.add(relation.object.name.casefold())
-    selected_batch.entities = [
-        entity
-        for entity in knowledge_atom_batch.entities
-        if entity.name.casefold() in selected_entity_names or (entity.atom_id and entity.atom_id in selected_claim_ids | selected_relation_ids)
-    ]
-    selected_evidence_keys = {
-        _knowledge_evidence_key(span)
-        for claim in selected_batch.claims
-        for span in claim.evidence
-    }
-    selected_evidence_keys.update(
-        _knowledge_evidence_key(span)
-        for relation in selected_batch.relations
-        for span in relation.evidence
-    )
-    selected_batch.evidence = [
-        span
-        for span in knowledge_atom_batch.evidence
-        if _knowledge_evidence_key(span) in selected_evidence_keys
-    ]
     return selected_batch.model_dump()
-
-
-def _knowledge_evidence_key(span: Any) -> tuple[str, int | None, str]:
-    return (span.source_digest_id, span.source_unit_index, span.excerpt_hash or span.excerpt)
