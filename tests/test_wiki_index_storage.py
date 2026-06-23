@@ -24,12 +24,14 @@ class WikiIndexStorageTests(unittest.TestCase):
             )
 
             update_index(vault)
-            content = (vault / "index.md").read_text(encoding="utf-8")
+            manifest = json.loads((machine_index_dir(vault) / "manifest.json").read_text(encoding="utf-8"))
+            graph = json.loads((machine_index_dir(vault) / "graph_index.json").read_text(encoding="utf-8"))
             pages = json.loads((machine_index_dir(vault) / "pages.json").read_text(encoding="utf-8"))
             search = json.loads((machine_index_dir(vault) / "search.json").read_text(encoding="utf-8"))
 
-        self.assertIn("[[concepts/Agent|Agent]]", content)
-        self.assertIn("tags: agent, loop", content)
+        self.assertEqual(manifest["schema_version"], "knoarbor_index.v1")
+        self.assertGreaterEqual(manifest["page_count"], 1)
+        self.assertEqual(graph["schema_version"], "knoarbor_graph_index.v1")
         self.assertEqual(pages["pages"][0]["path"], "concepts/Agent.md")
         self.assertEqual(search["entries"][0]["title"], "Agent")
 
@@ -51,6 +53,41 @@ class WikiIndexStorageTests(unittest.TestCase):
 
         self.assertEqual(links["links"][0]["target_path"], "sources/Source.md")
         self.assertEqual(sources["sources"][0]["source"], "raw/notes/agent.md")
+
+    def test_graph_index_records_entities_relations_and_evidence_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            (vault / "pages").mkdir()
+            (vault / "pages" / "Agent-Loop.md").write_text(
+                "---\ncreated: 2026-01-01 00:00:00\nupdated: 2026-01-01 00:00:00\ncontent_hash: abc\n---\n"
+                "# Agent Loop\n\n"
+                "## Summary\n\nAgent loop coordinates model and tool execution.\n\n"
+                "## Claims\n\n- C1: [[Agent Loop]] coordinates [[Tool Execution]].\n\n"
+                "## Entities\n\n- [[Agent Loop]]\n- [[Tool Execution]]\n\n"
+                "## Relations\n\n| Subject | Predicate | Object | Based on |\n|---|---|---|---|\n| [[Agent Loop]] | coordinates | [[Tool Execution]] | C1 |\n\n"
+                "## Evidence\n\n| Claim | Source | Range | Basis | Confidence |\n|---|---|---|---|---|\n| C1 | sources/Agent-Loop-Source.md | section:Loop | source states this directly | high |\n\n"
+                "## Synthesis\n\nAgent loop is a runtime control pattern.\n",
+                encoding="utf-8",
+            )
+
+            update_index(vault)
+            graph = json.loads((machine_index_dir(vault) / "graph_index.json").read_text(encoding="utf-8"))
+
+        nodes = {node["id"]: node for node in graph["nodes"]}
+        self.assertIn("Agent Loop", nodes)
+        self.assertIn("Tool Execution", nodes)
+        self.assertEqual(
+            graph["edges"][0],
+            {
+                "source": "Agent Loop",
+                "predicate": "coordinates",
+                "target": "Tool Execution",
+                "page": "Agent-Loop.md",
+                "claim": "C1",
+            },
+        )
+        self.assertEqual(graph["sources"][0]["source"], "sources/Agent-Loop-Source.md")
+        self.assertEqual(graph["sources"][0]["pages"], ["Agent-Loop.md"])
 
     def test_machine_index_emits_page_identity_fields_for_legacy_and_unified_pages(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -139,10 +176,11 @@ class WikiIndexStorageTests(unittest.TestCase):
             )
 
             update_index(vault)
-            content = (vault / "pages" / "index.md").read_text(encoding="utf-8")
+            pages = json.loads((machine_index_dir(vault) / "pages.json").read_text(encoding="utf-8"))
+            indexed_paths = {record["path"] for record in pages["pages"]}
 
-        self.assertNotIn("lint_run_report", content)
-        self.assertNotIn("maintenance/", content)
+        self.assertFalse(any("lint_run_report" in path for path in indexed_paths))
+        self.assertFalse(any(path.startswith("maintenance/") for path in indexed_paths))
 
     def test_index_entry_and_wikilink_use_relative_paths(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from knoarbor.core.errors import UserInputError
 from knoarbor.retrieval import IndexProvider, IndexRequest, MachineIndexProvider
+from knoarbor.retrieval.graph_index import expand_graph_index_pages
 from knoarbor.retrieval.markdown import FIELD_WEIGHTS, ScoredPage, expand_related_pages, query_terms, score_pages
 from knoarbor.runtime import current_run_monitor
 
@@ -69,7 +70,24 @@ class QueryPipeline:
 
         scored = score_pages(direct_pages, terms, request.query)
         direct_match_count = len(scored)
+        graph_index_expansion_count = 0
+        graph_index_seed_pages: list[str] = []
+        graph_index_result_paths: list[str] = []
         if request.include_related and request.mode in {"balanced", "deep"}:
+            scored = expand_graph_index_pages(scored, graph_pages, vault_path, request.mode)
+            graph_index_expansion_count = len([item for item in scored.values() if "graph_index" in item.matched_fields])
+            graph_index_seed_pages = sorted(
+                {
+                    seed
+                    for item in scored.values()
+                    for seed in item.matched_terms.get("graph_index", [])
+                }
+            )
+            graph_index_result_paths = sorted(
+                item.page.relative_path
+                for item in scored.values()
+                if "graph_index" in item.matched_fields
+            )
             scored = expand_related_pages(scored, graph_pages, request.mode)
         related_expansion_count = len([item for item in scored.values() if item.graph_boost > 0])
         related_seed_pages = sorted(
@@ -128,6 +146,9 @@ class QueryPipeline:
                 "query_terms": terms,
                 "field_weights": FIELD_WEIGHTS,
                 "direct_match_count": direct_match_count,
+                "graph_index_expansion_count": graph_index_expansion_count,
+                "graph_index_seed_pages": graph_index_seed_pages,
+                "graph_index_result_paths": graph_index_result_paths,
                 "related_expansion_count": related_expansion_count,
                 "related_seed_pages": related_seed_pages,
                 "related_result_paths": related_result_paths,

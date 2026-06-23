@@ -219,7 +219,7 @@ def _summary_from_content(vault_path: Path, path: Path, content: str) -> WikiPag
         status=metadata.get("status"),
         updated=metadata.get("updated") or metadata.get("created"),
         source=metadata.get("source"),
-        tags=extract_tags(content, metadata),
+        tags=extract_tags(content, metadata) or _extract_entities(content),
         summary=compact_inline_text(extract_section(content, "Summary") or extract_section(content, "摘要"), 280),
         headings=_extract_headings(content)[:12],
     )
@@ -233,6 +233,22 @@ def _extract_headings(content: str) -> list[str]:
         if marker.startswith("#") and 1 <= len(marker) <= 6 and set(marker) == {"#"} and title.strip():
             headings.append(title.strip())
     return headings
+
+
+def _extract_entities(content: str) -> list[str]:
+    entities: list[str] = []
+    for line in extract_section(content, "Entities").splitlines():
+        if not line.startswith("- "):
+            continue
+        text = line[2:].strip()
+        if not text or text.startswith("暂无"):
+            continue
+        text = text.removeprefix("[[").removesuffix("]]")
+        if "|" in text:
+            text = text.split("|", 1)[-1]
+        if text and text not in entities:
+            entities.append(text)
+    return entities[:24]
 
 
 def _read_json(path: Path) -> dict[str, object]:

@@ -88,9 +88,9 @@ def _record_to_search_page(vault_path: Path, record: dict[str, object]) -> Searc
         page_type=str(record.get("type") or _default_page_type(path.parent.name)),
         status=_optional_string(record.get("status")),
         source=_optional_string(record.get("source")),
-        tags=[str(tag) for tag in record.get("tags", []) if isinstance(tag, str)],
+        tags=[str(tag) for tag in record.get("tags", []) if isinstance(tag, str)] or _extract_entities(content),
         summary=str(record.get("summary") or extract_section(content, "Summary")),
-        key_points=extract_list_items(extract_section(content, "Key Points")),
+        key_points=extract_list_items(extract_section(content, "Key Points")) or extract_list_items(extract_section(content, "Claims")),
         related_pages=_resolve_related_paths(vault_path, record.get("outbound_links", [])),
         headings=[str(heading) for heading in record.get("headings", []) if isinstance(heading, str)],
         body=strip_frontmatter(content),
@@ -115,6 +115,20 @@ def _resolve_related_paths(vault_path: Path, links: object) -> list[str]:
             seen.add(resolved)
             paths.append(resolved)
     return paths
+
+
+def _extract_entities(content: str) -> list[str]:
+    entities: list[str] = []
+    for item in extract_list_items(extract_section(content, "Entities")):
+        text = item.strip()
+        if not text or text.startswith("暂无"):
+            continue
+        text = text.removeprefix("[[").removesuffix("]]")
+        if "|" in text:
+            text = text.split("|", 1)[-1]
+        if text and text not in entities:
+            entities.append(text)
+    return entities[:24]
 
 
 def _optional_string(value: object) -> str | None:

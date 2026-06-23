@@ -19,8 +19,9 @@ class WikiInitTests(unittest.TestCase):
             result = init_wiki_vault(vault)
 
             self.assertTrue((vault / "pages" / "SCHEMA.md").exists())
-            self.assertTrue((vault / "pages" / "index.md").exists())
             self.assertTrue((vault / "pages" / "log.md").exists())
+            self.assertTrue((vault / ".knoarbor" / "index" / "manifest.json").exists())
+            self.assertTrue((vault / ".knoarbor" / "index" / "graph_index.json").exists())
             self.assertTrue((vault / ".knoarborignore").exists())
             self.assertTrue((vault / "raw" / "documents" / "markdown").is_dir())
             self.assertIn("pages/SCHEMA.md", result.created_paths)
@@ -32,13 +33,13 @@ class WikiInitTests(unittest.TestCase):
             (vault / "maintenance").mkdir()
             (vault / "raw" / "notes").mkdir(parents=True)
             (vault / "concepts" / "Agent.md").write_text("# Agent\n", encoding="utf-8")
-            (vault / "index.md").write_text("# Index\n", encoding="utf-8")
             (vault / "maintenance" / "lint_report.md").write_text("# Report\n", encoding="utf-8")
 
             result = migrate_wiki_pages_layout(vault)
 
             self.assertTrue((vault / "pages" / "concepts" / "Agent.md").exists())
-            self.assertTrue((vault / "pages" / "index.md").exists())
+            self.assertTrue((vault / ".knoarbor" / "index" / "manifest.json").exists())
+            self.assertTrue((vault / ".knoarbor" / "index" / "graph_index.json").exists())
             self.assertFalse((vault / "concepts").exists())
             self.assertTrue((vault / "maintenance" / "lint_report.md").exists())
             self.assertIn("concepts", result.moved_paths)

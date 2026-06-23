@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from hashlib import sha256
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -80,6 +81,8 @@ def machine_index_dir(vault_path: Path) -> Path:
 def is_machine_index_stale(vault_path: Path) -> bool:
     index_dir = machine_index_dir(vault_path)
     index_files = [
+        index_dir / "manifest.json",
+        index_dir / "graph_index.json",
         index_dir / "pages.json",
         index_dir / "links.json",
         index_dir / "sources.json",
@@ -104,9 +107,13 @@ def page_record(vault_path: Path, md_path: Path) -> dict[str, Any]:
     content = md_path.read_text(encoding="utf-8")
     metadata = parse_frontmatter(content)
     title = extract_heading(content, md_path.stem)
-    tags = extract_tags(content, metadata)
+    tags = extract_tags(content, metadata) or _extract_entities(content)
     headings = _extract_headings(content)
     summary = compact_inline_text(extract_section(content, "Summary") or "")
+    claims = extract_section(content, "Claims")
+    relations = extract_section(content, "Relations")
+    evidence = extract_section(content, "Evidence")
+    entities = _extract_entities(content)
     directory = _page_directory(vault_path, md_path)
     identity = _page_identity(vault_path, md_path, metadata, title, tags, headings)
     return {
@@ -129,10 +136,14 @@ def page_record(vault_path: Path, md_path: Path) -> dict[str, Any]:
         "updated": _string_or_none(metadata.get("updated") or metadata.get("created")),
         "source": _string_or_none(metadata.get("source")),
         "tags": tags,
+        "entities": entities,
         "summary": summary,
         "headings": headings,
+        "claims": _extract_claim_ids(claims),
+        "relations": _extract_relation_rows(relations),
+        "evidence": _extract_evidence_rows(evidence),
         "outbound_links": _extract_wikilinks(content),
-        "search_text": compact_inline_text(" ".join([title, summary, " ".join(tags), " ".join(headings)])),
+        "search_text": compact_inline_text(" ".join([title, summary, " ".join(tags), " ".join(entities), claims, relations, " ".join(headings)])),
     }
 
 
@@ -182,11 +193,90 @@ def build_machine_index(vault_path: Path) -> dict[str, Any]:
     }
 
 
+def build_graph_index(vault_path: Path, pages: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    records = pages if pages is not None else build_machine_index(vault_path)["pages"]
+    node_map: dict[str, dict[str, Any]] = {}
+    edges: list[dict[str, str]] = []
+    source_map: dict[str, dict[str, Any]] = {}
+
+    for page in records:
+        path = str(page.get("path") or "")
+        title = str(page.get("title") or Path(path).stem)
+        summary = str(page.get("summary") or "")
+        role = str(page.get("role") or "")
+        entities = [str(item).strip() for item in page.get("entities", []) if str(item).strip()] if isinstance(page.get("entities"), list) else []
+
+        for entity in entities:
+            _upsert_node(node_map, entity, path, summary)
+
+        relations = page.get("relations") if isinstance(page.get("relations"), list) else []
+        for relation in relations:
+            if not isinstance(relation, dict):
+                continue
+            source = str(relation.get("subject") or "").strip()
+            predicate = str(relation.get("predicate") or "").strip()
+            target = str(relation.get("object") or "").strip()
+            claim = str(relation.get("claim") or "").strip()
+            if not source or not predicate or not target:
+                continue
+            _upsert_node(node_map, source, path, summary)
+            _upsert_node(node_map, target, path, "")
+            edges.append({"source": source, "predicate": predicate, "target": target, "page": path, "claim": claim})
+
+        evidence = page.get("evidence") if isinstance(page.get("evidence"), list) else []
+        if role == "source_digest":
+            raw = _first_evidence_source(evidence) or _string_or_none(page.get("source")) or ""
+            source_entry = source_map.setdefault(path, {"source": path, "raw": raw, "pages": []})
+            if raw and not source_entry.get("raw"):
+                source_entry["raw"] = raw
+            continue
+
+        for row in evidence:
+            if not isinstance(row, dict):
+                continue
+            source_path = str(row.get("source") or "").strip()
+            if not source_path:
+                continue
+            entry = source_map.setdefault(source_path, {"source": source_path, "raw": "", "pages": []})
+            if path and path not in entry["pages"]:
+                entry["pages"].append(path)
+
+        if not entities and title:
+            _upsert_node(node_map, title, path, summary)
+
+    return {
+        "schema_version": "knoarbor_graph_index.v1",
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "nodes": sorted(node_map.values(), key=lambda item: str(item["id"]).lower()),
+        "edges": sorted(edges, key=lambda item: (item["source"].lower(), item["predicate"].lower(), item["target"].lower(), item["page"])),
+        "sources": sorted(source_map.values(), key=lambda item: str(item["source"]).lower()),
+    }
+
+
+def build_index_manifest(vault_path: Path, graph_index: dict[str, Any], pages: list[dict[str, Any]]) -> dict[str, Any]:
+    graph_bytes = _json_bytes(graph_index)
+    return {
+        "schema_version": "knoarbor_index.v1",
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "vault_path": str(vault_path.expanduser().resolve()),
+        "wiki_hash": _wiki_content_hash(vault_path),
+        "graph_index_hash": sha256(graph_bytes).hexdigest(),
+        "page_count": len([page for page in pages if page.get("role") == "knowledge_page"]),
+        "source_count": len(graph_index.get("sources", [])) if isinstance(graph_index.get("sources"), list) else 0,
+        "node_count": len(graph_index.get("nodes", [])) if isinstance(graph_index.get("nodes"), list) else 0,
+        "edge_count": len(graph_index.get("edges", [])) if isinstance(graph_index.get("edges"), list) else 0,
+    }
+
+
 def update_machine_index(vault_path: Path) -> None:
     payload = build_machine_index(vault_path)
+    graph_index = build_graph_index(vault_path, payload["pages"])
+    manifest = build_index_manifest(vault_path, graph_index, payload["pages"])
     index_dir = machine_index_dir(vault_path)
     with vault_write_lock(vault_path):
         index_dir.mkdir(parents=True, exist_ok=True)
+        _write_json(index_dir / "manifest.json", manifest)
+        _write_json(index_dir / "graph_index.json", graph_index)
         _write_json(index_dir / "pages.json", {"schema_version": "machine_pages.v2", "pages": payload["pages"]})
         _write_json(index_dir / "links.json", {"schema_version": "machine_links.v1", "links": payload["links"]})
         _write_json(index_dir / "sources.json", {"schema_version": "machine_sources.v1", "sources": payload["sources"]})
@@ -196,7 +286,6 @@ def update_machine_index(vault_path: Path) -> None:
 def update_index(vault_path: Path) -> None:
     root = content_root(vault_path)
     root.mkdir(parents=True, exist_ok=True)
-    index_path = root / "index.md"
     entries: dict[str, list[str]] = {UNIFIED_KNOWLEDGE_PAGE_DIR: []}
     entries.update({name: [] for name in INDEX_PAGE_DIRS})
     indexable_paths = _iter_indexable_page_paths(root)
@@ -205,25 +294,137 @@ def update_index(vault_path: Path) -> None:
     for md_path in indexable_paths:
         entries[_page_directory(vault_path, md_path)].append(index_entry(vault_path, md_path))
 
-    index_lines = [
-        "# Index",
-        "",
-        "Catalog of LLM-maintained wiki pages. Raw sources are excluded.",
-        "Each entry is a compact routing record: link, type, status, updated time, tags, and one-line summary.",
-        "",
-    ]
-    for page_type, links in entries.items():
-        index_lines.extend([f"## {page_type}", ""])
-        index_lines.extend(links or ["- No pages yet."])
-        index_lines.append("")
     with vault_write_lock(vault_path):
-        index_path.write_text("\n".join(index_lines).rstrip() + "\n", encoding="utf-8")
         _write_generated_views(root, page_records)
     update_machine_index(vault_path)
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _extract_entities(content: str) -> list[str]:
+    entities: list[str] = []
+    for line in extract_section(content, "Entities").splitlines():
+        if not line.startswith("- "):
+            continue
+        text = line[2:].strip()
+        if not text or text.startswith("暂无"):
+            continue
+        text = text.removeprefix("[[").removesuffix("]]")
+        if "|" in text:
+            text = text.split("|", 1)[-1]
+        if text and text not in entities:
+            entities.append(text)
+    return entities[:24]
+
+
+def _extract_claim_ids(section: str) -> list[str]:
+    claims: list[str] = []
+    for line in section.splitlines():
+        match = re.match(r"\s*-\s*(C\d+)\s*[:：.]\s+", line.strip(), flags=re.IGNORECASE)
+        if match:
+            claim_id = match.group(1).upper()
+            if claim_id not in claims:
+                claims.append(claim_id)
+    return claims
+
+
+def _extract_relation_rows(section: str) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for cells in _markdown_table_rows(section):
+        if len(cells) < 4:
+            continue
+        subject, predicate, obj, claim = cells[:4]
+        if subject.lower() == "subject" or not subject or not predicate or not obj:
+            continue
+        rows.append(
+            {
+                "subject": _clean_graph_object(subject),
+                "predicate": predicate.strip(),
+                "object": _clean_graph_object(obj),
+                "claim": claim.strip().upper(),
+            }
+        )
+    return rows
+
+
+def _extract_evidence_rows(section: str) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for cells in _markdown_table_rows(section):
+        if len(cells) < 5:
+            continue
+        claim, source, source_range, basis, confidence = cells[:5]
+        if claim.lower() == "claim" or not claim:
+            continue
+        rows.append(
+            {
+                "claim": claim.strip().upper(),
+                "source": source.strip(),
+                "range": source_range.strip(),
+                "basis": basis.strip(),
+                "confidence": confidence.strip().lower(),
+            }
+        )
+    return rows
+
+
+def _markdown_table_rows(section: str) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for line in section.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|") or not stripped.endswith("|"):
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if cells and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells):
+            continue
+        rows.append(cells)
+    return rows
+
+
+def _clean_graph_object(value: str) -> str:
+    text = value.strip()
+    if text.startswith("[[") and text.endswith("]]"):
+        text = text[2:-2]
+    if "|" in text:
+        text = text.split("|", 1)[-1]
+    return text.strip()
+
+
+def _upsert_node(node_map: dict[str, dict[str, Any]], node_id: str, page: str, summary: str) -> None:
+    clean_id = _clean_graph_object(node_id)
+    if not clean_id:
+        return
+    node = node_map.setdefault(clean_id, {"id": clean_id, "pages": [], "aliases": [], "summary": ""})
+    if page and page not in node["pages"]:
+        node["pages"].append(page)
+    if summary and not node["summary"]:
+        node["summary"] = compact_inline_text(summary, 180)
+
+
+def _first_evidence_source(evidence: object) -> str:
+    if not isinstance(evidence, list):
+        return ""
+    for row in evidence:
+        if isinstance(row, dict) and row.get("source"):
+            return str(row["source"]).strip()
+    return ""
+
+
+def _wiki_content_hash(vault_path: Path) -> str:
+    root = content_root(vault_path)
+    digest = sha256()
+    for md_path in _iter_indexable_page_paths(root):
+        relative = md_path.resolve().relative_to(root.resolve()).as_posix()
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(md_path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _json_bytes(payload: dict[str, Any]) -> bytes:
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
 def _page_records_for_views(vault_path: Path, paths: list[Path]) -> list[dict[str, Any]]:

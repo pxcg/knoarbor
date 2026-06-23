@@ -70,7 +70,7 @@ def init_wiki_vault(vault_path: Path, *, force: bool = False) -> WikiInitResult:
     ensure_log(vault_path)
     update_index(vault_path)
 
-    for relative in ("log.md", "index.md"):
+    for relative in ("log.md",):
         display = f"{CONTENT_ROOT_DIR}/{relative}"
         path = pages_root / relative
         if display not in created and display not in existing:
@@ -88,7 +88,7 @@ def migrate_wiki_pages_layout(vault_path: Path) -> WikiLayoutMigrationResult:
     skipped: list[str] = []
     pages_root.mkdir(parents=True, exist_ok=True)
 
-    for relative in (*CONTENT_PAGE_DIRS, "index.md", "log.md", "SCHEMA.md"):
+    for relative in (*CONTENT_PAGE_DIRS, "log.md", "SCHEMA.md"):
         source = vault_path / relative
         if not source.exists():
             skipped.append(relative)
@@ -151,15 +151,16 @@ This file defines the local wiki contract for LLM and automation workflows.
 - `pages/<slug>.md`: unified maintained knowledge pages.
 - `pages/entities/`, `pages/concepts`, `pages/comparisons`, `pages/queries`, `pages/timelines`, `pages/workflows`: legacy typed page locations accepted during migration.
 - `pages/_views/`: generated navigation views such as Home, Concepts, and Source Audit. Views are not fact sources.
-- Page-level `Claims` and `Relations` sections carry auditable statements and typed edges. They are indexed under `.knoarbor/index`.
+- Page-level `Claims`, `Entities`, `Relations`, `Evidence`, and `Synthesis` sections carry auditable wiki knowledge.
 - `maintenance/`: human-readable run and maintenance reports.
-- `.knoarbor/`: machine state such as runs, locks, indexes, ledgers, and checkpoints.
+- `.knoarbor/`: machine state such as runs, locks, ledgers, checkpoints, and indexes.
+- `.knoarbor/index/manifest.json`: machine index state and freshness metadata.
+- `.knoarbor/index/graph_index.json`: graph index for knowledge objects, claim-backed relations, and source-to-page mappings.
 
 ## Page Rules
 
-- Every maintained page must have YAML frontmatter.
+- Every maintained page must have minimal YAML frontmatter.
 - Raw files are never rewritten by LLM workflows.
-- `index.md` is generated and should not be manually curated.
 - `log.md` is append-only.
 - Page links use Obsidian `[[path/to/page|Title]]` wikilinks.
 
@@ -168,13 +169,18 @@ This file defines the local wiki contract for LLM and automation workflows.
 ```yaml
 created: YYYY-MM-DD HH:MM:SS
 updated: YYYY-MM-DD HH:MM:SS
-type: source | entity | concept | comparison | query | claim | timeline | workflow
-page_kind: source_digest | concept | entity | comparison | query | timeline | workflow | generated_view
-role: knowledge_page | source_digest | generated_view
-facets: [normalized_facets]
-status: draft | reviewed | archived
-source: raw/path
 content_hash: hash
+```
+
+## Required Sections
+
+```markdown
+## Summary
+## Claims
+## Entities
+## Relations
+## Evidence
+## Synthesis
 ```
 """
 

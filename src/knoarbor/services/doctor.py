@@ -12,6 +12,7 @@ from knoarbor.core.config import KnoArborConfig, ModelProviderConfig, default_co
 from knoarbor.core.schemas.doctor import DoctorCheck, DoctorReport, DoctorStatus
 from knoarbor.core.wiki_schema import CONTENT_PAGE_DIRS
 from knoarbor.storage.wiki_paths import content_root
+from knoarbor.storage.wiki_index import machine_index_dir
 from knoarbor.runtime.run_monitor import list_runs
 from knoarbor.semantic.llm import ModelGateway, ProviderHealthCheck, is_local_or_private_model_endpoint
 
@@ -147,8 +148,12 @@ class DoctorService:
             ]
         checks.append(DoctorCheck(name="vault.exists", status="ok", message="Vault directory exists.", details={"vault_path": str(vault)}))
         page_root = content_root(vault)
-        required = ["SCHEMA.md", "index.md", "log.md"]
+        required = ["SCHEMA.md", "log.md"]
         missing = [f"pages/{name}" for name in required if not (page_root / name).exists()]
+        index_dir = machine_index_dir(vault)
+        for name in ("manifest.json", "graph_index.json"):
+            if not (index_dir / name).exists():
+                missing.append(f".knoarbor/index/{name}")
         if not (vault / ".knoarborignore").exists():
             missing.append(".knoarborignore")
         checks.append(
@@ -156,7 +161,11 @@ class DoctorService:
                 name="vault.structure",
                 status="warning" if missing else "ok",
                 message="Vault is missing initialization files." if missing else "Vault initialization files are present.",
-                details={"missing": missing, "required": [f"pages/{name}" for name in required] + [".knoarborignore"]},
+                details={
+                    "missing": missing,
+                    "required": [f"pages/{name}" for name in required]
+                    + [".knoarbor/index/manifest.json", ".knoarbor/index/graph_index.json", ".knoarborignore"],
+                },
             )
         )
         return checks

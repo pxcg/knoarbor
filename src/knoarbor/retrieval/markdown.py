@@ -123,9 +123,9 @@ def collect_search_pages(vault_path: Path) -> list[SearchPage]:
                 page_type=page_type,
                 status=metadata.get("status"),
                 source=metadata.get("source"),
-                tags=extract_tags_from_page(content, metadata),
+                tags=extract_tags_from_page(content, metadata) or _extract_entities(content),
                 summary=extract_section(content, "Summary"),
-                key_points=extract_list_items(extract_section(content, "Key Points")),
+                key_points=extract_list_items(extract_section(content, "Key Points")) or extract_list_items(extract_section(content, "Claims")),
                 related_pages=extract_related_page_paths(vault_path, extract_section(content, "Related Pages")),
                 headings=extract_headings(content),
                 body=strip_frontmatter(content),
@@ -219,6 +219,20 @@ def _page_to_bm25_document(page: SearchPage) -> BM25Document:
             BM25Field("body", page.body, FIELD_WEIGHTS["body"]),
         ],
     )
+
+
+def _extract_entities(content: str) -> list[str]:
+    entities: list[str] = []
+    for item in extract_list_items(extract_section(content, "Entities")):
+        text = item.strip()
+        if not text or text.startswith("暂无"):
+            continue
+        text = re.sub(r"^\[\[(?P<link>.+?)\]\]$", r"\g<link>", text)
+        if "|" in text:
+            text = text.split("|", 1)[-1]
+        if text and text not in entities:
+            entities.append(text)
+    return entities[:24]
 
 
 def expand_related_pages(

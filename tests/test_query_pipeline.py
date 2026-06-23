@@ -168,6 +168,53 @@ class QueryPipelineTests(unittest.TestCase):
         self.assertIn("agent_routing", facet_result.stats["initial_scope_facets"])
         self.assertEqual(facet_result.stats["initial_scope_roles"], ["knowledge_page", "source_digest"])
 
+    def test_query_pipeline_expands_results_through_machine_graph_index(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            concepts = vault / "concepts"
+            concepts.mkdir()
+            (concepts / "Agent-Loop.md").write_text(
+                "# Agent Loop\n\n"
+                "## Summary\n\nAgent loop coordinates model reasoning.\n\n"
+                "## Claims\n\n- C1: [[Agent Loop]] coordinates [[Tool Execution]].\n\n"
+                "## Entities\n\n- [[Agent Loop]]\n- [[Tool Execution]]\n\n"
+                "## Relations\n\n"
+                "| Subject | Predicate | Object | Based on |\n"
+                "|---|---|---|---|\n"
+                "| [[Agent Loop]] | coordinates | [[Tool Execution]] | C1 |\n\n"
+                "## Evidence\n\n"
+                "| Claim | Source | Range | Basis | Confidence |\n"
+                "|---|---|---|---|---|\n"
+                "| C1 | sources/Agent-Loop-Source.md | section:loop | explicit source statement | high |\n\n"
+                "## Synthesis\n\nAgent loop is the runtime control page.\n",
+                encoding="utf-8",
+            )
+            (concepts / "Tool-Execution.md").write_text(
+                "# Tool Execution\n\n"
+                "## Summary\n\nRuntime invocation and permission handling.\n\n"
+                "## Claims\n\n- C1: [[Tool Execution]] executes approved tool calls.\n\n"
+                "## Entities\n\n- [[Tool Execution]]\n",
+                encoding="utf-8",
+            )
+
+            result = QueryPipeline().run(
+                QueryPipelineRequest(
+                    vault_path=vault,
+                    query="agent loop",
+                    limit=5,
+                    include_related=True,
+                )
+            )
+
+        paths = [item.page.relative_path for item in result.matches]
+        expanded = next(item for item in result.matches if item.page.relative_path == "concepts/Tool-Execution.md")
+        self.assertIn("concepts/Agent-Loop.md", paths)
+        self.assertIn("concepts/Tool-Execution.md", paths)
+        self.assertIn("graph_index", expanded.matched_fields)
+        self.assertTrue(any(reason.startswith("relation:") or reason.startswith("shared_entity:") for reason in expanded.graph_reasons))
+        self.assertEqual(result.stats["graph_index_seed_pages"], ["concepts/Agent-Loop.md"])
+        self.assertIn("concepts/Tool-Execution.md", result.stats["graph_index_result_paths"])
+
     def test_query_pipeline_uses_index_provider_boundary(self) -> None:
         page = SearchPage(
             path=Path("/tmp/concepts/Agent.md"),

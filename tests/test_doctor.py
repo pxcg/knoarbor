@@ -12,6 +12,7 @@ from knoarbor.cli import main
 from knoarbor.entrypoints.api import create_app
 from knoarbor.semantic import ProviderHealthCheck
 from knoarbor.services.doctor import DoctorService
+from knoarbor.storage.wiki_init import init_wiki_vault
 
 
 class DoctorServiceTests(unittest.TestCase):
@@ -28,12 +29,9 @@ class DoctorServiceTests(unittest.TestCase):
             root = Path(tmp_dir)
             vault = root / "vaults" / "all"
             notes = root / "notes"
-            vault.mkdir(parents=True)
+            init_wiki_vault(vault)
             notes.mkdir()
-            for name in ["SCHEMA.md", "index.md", "log.md", ".knoarborignore"]:
-                (vault / name).write_text("", encoding="utf-8")
-            (vault / "concepts").mkdir()
-            (vault / "concepts" / "Note.md").write_text("# Note\n\nCompiled page.", encoding="utf-8")
+            (vault / "pages" / "concepts" / "Note.md").write_text("# Note\n\nCompiled page.", encoding="utf-8")
             (notes / "note.md").write_text("# Note\n\nBody.", encoding="utf-8")
             config = root / "config.yaml"
             config.write_text(

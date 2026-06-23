@@ -367,7 +367,8 @@ connectors:
 
             self.assertIn(exit_code, {0, 1})
             self.assertTrue((root / "config.yaml").exists())
-            self.assertTrue((vault / "pages" / "index.md").exists())
+            self.assertTrue((vault / ".knoarbor" / "index" / "manifest.json").exists())
+            self.assertTrue((vault / ".knoarbor" / "index" / "graph_index.json").exists())
             self.assertTrue((vault / "raw" / "notes" / "agent-loop.md").exists())
             self.assertIn("Next steps:", output.getvalue())
             self.assertIn("example:", output.getvalue())

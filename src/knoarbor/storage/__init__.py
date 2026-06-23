@@ -12,6 +12,8 @@ from knoarbor.storage.ledger import append_jsonl_ledger, append_operation_ledger
 from knoarbor.storage.wiki_index import (
     append_ingest_log,
     append_operation_log,
+    build_graph_index,
+    build_index_manifest,
     ensure_machine_index,
     index_entry,
     is_machine_index_stale,
@@ -51,6 +53,8 @@ __all__ = [
     "append_operation_log",
     "append_operation_ledger",
     "available_title_path",
+    "build_graph_index",
+    "build_index_manifest",
     "content_path",
     "content_relative_path",
     "content_root",

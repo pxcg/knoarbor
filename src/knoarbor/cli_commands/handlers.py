@@ -23,6 +23,7 @@ from knoarbor.services.vault_registry import VaultRegistryService
 from knoarbor.services.wiki_linter import WikiLinterService
 from knoarbor.services.wiki_pages import WikiPageService
 from knoarbor.services.wiki_reports import WikiReportService
+from knoarbor.storage.wiki_index import machine_index_dir
 from knoarbor.pipelines.lint import WikiLintPipeline, normalize_lint_run_mode
 from knoarbor.runtime import configure_runtime_logging, runtime_logger
 from knoarbor.runtime.run_monitor import list_runs, read_run, read_run_events, request_cancel
@@ -290,7 +291,7 @@ def run_status(args: argparse.Namespace) -> int:
         "directories": scan.stats.get("directories", {}),
         "raw_sources": count_raw_sources(vault_path),
         "has_schema": (content_root(vault_path) / "SCHEMA.md").exists(),
-        "has_index": (content_root(vault_path) / "index.md").exists(),
+        "has_index": (machine_index_dir(vault_path) / "manifest.json").exists() and (machine_index_dir(vault_path) / "graph_index.json").exists(),
         "has_log": (content_root(vault_path) / "log.md").exists(),
         "has_ignore": (vault_path / ".knoarborignore").exists(),
     }
@@ -882,7 +883,7 @@ def run_ingest_document(args: argparse.Namespace) -> int:
         return 0
 
     semantic_result = result.semantic_result
-    print(f"operations: {len(semantic_result.wiki_relation_plan.operations) if semantic_result else 0}")
+    print(f"operations: {len(semantic_result.wiki_page_plan.operations) if semantic_result else 0}")
     print(f"drafts: {len(semantic_result.wiki_draft_batch.drafts) if semantic_result else 0}")
     print(f"approved: {len(result.approved_operation_indexes)}")
     if result.status == "failed":
@@ -1104,7 +1105,7 @@ def run_lint_plan(args: argparse.Namespace) -> int:
 def run_contracts(args: argparse.Namespace) -> int:
     names = [
         "source_normalize",
-        "wiki_relation",
+        "wiki_page_plan",
         "wiki_draft_compile",
         "ingest_draft_review",
         "lint_diagnose",
