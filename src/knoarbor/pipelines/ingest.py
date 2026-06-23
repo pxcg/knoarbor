@@ -461,6 +461,7 @@ class IngestSourceExecutor:
                 knowledge_extract=aggregate.knowledge_extract,
                 source_digest=aggregate.source_digest,
                 knowledge_atom_batch=aggregate.knowledge_atom_batch,
+                knowledge_atom_quality=aggregate.knowledge_atom_quality,
                 index_payload=index_payload,
                 source_file=source_file,
                 max_tokens=max_tokens,

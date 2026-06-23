@@ -132,6 +132,27 @@ Boundaries:
 - write policy should not compensate for duplicate segment-created pages,
   because segment-created pages should not exist.
 
+Step 4 is fully deterministic. It answers the source-level aggregation
+question: after each segment has produced source-local atoms, what is the one
+auditable contract for the original source?
+
+It owns:
+
+- source-unit merge and segment provenance metadata;
+- evidence unit remapping from segment indexes to source-level indexes;
+- equivalent claim deduplication and evidence merge;
+- relation triple deduplication after claim id remapping;
+- source-level `KnowledgeAtomQualityReport`;
+- pending `SourceDigest.contribution_map` entries derived from claims.
+
+It does not own:
+
+- claim creation;
+- page boundary choice;
+- target page assignment for contributions;
+- Markdown body assembly;
+- checkpoint commit eligibility.
+
 ## Agent Decisions
 
 ### Source Normalize Agent

@@ -11,7 +11,7 @@ so progress does not depend on conversation context.
 | 1 | Source Input | Done | Connectors, document processors, `SourceDocument` | Raw materials become normalized source documents with identity, path, hash, and connector metadata. |
 | 2 | Source Segmentation | Done | `SourceSegmenter` | Long sources are split for budget and source-range preservation. Segmentation does not decide page boundaries or writes. |
 | 3 | Segment-level Semantic Extraction | Done | `source_normalize`, `wiki_atom_extract`, `knowledge_atoms.v2` | Extract claims, entities, relations, and evidence from each source or segment. This is where claims are created. |
-| 4 | Source-level Aggregation | Done for segmented sources | `aggregate_segment_semantic_artifacts` | Merge segment extracts, remap evidence ranges, deduplicate atoms, and rebuild source-level digest. |
+| 4 | Source-level Aggregation | Done | `AggregatedSemanticArtifacts` | Merge segment extracts, remap evidence ranges, deduplicate atoms, rebuild source-level digest, and emit source-level atom quality. |
 | 5 | Page Planning | Implemented, needs review under new page structure | `WikiPagePlan` | Decide create/update/skip and select claim ids per page. It should not write or assemble page bodies. |
 | 6 | Claim / Relation / Evidence Closure | Done | `knowledge_atom_closure` | Given selected claims, deterministically close supported relations, entities, evidence, and source digest traces. |
 | 7 | Page Assembly / Draft Compile | Pending | `PageAssemblyService` + narrowed synthesis generation | Assemble identity, claims, relations, entities, evidence, and Markdown skeleton deterministically; use LLM mainly for synthesis. |
@@ -41,6 +41,21 @@ Step 3 artifacts are first-class outputs:
 - `KnowledgeAtomBatch` carries claims, entities, relations, and evidence.
 - `KnowledgeAtomQualityReport` records unsupported, conflicting, duplicate, or
   unused atom signals before page planning.
+
+Step 4 is frozen as deterministic source-level aggregation. It receives one or
+more Step 3 artifact groups and emits a single source-level contract for page
+planning:
+
+| Substep | Name | Input | Output | Execution |
+| --- | --- | --- | --- | --- |
+| 4.1 | Merge Source Units | segment `KnowledgeExtract` list | source-level `KnowledgeExtract` | Code |
+| 4.2 | Rebuild Source Digest Audit | source-level `KnowledgeExtract` + atoms | enriched `SourceDigest` | Code |
+| 4.3 | Merge Knowledge Atoms | segment `KnowledgeAtomBatch` list | source-level `KnowledgeAtomBatch` | Code |
+| 4.4 | Validate Aggregated Atoms | source-level `KnowledgeAtomBatch` | source-level `KnowledgeAtomQualityReport` | Code |
+
+Step 4 does not call an LLM. It must preserve segment provenance, remap evidence
+unit indexes, deduplicate equivalent claims and relation triples, and expose
+pending source contributions without choosing target pages.
 
 ## P0 Atom Contract
 

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from knoarbor.core.schemas.ingest_review import IngestDraftReview
-from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch
+from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch, KnowledgeAtomQualityReport
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 from knoarbor.core.schemas.source_digest import SourceDigest
 from knoarbor.core.schemas.sources import SourceDocument
@@ -30,6 +30,7 @@ class IngestSemanticExtraction:
     knowledge_extract: KnowledgeExtract
     source_digest: SourceDigest
     knowledge_atom_batch: KnowledgeAtomBatch
+    knowledge_atom_quality: KnowledgeAtomQualityReport
     context_payload: dict[str, object]
 
 
@@ -64,6 +65,7 @@ class IngestSemanticRunner:
             knowledge_extract=extraction.knowledge_extract,
             source_digest=extraction.source_digest,
             knowledge_atom_batch=extraction.knowledge_atom_batch,
+            knowledge_atom_quality=extraction.knowledge_atom_quality,
             index_payload=index_payload,
             source_file=source_file,
             max_tokens=max_tokens,
@@ -89,6 +91,7 @@ class IngestSemanticRunner:
             knowledge_extract=knowledge_extract,
             source_digest=source_digest,
             knowledge_atom_batch=knowledge_atom_batch,
+            knowledge_atom_quality=knowledge_atom_quality,
             context_payload={
                 "source_digest": {
                     "digest_id": source_digest.digest_id,
@@ -106,6 +109,7 @@ class IngestSemanticRunner:
         knowledge_extract: KnowledgeExtract,
         source_digest: SourceDigest,
         knowledge_atom_batch: KnowledgeAtomBatch,
+        knowledge_atom_quality: KnowledgeAtomQualityReport | None = None,
         index_payload: dict[str, object],
         source_file: str,
         max_tokens: int | None,
@@ -113,7 +117,7 @@ class IngestSemanticRunner:
         extra_context: dict[str, object] | None = None,
     ) -> IngestSemanticRun:
         resolved_history_start = semantic_history_length(self.semantic_workflow) if history_start is None else history_start
-        knowledge_atom_quality = evaluate_knowledge_atoms(knowledge_atom_batch)
+        knowledge_atom_quality = knowledge_atom_quality or evaluate_knowledge_atoms(knowledge_atom_batch)
         wiki_context = self.context_provider.build(
             vault_path,
             knowledge_extract,

@@ -5,12 +5,14 @@ from dataclasses import dataclass
 from knoarbor.core.schemas.knowledge_atoms import (
     KnowledgeAtomBatch,
     KnowledgeAtomObject,
+    KnowledgeAtomQualityReport,
     KnowledgeClaim,
     KnowledgeEvidenceSpan,
     KnowledgeRelation,
 )
 from knoarbor.core.schemas.knowledge_extract import CompileContext, ContentUnit, KnowledgeExtract
-from knoarbor.core.schemas.source_digest import SourceDigest
+from knoarbor.core.schemas.source_digest import SourceDigest, SourceDigestContribution, SourceDigestUnresolvedItem
+from knoarbor.semantic.knowledge_atom_quality import evaluate_knowledge_atoms
 from knoarbor.semantic.source_digest import build_source_digest_from_extract
 
 
@@ -26,6 +28,7 @@ class AggregatedSemanticArtifacts:
     knowledge_extract: KnowledgeExtract
     source_digest: SourceDigest
     knowledge_atom_batch: KnowledgeAtomBatch
+    knowledge_atom_quality: KnowledgeAtomQualityReport
     stats: dict[str, int]
 
 
@@ -38,11 +41,18 @@ def aggregate_segment_semantic_artifacts(
         raise ValueError("Cannot aggregate empty segment semantic artifacts.")
     if len(artifacts) == 1:
         item = artifacts[0]
+        atom_quality = evaluate_knowledge_atoms(item.knowledge_atom_batch)
+        source_digest = _enrich_source_digest_with_atom_audit(
+            item.source_digest,
+            item.knowledge_atom_batch,
+            atom_quality,
+        )
         return AggregatedSemanticArtifacts(
             knowledge_extract=item.knowledge_extract,
-            source_digest=item.source_digest,
+            source_digest=source_digest,
             knowledge_atom_batch=item.knowledge_atom_batch,
-            stats=_aggregation_stats(1, item.knowledge_atom_batch),
+            knowledge_atom_quality=atom_quality,
+            stats=_aggregation_stats(1, item.knowledge_atom_batch, atom_quality),
         )
 
     aggregate_extract, unit_index_maps = _aggregate_knowledge_extracts([item.knowledge_extract for item in artifacts])
@@ -52,11 +62,18 @@ def aggregate_segment_semantic_artifacts(
         source_digest_id=aggregate_digest.digest_id,
         unit_index_maps=unit_index_maps,
     )
+    aggregate_quality = evaluate_knowledge_atoms(aggregate_atoms)
+    aggregate_digest = _enrich_source_digest_with_atom_audit(
+        aggregate_digest,
+        aggregate_atoms,
+        aggregate_quality,
+    )
     return AggregatedSemanticArtifacts(
         knowledge_extract=aggregate_extract,
         source_digest=aggregate_digest,
         knowledge_atom_batch=aggregate_atoms,
-        stats=_aggregation_stats(len(artifacts), aggregate_atoms),
+        knowledge_atom_quality=aggregate_quality,
+        stats=_aggregation_stats(len(artifacts), aggregate_atoms, aggregate_quality),
     )
 
 
@@ -257,14 +274,75 @@ def _unique_atom_id(atom_id: str, used: set[str], *, segment_index: int) -> str:
     return candidate
 
 
-def _aggregation_stats(segment_count: int, batch: KnowledgeAtomBatch) -> dict[str, int]:
+def _enrich_source_digest_with_atom_audit(
+    digest: SourceDigest,
+    batch: KnowledgeAtomBatch,
+    quality: KnowledgeAtomQualityReport,
+) -> SourceDigest:
+    return digest.model_copy(
+        update={
+            "contribution_map": _claim_contributions(batch),
+            "unresolved_items": [
+                *digest.unresolved_items,
+                *_quality_unresolved_items(quality),
+            ],
+        }
+    )
+
+
+def _claim_contributions(batch: KnowledgeAtomBatch) -> list[SourceDigestContribution]:
+    contributions: list[SourceDigestContribution] = []
+    for claim in batch.claims:
+        unit_ids = _evidence_unit_ids(claim.evidence)
+        contributions.append(
+            SourceDigestContribution(
+                item_id=claim.id,
+                contribution=claim.claim,
+                evidence_unit_ids=unit_ids,
+                status="pending",
+            )
+        )
+    return contributions
+
+
+def _quality_unresolved_items(quality: KnowledgeAtomQualityReport) -> list[SourceDigestUnresolvedItem]:
+    items: list[SourceDigestUnresolvedItem] = []
+    actionable_issues = [issue for issue in quality.issues if issue.severity != "info"]
+    for index, issue in enumerate(actionable_issues, start=1):
+        items.append(
+            SourceDigestUnresolvedItem(
+                item_id=f"Q{index}",
+                item_type="unresolved" if issue.severity != "error" else "rejected",
+                reason=f"{issue.issue_type}: {issue.message}",
+                evidence_unit_ids=[],
+            )
+        )
+    return items
+
+
+def _evidence_unit_ids(evidence: list[KnowledgeEvidenceSpan]) -> list[str]:
+    ids: list[str] = []
+    for span in evidence:
+        if span.source_unit_index is None:
+            continue
+        unit_id = f"U{span.source_unit_index + 1}"
+        if unit_id not in ids:
+            ids.append(unit_id)
+    return ids
+
+
+def _aggregation_stats(segment_count: int, batch: KnowledgeAtomBatch, quality: KnowledgeAtomQualityReport) -> dict[str, int]:
     summary = batch.summary()
+    quality_summary = quality.summary()
     return {
         "segment_count": segment_count,
         "entities": summary["entities"],
         "claims": summary["claims"],
         "relations": summary["relations"],
         "evidence_spans": summary["evidence_spans"],
+        "atom_quality_unsupported": quality_summary["unsupported"],
+        "atom_quality_conflicting": quality_summary["conflicting"],
+        "atom_quality_rejected": quality_summary["rejected"],
     }
 
 
