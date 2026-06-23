@@ -20,15 +20,24 @@ Connector / Document Processor
   -> SourceDocument
   -> Checkpoint Window
   -> Source Segmentation
+  -> Deterministic Source Parse
   -> Source Digest
   -> Knowledge Atom Extract
   -> Atom Validate / Deduplicate / Link
+  -> Graph + Text Candidate Retrieval
   -> Page Plan
-  -> Page Draft Compile
-  -> Page Review
+  -> Deterministic Page Assembly
+  -> Synthesis Generation
+  -> Deterministic Write Gate
+  -> Conditional Semantic Review
   -> Write Pages
   -> Update Atom Index + Page Index + Reports
 ```
+
+The agent-level ownership boundary is frozen in
+[Ingest Agent Boundary](agent-boundary.md). The design separates semantic
+judgment from deterministic parsing, retrieval, page assembly, safety gates,
+storage, and reports.
 
 ## Layer Ownership
 
@@ -108,13 +117,20 @@ long-term target is a unified `pages/` namespace for knowledge pages, with
 workflow, comparison, claim, and relation semantics are represented by metadata,
 page sections, atom indexes, and virtual facets.
 
+Candidate retrieval is owned by deterministic context providers. The target
+direction is graph-first retrieval from atom objects, typed relations, source
+lineage, and machine indexes, with text/BM25 retrieval as a supplemental
+candidate path. The page planning agent receives lightweight candidate profiles
+and chooses among them.
+
 ### Page Draft Layer
 
-Owner: page draft compiler and review.
+Owner: deterministic page assembly, synthesis generation, deterministic write
+gate, and conditional semantic review.
 
 Responsibilities:
 
-- compile readable Markdown pages from selected atoms and existing page
+- assemble readable Markdown pages from selected atoms and existing page
   context;
 - expose `Definition`, `Claims`, `Relations`, and `Synthesis` as the canonical
   user-facing page body;
@@ -123,10 +139,24 @@ Responsibilities:
 - attach source digest ids and atom ids in frontmatter or report metadata;
 - reject page statements that cannot be linked to source evidence or approved
   atoms.
-- review each draft against the same page-plan evidence trace used by the draft
-  compiler;
+- review high-risk drafts against the same page-plan evidence trace used by the
+  assembly and synthesis layers;
 - treat source trace, atom coverage, page identity, synthesis quality, and
   update safety as write gates before persistence.
+
+The long-term page draft direction is:
+
+```text
+selected atoms + page operation
+  -> deterministic PageAssemblyService
+  -> synthesis-generation agent
+  -> deterministic Markdown renderer
+  -> deterministic IngestWriteGate
+  -> conditional semantic review
+```
+
+This keeps page structure stable and uses semantic generation for summary,
+synthesis, and complex update language rather than full page construction.
 
 ### Wiki Page Projection Contract
 

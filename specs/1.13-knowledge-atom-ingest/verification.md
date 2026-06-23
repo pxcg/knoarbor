@@ -9,6 +9,20 @@
   validation.
 - Atom batch summaries report fact, claim, relation, and evidence counts.
 - Existing ingest tests pass while the atom layer is introduced.
+- Page planning payloads use compact source digest profiles and selected atom
+  context.
+- Draft and review payloads omit full raw source bodies after atom extraction.
+- Draft compilation receives only page-plan selected atoms plus dependency
+  closure.
+- Future graph-first ingest retrieval tests should verify that entity, relation,
+  and source-lineage candidates are generated before text/BM25 supplemental
+  candidates.
+- Future page assembly tests should verify that identity, entities, relations,
+  evidence, source digest ids, and atom ids are deterministic.
+- Future write-gate tests should verify that unsafe writes are rejected before
+  semantic review or persistence.
+- Future conditional-review tests should verify that low-risk creates can skip
+  semantic review and high-risk updates still invoke it.
 
 Current verification commands:
 
@@ -46,11 +60,18 @@ uv run ruff check \
 
 - Ingest a small Markdown source and inspect the report for atom extraction
   counts once P2 lands.
+- Inspect one ingest run report and verify that each semantic call maps to one
+  frozen agent responsibility from `agent-boundary.md`.
+- Inspect model payload traces or token ledger entries and verify source text is
+  consumed early, while later stages use source digest, selected atoms, and
+  materialized page context.
 - Verify source digest pages remain readable.
 - Verify generated wiki pages remain readable and do not expose raw atom ids in
   the default view.
 - Verify page claims can be traced to source digest or source evidence in debug
   surfaces.
+- Verify graph-first candidate retrieval explains why a candidate page was
+  offered through entity overlap, relation neighborhood, or source lineage.
 
 ## Release Gates
 
@@ -60,6 +81,10 @@ uv run ruff check \
 - Existing query/chat flows must continue to answer from pages when atom index
   files are missing.
 - Migration must be additive until reports show atom quality is stable.
+- Agent boundary changes must keep semantic agents narrow: prompts and schemas
+  may make meaning-level decisions, while parsing, graph retrieval, page
+  assembly, write gates, storage, reports, and lifecycle remain deterministic
+  services.
 
 ## Known Risks
 

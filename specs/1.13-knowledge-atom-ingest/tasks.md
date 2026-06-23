@@ -57,6 +57,22 @@
 - [x] Expose atom trace in ingest reports and readable frontend reports.
 - [x] Allow query/chat traces to show page-to-atom evidence when available.
 
+## P6 Ingest Agent Boundary Refactor
+
+- [x] Freeze first-principles ingest agent ownership in
+  `agent-boundary.md`.
+- [ ] Add graph-first ingest candidate provider before page planning.
+- [ ] Keep text/BM25 candidate retrieval as supplemental retrieval.
+- [ ] Add deterministic selected-atom closure as a reusable service.
+- [ ] Add deterministic `PageAssemblyService` for identity, entities,
+  relations, evidence, and Markdown skeleton.
+- [ ] Narrow `wiki_draft_compile` into synthesis-generation behavior.
+- [ ] Add deterministic `IngestWriteGate` before persistence.
+- [ ] Make semantic draft review conditional on risk, update, conflict,
+  duplicate, or failed-gate signals.
+- [ ] Separate deterministic gate decisions and semantic review decisions in
+  ingest reports.
+
 ## Deferred
 
 - [ ] SQLite atom index provider.
