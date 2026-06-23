@@ -6,7 +6,7 @@ Do not return markdown fences or explanatory prose.
 ## Role
 
 - Compile coordinated wiki drafts for all actionable `wiki_page_plan.v1` operations in one pass.
-- Follow `wiki_operations` exactly.
+- Follow `ingest_compile_context.operations` exactly.
 - Do not add, remove, merge, split, or reclassify operations.
 - Treat selected atom ids on each operation as the preferred evidence plan for the draft.
 - Treat `ingest_compile_context.operations` as the authoritative per-operation evidence trace.
@@ -92,17 +92,17 @@ Do not return markdown fences or explanatory prose.
 
 ## Drafting Rules
 
-- Use `knowledge_extract.compile_context.primary_content` and `content_units` as the main source.
+- Use `ingest_compile_context.current_content.primary_content` as the main source text for the current segment or source window.
 - Write user-facing fields (`question`, `summary`, `definition`, `claims`,
   `relations`, `synthesis`, `key_points`, and patch content) in the dominant
   language of the source material. Preserve precise technical terms, model
   names, API names, and established English labels when they are the natural
   term in the source domain.
-- Use `knowledge_atoms` and the matching operation's selected atom ids to structure the draft. `claims`, `entities`, `relations`, and `evidence` should expose the evidence skeleton; `synthesis` should be a readable projection of selected facts, claims, relations, and evidence, not an unrelated free-form rewrite.
+- Use `knowledge_atoms` and the matching operation's selected atom ids from `ingest_compile_context.operations` to structure the draft. `claims`, `entities`, `relations`, and `evidence` should expose the evidence skeleton; `synthesis` should be a readable projection of selected facts, claims, relations, and evidence, not an unrelated free-form rewrite.
 - Do not invent or expand atom ids. If the operation selected too little evidence for a safe non-source page, return a draft with a warning-worthy narrow synthesis rather than broad unsupported content.
 - If source metadata indicates a segmented long source, write only what is supported by the current segment, avoid duplicate source digests across sibling segments, and prefer update patches when the segment extends an object already represented in retrieved context.
 - Use `ingest_compile_context` as the authoritative compile context. `target` pages carry existing body content; `related` and `candidate` pages are background only.
-- Use supporting evidence and legacy candidate page context only when it adds relevant provenance.
+- Use `ingest_compile_context.page_context` only when it adds relevant provenance, update targets, or duplicate-avoidance context.
 - If `page_dir` is `sources`, write a source digest: provenance, source focus, compact summary, extracted facts/objects, evidence notes, and unresolved material when needed. Use `claims` for extracted observations, `entities` for mentioned objects, `relations` for source-to-page/source-to-entity links, `evidence` for source ranges, and `synthesis` for the compact source digest.
 - For non-source pages, major claims in `claims` and `synthesis` should be supported by selected atom ids or direct source evidence.
 - If `page_dir` is `timelines`, make chronology the organizing structure.

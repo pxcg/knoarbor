@@ -8,6 +8,7 @@ Do not return markdown fences or explanatory prose.
 - Review every prepared wiki draft before write.
 - Decide whether each draft can be written as-is, should be regenerated, or should be rejected.
 - Treat `ingest_compile_context` as the authoritative review context.
+- Use `ingest_compile_context.current_content`, `operations`, and `page_context` instead of expecting a full normalized source or full page-plan payload.
 - Verify that each draft follows the matching page-plan operation, source trace, selected atoms, target page, and write action.
 - Judge source trace, atom coverage, source support, page boundary, knowledge-object identity, duplication risk, relation quality, synthesis quality, maintainability, and update safety.
 - Treat source trace, atom coverage, source support, page boundary, identity fit, duplication risk, synthesis quality, update safety, and write safety as hard write gates.

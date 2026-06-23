@@ -133,11 +133,6 @@ class IngestSemanticWorkflow:
         ingest_compile_context: IngestCompileContext | dict[str, Any] | None = None,
         max_tokens: int | None = None,
     ) -> WikiDraftBatch:
-        actionable_operations = [
-            operation.model_dump()
-            for operation in wiki_page_plan.operations
-            if operation.action != "skip"
-        ]
         compile_context = _compile_context_payload(
             knowledge_extract,
             wiki_page_plan,
@@ -147,12 +142,8 @@ class IngestSemanticWorkflow:
         result = self.runner.run(
             "wiki_draft_compile",
             {
-                "knowledge_extract": knowledge_extract.model_dump(),
                 "knowledge_atoms": knowledge_atom_batch.model_dump() if knowledge_atom_batch else {},
-                "wiki_page_plan": wiki_page_plan.model_dump(),
-                "wiki_operations": actionable_operations,
                 "ingest_compile_context": compile_context,
-                "candidate_page_context": candidate_page_context or {},
             },
             max_tokens=max_tokens,
         )
@@ -178,11 +169,8 @@ class IngestSemanticWorkflow:
         result = self.runner.run(
             "ingest_draft_review",
             {
-                "knowledge_extract": knowledge_extract.model_dump(),
-                "wiki_page_plan": wiki_page_plan.model_dump(),
                 "wiki_draft_batch": wiki_draft_batch.model_dump(),
                 "ingest_compile_context": compile_context,
-                "candidate_page_context": candidate_page_context or {},
             },
             max_tokens=max_tokens,
         )

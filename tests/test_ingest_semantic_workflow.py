@@ -81,6 +81,13 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
         self.assertEqual(relation_payload["knowledge_atoms"]["facts"][0]["id"], "fact_agent_loop_cycle")
         self.assertEqual(draft_payload["knowledge_atoms"]["source_digest_id"], "sd_test_agent")
         self.assertIn("ingest_compile_context", draft_payload)
+        self.assertNotIn("knowledge_extract", draft_payload)
+        self.assertNotIn("wiki_page_plan", draft_payload)
+        self.assertNotIn("wiki_operations", draft_payload)
+        self.assertNotIn("candidate_page_context", draft_payload)
+        self.assertNotIn("knowledge_extract", review_payload)
+        self.assertNotIn("wiki_page_plan", review_payload)
+        self.assertNotIn("candidate_page_context", review_payload)
         self.assertEqual(
             draft_payload["ingest_compile_context"],
             review_payload["ingest_compile_context"],
