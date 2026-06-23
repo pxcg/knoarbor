@@ -45,8 +45,8 @@ class CompilePageContext(BaseModel):
     exists: bool
     title: str = ""
     summary: str = ""
-    key_points: list[str] = Field(default_factory=list)
-    tags: list[str] = Field(default_factory=list)
+    claim_points: list[str] = Field(default_factory=list)
+    entities: list[str] = Field(default_factory=list)
     headings: list[str] = Field(default_factory=list)
     source: str | None = None
     content: str = ""

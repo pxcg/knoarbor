@@ -206,7 +206,7 @@ def _draft_content_hash(draft: WikiDraft) -> str:
             "entities:\n" + "\n".join(draft.entities),
             "relations:\n" + "\n".join(draft.relations),
             "evidence:\n" + "\n".join(draft.evidence),
-            f"synthesis:\n{draft.synthesis or draft.answer}",
+            f"synthesis:\n{draft.synthesis}",
         ]
     )
     return content_hash("wiki_draft_v2", payload)

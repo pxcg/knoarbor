@@ -244,7 +244,17 @@ candidate pages.
 
 ## Write Boundary
 
-The long-term write path should separate assembly, synthesis, gate, and review:
+The write path separates source/segment execution, semantic drafting, and
+post-processing. The current implementation has these stable boundaries:
+
+- `IngestSemanticRunner` owns the semantic ingest chain and returns a reviewed
+  semantic result plus materialized page context.
+- `IngestPostProcessor` owns approved draft commits, atom-index updates, and
+  source-scoped deterministic lint.
+- `ingest_checkpoint` owns checkpoint eligibility and commit payloads.
+
+The long-term page-assembly path should further separate assembly, synthesis,
+gate, and review:
 
 ```text
 Page Plan
@@ -263,9 +273,10 @@ which layer accepted, rejected, or requested regeneration.
 
 ## Deferred Implementation
 
-- Graph-first ingest candidate provider.
 - Deterministic `PageAssemblyService`.
-- Rename or narrow `wiki_draft_compile` toward synthesis generation.
+- Rename or narrow `wiki_draft_compile` toward synthesis generation once page
+  claims, entities, relations, and evidence can be assembled deterministically
+  from selected atoms without weakening page quality.
 - Deterministic `IngestWriteGate` before semantic review.
 - Conditional semantic review triggers.
 - Report fields that separate deterministic gate decisions from semantic review

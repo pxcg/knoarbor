@@ -32,8 +32,8 @@ class IngestCandidatePage(BaseModel):
     relevance: str
     matched_fields: list[str] = Field(default_factory=list)
     summary: str = ""
-    key_points: list[str] = Field(default_factory=list)
-    tags: list[str] = Field(default_factory=list)
+    claim_points: list[str] = Field(default_factory=list)
+    entities: list[str] = Field(default_factory=list)
     related_pages: list[str] = Field(default_factory=list)
 
 
@@ -52,8 +52,8 @@ class IngestCandidatePageContent(BaseModel):
     content_kind: MaterializedContentKind = "missing"
     title: str = ""
     summary: str = ""
-    key_points: list[str] = Field(default_factory=list)
-    tags: list[str] = Field(default_factory=list)
+    claim_points: list[str] = Field(default_factory=list)
+    entities: list[str] = Field(default_factory=list)
     headings: list[str] = Field(default_factory=list)
     source: str | None = None
     content: str = ""
@@ -130,8 +130,8 @@ class IngestContextProvider:
                 relevance=_relevance_label(item.score),
                 matched_fields=sorted(item.matched_fields),
                 summary=_inline_text(item.page.summary),
-                key_points=[_inline_text(point) for point in item.page.key_points],
-                tags=item.page.tags,
+                claim_points=[_inline_text(point) for point in item.page.key_points],
+                entities=item.page.tags,
                 related_pages=item.page.related_pages,
             )
             for item in matches
@@ -391,8 +391,8 @@ def _materialized_page_content(
     metadata = parse_frontmatter(content)
     title = extract_heading(content, Path(path).stem)
     summary = _inline_text(extract_section(content, "Summary"))
-    key_points = [_inline_text(item) for item in (extract_list_items(extract_section(content, "Key Points")) or extract_list_items(extract_section(content, "Claims")))]
-    tags = extract_tags(content, metadata) or _entities_as_tags(content)
+    claim_points = [_inline_text(item) for item in extract_list_items(extract_section(content, "Claims"))]
+    entities = _extract_entities(content) or extract_tags(content, metadata)
     headings = extract_headings(content)
     source = metadata.get("source")
     if role == "target":
@@ -403,8 +403,8 @@ def _materialized_page_content(
             content_kind="full",
             title=title,
             summary=summary,
-            key_points=key_points,
-            tags=tags,
+            claim_points=claim_points,
+            entities=entities,
             headings=headings,
             source=source,
             content=content,
@@ -412,7 +412,7 @@ def _materialized_page_content(
             original_content_length=original_content_length,
         )
     if role == "related":
-        excerpt = _related_page_excerpt(content, summary=summary, key_points=key_points, headings=headings)
+        excerpt = _related_page_excerpt(content, summary=summary, claim_points=claim_points, headings=headings)
         return IngestCandidatePageContent(
             path=path,
             exists=True,
@@ -420,8 +420,8 @@ def _materialized_page_content(
             content_kind="excerpt",
             title=title,
             summary=summary,
-            key_points=key_points,
-            tags=tags,
+            claim_points=claim_points,
+            entities=entities,
             headings=headings,
             source=source,
             content=excerpt,
@@ -435,8 +435,8 @@ def _materialized_page_content(
         content_kind="profile",
         title=title,
         summary=summary,
-        key_points=key_points,
-        tags=tags,
+        claim_points=claim_points,
+        entities=entities,
         headings=headings,
         source=source,
         content="",
@@ -445,12 +445,12 @@ def _materialized_page_content(
     )
 
 
-def _related_page_excerpt(content: str, *, summary: str, key_points: list[str], headings: list[str]) -> str:
+def _related_page_excerpt(content: str, *, summary: str, claim_points: list[str], headings: list[str]) -> str:
     parts: list[str] = []
     if summary:
         parts.append("Summary:\n" + summary)
-    if key_points:
-        parts.append("Key Points:\n" + "\n".join(f"- {point}" for point in key_points))
+    if claim_points:
+        parts.append("Claims:\n" + "\n".join(f"- {point}" for point in claim_points))
     if headings:
         parts.append("Headings:\n" + "\n".join(f"- {heading}" for heading in headings))
     body = strip_frontmatter(content)
@@ -459,8 +459,8 @@ def _related_page_excerpt(content: str, *, summary: str, key_points: list[str], 
     return "\n\n".join(parts)
 
 
-def _entities_as_tags(content: str) -> list[str]:
-    tags: list[str] = []
+def _extract_entities(content: str) -> list[str]:
+    entities: list[str] = []
     for item in extract_list_items(extract_section(content, "Entities")):
         text = item.strip()
         if not text or text.startswith("暂无"):
@@ -468,9 +468,9 @@ def _entities_as_tags(content: str) -> list[str]:
         text = text.removeprefix("[[").removesuffix("]]")
         if "|" in text:
             text = text.split("|", 1)[-1]
-        if text and text not in tags:
-            tags.append(text)
-    return tags[:24]
+        if text and text not in entities:
+            entities.append(text)
+    return entities[:24]
 
 
 def _relevance_label(score: float) -> str:

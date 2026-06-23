@@ -247,10 +247,12 @@ Responsibilities:
 
 Implementation boundary:
 
-- `pipelines/ingest.py` is the orchestration shell: connector execution, segment execution, write/scoped-lint/report coordination, and checkpoint commit.
-- `pipelines/ingest_checkpoint.py` owns checkpoint planning and commit payloads.
+- `pipelines/ingest.py` is the orchestration shell: connector execution, segment execution, report coordination, and checkpoint commit.
+- `pipelines/ingest_checkpoint.py` owns checkpoint planning, checkpoint commit payloads, and the checkpoint-commit eligibility rule. Checkpoints advance only after approved writes or a source-level semantic skip.
 - `pipelines/source_segmentation.py` owns segment planning and source-window chunk boundaries.
+- `pipelines/ingest_semantic.py` owns the semantic ingest agent chain: source normalization, atom extraction, candidate retrieval, page planning, draft compilation, and draft review.
 - `pipelines/ingest_context.py` owns candidate page retrieval and materialization.
+- `pipelines/ingest_postprocess.py` owns approved draft write commits, atom-index updates, and source-scoped deterministic lint after writes.
 - `pipelines/ingest_metrics.py` owns source/segment metrics, redaction aggregation, and semantic token statistics.
 - `pipelines/ingest_lifecycle.py` owns missing/moved source lifecycle candidates emitted from checkpoint state.
 - `pipelines/ingest_quality.py` and `pipelines/ingest_write_policy.py` own pre-write validation and write invariants.

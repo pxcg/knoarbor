@@ -149,6 +149,23 @@ def _commit_checkpoint_plan(
     )
 
 
+def _should_commit_checkpoint_result(result: object, *, write: bool) -> bool:
+    """Return whether a completed source result may advance its source checkpoint."""
+
+    if not write:
+        return False
+    generated_pages = getattr(result, "generated_pages", None)
+    if isinstance(generated_pages, list) and generated_pages:
+        return True
+    return (
+        getattr(result, "status", None) == "skipped"
+        and bool(getattr(result, "should_process", False))
+        and getattr(result, "semantic_result", None) is not None
+        and bool(getattr(result, "semantic_skip_reason", None))
+        and not getattr(result, "error_stage", None)
+    )
+
+
 def _checkpoint_payload(checkpoint_plan: dict[str, object]) -> dict[str, object]:
     return {
         key: value

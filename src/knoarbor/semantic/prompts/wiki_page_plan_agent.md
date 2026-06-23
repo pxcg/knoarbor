@@ -11,7 +11,7 @@ Do not return markdown fences or explanatory prose.
 - Use `wiki_context.candidates` as the authoritative lightweight candidate pool when provided.
 - Treat `existing_wiki_index` as supplemental routing metadata only; do not build a separate candidate set from it when `wiki_context.candidates` is available.
 - Do not write page bodies.
-- Treat `wiki_context.candidates` as page profiles, not full page evidence. They intentionally include routing fields such as title, directory, summary, key points, tags, source, matched fields, score, and related page paths, but not full Markdown bodies.
+- Treat `wiki_context.candidates` as page profiles, not full page evidence. They intentionally include routing fields such as title, directory, summary, claim points, entities, source, matched fields, score, and related page paths, but not full Markdown bodies.
 
 ## Page Classification Contract
 

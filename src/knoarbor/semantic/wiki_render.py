@@ -41,7 +41,7 @@ def render_markdown(
     if not source_file:
         raise PolicyRejection("source_file is required when creating a wiki page")
     summary = validate_body_markdown(draft.summary, "summary")
-    synthesis = validate_body_markdown(draft.synthesis or draft.answer, "synthesis")
+    synthesis = validate_body_markdown(draft.synthesis, "synthesis")
     claims = _render_claims(draft.claims)
     entities = _render_list(draft.entities, "暂无显式实体")
     relations = _render_relations(draft.relations)

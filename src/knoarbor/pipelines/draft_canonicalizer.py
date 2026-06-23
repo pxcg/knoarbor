@@ -50,7 +50,7 @@ class DraftCanonicalizer:
         summary = normalize_embedded_body_markdown(draft.summary, "summary")
         question = normalize_embedded_body_markdown(draft.question, "source context")
         answer = normalize_embedded_body_markdown(draft.answer, "answer")
-        synthesis = normalize_embedded_body_markdown(draft.synthesis or draft.answer, "synthesis")
+        synthesis = normalize_embedded_body_markdown(draft.synthesis, "synthesis")
         if (summary, question, answer, synthesis) != (
             draft.summary,
             draft.question,

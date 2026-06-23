@@ -136,7 +136,7 @@ class IngestQualityGate:
                 issues.append(_issue(operation_index, "missing_summary", "Draft summary is empty."))
             if not _nonempty_items(draft.claims):
                 issues.append(_issue(operation_index, "missing_claims", "Draft has no auditable claims."))
-            if not draft.synthesis.strip() and not draft.answer.strip():
+            if not draft.synthesis.strip():
                 issues.append(_issue(operation_index, "missing_synthesis", "Draft synthesis is empty."))
             claim_ids = _claim_ids(draft.claims)
             evidence_claims, evidence_issues = _evidence_claims(draft.evidence, draft.page_dir)

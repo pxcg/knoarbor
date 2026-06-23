@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 WikiWriteAction = Literal["create", "update", "merge"]
@@ -110,6 +110,12 @@ class WikiDraftInput(BaseModel):
                 normalized.append(text)
                 seen.add(text)
         return normalized
+
+    @model_validator(mode="after")
+    def normalize_transport_fields(self) -> WikiDraftInput:
+        if not self.synthesis.strip():
+            self.synthesis = self.answer
+        return self
 
 
 class WikiDraftBatchWriteItem(BaseModel):

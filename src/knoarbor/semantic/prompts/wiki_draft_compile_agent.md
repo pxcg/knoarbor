@@ -35,14 +35,11 @@ Do not return markdown fences or explanatory prose.
         "question": "source question or concise source focus",
         "answer": "same text as synthesis",
         "summary": "one or two sentence page summary",
-        "definition": "same text as summary",
         "claims": ["C1. auditable claim with [[Entity]] markers backed by selected atoms or direct evidence"],
         "entities": ["[[Entity Name]]"],
         "relations": ["[[Subject]] | predicate | [[Object]] | C1"],
         "evidence": ["C1 | source digest or raw source | range or source-level | basis | high|medium|low"],
         "synthesis": "readable synthesis built from the claims and relations",
-        "key_points": [],
-        "tags": [],
         "source_digest_ids": ["source digest ids used by this draft"],
         "atom_ids": ["claim and relation atom ids used by this draft"],
         "patches": [
@@ -73,8 +70,7 @@ Do not return markdown fences or explanatory prose.
 - `canonical_path` is the durable page path relative to the wiki content root. `page_dir` is a compatibility classification, not the physical storage contract. KnoArbor writes new non-source knowledge pages to the unified page namespace and stores semantic classification in `page_kind` and `facets`.
 - `question` means source focus. For chat use the user question when available; for notes/documents use the source title or topic.
 - `summary`, `claims`, `entities`, `relations`, `evidence`, and `synthesis` are the canonical page body fields.
-- `answer` is retained only for schema compatibility. Set it to the same text as `synthesis`.
-- `definition`, `key_points`, and `tags` are retained only for schema compatibility. Set `definition` to the same text as `summary`; keep `key_points` and `tags` empty unless a legacy update patch explicitly requires them.
+- `answer` is a transport field for older writer contracts. Set it to the same text as `synthesis`; do not treat it as a separate page section.
 - `summary` is for fast scanning and cards. Keep it short.
 - `question` is source context. It should identify the source topic or source-side question, not repeat the page title mechanically.
 - `claims` must be concrete, auditable statements. Number them as `C1.`, `C2.`, etc. Mark important knowledge objects with `[[Entity]]`.

@@ -64,6 +64,13 @@
   `agent-boundary.md`.
 - [x] Add graph-first ingest candidate provider before page planning.
 - [x] Keep text/BM25 candidate retrieval as supplemental retrieval.
+- [x] Extract `IngestSemanticRunner` so source execution does not own the
+  semantic agent chain.
+- [x] Extract `IngestPostProcessor` so approved writes, atom-index updates, and
+  scoped lint do not live inside source execution.
+- [x] Move checkpoint commit eligibility into `ingest_checkpoint`.
+- [x] Rename ingest agent-facing page profiles from legacy key-point/tag
+  language to claim/entity language.
 - [ ] Add deterministic claim/relation/evidence closure as a reusable service.
 - [ ] Add deterministic `PageAssemblyService` for identity, entities,
   relations, evidence, and Markdown skeleton.

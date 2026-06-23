@@ -12,41 +12,38 @@ from knoarbor.core.checkpoints import CheckpointStore
 from knoarbor.core.config import IngestSegmentationConfig, KnoArborConfig, PrivacyConfig
 from knoarbor.core.errors import error_info
 from knoarbor.core.ignore import KnoArborIgnore
-from knoarbor.core.redaction import redact_display_text, redact_source_document
+from knoarbor.core.redaction import redact_source_document
 from knoarbor.core.schemas.ingest_pipeline import IngestPipelineResult, IngestSourceResult
-from knoarbor.core.schemas.ingest_review import IngestDraftReview
-from knoarbor.core.schemas.maintenance import MaintenanceScope, MaintenanceScopeSource
 from knoarbor.core.schemas.sources import SourceDocument
-from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
-from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
-from knoarbor.core.schemas.wiki_lint import LintRunRequest, LintRunResult
-from knoarbor.core.schemas.wiki_write import (
-    WikiDraftBatchWriteItem,
-    WikiDraftBatchWriteRequest,
-    WikiDraftInput,
-    WikiDraftWriteResponse,
-)
 from knoarbor.document_processing import DocumentProcessingPipeline, DocumentProcessingResult
 from knoarbor.audit.ingest_execution import write_ingest_execution_ledger
 from knoarbor.audit.ingest_report import write_ingest_run_artifacts
 from knoarbor.semantic.ingest_workflow import IngestSemanticWorkflow, IngestSemanticWorkflowResult
-from knoarbor.semantic.ingest_compile_context import build_ingest_compile_context
-from knoarbor.semantic.knowledge_atom_quality import evaluate_knowledge_atoms
 from knoarbor.semantic.metrics import empty_run_metrics, summarize_semantic_runs
-from knoarbor.semantic.source_digest import build_source_digest_from_extract
-from knoarbor.storage.wiki_index import relative_wiki_path
-from knoarbor.pipelines.ingest_context import IngestCandidatePageContext, IngestContextProvider
+from knoarbor.pipelines.ingest_context import IngestContextProvider
 from knoarbor.pipelines.ingest_quality import IngestQualityGate
+from knoarbor.pipelines.ingest_postprocess import (
+    IngestPostProcessor,
+    approved_write_items,
+    global_operation_index,
+    scoped_lint_payload,
+    segment_write_items,
+)
+from knoarbor.pipelines.ingest_semantic import (
+    IngestSemanticRunner,
+    semantic_history_length,
+    semantic_history_slice,
+)
 from knoarbor.pipelines.ingest_write_policy import IngestWritePolicy
 from knoarbor.pipelines.ingest_checkpoint import (
     _checkpoint_payload,
     _commit_checkpoint_plan,
     _document_for_checkpoint,
     _prepare_checkpoint_plan,
+    _should_commit_checkpoint_result,
 )
 from knoarbor.pipelines.ingest_lifecycle import relative_or_absolute, source_lifecycle_candidates
 from knoarbor.pipelines.ingest_metrics import (
-    as_dict,
     combine_redactions,
     combine_semantic_metrics,
     ingest_run_metrics,
@@ -62,7 +59,6 @@ from knoarbor.pipelines.source import SourcePipeline, SourcePipelineFailure, Sou
 from knoarbor.pipelines.source_segmentation import SourceSegmentBatch, SourceSegmenter
 from knoarbor.pipelines.write import WikiWritePipeline
 from knoarbor.runtime import current_run_monitor, vault_write_lock
-from knoarbor.storage.knowledge_atom_index import KnowledgeAtomPageRef, upsert_knowledge_atom_batches
 from knoarbor.storage.source_metrics import connector_source_metric_key, update_source_counts
 
 
@@ -87,6 +83,16 @@ class IngestSourceExecutor:
         self.checkpoint_store = checkpoint_store
         self.lint_pipeline = lint_pipeline or WikiLintPipeline()
         self.write_policy = write_policy or IngestWritePolicy()
+        self.semantic_runner = IngestSemanticRunner(
+            semantic_workflow=self.semantic_workflow,
+            context_provider=self.context_provider,
+        )
+        self.post_processor = IngestPostProcessor(
+            write_pipeline=self.write_pipeline,
+            lint_pipeline=self.lint_pipeline,
+            write_policy=self.write_policy,
+            clear_context_cache=self.context_provider.clear_cache,
+        )
 
     def run_item(
         self,
@@ -169,7 +175,7 @@ class IngestSourceExecutor:
                 scoped_lint_include_related=scoped_lint_include_related,
                 segmentation_config=segmentation_config,
             )
-            if write and (result.generated_pages or _checkpointable_semantic_skip(result)):
+            if _should_commit_checkpoint_result(result, write=write):
                 with vault_write_lock(vault_path):
                     _commit_checkpoint_plan(
                         self.checkpoint_store,
@@ -257,9 +263,9 @@ class IngestSourceExecutor:
         started = time.perf_counter()
         redacted = redact_source_document(document, privacy_config)
         result.redaction = _redaction_payload(redacted.enabled, redacted.counts)
-        history_start = _semantic_history_length(self.semantic_workflow)
+        history_start = semantic_history_length(self.semantic_workflow)
         try:
-            semantic_result, context_payload, candidate_page_context = self._run_semantic_ingest(
+            semantic_run = self.semantic_runner.run(
                 vault_path=vault_path,
                 document=redacted.document,
                 index_payload=index_payload,
@@ -269,9 +275,12 @@ class IngestSourceExecutor:
         except Exception:
             result.metrics = {
                 "elapsed_seconds": time.perf_counter() - started,
-                "semantic": summarize_semantic_runs(_semantic_history_slice(self.semantic_workflow, history_start)),
+                "semantic": summarize_semantic_runs(semantic_history_slice(self.semantic_workflow, history_start)),
             }
             raise
+        semantic_result = semantic_run.semantic_result
+        context_payload = semantic_run.context_payload
+        candidate_page_context = semantic_run.candidate_page_context
         result.context = context_payload
         result.metrics = {
             "semantic": context_payload.get("semantic_metrics", summarize_semantic_runs([])),
@@ -293,66 +302,26 @@ class IngestSourceExecutor:
             _mark_failed_source(result, "quality_gate", ValueError(_quality_gate_error_message(gate_result.model_dump())))
 
         if write and approved_indexes:
-            policy_result = self.write_policy.apply(
-                [
-                    WikiDraftBatchWriteItem(
-                        wiki_draft=WikiDraftInput.model_validate(draft.model_dump()),
-                        write_action=draft.write_action,
-                        target_page=draft.target_page,
-                        source_file=source_file,
-                        display_source_file=_display_source_file(source_file, privacy_config),
-                        operation_index=draft.operation_index,
-                    )
-                    for draft in semantic_result.wiki_draft_batch.drafts
-                    if draft.operation_index in approved_indexes
-                ]
+            self.post_processor.write_approved_items(
+                vault_path=vault_path,
+                result=result,
+                items=approved_write_items(
+                    semantic_result=semantic_result,
+                    approved_indexes=approved_indexes,
+                    source_file=source_file,
+                    privacy_config=privacy_config,
+                ),
+                semantic_results=[semantic_result],
             )
-            if policy_result.changes:
-                result.context["write_policy"] = {"changes": policy_result.changes}
-            write_response = self.write_pipeline.run(
-                WikiDraftBatchWriteRequest(
-                    vault_path=str(vault_path),
-                    auto_related_links=False,
-                    provenance_related_links=True,
-                    drafts=policy_result.items,
-                )
-            )
-            result.generated_pages = [
-                relative_wiki_path(vault_path, Path(item.wiki_file_path))
-                for item in write_response.results
-            ]
-            atom_index_path = _upsert_atom_index(vault_path, [semantic_result], write_response.results)
-            if atom_index_path:
-                result.context["knowledge_atom_index_path"] = atom_index_path
-            self.context_provider.clear_cache()
-            result.wrote = True
-            result.status = "written"
         result.touched_pages = _touched_pages(result, candidate_page_context)
-        result.scoped_lint = _scoped_lint_payload(result)
+        result.scoped_lint = scoped_lint_payload(result)
         if write and auto_scoped_lint and result.touched_pages:
-            try:
-                lint_response = self.lint_pipeline.run_maintenance(
-                    LintRunRequest(
-                        vault_path=str(vault_path),
-                        scope=_maintenance_scope(result),
-                        mode="deterministic",
-                        apply_safe_fixes=auto_apply_safe_lint_fixes,
-                        include_related=scoped_lint_include_related,
-                        write_report=False,
-                        append_ledger=False,
-                    )
-                )
-                result.scoped_lint_result = _scoped_lint_result_payload(lint_response)
-            except Exception as exc:
-                lint_error = error_info(exc)
-                result.scoped_lint_result = {
-                    "error_code": lint_error.get("code"),
-                    "error_category": lint_error.get("category"),
-                    "error_retryable": lint_error.get("retryable"),
-                    "error_hint": lint_error.get("hint"),
-                    "error_type": type(exc).__name__,
-                    "error_message": str(exc),
-                }
+            self.post_processor.run_scoped_lint(
+                result=result,
+                vault_path=vault_path,
+                apply_safe_fixes=auto_apply_safe_lint_fixes,
+                include_related=scoped_lint_include_related,
+            )
         result.metrics.setdefault("elapsed_seconds", time.perf_counter() - started)
         return result
 
@@ -407,7 +376,7 @@ class IngestSourceExecutor:
         generated_pages: list[str] = []
         touched_pages: list[str] = []
         approved_global_indexes: list[int] = []
-        write_items: list[WikiDraftBatchWriteItem] = []
+        write_items = []
 
         for segment in batch.segments:
             segment_started = time.perf_counter()
@@ -459,10 +428,10 @@ class IngestSourceExecutor:
                 )
             touched_pages.extend(segment_result.touched_pages)
             for operation_index in segment_result.approved_operation_indexes:
-                approved_global_indexes.append(_global_operation_index(segment.index, operation_index))
+                approved_global_indexes.append(global_operation_index(segment.index, operation_index))
             if segment_result.status != "failed" and segment_result.semantic_result is not None and segment_result.approved_operation_indexes:
                 write_items.extend(
-                    _segment_write_items(
+                    segment_write_items(
                         segment_result,
                         source_file,
                         segment_index=segment.index,
@@ -488,257 +457,31 @@ class IngestSourceExecutor:
             first = failed_segments[0]
             _copy_source_error(result, first, fallback_stage=first.error_stage or "segment")
             result.touched_pages = _dedupe_pages(touched_pages)
-            result.scoped_lint = _scoped_lint_payload(result)
+            result.scoped_lint = scoped_lint_payload(result)
             return result
 
         if write and write_items:
-            if monitor:
-                monitor.event("pages_write_started", status="writing", stage="writing", current_item=result.source_id, message=f"Writing {len(write_items)} approved draft(s).")
-            policy_result = self.write_policy.apply(write_items)
-            if policy_result.changes:
-                result.context["write_policy"] = {"changes": policy_result.changes}
-            write_response = self.write_pipeline.run(
-                WikiDraftBatchWriteRequest(
-                    vault_path=str(vault_path),
-                    auto_related_links=False,
-                    provenance_related_links=True,
-                    drafts=policy_result.items,
-                )
+            commit = self.post_processor.write_approved_items(
+                vault_path=vault_path,
+                result=result,
+                items=write_items,
+                semantic_results=[segment.semantic_result for segment in segment_results if segment.semantic_result is not None],
+                segment_records=result.segments,
             )
-            generated_pages = [relative_wiki_path(vault_path, Path(item.wiki_file_path)) for item in write_response.results]
-            _attach_written_pages_to_segment_records(result.segments, generated_pages, write_response.results)
-            atom_index_path = _upsert_atom_index(
-                vault_path,
-                [segment.semantic_result for segment in segment_results if segment.semantic_result is not None],
-                write_response.results,
-            )
-            if atom_index_path:
-                result.context["knowledge_atom_index_path"] = atom_index_path
-            result.generated_pages = generated_pages
-            self.context_provider.clear_cache()
-            result.wrote = True
-            result.status = "written"
-            if monitor:
-                monitor.event("pages_written", status="running", stage="writing", current_item=result.source_id, message=f"Wrote {len(generated_pages)} page(s).", payload={"generated_pages": generated_pages})
+            generated_pages = commit.generated_pages if commit else []
         elif not write_items and result.semantic_skip_reason:
             result.status = "skipped"
 
         result.touched_pages = _dedupe_pages([*generated_pages, *touched_pages])
-        result.scoped_lint = _scoped_lint_payload(result)
+        result.scoped_lint = scoped_lint_payload(result)
         if write and auto_scoped_lint and result.touched_pages:
-            try:
-                if monitor:
-                    monitor.event("scoped_lint_started", status="linting", stage="scoped_lint", current_item=result.source_id, message="Running scoped deterministic lint.")
-                lint_response = self.lint_pipeline.run_maintenance(
-                    LintRunRequest(
-                        vault_path=str(vault_path),
-                        scope=_maintenance_scope(result),
-                        mode="deterministic",
-                        apply_safe_fixes=auto_apply_safe_lint_fixes,
-                        include_related=scoped_lint_include_related,
-                        write_report=False,
-                        append_ledger=False,
-                    )
-                )
-                result.scoped_lint_result = _scoped_lint_result_payload(lint_response)
-                if monitor:
-                    monitor.event("scoped_lint_finished", status="running", stage="scoped_lint", current_item=result.source_id, message="Scoped lint finished.", payload=result.scoped_lint_result)
-            except Exception as exc:
-                lint_error = error_info(exc)
-                result.scoped_lint_result = {
-                    "error_code": lint_error.get("code"),
-                    "error_category": lint_error.get("category"),
-                    "error_retryable": lint_error.get("retryable"),
-                    "error_hint": lint_error.get("hint"),
-                    "error_type": type(exc).__name__,
-                    "error_message": str(exc),
-                }
-        return result
-
-    def _run_semantic_ingest(
-        self,
-        *,
-        vault_path: Path,
-        document: SourceDocument,
-        index_payload: dict[str, object],
-        source_file: str,
-        max_tokens: int | None,
-    ) -> tuple[IngestSemanticWorkflowResult, dict[str, object], IngestCandidatePageContext]:
-        history_start = _semantic_history_length(self.semantic_workflow)
-        knowledge_extract = self.semantic_workflow.normalize(document, max_tokens=max_tokens)
-        source_digest = build_source_digest_from_extract(knowledge_extract)
-        knowledge_atom_batch = self.semantic_workflow.extract_atoms(
-            source_digest,
-            knowledge_extract=knowledge_extract,
-            max_tokens=max_tokens,
-        )
-        knowledge_atom_quality = evaluate_knowledge_atoms(knowledge_atom_batch)
-        wiki_context = self.context_provider.build(
-            vault_path,
-            knowledge_extract,
-            knowledge_atom_batch=knowledge_atom_batch,
-        )
-        page_plan = self.semantic_workflow.plan_pages(
-            knowledge_extract,
-            source_digest=source_digest,
-            knowledge_atom_batch=knowledge_atom_batch,
-            existing_wiki_index=_index_summary_payload(index_payload),
-            wiki_context=wiki_context.model_dump(),
-            max_tokens=max_tokens,
-        )
-        if not _has_executable_page_plan_operations(page_plan):
-            semantic_metrics = summarize_semantic_runs(_semantic_history_slice(self.semantic_workflow, history_start))
-            candidate_page_context = IngestCandidatePageContext()
-            return (
-                IngestSemanticWorkflowResult(
-                    knowledge_extract=knowledge_extract,
-                    knowledge_atom_batch=knowledge_atom_batch,
-                    wiki_page_plan=page_plan,
-                    wiki_draft_batch=_empty_wiki_draft_batch(page_plan),
-                    ingest_draft_review=_empty_ingest_draft_review(page_plan),
-                ),
-                {
-                    "retrieval": {
-                        "mode": wiki_context.retrieval_mode,
-                        "query": wiki_context.query,
-                        "candidate_count": len(wiki_context.candidates),
-                        "warnings": wiki_context.warnings,
-                        "stats": wiki_context.stats,
-                    },
-                    "source_digest": {
-                        "digest_id": source_digest.digest_id,
-                        "summary": source_digest.summary_counts(),
-                    },
-                    "knowledge_atoms": knowledge_atom_quality.summary(),
-                    "knowledge_atom_quality": knowledge_atom_quality.model_dump(),
-                    "materialized_pages": candidate_page_context.stats,
-                    "semantic_metrics": semantic_metrics,
-                    "short_circuit": {
-                        "stage": "page_plan",
-                        "reason": _semantic_page_plan_skip_reason(page_plan),
-                    },
-                },
-                candidate_page_context,
+            self.post_processor.run_scoped_lint(
+                result=result,
+                vault_path=vault_path,
+                apply_safe_fixes=auto_apply_safe_lint_fixes,
+                include_related=scoped_lint_include_related,
             )
-        candidate_page_context = self.context_provider.materialize(vault_path, page_plan)
-        ingest_compile_context = build_ingest_compile_context(
-            knowledge_extract,
-            page_plan,
-            candidate_page_context.model_dump(),
-        )
-        draft_batch = self.semantic_workflow.compile_drafts(
-            knowledge_extract,
-            page_plan,
-            knowledge_atom_batch=knowledge_atom_batch,
-            candidate_page_context=candidate_page_context.model_dump(),
-            ingest_compile_context=ingest_compile_context,
-            max_tokens=max_tokens,
-        )
-        draft_batch = _materialize_draft_source_files(draft_batch, source_file)
-        review = self.semantic_workflow.review_drafts(
-            knowledge_extract,
-            page_plan,
-            draft_batch,
-            candidate_page_context=candidate_page_context.model_dump(),
-            ingest_compile_context=ingest_compile_context,
-            max_tokens=max_tokens,
-        )
-        semantic_metrics = summarize_semantic_runs(_semantic_history_slice(self.semantic_workflow, history_start))
-        return (
-            IngestSemanticWorkflowResult(
-                knowledge_extract=knowledge_extract,
-                knowledge_atom_batch=knowledge_atom_batch,
-                wiki_page_plan=page_plan,
-                wiki_draft_batch=draft_batch,
-                ingest_draft_review=review,
-            ),
-            {
-                "retrieval": {
-                    "mode": wiki_context.retrieval_mode,
-                    "query": wiki_context.query,
-                    "candidate_count": len(wiki_context.candidates),
-                    "warnings": wiki_context.warnings,
-                    "stats": wiki_context.stats,
-                },
-                "source_digest": {
-                    "digest_id": source_digest.digest_id,
-                    "summary": source_digest.summary_counts(),
-                },
-                "knowledge_atoms": knowledge_atom_quality.summary(),
-                "knowledge_atom_quality": knowledge_atom_quality.model_dump(),
-                "materialized_pages": candidate_page_context.stats,
-                "compile_context": {
-                    "context_policy": ingest_compile_context.context_policy,
-                    "target_pages": len(ingest_compile_context.page_context.targets),
-                    "related_pages": len(ingest_compile_context.page_context.related),
-                    "candidate_pages": len(ingest_compile_context.page_context.candidates),
-                },
-                "semantic_metrics": semantic_metrics,
-            },
-            candidate_page_context,
-        )
-
-
-def _materialize_draft_source_files(draft_batch: WikiDraftBatch, source_file: str) -> WikiDraftBatch:
-    drafts = [
-        draft.model_copy(update={"source_file": source_file})
-        for draft in draft_batch.drafts
-    ]
-    return draft_batch.model_copy(update={"drafts": drafts})
-
-
-def _has_executable_page_plan_operations(page_plan: WikiPagePlan) -> bool:
-    return any(operation.action in {"create", "update"} for operation in page_plan.operations)
-
-
-def _empty_wiki_draft_batch(page_plan: WikiPagePlan) -> WikiDraftBatch:
-    return WikiDraftBatch(
-        drafts=[],
-        batch_summary=_semantic_page_plan_skip_reason(page_plan),
-        warnings=list(page_plan.warnings),
-    )
-
-
-def _empty_ingest_draft_review(page_plan: WikiPagePlan) -> IngestDraftReview:
-    return IngestDraftReview(
-        decisions=[],
-        batch_decision="reject",
-        summary=_semantic_page_plan_skip_reason(page_plan),
-        warnings=list(page_plan.warnings),
-    )
-
-
-def _semantic_page_plan_skip_reason(page_plan: WikiPagePlan) -> str:
-    operations = page_plan.operations
-    if not operations:
-        return "Page plan contains no executable operations."
-    skip_reasons = [operation.decision_reason for operation in operations if operation.action == "skip" and operation.decision_reason]
-    return skip_reasons[0] if skip_reasons else "Page plan contains no executable operations."
-
-
-def _segment_write_items(
-    segment_result: IngestSourceResult,
-    source_file: str,
-    *,
-    segment_index: int,
-    privacy_config: PrivacyConfig | None = None,
-) -> list[WikiDraftBatchWriteItem]:
-    if segment_result.semantic_result is None:
-        return []
-    approved_indexes = set(segment_result.approved_operation_indexes)
-    return [
-        WikiDraftBatchWriteItem(
-            wiki_draft=WikiDraftInput.model_validate(draft.model_dump()),
-            write_action=draft.write_action,
-            target_page=draft.target_page,
-            source_file=source_file,
-            display_source_file=_display_source_file(source_file, privacy_config) if privacy_config else source_file,
-            operation_index=_global_operation_index(segment_index, draft.operation_index),
-        )
-        for draft in segment_result.semantic_result.wiki_draft_batch.drafts
-        if draft.operation_index in approved_indexes
-    ]
-
+        return result
 
 def _segment_record(batch: SourceSegmentBatch, index: int, result: IngestSourceResult) -> dict[str, object]:
     segment = batch.segments[index]
@@ -797,36 +540,6 @@ def _semantic_result_operations(semantic_result: IngestSemanticWorkflowResult | 
     ]
 
 
-def _upsert_atom_index(
-    vault_path: Path,
-    semantic_results: list[IngestSemanticWorkflowResult],
-    write_results: list[WikiDraftWriteResponse],
-) -> str | None:
-    batches = [
-        result.knowledge_atom_batch
-        for result in semantic_results
-        if result.knowledge_atom_batch.entities or result.knowledge_atom_batch.claims or result.knowledge_atom_batch.relations or result.knowledge_atom_batch.evidence
-    ]
-    if not batches:
-        return None
-    page_refs = [
-        KnowledgeAtomPageRef(
-            path=relative_wiki_path(vault_path, Path(write_result.wiki_file_path)),
-            source_digest_ids=_stats_string_list(write_result.stats.get("source_digest_ids")),
-            atom_ids=_stats_string_list(write_result.stats.get("atom_ids")),
-        )
-        for write_result in write_results
-    ]
-    atom_index_path = upsert_knowledge_atom_batches(vault_path, batches, page_refs)
-    return atom_index_path.resolve().relative_to(vault_path.expanduser().resolve()).as_posix()
-
-
-def _stats_string_list(value: object) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    return [str(item).strip() for item in value if str(item).strip()]
-
-
 def _semantic_result_warnings(semantic_result: IngestSemanticWorkflowResult | None) -> list[str]:
     if semantic_result is None:
         return []
@@ -843,41 +556,6 @@ def _combined_segment_skip_reason(segment_results: list[IngestSourceResult]) -> 
     if len(reasons) == len(segment_results) and reasons:
         return "All source segments were skipped by semantic page planning."
     return None
-
-
-def _attach_written_pages_to_segment_records(
-    segment_records: list[dict[str, object]],
-    generated_pages: list[str],
-    write_results: list[object],
-) -> None:
-    pages_by_segment: dict[int, list[str]] = {}
-    details_by_segment: dict[int, list[dict[str, object]]] = {}
-    for page, write_result in zip(generated_pages, write_results, strict=False):
-        stats = as_dict(getattr(write_result, "stats", {}))
-        operation_index = stats.get("operation_index")
-        if not isinstance(operation_index, int):
-            continue
-        segment_index = operation_index // 1000
-        pages_by_segment.setdefault(segment_index, []).append(page)
-        details_by_segment.setdefault(segment_index, []).append(
-            {
-                "path": page,
-                "created": bool(stats.get("created")),
-                "write_action": stats.get("write_action"),
-                "target_page": stats.get("target_page"),
-                "operation_index": operation_index,
-                "write_details": stats.get("write_details") if isinstance(stats.get("write_details"), dict) else {},
-            }
-        )
-    for record in segment_records:
-        index = record.get("index")
-        if isinstance(index, int):
-            record["generated_pages"] = pages_by_segment.get(index, [])
-            record["written_page_details"] = details_by_segment.get(index, [])
-
-
-def _global_operation_index(segment_index: int, operation_index: int) -> int:
-    return segment_index * 1000 + operation_index
 
 
 def _dedupe_pages(pages: list[str]) -> list[str]:
@@ -956,6 +634,7 @@ class IngestPipeline:
         if not self._external_lint_pipeline:
             self.lint_pipeline = WikiLintPipeline(privacy_config=config.privacy)
             self.source_executor.lint_pipeline = self.lint_pipeline
+            self.source_executor.post_processor.lint_pipeline = self.lint_pipeline
         if monitor:
             monitor.event("pipeline_started", stage="source_discovery", message="Starting ingest pipeline.")
         checkpoint_path = self.checkpoint_store.checkpoint_path(vault_path, "maintenance/source_ingest_checkpoints.json")
@@ -1229,28 +908,6 @@ def _effective_source_concurrency(config: KnoArborConfig, write: bool) -> int:
     return configured
 
 
-def _semantic_history_length(semantic_workflow: object) -> int:
-    runner = getattr(semantic_workflow, "runner", None)
-    history = getattr(runner, "history", None)
-    return len(history) if isinstance(history, list) else 0
-
-
-def _semantic_history_slice(semantic_workflow: object, start: int) -> list[object]:
-    runner = getattr(semantic_workflow, "runner", None)
-    history = getattr(runner, "history", None)
-    return history[start:] if isinstance(history, list) else []
-
-
-def _index_summary_payload(index_payload: dict[str, object]) -> dict[str, object]:
-    content = index_payload.get("content")
-    return {
-        "available": bool(index_payload.get("available")),
-        "path": index_payload.get("path", ".knoarbor/index/manifest.json"),
-        "content_length": len(content) if isinstance(content, str) else 0,
-        "note": "Ingest uses wiki_context.candidates as the authoritative lightweight candidate pool; full index content is not duplicated in the model input.",
-    }
-
-
 def _is_ignored(ignore: KnoArborIgnore, vault_path: Path, raw_path: Path, source_file: str) -> bool:
     candidates = [source_file, raw_path.name, str(raw_path)]
     try:
@@ -1299,28 +956,12 @@ def _semantic_skip_reason(result: IngestSemanticWorkflowResult) -> str | None:
     return operations[0].decision_reason or "Semantic page planning skipped this source."
 
 
-def _checkpointable_semantic_skip(result: IngestSourceResult) -> bool:
-    return (
-        result.status == "skipped"
-        and result.should_process
-        and result.semantic_result is not None
-        and bool(result.semantic_skip_reason)
-        and not result.error_stage
-    )
-
-
 def _redaction_payload(enabled: bool, counts: dict[str, int]) -> dict[str, object]:
     return {
         "enabled": enabled,
         "counts": counts,
         "redacted_count": sum(counts.values()),
     }
-
-
-def _display_source_file(source_file: str, privacy_config: PrivacyConfig) -> str:
-    if not privacy_config.redact_source_paths_in_pages:
-        return source_file
-    return redact_display_text(source_file, privacy_config)
 
 
 def _now_text() -> str:
@@ -1335,30 +976,6 @@ def _touched_pages(source_result: IngestSourceResult, candidate_page_context: ob
             seen.add(path)
             paths.append(path)
     return paths
-
-
-def _scoped_lint_payload(source_result: IngestSourceResult) -> dict[str, object]:
-    return {
-        "scope": "latest_ingest_source",
-        "source_file": source_result.source_file,
-        "pages": source_result.touched_pages,
-        "include_related": True,
-    }
-
-
-def _maintenance_scope(source_result: IngestSourceResult) -> MaintenanceScope:
-    return MaintenanceScope(
-        scope_id=f"latest_ingest:{source_result.source_id}",
-        trigger="ingest",
-        source=MaintenanceScopeSource(kind="source", source_id=source_result.source_id),
-        changed_pages=source_result.touched_pages,
-        recommended_lint_modes=["deterministic"],
-        reason=f"Post-ingest maintenance for {source_result.source_file}.",
-    )
-
-
-def _scoped_lint_result_payload(response: LintRunResult) -> dict[str, object]:
-    return response.model_dump()
 
 
 def _failed_source_result(connector_name: str, stage: str, exc: Exception) -> IngestSourceResult:

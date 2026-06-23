@@ -100,8 +100,8 @@ class IngestContextProviderTests(unittest.TestCase):
         self.assertNotIn("content", candidate)
         self.assertNotIn("answer", candidate)
         self.assertEqual(candidate["summary"], "Line one. Line two.")
-        self.assertEqual(candidate["tags"], page.tags)
-        self.assertEqual(candidate["key_points"], page.key_points)
+        self.assertEqual(candidate["entities"], page.tags)
+        self.assertEqual(candidate["claim_points"], page.key_points)
         self.assertEqual(candidate["related_pages"], page.related_pages)
         self.assertGreater(context.stats["page_plan_profile_chars"], 0)
 
