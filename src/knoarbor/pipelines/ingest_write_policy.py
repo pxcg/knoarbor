@@ -53,8 +53,13 @@ def _merge_source_digests(items: list[WikiDraftBatchWriteItem]) -> WikiDraftInpu
         update={
             "summary": _join_unique_blocks([draft.summary for draft in drafts], max_blocks=3),
             "answer": _join_unique_blocks([draft.answer for draft in drafts], max_blocks=8),
-            "key_points": merge_unique_items([point for draft in drafts for point in draft.key_points], [], 12),
-            "tags": merge_unique_items([tag for draft in drafts for tag in draft.tags], [], 12),
+            "claims": merge_unique_items([claim for draft in drafts for claim in draft.claims], [], 24),
+            "entities": merge_unique_items([entity for draft in drafts for entity in draft.entities], [], 48),
+            "relations": merge_unique_items([relation for draft in drafts for relation in draft.relations], [], 24),
+            "evidence": merge_unique_items([evidence for draft in drafts for evidence in draft.evidence], [], 48),
+            "synthesis": _join_unique_blocks([draft.synthesis or draft.answer for draft in drafts], max_blocks=8),
+            "key_points": [],
+            "tags": [],
             "confidence": min(draft.confidence for draft in drafts),
         }
     )

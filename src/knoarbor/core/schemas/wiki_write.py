@@ -155,8 +155,8 @@ class WikiDraft(BaseModel):
     relations: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
     synthesis: str = ""
-    key_points: list[str]
-    tags: list[str]
+    key_points: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
     confidence: float = Field(ge=0, le=1)
     model_provider: str
     model_name: str

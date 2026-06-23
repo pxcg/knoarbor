@@ -16,7 +16,7 @@ class DraftCanonicalizerTests(unittest.TestCase):
         draft = WikiDraftInput(
             title="LLM-Wiki.md",
             page_dir="sources",
-            question="# Source Focus",
+            question="# Source Context",
             answer="# Overview\n\n## Details",
             summary="## Summary",
             key_points=["Point"],
@@ -31,11 +31,31 @@ class DraftCanonicalizerTests(unittest.TestCase):
         self.assertEqual(result.draft.title, "LLM-Wiki Source")
         self.assertEqual(result.draft.page_kind, "source_digest")
         self.assertEqual(result.draft.subject_kind, "source_digest")
-        self.assertEqual(result.draft.question, "### Source Focus")
+        self.assertEqual(result.draft.question, "### Source Context")
         self.assertIn("### Overview", result.draft.answer)
-        self.assertEqual(result.draft.tags, ["knowledge-management"])
+        self.assertEqual(result.draft.tags, [])
         self.assertIn("normalized_title", result.changes)
         self.assertIn("normalized_body_headings", result.changes)
+
+    def test_legacy_fields_do_not_backfill_claims_or_facets(self) -> None:
+        draft = WikiDraftInput(
+            title="Agent Loop",
+            page_dir="concepts",
+            question="Agent Loop",
+            answer="Agent loop repeats reasoning and tool use.",
+            summary="Agent loop is a control pattern.",
+            key_points=["Legacy point should not become a claim."],
+            tags=["Legacy Tag"],
+            facets=["agent-control"],
+        )
+
+        result = DraftCanonicalizer().canonicalize_draft(draft, source_file="raw/notes/agent.md", write_action="create")
+
+        self.assertEqual(result.draft.claims, [])
+        self.assertEqual(result.draft.key_points, [])
+        self.assertEqual(result.draft.tags, [])
+        self.assertIn("agent_control", result.draft.facets)
+        self.assertNotIn("legacy_tag", result.draft.facets)
 
     def test_preserves_atom_trace_fields(self) -> None:
         draft = WikiDraftInput(

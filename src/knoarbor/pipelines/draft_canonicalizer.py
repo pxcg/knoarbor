@@ -48,30 +48,26 @@ class DraftCanonicalizer:
             changes.append("normalized_source_file")
 
         summary = normalize_embedded_body_markdown(draft.summary, "summary")
-        question = normalize_embedded_body_markdown(draft.question, "source focus")
+        question = normalize_embedded_body_markdown(draft.question, "source context")
         answer = normalize_embedded_body_markdown(draft.answer, "answer")
-        definition = normalize_embedded_body_markdown(draft.definition or draft.summary, "definition")
         synthesis = normalize_embedded_body_markdown(draft.synthesis or draft.answer, "synthesis")
-        if (summary, question, answer, definition, synthesis) != (
+        if (summary, question, answer, synthesis) != (
             draft.summary,
             draft.question,
             draft.answer,
-            draft.definition,
             draft.synthesis,
         ):
             changes.append("normalized_body_headings")
 
         patches = self._canonicalize_patches(draft.patches, changes)
-        key_points = [str(item).strip() for item in draft.key_points if str(item).strip()][:8]
-        claims = [str(item).strip() for item in (draft.claims or key_points) if str(item).strip()][:12]
+        claims = [str(item).strip() for item in draft.claims if str(item).strip()][:12]
         entities = [str(item).strip() for item in draft.entities if str(item).strip()][:24]
         relations = [str(item).strip() for item in draft.relations if str(item).strip()][:12]
         evidence = [str(item).strip() for item in draft.evidence if str(item).strip()][:24]
-        tags = [str(item).strip().lower().replace(" ", "-") for item in draft.tags if str(item).strip()][:8]
         page_kind = _page_kind_from_draft(draft.page_kind, page_dir)
         page_role = _page_role_from_draft(draft.role, page_kind)
         subject_kind = _subject_kind_from_draft(draft.subject_kind, page_kind)
-        facets = _identity_facets(draft.facets, tags, page_dir, page_kind)
+        facets = _identity_facets(draft.facets, page_dir, page_kind)
 
         canonical = WikiDraft(
             title=title,
@@ -86,14 +82,14 @@ class DraftCanonicalizer:
             question=question,
             answer=answer,
             summary=summary,
-            definition=definition,
+            definition="",
             claims=claims,
             entities=entities,
             relations=relations,
             evidence=evidence,
             synthesis=synthesis,
-            key_points=key_points,
-            tags=tags,
+            key_points=[],
+            tags=[],
             confidence=draft.confidence,
             model_provider=draft.model_provider,
             model_name=draft.model_name,
@@ -114,9 +110,8 @@ class DraftCanonicalizer:
         if source_file and source_file.strip() in PLACEHOLDER_SOURCE_FILES:
             raise PolicyRejection(f"source_file is a placeholder, not provenance: {source_file}")
         validate_body_markdown(draft.summary, "summary")
-        validate_body_markdown(draft.question, "source focus")
+        validate_body_markdown(draft.question, "source context")
         validate_body_markdown(draft.answer, "answer")
-        validate_body_markdown(draft.definition, "definition")
         validate_body_markdown(draft.synthesis, "synthesis")
         for claim in draft.claims:
             validate_body_markdown(claim, "claim")
@@ -187,8 +182,8 @@ def _subject_kind_from_draft(value: str, page_kind: str) -> str:
     return page_kind
 
 
-def _identity_facets(explicit: list[str], tags: list[str], page_dir: str, page_kind: str) -> list[str]:
-    values = [*explicit, *tags, page_dir, page_kind]
+def _identity_facets(explicit: list[str], page_dir: str, page_kind: str) -> list[str]:
+    values = [*explicit, page_dir, page_kind]
     facets: list[str] = []
     for value in values:
         text = _normalize_identity_value(value)

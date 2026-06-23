@@ -758,6 +758,17 @@ class IngestPipelineTests(unittest.TestCase):
             self.assertEqual(result.stats["written_count"], 1)
             self.assertEqual(source.generated_pages, ["sources/Long-Source-Digest.md"])
             self.assertEqual(source.context["write_policy"]["changes"], ["merged_source_digest_creates:3->1"])
+            content = source_pages[0].read_text(encoding="utf-8")
+            self.assertIn("## Claims", content)
+            self.assertIn("Source segments describe long source provenance.", content)
+            self.assertIn("## Entities", content)
+            self.assertIn("Long Source", content)
+            self.assertIn("## Relations", content)
+            self.assertIn("Long Source | has_digest | [[Long Source Digest]] | C1", content)
+            self.assertIn("## Evidence", content)
+            self.assertIn("source digest aggregates segmented input", content)
+            self.assertNotIn("## Key Points", content)
+            self.assertNotIn("## Tags", content)
 
     def test_ingest_uses_provenance_links_without_broad_lexical_related_links(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

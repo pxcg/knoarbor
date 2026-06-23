@@ -75,8 +75,6 @@ class WikiDraftBatchItem(BaseModel):
             self.definition = self.summary
         if not self.synthesis.strip():
             self.synthesis = self.answer
-        if not self.claims:
-            self.claims = list(self.key_points)
         return self
 
     @model_validator(mode="after")

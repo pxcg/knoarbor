@@ -168,9 +168,7 @@
           "rel_agent_loop_mentions_control"
         ],
         "canonical_path": "Agent-Loop.md",
-        "claims": [
-          "It includes feedback."
-        ],
+        "claims": [],
         "confidence": 0.9,
         "definition": "Agent Loop is a basic control cycle for agents.",
         "entities": [],

@@ -273,7 +273,8 @@ class SemanticContractTests(unittest.TestCase):
                         "question": "Agent Loop",
                         "answer": "Agent Loop coordinates tool use.",
                         "summary": "Agent Loop is a control pattern.",
-                        "key_points": ["Coordinates tool use."],
+                        "claims": ["C1. [[Agent Loop]] coordinates tool use."],
+                        "key_points": ["Legacy hint only."],
                         "tags": ["agent", "loop"],
                         "source_digest_ids": [" sd_agent ", "sd_agent"],
                         "atom_ids": ["claim_agent_loop_cycle", " claim_agent_loop_cycle "],
@@ -292,7 +293,8 @@ class SemanticContractTests(unittest.TestCase):
         self.assertEqual(draft.legacy_paths, ["concepts/Agent-Loop.md"])
         self.assertEqual(draft.atom_ids, ["claim_agent_loop_cycle"])
         self.assertEqual(draft.definition, "Agent Loop is a control pattern.")
-        self.assertEqual(draft.claims, ["Coordinates tool use."])
+        self.assertEqual(draft.claims, ["C1. [[Agent Loop]] coordinates tool use."])
+        self.assertEqual(draft.key_points, ["Legacy hint only."])
         self.assertEqual(draft.synthesis, "Agent Loop coordinates tool use.")
 
     def test_wiki_draft_batch_normalizes_null_identity_hints(self) -> None:

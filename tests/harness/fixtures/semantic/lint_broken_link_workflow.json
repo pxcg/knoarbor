@@ -43,9 +43,7 @@
         "answer": "This source describes Agent Loop.",
         "atom_ids": [],
         "canonical_path": "sources/Agent-Source-Digest.md",
-        "claims": [
-          "Mentions Agent Loop."
-        ],
+        "claims": [],
         "confidence": 0.8,
         "definition": "Source digest for Agent notes.",
         "entities": [],
