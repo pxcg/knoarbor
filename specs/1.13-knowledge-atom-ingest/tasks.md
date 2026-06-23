@@ -1,5 +1,28 @@
 # 1.13 Knowledge Atom Ingest Tasks
 
+## Ingest Chain Progress
+
+This table is the active implementation tracker for the claims-first ingest
+refactor. It maps the end-to-end ingest chain to concrete ownership boundaries
+so progress does not depend on conversation context.
+
+| Step | Boundary | Status | Owner / Output | Notes |
+| --- | --- | --- | --- | --- |
+| 1 | Source Input | Done | Connectors, document processors, `SourceDocument` | Raw materials become normalized source documents with identity, path, hash, and connector metadata. |
+| 2 | Source Segmentation | Done | `SourceSegmenter`, `ingest_aggregation` | Long sources are split for budget, then segment-level semantic artifacts are aggregated before page planning. |
+| 3 | Segment-level Semantic Extraction | Next | `source_normalize`, `wiki_atom_extract`, `knowledge_atoms.v2` | Extract claims, entities, relations, and evidence from each source or segment. This is where claims are created. |
+| 4 | Source-level Aggregation | Done for segmented sources | `aggregate_segment_semantic_artifacts` | Merge segment extracts, remap evidence ranges, deduplicate atoms, and rebuild source-level digest. |
+| 5 | Page Planning | Implemented, needs review under new page structure | `WikiPagePlan` | Decide create/update/skip and select claim ids per page. It should not write or assemble page bodies. |
+| 6 | Claim / Relation / Evidence Closure | Done | `knowledge_atom_closure` | Given selected claims, deterministically close supported relations, entities, evidence, and source digest traces. |
+| 7 | Page Assembly / Draft Compile | Pending | `PageAssemblyService` + narrowed synthesis generation | Assemble identity, claims, relations, entities, evidence, and Markdown skeleton deterministically; use LLM mainly for synthesis. |
+| 8 | Review / Quality Gate | Partial | `IngestQualityGate`, draft review agent | Split deterministic write gate from semantic review and make review conditional on risk signals. |
+| 9 | Write / Report / Index | Partial | `IngestPostProcessor`, atom index, graph/manifest reports | Persist pages, update indexes, emit reports, and expose atom trace consistently. |
+
+The next active module is Step 3. The review should confirm whether atom
+extraction now has a clear enough contract for claims-first pages, whether it
+overloads source normalization, and whether any prompt or schema output still
+reflects the old page-generator design.
+
 ## P0 Atom Contract
 
 - [x] Create SDD requirements, design, tasks, and verification.
