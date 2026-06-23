@@ -93,7 +93,7 @@ Do not return markdown fences or explanatory prose.
 
 ## Drafting Rules
 
-- Use `ingest_compile_context.current_content.primary_content` as the main source text for the current segment or source window.
+- Full source text is consumed before this stage by normalize and atom extraction. In this stage, `ingest_compile_context.current_content.primary_content` may be omitted by policy. Use selected `knowledge_atoms` evidence excerpts as the source-backed material for claims, relations, evidence, and synthesis.
 - Write user-facing fields (`question`, `summary`, `definition`, `claims`,
   `relations`, `synthesis`, `key_points`, and patch content) in the dominant
   language of the source material. Preserve precise technical terms, model

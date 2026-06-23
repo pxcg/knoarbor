@@ -101,6 +101,8 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
         self.assertEqual(context["operations"][0]["source_digest_ids"], ["sd_test_agent"])
         self.assertEqual(context["page_context"]["targets"][0]["content_kind"], "full")
         self.assertEqual(context["context_policy"], "target_full_related_excerpt_candidate_profile")
+        self.assertEqual(context["current_content"]["primary_content"], "")
+        self.assertEqual(context["current_content"]["source_text_policy"], "omitted_after_atom_extraction")
 
     def test_draft_compile_receives_only_page_plan_selected_atoms(self) -> None:
         atom_output = _atom_output_with_unselected_material()

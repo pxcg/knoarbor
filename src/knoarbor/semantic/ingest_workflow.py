@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 from pydantic import BaseModel
@@ -146,7 +147,7 @@ class IngestSemanticWorkflow:
                     knowledge_atom_batch,
                     wiki_page_plan,
                 ),
-                "ingest_compile_context": compile_context,
+                "ingest_compile_context": _model_compile_context_payload(compile_context),
             },
             max_tokens=max_tokens,
         )
@@ -173,7 +174,7 @@ class IngestSemanticWorkflow:
             "ingest_draft_review",
             {
                 "wiki_draft_batch": wiki_draft_batch.model_dump(),
-                "ingest_compile_context": compile_context,
+                "ingest_compile_context": _model_compile_context_payload(compile_context),
             },
             max_tokens=max_tokens,
         )
@@ -209,6 +210,22 @@ def _compile_context_payload(
         wiki_page_plan,
         candidate_page_context,
     ).model_dump()
+
+
+def _model_compile_context_payload(compile_context: dict[str, Any]) -> dict[str, Any]:
+    payload = deepcopy(compile_context)
+    current_content = payload.get("current_content")
+    if not isinstance(current_content, dict):
+        return payload
+    primary_content = current_content.get("primary_content")
+    if isinstance(primary_content, str) and primary_content:
+        current_content["primary_content"] = ""
+        current_content["source_text_policy"] = "omitted_after_atom_extraction"
+        current_content["source_text_note"] = (
+            "Full source text was used during normalize and atom extraction. "
+            "Use selected knowledge_atoms evidence excerpts for draft and review."
+        )
+    return payload
 
 
 def _selected_knowledge_atoms_for_plan(
