@@ -72,7 +72,6 @@
             "page_dir": "sources",
             "page_kind": null,
             "selected_claim_ids": [],
-            "selected_fact_ids": [],
             "selected_relation_ids": [],
             "source_digest_ids": [
               "sd_5b7a6351e47a5aca"
@@ -118,7 +117,6 @@
             "page_dir": "sources",
             "page_kind": null,
             "selected_claim_ids": [],
-            "selected_fact_ids": [],
             "selected_relation_ids": [],
             "source_digest_ids": [
               "sd_e7f2708653e0046b"
@@ -164,7 +162,6 @@
             "page_dir": "sources",
             "page_kind": null,
             "selected_claim_ids": [],
-            "selected_fact_ids": [],
             "selected_relation_ids": [],
             "source_digest_ids": [
               "sd_3cd3d72752464c5a"

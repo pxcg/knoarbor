@@ -33,7 +33,6 @@ class WikiPageOperation(BaseModel):
     facets: list[str] = Field(default_factory=list)
     title: str | None = None
     knowledge_object: str | None = None
-    selected_fact_ids: list[str] = Field(default_factory=list)
     selected_claim_ids: list[str] = Field(default_factory=list)
     selected_relation_ids: list[str] = Field(default_factory=list)
     source_digest_ids: list[str] = Field(default_factory=list)
@@ -57,7 +56,7 @@ class WikiPageOperation(BaseModel):
         text = value.strip().lstrip("/")
         return text or None
 
-    @field_validator("legacy_paths", "facets", "selected_fact_ids", "selected_claim_ids", "selected_relation_ids", "source_digest_ids", mode="before")
+    @field_validator("legacy_paths", "facets", "selected_claim_ids", "selected_relation_ids", "source_digest_ids", mode="before")
     @classmethod
     def normalize_id_list(cls, value: object) -> list[str]:
         if value is None:

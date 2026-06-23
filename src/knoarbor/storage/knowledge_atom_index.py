@@ -14,7 +14,7 @@ from knoarbor.storage.wiki_index import machine_index_dir
 KNOWLEDGE_ATOM_INDEX_SCHEMA = "knowledge_atom_index.v1"
 KNOWLEDGE_ATOM_INDEX_PATH = "knowledge_atoms.jsonl"
 
-KnowledgeAtomRecordType = Literal["fact", "claim", "relation"]
+KnowledgeAtomRecordType = Literal["claim", "relation", "entity", "evidence"]
 
 
 class KnowledgeAtomPageRef(BaseModel):
@@ -78,16 +78,16 @@ def _records_from_batch(batch: KnowledgeAtomBatch, page_refs: list[KnowledgeAtom
     page_paths_by_atom = _page_paths_by_atom(page_refs)
     source_digest_pages = _source_digest_page_paths(batch.source_digest_id, page_refs)
     records: list[KnowledgeAtomRecord] = []
-    for fact in batch.facts:
+    for entity in batch.entities:
         records.append(
             KnowledgeAtomRecord(
                 source_digest_id=batch.source_digest_id,
-                atom_id=fact.id,
-                atom_type="fact",
-                text=fact.statement,
-                payload=fact.model_dump(exclude={"evidence"}),
-                evidence=[span.model_dump() for span in fact.evidence],
-                page_paths=page_paths_by_atom.get(fact.id, source_digest_pages),
+                atom_id=entity.atom_id or f"entity:{entity.name}",
+                atom_type="entity",
+                text=entity.name,
+                payload=entity.model_dump(),
+                evidence=[],
+                page_paths=page_paths_by_atom.get(entity.atom_id or f"entity:{entity.name}", source_digest_pages),
             )
         )
     for claim in batch.claims:
@@ -112,6 +112,19 @@ def _records_from_batch(batch: KnowledgeAtomBatch, page_refs: list[KnowledgeAtom
                 payload=relation.model_dump(exclude={"evidence"}),
                 evidence=[span.model_dump() for span in relation.evidence],
                 page_paths=page_paths_by_atom.get(relation.id, source_digest_pages),
+            )
+        )
+    for index, evidence in enumerate(batch.evidence):
+        evidence_id = evidence.excerpt_hash or f"evidence:{batch.source_digest_id}:{index}"
+        records.append(
+            KnowledgeAtomRecord(
+                source_digest_id=batch.source_digest_id,
+                atom_id=evidence_id,
+                atom_type="evidence",
+                text=evidence.excerpt,
+                payload=evidence.model_dump(),
+                evidence=[evidence.model_dump()],
+                page_paths=source_digest_pages,
             )
         )
     return records

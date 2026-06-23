@@ -2,12 +2,10 @@
 
 ## Automated
 
-- `KnowledgeAtomBatch` accepts facts with evidence.
-- Facts without evidence fail validation.
-- Claims without evidence and supporting facts fail validation.
-- Relations without evidence, supporting facts, or supporting claims fail
-  validation.
-- Atom batch summaries report fact, claim, relation, and evidence counts.
+- `KnowledgeAtomBatch` accepts entities, claims, relations, and evidence spans.
+- Claims without direct evidence fail validation.
+- Relations without direct evidence or source claim references fail validation.
+- Atom batch summaries report entity, claim, relation, and evidence counts.
 - Existing ingest tests pass while the atom layer is introduced.
 - Page planning payloads use compact source digest profiles and selected atom
   context.
@@ -88,7 +86,7 @@ uv run ruff check \
 
 ## Known Risks
 
-- Over-extraction can create noisy facts and claims. Mitigation: extract only
+- Over-extraction can create noisy claims and relations. Mitigation: extract only
   durable, reusable atoms and reject unsupported atoms.
 - Atom ids can become unstable if derived from model wording. Mitigation:
   derive ids from normalized statement plus evidence hash where possible.

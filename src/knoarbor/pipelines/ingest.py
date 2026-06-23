@@ -788,7 +788,6 @@ def _semantic_result_operations(semantic_result: IngestSemanticWorkflowResult | 
             "facets": list(operation.facets),
             "title": operation.title,
             "knowledge_object": operation.knowledge_object,
-            "selected_fact_ids": list(operation.selected_fact_ids),
             "selected_claim_ids": list(operation.selected_claim_ids),
             "selected_relation_ids": list(operation.selected_relation_ids),
             "source_digest_ids": list(operation.source_digest_ids),
@@ -806,7 +805,7 @@ def _upsert_atom_index(
     batches = [
         result.knowledge_atom_batch
         for result in semantic_results
-        if result.knowledge_atom_batch.facts or result.knowledge_atom_batch.claims or result.knowledge_atom_batch.relations
+        if result.knowledge_atom_batch.entities or result.knowledge_atom_batch.claims or result.knowledge_atom_batch.relations or result.knowledge_atom_batch.evidence
     ]
     if not batches:
         return None

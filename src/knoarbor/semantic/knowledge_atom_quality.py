@@ -15,7 +15,6 @@ def evaluate_knowledge_atoms(batch: KnowledgeAtomBatch) -> KnowledgeAtomQualityR
     """Validate source-local atom consistency before atoms influence page planning."""
     issues: list[KnowledgeAtomQualityIssue] = []
     issues.extend(_duplicate_id_issues(batch))
-    issues.extend(_unsupported_fact_issues(batch))
     issues.extend(_unsupported_claim_issues(batch))
     issues.extend(_unsupported_relation_issues(batch))
     issues.extend(_conflicting_relation_issues(batch.relations))
@@ -29,7 +28,7 @@ def evaluate_knowledge_atoms(batch: KnowledgeAtomBatch) -> KnowledgeAtomQualityR
 def _duplicate_id_issues(batch: KnowledgeAtomBatch) -> list[KnowledgeAtomQualityIssue]:
     issues: list[KnowledgeAtomQualityIssue] = []
     seen: set[str] = set()
-    for atom_id in [*(fact.id for fact in batch.facts), *(claim.id for claim in batch.claims), *(relation.id for relation in batch.relations)]:
+    for atom_id in [*(claim.id for claim in batch.claims), *(relation.id for relation in batch.relations)]:
         if atom_id in seen:
             issues.append(
                 KnowledgeAtomQualityIssue(
@@ -43,36 +42,10 @@ def _duplicate_id_issues(batch: KnowledgeAtomBatch) -> list[KnowledgeAtomQuality
     return issues
 
 
-def _unsupported_fact_issues(batch: KnowledgeAtomBatch) -> list[KnowledgeAtomQualityIssue]:
-    issues: list[KnowledgeAtomQualityIssue] = []
-    for fact in batch.facts:
-        if _has_foreign_evidence(batch.source_digest_id, fact.evidence):
-            issues.append(
-                KnowledgeAtomQualityIssue(
-                    issue_type="unsupported_fact",
-                    severity="error",
-                    atom_id=fact.id,
-                    message="Fact evidence points to a different source digest.",
-                )
-            )
-    return issues
-
-
 def _unsupported_claim_issues(batch: KnowledgeAtomBatch) -> list[KnowledgeAtomQualityIssue]:
-    fact_ids = {fact.id for fact in batch.facts}
     issues: list[KnowledgeAtomQualityIssue] = []
     for claim in batch.claims:
-        missing_fact_ids = [fact_id for fact_id in claim.supporting_fact_ids if fact_id not in fact_ids]
-        if missing_fact_ids and not claim.evidence:
-            issues.append(
-                KnowledgeAtomQualityIssue(
-                    issue_type="unsupported_claim",
-                    severity="error",
-                    atom_id=claim.id,
-                    message=f"Claim references missing supporting fact ids: {', '.join(missing_fact_ids)}.",
-                )
-            )
-        elif _has_foreign_evidence(batch.source_digest_id, claim.evidence):
+        if _has_foreign_evidence(batch.source_digest_id, claim.evidence):
             issues.append(
                 KnowledgeAtomQualityIssue(
                     issue_type="unsupported_claim",
@@ -85,20 +58,17 @@ def _unsupported_claim_issues(batch: KnowledgeAtomBatch) -> list[KnowledgeAtomQu
 
 
 def _unsupported_relation_issues(batch: KnowledgeAtomBatch) -> list[KnowledgeAtomQualityIssue]:
-    fact_ids = {fact.id for fact in batch.facts}
     claim_ids = {claim.id for claim in batch.claims}
     issues: list[KnowledgeAtomQualityIssue] = []
     for relation in batch.relations:
-        missing_fact_ids = [fact_id for fact_id in relation.source_fact_ids if fact_id not in fact_ids]
         missing_claim_ids = [claim_id for claim_id in relation.source_claim_ids if claim_id not in claim_ids]
-        if (missing_fact_ids or missing_claim_ids) and not relation.evidence:
-            missing = [*missing_fact_ids, *missing_claim_ids]
+        if missing_claim_ids and not relation.evidence:
             issues.append(
                 KnowledgeAtomQualityIssue(
                     issue_type="unsupported_relation",
                     severity="error",
                     atom_id=relation.id,
-                    message=f"Relation references missing source atom ids: {', '.join(missing)}.",
+                    message=f"Relation references missing source claim ids: {', '.join(missing_claim_ids)}.",
                 )
             )
         elif _has_foreign_evidence(batch.source_digest_id, relation.evidence):

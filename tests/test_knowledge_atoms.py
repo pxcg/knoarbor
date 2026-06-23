@@ -9,7 +9,6 @@ from knoarbor.core.schemas.knowledge_atoms import (
     KnowledgeAtomObject,
     KnowledgeClaim,
     KnowledgeEvidenceSpan,
-    KnowledgeFact,
     KnowledgeRelation,
 )
 
@@ -26,15 +25,7 @@ def _evidence(excerpt: str = "SoundAnalysis emits classification windows.") -> K
 
 
 class KnowledgeAtomSchemaTest(unittest.TestCase):
-    def test_fact_requires_evidence(self) -> None:
-        with self.assertRaises(ValidationError):
-            KnowledgeFact(
-                id="fact_without_evidence",
-                statement="SoundAnalysis emits classification windows.",
-                evidence=[],
-            )
-
-    def test_claim_requires_evidence_or_supporting_facts(self) -> None:
+    def test_claim_requires_evidence(self) -> None:
         with self.assertRaises(ValidationError):
             KnowledgeClaim(
                 id="claim_without_support",
@@ -46,9 +37,10 @@ class KnowledgeAtomSchemaTest(unittest.TestCase):
             id="claim_supported",
             claim="SoundAnalysis should be used as a coarse activity detector.",
             claim_type="recommendation",
-            supporting_fact_ids=["fact_soundanalysis_windows"],
+            evidence=[_evidence()],
+            entity_names=["SoundAnalysis"],
         )
-        self.assertEqual(claim.supporting_fact_ids, ["fact_soundanalysis_windows"])
+        self.assertEqual(claim.entity_names, ["SoundAnalysis"])
 
     def test_relation_requires_support(self) -> None:
         subject = KnowledgeAtomObject(object_type="concept", name="SoundAnalysis")
@@ -66,22 +58,18 @@ class KnowledgeAtomSchemaTest(unittest.TestCase):
             subject=subject,
             predicate="contrasts",
             object=obj,
-            source_fact_ids=["fact_soundanalysis_windows"],
+            source_claim_ids=["claim_soundanalysis_activity_detector"],
         )
         self.assertEqual(relation.predicate, "contrasts")
 
     def test_atom_batch_summary_counts_unique_evidence(self) -> None:
         evidence = _evidence()
-        fact = KnowledgeFact(
-            id="fact_soundanalysis_windows",
-            statement="SoundAnalysis emits classification windows.",
-            evidence=[evidence],
-        )
         claim = KnowledgeClaim(
             id="claim_soundanalysis_activity_detector",
             claim="SoundAnalysis is activity-level rather than hit-timestamp-level.",
             claim_type="assessment",
             evidence=[evidence],
+            entity_names=["SoundAnalysis"],
         )
         relation = KnowledgeRelation(
             id="rel_soundanalysis_mentions_ios_workflow",
@@ -92,15 +80,19 @@ class KnowledgeAtomSchemaTest(unittest.TestCase):
         )
         batch = KnowledgeAtomBatch(
             source_digest_id="sd_ios_audio_001",
-            facts=[fact],
+            entities=[
+                KnowledgeAtomObject(object_type="concept", name="SoundAnalysis", atom_id="entity_soundanalysis"),
+                KnowledgeAtomObject(object_type="workflow", name="iOS Audio ML Workflow", atom_id="entity_ios_audio_ml_workflow"),
+            ],
             claims=[claim],
             relations=[relation],
+            evidence=[evidence],
         )
 
         self.assertEqual(
             batch.summary(),
             {
-                "facts": 1,
+                "entities": 2,
                 "claims": 1,
                 "relations": 1,
                 "evidence_spans": 2,

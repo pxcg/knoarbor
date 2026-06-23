@@ -87,7 +87,7 @@ Do not return markdown fences or explanatory prose.
 ## Dimension Definitions
 
 - `source_trace`: the draft carries the source digest ids required by the page-plan operation.
-- `atom_coverage`: the draft carries and uses the fact, claim, and relation atom ids selected by the page-plan operation.
+- `atom_coverage`: the draft carries and uses the claim and relation atom ids selected by the page-plan operation.
 - `source_support`: core claims are supported by the extract, source digest, selected atoms, or target page evidence.
 - `page_boundary`: the page represents one stable knowledge object rather than a loose bundle of unrelated notes.
 - `identity_fit`: title, page_kind, subject_kind, facets, and knowledge_object describe the same durable wiki page identity.

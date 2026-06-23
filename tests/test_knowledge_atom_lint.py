@@ -90,7 +90,7 @@ class KnowledgeAtomLintTests(unittest.TestCase):
                             id="claim_missing_support",
                             claim="Agent loop depends on missing support.",
                             claim_type="assessment",
-                            supporting_fact_ids=["missing_fact"],
+                            evidence=[_evidence()],
                         )
                     ],
                     relations=[
@@ -99,7 +99,7 @@ class KnowledgeAtomLintTests(unittest.TestCase):
                             subject=subject,
                             predicate="supports",
                             object=target,
-                            evidence=[_evidence()],
+                            source_claim_ids=["missing_claim"],
                         ),
                         KnowledgeRelation(
                             id="rel_contradicts",
@@ -122,7 +122,7 @@ class KnowledgeAtomLintTests(unittest.TestCase):
             issues, stats = lint_vault(vault)
 
         codes = {issue.code for issue in issues}
-        self.assertIn("atom_claim_missing_support", codes)
+        self.assertIn("atom_relation_missing_support", codes)
         self.assertIn("atom_conflicting_relation", codes)
         self.assertEqual(stats["knowledge_atom_index"]["record_count"], 3)
         self.assertEqual(stats["knowledge_atom_index"]["issue_count"], 2)

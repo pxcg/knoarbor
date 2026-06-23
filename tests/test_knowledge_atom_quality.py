@@ -7,7 +7,6 @@ from knoarbor.core.schemas.knowledge_atoms import (
     KnowledgeAtomObject,
     KnowledgeClaim,
     KnowledgeEvidenceSpan,
-    KnowledgeFact,
     KnowledgeRelation,
 )
 from knoarbor.semantic.knowledge_atom_quality import evaluate_knowledge_atoms
@@ -26,19 +25,17 @@ class KnowledgeAtomQualityTests(unittest.TestCase):
     def test_quality_report_accepts_supported_atoms(self) -> None:
         batch = KnowledgeAtomBatch(
             source_digest_id="sd_agent",
-            facts=[
-                KnowledgeFact(
-                    id="fact_agent_loop_tools",
-                    statement="Agent loop coordinates tool use.",
-                    evidence=[_evidence()],
-                )
+            entities=[
+                KnowledgeAtomObject(object_type="concept", name="Agent Loop", atom_id="entity_agent_loop"),
+                KnowledgeAtomObject(object_type="concept", name="Tool Governance", atom_id="entity_tool_governance"),
             ],
             claims=[
                 KnowledgeClaim(
                     id="claim_agent_loop_production",
                     claim="Production agent loops need tool governance.",
                     claim_type="assessment",
-                    supporting_fact_ids=["fact_agent_loop_tools"],
+                    evidence=[_evidence()],
+                    entity_names=["Agent Loop", "Tool Governance"],
                 )
             ],
             relations=[
@@ -47,7 +44,7 @@ class KnowledgeAtomQualityTests(unittest.TestCase):
                     subject=KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
                     predicate="supports",
                     object=KnowledgeAtomObject(object_type="concept", name="Tool Governance"),
-                    source_fact_ids=["fact_agent_loop_tools"],
+                    source_claim_ids=["claim_agent_loop_production"],
                 )
             ],
         )
@@ -63,19 +60,13 @@ class KnowledgeAtomQualityTests(unittest.TestCase):
         obj = KnowledgeAtomObject(object_type="concept", name="Workflow")
         batch = KnowledgeAtomBatch(
             source_digest_id="sd_agent",
-            facts=[
-                KnowledgeFact(
-                    id="fact_agent_loop_tools",
-                    statement="Agent loop coordinates tool use.",
-                    evidence=[_evidence("other_digest")],
-                )
-            ],
             claims=[
                 KnowledgeClaim(
                     id="claim_missing_fact",
                     claim="Agent loop should replace all workflows.",
                     claim_type="recommendation",
-                    supporting_fact_ids=["missing_fact"],
+                    evidence=[_evidence("other_digest")],
+                    entity_names=["Agent Loop", "Workflow"],
                 )
             ],
             relations=[
@@ -84,7 +75,7 @@ class KnowledgeAtomQualityTests(unittest.TestCase):
                     subject=subject,
                     predicate="supports",
                     object=obj,
-                    source_fact_ids=["missing_fact"],
+                    source_claim_ids=["missing_claim"],
                 ),
                 KnowledgeRelation(
                     id="rel_contradicts",
@@ -99,13 +90,12 @@ class KnowledgeAtomQualityTests(unittest.TestCase):
         report = evaluate_knowledge_atoms(batch)
 
         issue_types = {issue.issue_type for issue in report.issues}
-        self.assertIn("unsupported_fact", issue_types)
         self.assertIn("unsupported_claim", issue_types)
         self.assertIn("unsupported_relation", issue_types)
         self.assertIn("conflicting_relation", issue_types)
-        self.assertEqual(report.summary()["unsupported"], 3)
+        self.assertEqual(report.summary()["unsupported"], 2)
         self.assertEqual(report.summary()["conflicting"], 1)
-        self.assertEqual(report.summary()["rejected"], 3)
+        self.assertEqual(report.summary()["rejected"], 2)
 
 
 if __name__ == "__main__":

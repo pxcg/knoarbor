@@ -21,7 +21,7 @@ class SemanticContractTests(unittest.TestCase):
     def test_ingest_semantic_contracts_load_prompt_and_schema(self) -> None:
         expected = {
             "source_normalize": ("knowledge_extract.v1", KnowledgeExtract),
-            "wiki_atom_extract": ("knowledge_atoms.v1", KnowledgeAtomBatch),
+            "wiki_atom_extract": ("knowledge_atoms.v2", KnowledgeAtomBatch),
             "wiki_page_plan": ("wiki_page_plan.v1", WikiPagePlan),
             "wiki_draft_compile": ("wiki_draft_batch.v1", WikiDraftBatch),
             "ingest_draft_review": ("ingest_draft_review.v2", IngestDraftReview),
@@ -138,7 +138,6 @@ class SemanticContractTests(unittest.TestCase):
                         "legacy_paths": ["concepts/Agent-Loop.md"],
                         "title": "Agent Loop",
                         "knowledge_object": "Agent Loop control pattern",
-                        "selected_fact_ids": [" fact_agent_loop_cycle ", "fact_agent_loop_cycle"],
                         "selected_claim_ids": ["claim_agent_loop_pattern"],
                         "selected_relation_ids": ["rel_agent_loop_mentions_control"],
                         "source_digest_ids": ["sd_agent_loop"],
@@ -173,7 +172,7 @@ class SemanticContractTests(unittest.TestCase):
         self.assertEqual(len(plan.operations), 2)
         self.assertEqual(plan.operations[0].canonical_path, "Agent-Loop.md")
         self.assertEqual(plan.operations[0].legacy_paths, ["concepts/Agent-Loop.md"])
-        self.assertEqual(plan.operations[0].selected_fact_ids, ["fact_agent_loop_cycle"])
+        self.assertEqual(plan.operations[0].selected_claim_ids, ["claim_agent_loop_pattern"])
         self.assertEqual(plan.operations[0].source_digest_ids, ["sd_agent_loop"])
         self.assertEqual(plan.operations[1].target_page, "entities/OpenClaw.md")
 
@@ -277,7 +276,7 @@ class SemanticContractTests(unittest.TestCase):
                         "key_points": ["Coordinates tool use."],
                         "tags": ["agent", "loop"],
                         "source_digest_ids": [" sd_agent ", "sd_agent"],
-                        "atom_ids": ["fact_agent_loop_cycle", " fact_agent_loop_cycle "],
+                        "atom_ids": ["claim_agent_loop_cycle", " claim_agent_loop_cycle "],
                         "patches": [],
                         "confidence": 0.9,
                     }
@@ -291,7 +290,7 @@ class SemanticContractTests(unittest.TestCase):
         self.assertEqual(draft.source_digest_ids, ["sd_agent"])
         self.assertEqual(draft.canonical_path, "Agent-Loop.md")
         self.assertEqual(draft.legacy_paths, ["concepts/Agent-Loop.md"])
-        self.assertEqual(draft.atom_ids, ["fact_agent_loop_cycle"])
+        self.assertEqual(draft.atom_ids, ["claim_agent_loop_cycle"])
         self.assertEqual(draft.definition, "Agent Loop is a control pattern.")
         self.assertEqual(draft.claims, ["Coordinates tool use."])
         self.assertEqual(draft.synthesis, "Agent Loop coordinates tool use.")

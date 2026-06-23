@@ -38,7 +38,7 @@ Raw Source
 
 Markdown wiki pages are readable projections of the atom and evidence layer.
 They are the primary human and host-AI reading surface, but not the durable
-fact boundary.
+knowledge boundary.
 
 The accepted page model is:
 
@@ -126,7 +126,7 @@ The owning spec is `specs/1.13-knowledge-atom-ingest/`.
 
 Follow-up work should verify:
 
-- knowledge atom schemas require evidence for machine-usable facts, claims, and
+- knowledge atom schemas require evidence for machine-usable claims and
   relations;
 - generated pages expose claims, relations, and synthesis as separate sections;
 - synthesis does not introduce unsupported major factual statements;

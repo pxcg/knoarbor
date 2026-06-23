@@ -27,7 +27,6 @@ from knoarbor.core.schemas.knowledge_atoms import (
     KnowledgeAtomObject,
     KnowledgeClaim,
     KnowledgeEvidenceSpan,
-    KnowledgeFact,
     KnowledgeRelation,
 )
 from knoarbor.core.schemas.source_digest import SourceDigest, SourceDigestUnit, SourceObservation
@@ -153,7 +152,6 @@ __all__ = [
     "KnowledgeAtomObject",
     "KnowledgeClaim",
     "KnowledgeEvidenceSpan",
-    "KnowledgeFact",
     "KnowledgeRelation",
     "SourceDigest",
     "SourceDigestUnit",

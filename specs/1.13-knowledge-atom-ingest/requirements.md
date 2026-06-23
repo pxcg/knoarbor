@@ -5,7 +5,7 @@
 KnoArbor currently compiles raw sources into structured Markdown pages. The
 pages are readable, but the durable knowledge boundary is still too close to
 free-form page text. Important statements inside `Answer` sections are not
-always represented as evidence-backed facts, claims, or relations before page
+always represented as evidence-backed claims, entities, or relations before page
 generation.
 
 This weakens long-term wiki maintenance:
@@ -22,9 +22,9 @@ This weakens long-term wiki maintenance:
 - Add a lightweight knowledge atom layer between source digest and page draft.
 - Keep Markdown wiki pages as the primary human and AI reading surface.
 - Treat Markdown wiki pages as readable projections of knowledge atoms, not as
-  the durable fact boundary.
+  the durable knowledge boundary.
 - Represent only durable, reusable knowledge atoms, not every sentence.
-- Require provenance for facts, claims, and relations.
+- Require provenance for claims, relations, and evidence spans.
 - Separate source-level digesting, atom extraction, page planning, page
   drafting, and indexing responsibilities.
 - Keep the design compatible with the machine index, lint governance, query,
@@ -56,7 +56,7 @@ This weakens long-term wiki maintenance:
 ### Source Compiles Into Evidence-Backed Wiki
 
 When a user ingests a technical note, KnoArbor should extract source-level
-observations, durable facts, claims, and relations before drafting pages. The
+observations, durable claims, entities, and relations before drafting pages. The
 final page should remain readable, while the report should show the extracted
 atom counts and unsupported atom rejections.
 
@@ -87,11 +87,10 @@ inventing a broad article from thin evidence.
 
 ## Acceptance Criteria
 
-- A `knowledge_atoms.v1` schema exists for facts, claims, relations, evidence
-  spans, subjects, and objects.
-- Facts require evidence.
-- Claims require either direct evidence or supporting facts.
-- Relations require evidence, source facts, or source claims.
+- A `knowledge_atoms.v2` schema exists for entities, claims, relations, and
+  evidence spans.
+- Claims require direct evidence.
+- Relations require either direct evidence or source claim references.
 - Ingest design documents define the pipeline boundary:
 
   ```text

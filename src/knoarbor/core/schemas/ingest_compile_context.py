@@ -32,7 +32,6 @@ class CompileOperationContext(BaseModel):
     facets: list[str] = Field(default_factory=list)
     title: str | None = None
     knowledge_object: str | None = None
-    selected_fact_ids: list[str] = Field(default_factory=list)
     selected_claim_ids: list[str] = Field(default_factory=list)
     selected_relation_ids: list[str] = Field(default_factory=list)
     source_digest_ids: list[str] = Field(default_factory=list)

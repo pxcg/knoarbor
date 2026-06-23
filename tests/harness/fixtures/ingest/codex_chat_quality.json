@@ -80,7 +80,6 @@
             "page_dir": "sources",
             "page_kind": null,
             "selected_claim_ids": [],
-            "selected_fact_ids": [],
             "selected_relation_ids": [],
             "source_digest_ids": [
               "sd_09a370e2dd4de036"
@@ -102,7 +101,6 @@
             "selected_claim_ids": [
               "claim_agent_loop_in_knoarbor"
             ],
-            "selected_fact_ids": [],
             "selected_relation_ids": [],
             "source_digest_ids": [
               "sd_09a370e2dd4de036"
@@ -151,7 +149,6 @@
             "page_dir": "sources",
             "page_kind": null,
             "selected_claim_ids": [],
-            "selected_fact_ids": [],
             "selected_relation_ids": [],
             "source_digest_ids": [
               "sd_9b57fcafe59273b6"
@@ -173,7 +170,6 @@
             "selected_claim_ids": [
               "claim_workflow_boundary_design"
             ],
-            "selected_fact_ids": [],
             "selected_relation_ids": [],
             "source_digest_ids": [
               "sd_9b57fcafe59273b6"
@@ -222,7 +218,6 @@
             "page_dir": "sources",
             "page_kind": null,
             "selected_claim_ids": [],
-            "selected_fact_ids": [],
             "selected_relation_ids": [],
             "source_digest_ids": [
               "sd_83a0983aaf107dc9"
@@ -244,7 +239,6 @@
             "selected_claim_ids": [
               "claim_golden_harness_evaluation"
             ],
-            "selected_fact_ids": [],
             "selected_relation_ids": [],
             "source_digest_ids": [
               "sd_83a0983aaf107dc9"

@@ -69,7 +69,6 @@ class IngestQualityGate:
                 )
 
             expected_atom_ids = {
-                *operation.selected_fact_ids,
                 *operation.selected_claim_ids,
                 *operation.selected_relation_ids,
             }
@@ -113,7 +112,7 @@ class IngestQualityGate:
                     _issue(
                         operation_index,
                         "missing_operation_atom_trace",
-                        "Non-source page plan operation has no selected fact, claim, or relation atom ids.",
+                        "Non-source page plan operation has no selected claim or relation atom ids.",
                     )
                 )
             if draft.page_dir != "sources" and not draft.atom_ids:

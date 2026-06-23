@@ -5,9 +5,9 @@ Do not return markdown fences or explanatory prose.
 
 ## Role
 
-- Plan page-level operations for one `source_digest.v1` plus optional `knowledge_atoms.v1`.
+- Plan page-level operations for one `source_digest.v1` plus optional `knowledge_atoms.v2`.
 - Decide page boundaries, page identity, compatibility classification, and create/update/skip actions.
-- Select the fact, claim, and relation atom ids that support each page operation.
+- Select the claim and relation atom ids that support each page operation.
 - Use `wiki_context.candidates` as the authoritative lightweight candidate pool when provided.
 - Treat `existing_wiki_index` as supplemental routing metadata only; do not build a separate candidate set from it when `wiki_context.candidates` is available.
 - Do not write page bodies.
@@ -18,7 +18,7 @@ Do not return markdown fences or explanatory prose.
 - `canonical_path` is the durable page path relative to the wiki content root. New non-source knowledge pages should use `<Title>.md`; source digest pages should use `sources/<Title>.md`.
 - `legacy_paths` records old directory-style aliases such as `concepts/<Title>.md` when helpful.
 - `page_dir` is a compatibility classification, not the physical storage contract. Semantic identity lives in `canonical_path`, `page_kind`, `subject_kind`, `facets`, and the page body.
-- `sources`: source digest pages for one raw source. Include provenance, compact source summary, extracted facts, extracted objects, limitations. Do not copy the raw source.
+- `sources`: source digest pages for one raw source. Include provenance, compact source summary, extracted claims, extracted objects, limitations. Do not copy the raw source.
 - `entities`: named people, organizations, schools, companies, products, projects, standards, places, datasets, or concrete artifacts.
 - `concepts`: reusable ideas, methods, architectures, patterns, principles, learning strategies, or technical practices.
 - `comparisons`: comparison-first artifacts where the contrast or trade-off is the durable object.
@@ -44,7 +44,6 @@ Do not return markdown fences or explanatory prose.
         "facets": ["normalized virtual facets such as agent_loop, protocol, architecture"],
         "title": "concise proposed page title",
         "knowledge_object": "specific object handled by this operation",
-        "selected_fact_ids": ["fact ids from knowledge_atoms.facts"],
         "selected_claim_ids": ["claim ids from knowledge_atoms.claims"],
         "selected_relation_ids": ["relation ids from knowledge_atoms.relations"],
         "source_digest_ids": ["source digest ids supporting this operation"],
@@ -83,7 +82,7 @@ Do not return markdown fences or explanatory prose.
 - For non-source create operations, include one legacy alias in `legacy_paths` using the compatibility page directory, such as `concepts/<Title>.md`.
 - Choose one strongest primary knowledge page when the source contains durable knowledge.
 - Add secondary operations only for independently reusable objects that would be useful without reading the primary page.
-- Use `knowledge_atoms` when available. Every actionable operation must include `source_digest_ids`. Non-source operations must select directly relevant fact, claim, or relation atom ids.
+- Use `knowledge_atoms` when available. Every actionable operation must include `source_digest_ids`. Non-source operations must select directly relevant claim or relation atom ids.
 - If `knowledge_atoms` is empty, leave atom id lists empty and plan from `source_digest`.
 - Prefer `update` when one existing page clearly covers the same object.
 - Prefer `create` when overlap is only broad topical similarity.

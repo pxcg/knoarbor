@@ -12,7 +12,6 @@ from knoarbor.core.schemas.knowledge_atoms import (
     KnowledgeAtomObject,
     KnowledgeClaim,
     KnowledgeEvidenceSpan,
-    KnowledgeFact,
     KnowledgeRelation,
 )
 from knoarbor.storage.knowledge_atom_index import (
@@ -28,21 +27,20 @@ def _evidence() -> KnowledgeEvidenceSpan:
 
 
 def _batch(statement: str = "Agent loops reason and act.") -> KnowledgeAtomBatch:
+    evidence = _evidence()
     return KnowledgeAtomBatch(
         source_digest_id="sd_agent",
-        facts=[
-            KnowledgeFact(
-                id="fact_agent_loop",
-                statement=statement,
-                evidence=[_evidence()],
-            )
+        entities=[
+            KnowledgeAtomObject(object_type="concept", name="Agent Loop", atom_id="entity_agent_loop"),
+            KnowledgeAtomObject(object_type="concept", name="Workflow", atom_id="entity_workflow"),
         ],
         claims=[
             KnowledgeClaim(
                 id="claim_agent_loop",
-                claim="Agent loops are useful control structures.",
+                claim=statement,
                 claim_type="assessment",
-                supporting_fact_ids=["fact_agent_loop"],
+                evidence=[evidence],
+                entity_names=["Agent Loop", "Workflow"],
             )
         ],
         relations=[
@@ -51,9 +49,10 @@ def _batch(statement: str = "Agent loops reason and act.") -> KnowledgeAtomBatch
                 subject=KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
                 predicate="relates_to",
                 object=KnowledgeAtomObject(object_type="concept", name="Workflow"),
-                source_fact_ids=["fact_agent_loop"],
+                source_claim_ids=["claim_agent_loop"],
             )
         ],
+        evidence=[evidence],
     )
 
 
@@ -65,7 +64,7 @@ class KnowledgeAtomIndexTests(unittest.TestCase):
                 KnowledgeAtomPageRef(
                     path="concepts/Agent-Loop.md",
                     source_digest_ids=["sd_agent"],
-                    atom_ids=["fact_agent_loop", "claim_agent_loop"],
+                    atom_ids=["entity_agent_loop", "claim_agent_loop"],
                 )
             ]
 
@@ -73,23 +72,23 @@ class KnowledgeAtomIndexTests(unittest.TestCase):
             records = read_knowledge_atom_records(vault)
 
             self.assertEqual(path, knowledge_atom_index_path(vault))
-            self.assertEqual(len(records), 3)
-            fact = next(record for record in records if record.atom_id == "fact_agent_loop")
-            self.assertEqual(fact.atom_type, "fact")
-            self.assertEqual(fact.page_paths, ["concepts/Agent-Loop.md"])
+            self.assertEqual(len(records), 5)
+            claim = next(record for record in records if record.atom_id == "claim_agent_loop")
+            self.assertEqual(claim.atom_type, "claim")
+            self.assertEqual(claim.page_paths, ["concepts/Agent-Loop.md"])
 
     def test_upsert_replaces_same_source_digest_records(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            page_refs = [KnowledgeAtomPageRef(path="concepts/Agent-Loop.md", source_digest_ids=["sd_agent"], atom_ids=["fact_agent_loop"])]
+            page_refs = [KnowledgeAtomPageRef(path="concepts/Agent-Loop.md", source_digest_ids=["sd_agent"], atom_ids=["claim_agent_loop"])]
 
             upsert_knowledge_atom_batch(vault, _batch("Old statement."), page_refs)
             upsert_knowledge_atom_batch(vault, _batch("New statement."), page_refs)
             records = read_knowledge_atom_records(vault)
 
-            facts = [record for record in records if record.atom_type == "fact"]
-            self.assertEqual(len(facts), 1)
-            self.assertEqual(facts[0].text, "New statement.")
+            claims = [record for record in records if record.atom_type == "claim"]
+            self.assertEqual(len(claims), 1)
+            self.assertEqual(claims[0].text, "New statement.")
 
 
 if __name__ == "__main__":

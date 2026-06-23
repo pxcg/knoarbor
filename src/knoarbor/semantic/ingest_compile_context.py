@@ -46,7 +46,6 @@ def build_ingest_compile_context(
                 facets=list(operation.facets),
                 title=operation.title,
                 knowledge_object=operation.knowledge_object,
-                selected_fact_ids=list(operation.selected_fact_ids),
                 selected_claim_ids=list(operation.selected_claim_ids),
                 selected_relation_ids=list(operation.selected_relation_ids),
                 source_digest_ids=list(operation.source_digest_ids),

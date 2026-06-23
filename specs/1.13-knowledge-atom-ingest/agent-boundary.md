@@ -101,7 +101,7 @@ Deterministic responsibilities:
 
 Boundary:
 
-- the agent produces `knowledge_atoms.v1`;
+- the agent produces `knowledge_atoms.v2`;
 - it does not decide page write actions, page titles, page paths, or Markdown
   page prose;
 - it extracts durable atoms rather than sentence-level exhaustive triples.
@@ -135,7 +135,7 @@ Deterministic responsibilities:
 
 Boundary:
 
-- the agent consumes a compact `source_digest.v1`, `knowledge_atoms.v1`, and
+- the agent consumes a compact `source_digest.v1`, `knowledge_atoms.v2`, and
   lightweight candidate profiles;
 - it does not read full candidate page bodies during planning;
 - it does not invent candidates outside the deterministic candidate pool;
@@ -165,7 +165,7 @@ Deterministic responsibilities:
   source digest ids, atom ids, and Markdown section order;
 - derive entities from atom subjects, objects, and claim markers;
 - derive relation triples from selected relation atoms;
-- derive evidence rows from fact, claim, relation, and source digest evidence;
+- derive evidence rows from claim, relation, and source digest evidence;
 - preserve canonical paths, legacy paths, page kind, facets, and operation
   identity from the page plan.
 

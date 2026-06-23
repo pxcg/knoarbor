@@ -478,7 +478,7 @@ def _context_strategy_lines(context: dict[str, Any]) -> list[str]:
         if knowledge_atoms:
             lines.append(
                 "- knowledge_atoms: "
-                f"facts={knowledge_atoms.get('facts', 0)}, "
+                f"entities={knowledge_atoms.get('entities', 0)}, "
                 f"claims={knowledge_atoms.get('claims', 0)}, "
                 f"relations={knowledge_atoms.get('relations', 0)}, "
                 f"evidence_spans={knowledge_atoms.get('evidence_spans', 0)}, "
@@ -517,7 +517,6 @@ def _page_plan_operations(semantic_result: Any | None) -> list[dict[str, object]
                 "legacy_paths": list(operation.legacy_paths),
                 "title": operation.title,
                 "knowledge_object": operation.knowledge_object,
-                "selected_fact_ids": list(operation.selected_fact_ids),
                 "selected_claim_ids": list(operation.selected_claim_ids),
                 "selected_relation_ids": list(operation.selected_relation_ids),
                 "source_digest_ids": list(operation.source_digest_ids),

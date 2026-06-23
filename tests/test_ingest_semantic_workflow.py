@@ -38,7 +38,7 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
         self.assertEqual(len(client.requests), 5)
         self.assertEqual(result.knowledge_extract.source.title, "Agent")
         self.assertIsNotNone(result.knowledge_atom_batch)
-        self.assertEqual(result.knowledge_atom_batch.summary()["facts"], 1)
+        self.assertEqual(result.knowledge_atom_batch.summary()["claims"], 1)
         self.assertEqual(result.wiki_page_plan.operations[0].title, "Agent Loop")
         self.assertEqual(result.wiki_draft_batch.drafts[0].title, "Agent Loop")
         self.assertEqual(result.ingest_draft_review.batch_decision, "approve")
@@ -83,7 +83,7 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
         self.assertEqual(plan_payload["source_digest"]["units"][0]["summary"], "Agent")
         self.assertNotIn("evidence", plan_payload["source_digest"]["units"][0])
         self.assertEqual(plan_payload["knowledge_atoms"]["source_digest_id"], "sd_test_agent")
-        self.assertEqual(plan_payload["knowledge_atoms"]["facts"][0]["id"], "fact_agent_loop_cycle")
+        self.assertEqual(plan_payload["knowledge_atoms"]["claims"][0]["id"], "claim_agent_loop_control_pattern")
         self.assertEqual(draft_payload["knowledge_atoms"]["source_digest_id"], "sd_test_agent")
         self.assertIn("ingest_compile_context", draft_payload)
         self.assertNotIn("knowledge_extract", draft_payload)
@@ -99,7 +99,6 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
         )
         context = draft_payload["ingest_compile_context"]
         self.assertEqual(context["schema_version"], "ingest_compile_context.v1")
-        self.assertEqual(context["operations"][0]["selected_fact_ids"], ["fact_agent_loop_cycle"])
         self.assertEqual(context["operations"][0]["selected_claim_ids"], ["claim_agent_loop_control_pattern"])
         self.assertEqual(context["operations"][0]["selected_relation_ids"], ["rel_agent_loop_mentions_control"])
         self.assertEqual(context["operations"][0]["source_digest_ids"], ["sd_test_agent"])
@@ -124,9 +123,9 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
 
         draft_payload = _dynamic_payload(client.requests[3])
         atom_payload = draft_payload["knowledge_atoms"]
-        self.assertEqual(_ids(atom_payload["facts"]), ["fact_agent_loop_cycle"])
         self.assertEqual(_ids(atom_payload["claims"]), ["claim_agent_loop_control_pattern"])
         self.assertEqual(_ids(atom_payload["relations"]), ["rel_agent_loop_mentions_control"])
+        self.assertEqual([item["atom_id"] for item in atom_payload["entities"]], ["entity_agent_loop", "entity_agent_control"])
 
 
 def _dynamic_payload(request) -> dict[str, object]:
@@ -143,23 +142,11 @@ def _atom_output_with_unselected_material() -> dict[str, object]:
     output = deepcopy(wiki_atom_extract_output())
     atom_batch = output["output"]
     assert isinstance(atom_batch, dict)
-    atom_batch["facts"].append(
+    atom_batch["entities"].append(
         {
-            "id": "fact_unselected_noise",
-            "statement": "Unselected background material should not reach draft compile.",
-            "subject": {"object_type": "concept", "name": "Noise"},
-            "predicate": "is",
-            "object": {"object_type": "concept", "name": "Background"},
-            "qualifiers": {},
-            "evidence": [
-                {
-                    "source_digest_id": "sd_test_agent",
-                    "source_path": "raw/notes/Agent.md",
-                    "source_unit_index": 0,
-                    "excerpt": "Noise background.",
-                }
-            ],
-            "confidence": 0.7,
+            "object_type": "concept",
+            "name": "Noise",
+            "atom_id": "entity_noise",
         }
     )
     atom_batch["claims"].append(
@@ -168,10 +155,15 @@ def _atom_output_with_unselected_material() -> dict[str, object]:
             "claim": "Unselected material is unrelated to the planned page.",
             "claim_type": "assessment",
             "stance": "asserted",
-            "supporting_fact_ids": ["fact_unselected_noise"],
-            "evidence": [],
-            "scope": "Noise.",
-            "limitations": [],
+            "evidence": [
+                {
+                    "source_digest_id": "sd_test_agent",
+                    "source_path": "raw/notes/Agent.md",
+                    "source_unit_index": 0,
+                    "excerpt": "Noise background.",
+                }
+            ],
+            "entity_names": ["Noise"],
             "confidence": 0.7,
         }
     )
@@ -181,7 +173,6 @@ def _atom_output_with_unselected_material() -> dict[str, object]:
             "subject": {"object_type": "concept", "name": "Noise"},
             "predicate": "relates_to",
             "object": {"object_type": "concept", "name": "Background"},
-            "source_fact_ids": ["fact_unselected_noise"],
             "source_claim_ids": ["claim_unselected_noise"],
             "evidence": [],
             "reason": "Noise is unrelated.",

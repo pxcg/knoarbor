@@ -45,22 +45,13 @@
   "knowledge_atom_batch": {
     "claims": [
       {
-        "claim": "Agent loop is a reusable control pattern for agents.",
+        "claim": "Agent loop is an observe, decide, act, feedback cycle and a reusable control pattern for agents.",
         "claim_type": "definition",
         "confidence": 0.9,
-        "evidence": [],
-        "id": "claim_agent_loop_control_pattern",
-        "limitations": [],
-        "scope": "Agent system design.",
-        "stance": "asserted",
-        "supporting_fact_ids": [
-          "fact_agent_loop_cycle"
-        ]
-      }
-    ],
-    "facts": [
-      {
-        "confidence": 0.9,
+        "entity_names": [
+          "Agent Loop",
+          "Agent Control"
+        ],
         "evidence": [
           {
             "char_end": null,
@@ -72,24 +63,35 @@
             "source_unit_index": 0
           }
         ],
-        "id": "fact_agent_loop_cycle",
-        "object": {
-          "aliases": [],
-          "atom_id": null,
-          "name": "Observe Decide Act Feedback Cycle",
-          "object_type": "concept",
-          "page_path": null
-        },
-        "predicate": "is",
-        "qualifiers": {},
-        "statement": "Agent loop is an observe, decide, act, feedback cycle.",
-        "subject": {
-          "aliases": [],
-          "atom_id": null,
-          "name": "Agent Loop",
-          "object_type": "concept",
-          "page_path": null
-        }
+        "id": "claim_agent_loop_control_pattern",
+        "stance": "asserted"
+      }
+    ],
+    "entities": [
+      {
+        "aliases": [],
+        "atom_id": "entity_agent_loop",
+        "name": "Agent Loop",
+        "object_type": "concept",
+        "page_path": null
+      },
+      {
+        "aliases": [],
+        "atom_id": "entity_agent_control",
+        "name": "Agent Control",
+        "object_type": "concept",
+        "page_path": null
+      }
+    ],
+    "evidence": [
+      {
+        "char_end": null,
+        "char_start": null,
+        "excerpt": "Agent loop is observe, decide, act, feedback.",
+        "excerpt_hash": null,
+        "source_digest_id": "sd_test_agent",
+        "source_path": "raw/notes/Agent.md",
+        "source_unit_index": 0
       }
     ],
     "relations": [
@@ -106,9 +108,8 @@
         },
         "predicate": "mentions",
         "reason": "Agent loop describes a control cycle.",
-        "source_claim_ids": [],
-        "source_fact_ids": [
-          "fact_agent_loop_cycle"
+        "source_claim_ids": [
+          "claim_agent_loop_control_pattern"
         ],
         "subject": {
           "aliases": [],
@@ -119,7 +120,7 @@
         }
       }
     ],
-    "schema_version": "knowledge_atoms.v1",
+    "schema_version": "knowledge_atoms.v2",
     "source_digest_id": "sd_test_agent",
     "warnings": []
   },
@@ -163,7 +164,6 @@
       {
         "answer": "Agent Loop is an observe, decide, act, feedback cycle.",
         "atom_ids": [
-          "fact_agent_loop_cycle",
           "claim_agent_loop_control_pattern",
           "rel_agent_loop_mentions_control"
         ],
@@ -232,9 +232,6 @@
         "related_pages": [],
         "selected_claim_ids": [
           "claim_agent_loop_control_pattern"
-        ],
-        "selected_fact_ids": [
-          "fact_agent_loop_cycle"
         ],
         "selected_relation_ids": [
           "rel_agent_loop_mentions_control"

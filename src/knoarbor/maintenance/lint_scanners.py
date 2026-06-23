@@ -393,22 +393,10 @@ def _lint_knowledge_atom_index(vault_path: Path, pages: list[LintPage]) -> tuple
                     {"page_paths": record.page_paths},
                 )
             )
-        if record.atom_type == "claim":
-            missing = [fact_id for fact_id in _string_list(record.payload.get("supporting_fact_ids")) if fact_id not in atom_ids]
-            if missing:
-                issues.append(
-                    _atom_issue(
-                        "atom_claim_missing_support",
-                        "warning",
-                        record,
-                        "Knowledge claim references supporting facts that are missing from the atom index.",
-                        {"missing_fact_ids": missing},
-                    )
-                )
         if record.atom_type == "relation":
             missing_sources = [
                 atom_id
-                for atom_id in [*_string_list(record.payload.get("source_fact_ids")), *_string_list(record.payload.get("source_claim_ids"))]
+                for atom_id in _string_list(record.payload.get("source_claim_ids"))
                 if atom_id not in atom_ids
             ]
             if missing_sources:

@@ -20,7 +20,6 @@ from knoarbor.core.schemas.knowledge_atoms import (
     KnowledgeAtomObject,
     KnowledgeClaim,
     KnowledgeEvidenceSpan,
-    KnowledgeFact,
     KnowledgeRelation,
 )
 from knoarbor.core.schemas.knowledge_extract import CompileContext, ContentUnit, KnowledgeExtract, KnowledgeSource
@@ -122,9 +121,16 @@ class UnsupportedAtomSemanticWorkflow(FakeIngestSemanticWorkflow):
             claims=[
                 KnowledgeClaim(
                     id="claim_agent_loop_unsupported",
-                    claim="Agent loop is supported by a missing fact.",
+                    claim="Agent loop is supported by foreign evidence.",
                     claim_type="definition",
-                    supporting_fact_ids=["missing_fact"],
+                    evidence=[
+                        KnowledgeEvidenceSpan(
+                            source_digest_id="other_digest",
+                            source_path=source_digest.source.source_path,
+                            source_unit_index=0,
+                            excerpt="Foreign evidence should be rejected.",
+                        )
+                    ],
                 )
             ],
         )
@@ -152,7 +158,7 @@ class MismatchedWriteActionSemanticWorkflow(FakeIngestSemanticWorkflow):
 class MissingAtomTraceSemanticWorkflow(FakeIngestSemanticWorkflow):
     def plan_pages(self, knowledge_extract, **kwargs):
         plan = super().plan_pages(knowledge_extract, **kwargs)
-        plan.operations[0].selected_fact_ids = ["fact_agent_loop_cycle"]
+        plan.operations[0].selected_claim_ids = ["claim_agent_loop_cycle"]
         plan.operations[0].source_digest_ids = ["sd_test_agent"]
         return plan
 
@@ -167,19 +173,17 @@ class AtomTraceSemanticWorkflow(FakeIngestSemanticWorkflow):
         )
         return KnowledgeAtomBatch(
             source_digest_id=source_digest.digest_id,
-            facts=[
-                KnowledgeFact(
-                    id="fact_agent_loop_cycle",
-                    statement="Agent loop repeats observe and act.",
-                    evidence=[evidence],
-                )
+            entities=[
+                KnowledgeAtomObject(object_type="concept", name="Agent Loop", atom_id="entity_agent_loop"),
+                KnowledgeAtomObject(object_type="workflow", name="Workflow", atom_id="entity_workflow"),
             ],
             claims=[
                 KnowledgeClaim(
                     id="claim_agent_loop_control",
                     claim="Agent loop is a control pattern.",
                     claim_type="definition",
-                    supporting_fact_ids=["fact_agent_loop_cycle"],
+                    evidence=[evidence],
+                    entity_names=["Agent Loop"],
                 )
             ],
             relations=[
@@ -188,14 +192,14 @@ class AtomTraceSemanticWorkflow(FakeIngestSemanticWorkflow):
                     subject=KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
                     predicate="relates_to",
                     object=KnowledgeAtomObject(object_type="workflow", name="Workflow"),
-                    source_fact_ids=["fact_agent_loop_cycle"],
+                    source_claim_ids=["claim_agent_loop_control"],
                 )
             ],
+            evidence=[evidence],
         )
 
     def plan_pages(self, knowledge_extract, **kwargs):
         plan = super().plan_pages(knowledge_extract, **kwargs)
-        plan.operations[0].selected_fact_ids = ["fact_agent_loop_cycle"]
         plan.operations[0].selected_claim_ids = ["claim_agent_loop_control"]
         plan.operations[0].selected_relation_ids = ["rel_agent_loop_mentions_workflow"]
         plan.operations[0].source_digest_ids = [kwargs["knowledge_atom_batch"].source_digest_id]
@@ -204,7 +208,6 @@ class AtomTraceSemanticWorkflow(FakeIngestSemanticWorkflow):
     def compile_drafts(self, knowledge_extract, wiki_page_plan, **kwargs):
         batch = super().compile_drafts(knowledge_extract, wiki_page_plan, **kwargs)
         batch.drafts[0].atom_ids = [
-            "fact_agent_loop_cycle",
             "claim_agent_loop_control",
             "rel_agent_loop_mentions_workflow",
         ]
@@ -1050,9 +1053,9 @@ class IngestPipelineTests(unittest.TestCase):
 
         self.assertEqual(result.results[0].generated_pages, ["Agent-Loop.md"])
         self.assertEqual(result.results[0].context["knowledge_atom_index_path"], ".knoarbor/index/knowledge_atoms.jsonl")
-        self.assertEqual(len(records), 3)
-        fact = next(record for record in records if record.atom_id == "fact_agent_loop_cycle")
-        self.assertEqual(fact.page_paths, ["Agent-Loop.md"])
+        self.assertEqual(len(records), 5)
+        claim = next(record for record in records if record.atom_id == "claim_agent_loop_control")
+        self.assertEqual(claim.page_paths, ["Agent-Loop.md"])
 
     def test_ingest_report_includes_knowledge_atom_index_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1079,7 +1082,7 @@ class IngestPipelineTests(unittest.TestCase):
 
         self.assertIn("- knowledge_atom_index: .knoarbor/index/knowledge_atoms.jsonl", report)
         self.assertIn("Draft atom traces:", report)
-        self.assertIn("fact_agent_loop_cycle", report)
+        self.assertIn("claim_agent_loop_control", report)
 
     def test_ingest_records_source_failure_and_continues_batch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

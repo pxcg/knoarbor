@@ -122,7 +122,7 @@ Knowledge page rules:
 - Evidence must map to claim numbers.
 - Evidence must include `source`, `range`, `basis`, and `confidence`.
 - Synthesis must be derived from claims, relations, and evidence. It must not
-  introduce unsupported facts.
+  introduce unsupported claims.
 
 Example section order:
 

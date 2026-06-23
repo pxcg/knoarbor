@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.pipelines import QueryPipeline, QueryPipelineRequest
 from knoarbor.audit.query_ledger import append_query_record, build_query_trend
-from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch, KnowledgeEvidenceSpan, KnowledgeFact
+from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch, KnowledgeClaim, KnowledgeEvidenceSpan
 from knoarbor.core.schemas.wiki_query import WikiSearchRequest
 from knoarbor.presenters.wiki_context import search_query
 from knoarbor.services.wiki_search import WikiSearchService
@@ -489,10 +489,11 @@ class QueryPipelineTests(unittest.TestCase):
             )
             batch = KnowledgeAtomBatch(
                 source_digest_id="sd_agent_loop",
-                facts=[
-                    KnowledgeFact(
-                        id="fact_agent_loop_cycle",
-                        statement="Agent loop coordinates reasoning and tool execution.",
+                claims=[
+                    KnowledgeClaim(
+                        id="claim_agent_loop_cycle",
+                        claim="Agent loop coordinates reasoning and tool execution.",
+                        claim_type="definition",
                         evidence=[
                             KnowledgeEvidenceSpan(
                                 source_digest_id="sd_agent_loop",
@@ -510,7 +511,7 @@ class QueryPipelineTests(unittest.TestCase):
                     KnowledgeAtomPageRef(
                         path="concepts/Agent-Loop.md",
                         source_digest_ids=["sd_agent_loop"],
-                        atom_ids=["fact_agent_loop_cycle"],
+                        atom_ids=["claim_agent_loop_cycle"],
                     )
                 ],
             )
@@ -523,7 +524,7 @@ class QueryPipelineTests(unittest.TestCase):
                 )
             )
 
-        self.assertEqual(response.results[0].atom_traces[0].atom_id, "fact_agent_loop_cycle")
+        self.assertEqual(response.results[0].atom_traces[0].atom_id, "claim_agent_loop_cycle")
         self.assertEqual(response.results[0].atom_traces[0].source_digest_id, "sd_agent_loop")
         self.assertEqual(response.stats["atom_trace_count"], 1)
         self.assertEqual(response.trace["atom_trace_counts"], {"concepts/Agent-Loop.md": 1})

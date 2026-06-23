@@ -9,7 +9,7 @@ source digests and evidence-backed knowledge atoms.
 The frozen design principle is:
 
 > Ingest produces evidence-backed knowledge atoms. Markdown wiki pages are
-> readable projections of those atoms, not the durable fact boundary.
+> readable projections of those atoms, not the durable knowledge boundary.
 
 This keeps KnoArbor distinct from a polished summarizer and from chunk-oriented
 RAG. A page is a stable knowledge-object view composed from identity, scope,
@@ -72,19 +72,20 @@ Owner: semantic atom extraction, atom validation, atom index.
 
 Responsibilities:
 
-- extract durable facts, claims, and relations;
+- extract durable entities, claims, relations, and evidence;
 - require provenance for machine-usable knowledge;
-- reject unsupported facts and claims before page drafting;
+- reject unsupported claims and relations before page drafting;
 - deduplicate equivalent atoms across sources;
 - emit contradiction and orphan signals for lint/report layers.
 
 Atom types:
 
-- `Fact`: low-dispute source-backed statement.
-- `Claim`: interpretive, evaluative, causal, recommendation, decision, or open
-  question statement.
-- `Relation`: typed link between pages, entities, claims, concepts, sources, or
-  workflows.
+- `Entity`: named object or concept mentioned by claims.
+- `Claim`: evidence-backed definition, assessment, comparison, recommendation,
+  decision, causal statement, or open question.
+- `Relation`: typed triple between entities, backed by source claims or direct
+  evidence.
+- `Evidence`: source span that supports claims or relations.
 
 The atom layer is not an RDF store. It uses a small relation vocabulary and can
 be stored as JSONL or rebuilt into a later SQLite provider.
@@ -103,7 +104,7 @@ Responsibilities:
 - choose related pages and relation reasons;
 - expose rejected page candidates.
 - carry `source_digest_ids` for every actionable operation;
-- carry selected fact, claim, or relation atom ids for non-source page
+- carry selected claim or relation atom ids for non-source page
   operations.
 
 `WikiPagePlan` is the page write-planning contract. It selects page operations
@@ -161,7 +162,7 @@ synthesis, and complex update language rather than full page construction.
 ### Wiki Page Projection Contract
 
 A wiki page is a Markdown projection of a structured knowledge object. It is not
-the durable fact boundary. The durable boundary is the combination of page
+the durable knowledge boundary. The durable boundary is the combination of page
 identity, claims, evidence, relations, source digests, and atom traces.
 
 The frozen page design separates three concerns:
@@ -265,7 +266,7 @@ Micro pages must preserve the compactness of the input. They should not invent
 relations, broad background, or article-length synthesis from thin evidence.
 
 `Synthesis` is a derived reading layer. It may explain, connect, and organize
-claims and relations, but it must not introduce unsupported facts that are
+claims and relations, but it must not introduce unsupported claims that are
 missing from the selected atoms or direct source evidence. If the synthesis were
 removed, the page should still retain its knowledge skeleton through identity,
 scope, claims, relations, and source evidence.
@@ -309,7 +310,7 @@ Source digests answer:
 
 - what the source says;
 - which evidence spans were extracted;
-- which facts, claims, or relations were proposed;
+- which entities, claims, or relations were proposed;
 - which wiki pages were created or updated;
 - which source material was rejected or left unresolved.
 
@@ -354,7 +355,7 @@ should make unsupported expansion visible.
 - A fixed full-section Markdown template for every page. This makes short
   sources look complete when evidence is thin and encourages unsupported
   expansion.
-- Treating `Synthesis` or legacy `Answer` prose as the durable fact boundary.
+- Treating `Synthesis` or legacy `Answer` prose as the durable knowledge boundary.
   Readable prose remains a projection over claims, relations, and evidence.
 - Treating `Source Focus` as the page subject. Source focus is provenance
   context; `Scope`, `Definition`, and page identity define the subject.
@@ -371,7 +372,7 @@ Owner: machine index, reports, lint, query/chat presenters.
 
 Responsibilities:
 
-- store or rebuild page, source, fact, claim, relation, and evidence indexes;
+- store or rebuild page, source, entity, claim, relation, and evidence indexes;
 - make atom counts and unsupported atom rejections visible in ingest reports;
 - allow lint to detect unsupported claims, orphan atoms, contradictions, and
   stale page narratives;

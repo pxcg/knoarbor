@@ -44,7 +44,7 @@ Do not return markdown fences or explanatory prose.
         "key_points": ["legacy input-compatible reading hints; keep concise"],
         "tags": ["legacy input-compatible tags; keep concise"],
         "source_digest_ids": ["source digest ids used by this draft"],
-        "atom_ids": ["fact, claim, and relation atom ids used by this draft"],
+        "atom_ids": ["claim and relation atom ids used by this draft"],
         "patches": [
           {
             "operation": "append_section | replace_section | merge_list",
@@ -73,7 +73,7 @@ Do not return markdown fences or explanatory prose.
 - `canonical_path` is the durable page path relative to the wiki content root. `page_dir` is a compatibility classification, not the physical storage contract. KnoArbor writes new non-source knowledge pages to the unified page namespace and stores semantic classification in `page_kind` and `facets`.
 - `question` means source focus. For chat use the user question when available; for notes/documents use the source title or topic.
 - `summary`, `claims`, `entities`, `relations`, `evidence`, and `synthesis` are the canonical page body fields.
-- `answer` is retained for schema compatibility. Keep it equivalent to `synthesis`; do not add separate facts there.
+- `answer` is retained for schema compatibility. Keep it equivalent to `synthesis`; do not add separate unsupported content there.
 - `definition`, `key_points`, and `tags` are retained for compatibility with older pipeline surfaces, but they are not first-class wiki page sections in the frozen page structure.
 - `summary` is for fast scanning and cards. Keep it short.
 - `question` is Source Focus. It should identify the source topic or source-side question, not repeat the page title mechanically.
@@ -81,7 +81,7 @@ Do not return markdown fences or explanatory prose.
 - `entities` lists the important knowledge objects mentioned in the claims. Use wiki-link style names when possible.
 - `relations` must be claim-backed triples in the exact string form `[[Subject]] | predicate | [[Object]] | C1`. Keep predicates stable and lower_snake_case, for example `contrasts_with`, `depends_on`, `implements`, `supports`, `part_of`, or `mentions`.
 - `evidence` must map claims to support in the exact string form `C1 | source | range | basis | confidence`. Confidence must be `high`, `medium`, or `low`.
-- `synthesis` is readable prose that integrates the claims, relations, and evidence. It is for human reading and chat grounding, not a place to introduce unsupported facts.
+- `synthesis` is readable prose that integrates the claims, relations, and evidence. It is for human reading and chat grounding, not a place to introduce unsupported claims.
 - `key_points` are compatibility hints. Avoid copying the full claims list into them.
 - `patches` may be empty for create. Update must include at least one patch.
 - Patch objects must use KnoArbor's section patch schema, not JSON Patch.
@@ -99,17 +99,17 @@ Do not return markdown fences or explanatory prose.
   language of the source material. Preserve precise technical terms, model
   names, API names, and established English labels when they are the natural
   term in the source domain.
-- Use the provided `knowledge_atoms` and the matching operation's selected atom ids from `ingest_compile_context.operations` to structure the draft. These atoms are already scoped to the planned pages. `claims`, `entities`, `relations`, and `evidence` should expose the evidence skeleton; `synthesis` should be a readable projection of selected facts, claims, relations, and evidence, not an unrelated free-form rewrite.
+- Use the provided `knowledge_atoms` and the matching operation's selected atom ids from `ingest_compile_context.operations` to structure the draft. These atoms are already scoped to the planned pages. `claims`, `entities`, `relations`, and `evidence` should expose the evidence skeleton; `synthesis` should be a readable projection of selected claims, entities, relations, and evidence, not an unrelated free-form rewrite.
 - Do not invent or expand atom ids. If the operation selected too little evidence for a safe non-source page, return a draft with a warning-worthy narrow synthesis rather than broad unsupported content.
 - If source metadata indicates a segmented long source, write only what is supported by the current segment, avoid duplicate source digests across sibling segments, and prefer update patches when the segment extends an object already represented in retrieved context.
 - Use `ingest_compile_context` as the authoritative compile context. `target` pages carry existing body content; `related` and `candidate` pages are background only.
 - Use `ingest_compile_context.page_context` only when it adds relevant provenance, update targets, or duplicate-avoidance context.
-- If `page_dir` is `sources`, write a source digest: provenance, source focus, compact summary, extracted facts/objects, evidence notes, and unresolved material when needed. Use `claims` for extracted observations, `entities` for mentioned objects, `relations` for source-to-page/source-to-entity links, `evidence` for source ranges, and `synthesis` for the compact source digest.
+- If `page_dir` is `sources`, write a source digest: provenance, source focus, compact summary, extracted claims/objects, evidence notes, and unresolved material when needed. Use `claims` for extracted observations, `entities` for mentioned objects, `relations` for source-to-page/source-to-entity links, `evidence` for source ranges, and `synthesis` for the compact source digest.
 - For non-source pages, major claims in `claims` and `synthesis` should be supported by selected atom ids or direct source evidence.
 - If `page_dir` is `timelines`, make chronology the organizing structure.
 - If `page_dir` is `workflows`, make the procedure actionable and ordered.
 - Do not create claim pages. Important claims belong in the page `claims` field and the knowledge atom index.
 - Avoid duplicating the same explanation across parallel drafts; use internal links instead.
 - Do not include tool-call process, raw metadata dumps, or chatty follow-up phrases.
-- Do not invent facts, citations, dates, rankings, superlatives, or links not supported by the input.
+- Do not invent claims, citations, dates, rankings, superlatives, or links not supported by the input.
 - Preserve uncertainty when evidence is weak, stale, or ambiguous.

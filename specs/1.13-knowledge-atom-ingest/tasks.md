@@ -3,8 +3,8 @@
 ## P0 Atom Contract
 
 - [x] Create SDD requirements, design, tasks, and verification.
-- [x] Add `knowledge_atoms.v1` schema for evidence, facts, claims, and
-  relations.
+- [x] Add `knowledge_atoms.v2` schema for entities, claims, relations, and
+  evidence.
 - [x] Add unit tests for schema validation and atom summary counts.
 - [x] Add atom contract exports to public internal schema package.
 
@@ -23,8 +23,8 @@
 
 - [x] Add `wiki_atom_extract_agent` prompt and semantic runner method.
 - [x] Insert atom extraction after source digest and before page planning.
-- [x] Add quality gate checks for unsupported facts, claims, and relations.
-- [x] Add report fields for extracted fact, claim, relation, and evidence span
+- [x] Add quality gate checks for unsupported claims and relations.
+- [x] Add report fields for extracted entity, claim, relation, and evidence span
   counts.
 - [x] Add report fields for rejected, unsupported, and conflicting
   atom counts.
@@ -43,7 +43,7 @@
 - [x] Add page metadata for source digest ids and atom ids.
 - [x] Update Markdown templates to expose Definition, Claims, Relations, and
   Synthesis instead of centering on legacy Answer prose.
-- [x] Pass selected fact, claim, relation, and source digest ids through the
+- [x] Pass selected claim, relation, and source digest ids through the
   shared ingest compile context.
 - [x] Update draft review scoring from directory fit to source trace, atom
   coverage, identity fit, synthesis quality, and update safety.
