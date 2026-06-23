@@ -27,9 +27,10 @@ Connector / Document Processor
   -> Checkpoint Window
   -> Source Segmentation
   -> Deterministic Source Parse
-  -> Source Normalize Agent
+  -> Segment Source Normalize Agent
   -> Source Digest
-  -> Wiki Atom Extract Agent
+  -> Segment Wiki Atom Extract Agent
+  -> Deterministic Source-level Atom Aggregation
   -> Atom Validate / Deduplicate / Closure
   -> Graph + Text Candidate Retrieval
   -> Wiki Page Plan Agent
@@ -92,6 +93,44 @@ Boundaries:
   relation meaning, create/update/skip actions, or wiki write policy;
 - hard splitting is a last-resort budget operation and must remain visible in
   segment warnings.
+
+## Long Source Aggregation Boundary
+
+Segmentation is a budget and structure-preservation mechanism, not a wiki page
+boundary. For segmented sources, the ingest chain keeps semantic extraction
+local but defers page planning until the whole source has been reassembled as
+source-level atoms:
+
+```text
+segment 0 -> normalize -> source digest -> atom extract
+segment 1 -> normalize -> source digest -> atom extract
+segment N -> normalize -> source digest -> atom extract
+  -> deterministic aggregate knowledge extract + source digest + atom batch
+  -> validate / deduplicate / closure
+  -> one source-level page plan
+  -> one source-level draft / review / write batch
+```
+
+Responsibilities:
+
+- segment-level agents preserve local meaning, source ranges, claims, entities,
+  relations, and evidence;
+- deterministic aggregation remaps segment unit indexes, merges duplicate atom
+  objects, deduplicates equivalent claims and relation triples, and preserves
+  warnings with segment provenance;
+- page planning sees the aggregated source contract and decides page boundaries
+  from the full source context;
+- checkpoint commit remains source/window-level and advances only after the
+  aggregated source write path succeeds.
+
+Boundaries:
+
+- segment-level extraction does not create pages, update pages, choose page
+  paths, or commit checkpoints;
+- source-level page planning does not read raw segment bodies after atom
+  extraction;
+- write policy should not compensate for duplicate segment-created pages,
+  because segment-created pages should not exist.
 
 ## Agent Decisions
 

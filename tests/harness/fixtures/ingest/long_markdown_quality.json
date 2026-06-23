@@ -1,13 +1,9 @@
 {
-  "report": "# Ingest Report\n\n- run_id: golden-quality-ingest-run\n- started_at: 2026-01-01 00:00:00\n- finished_at: 2026-01-01 00:00:01\n- sources: 1\n- processed: 1\n- skipped: 0\n- failed: 0\n- written_pages: 4\n- segments: 3 total, 0 failed, max 1607 chars\n- document_processing: 0 processed, 0 failed\n- elapsed_seconds: <elapsed>\n- semantic_calls: 3\n- total_tokens: 0\n- tokens_per_second: <tokens_per_second>\n- lifecycle_candidates: 0\n- recovery_candidates: 0\n- source_concurrency: 1 effective / 1 configured\n- execution_ledger: n/a\n- repeated_failed_sources: 0\n- repeated_skipped_sources: 0\n\n## Semantic Token Usage\n\n- semantic_calls: 3\n- prompt_tokens: 0\n- prompt_cached_tokens: 0\n- prompt_cache_rate: n/a\n- prompt_stable_chars: 0\n- prompt_dynamic_chars: 0\n- dynamic_to_stable_ratio: n/a\n- completion_tokens: 0\n- total_tokens: 0\n- semantic_elapsed_seconds: n/a\n- tokens_per_second: <tokens_per_second>\n\n## Run Summary\n\n- source_status: written=1\n- segment_status: processed=3\n- write_summary: 4 page(s) written across 1 source(s)\n- failure_summary: none\n- recovery_summary: none\n\n## Sources\n\n### raw/notes/long-agent-loop.md\n\n- connector: markdown\n- source_id: markdown:golden-long-note\n- mode: full\n- status: written\n- checkpoint_type: source\n- should_process: True\n- wrote: True\n- reason: Explicit source document input.\n- semantic_skip_reason: n/a\n- redacted_count: 0\n- candidate_count: 0\n- quality_gate_passed: True\n- touched_pages: 4\n- scoped_lint_issues: not_run\n- maintenance_policy: not_run\n- maintenance_policy_triggered: False\n- elapsed_seconds: <elapsed>\n- semantic_calls: 0\n- total_tokens: 0\n- tokens_per_second: <tokens_per_second>\n- approved_operations: [0, 1, 1000, 1001, 2000, 2001]\n- segmentation: heading / 3 segment(s)\n- segment_status: processed=3\n\nPage plan operations:\n- None.\n\nSegments:\n- [0] Agent Loop Overview / 1301 chars / status: processed / semantic_calls: 0 / tokens: 0 / cached: 0 / elapsed: <elapsed>s\n  - `create` `sources` Long Agent Loop Note Source Digest -> new page\n  - `create` `concepts` Agent Loop Control Pattern -> new page\n  - written_pages: sources/Long-Agent-Loop-Note-Source-Digest.md, Agent-Loop-Control-Pattern.md\n  - page_change: `sources/Long-Agent-Loop-Note-Source-Digest.md` action=create sections=none\n  - page_change: `Agent-Loop-Control-Pattern.md` action=create sections=none\n- [1] Workflow Boundaries / 1607 chars / status: processed / semantic_calls: 0 / tokens: 0 / cached: 0 / elapsed: <elapsed>s\n  - `create` `sources` Long Agent Loop Note Source Digest -> new page\n  - `create` `workflows` Workflow Boundary Design -> new page\n  - written_pages: Workflow-Boundary-Design.md\n  - page_change: `Workflow-Boundary-Design.md` action=create sections=none\n- [2] Evaluation Harness / 1480 chars / status: processed / semantic_calls: 0 / tokens: 0 / cached: 0 / elapsed: <elapsed>s\n  - `create` `sources` Long Agent Loop Note Source Digest -> new page\n  - `create` `concepts` Golden Harness Evaluation -> new page\n  - written_pages: Golden-Harness-Evaluation.md\n  - page_change: `Golden-Harness-Evaluation.md` action=create sections=none\n\nGenerated pages:\n- sources/Long-Agent-Loop-Note-Source-Digest.md\n- Agent-Loop-Control-Pattern.md\n- Workflow-Boundary-Design.md\n- Golden-Harness-Evaluation.md\n\nScoped lint pages:\n- sources/Long-Agent-Loop-Note-Source-Digest.md\n- Agent-Loop-Control-Pattern.md\n- Workflow-Boundary-Design.md\n- Golden-Harness-Evaluation.md\n\n## Source Lifecycle Candidates\n\n- None.\n\n## Recovery Candidates\n\n- None.\n",
+  "report": "# Ingest Report\n\n- run_id: golden-quality-ingest-run\n- started_at: 2026-01-01 00:00:00\n- finished_at: 2026-01-01 00:00:01\n- sources: 1\n- processed: 1\n- skipped: 0\n- failed: 0\n- written_pages: 2\n- segments: 3 total, 0 failed, max 1607 chars\n- document_processing: 0 processed, 0 failed\n- elapsed_seconds: <elapsed>\n- semantic_calls: 3\n- total_tokens: 0\n- tokens_per_second: <tokens_per_second>\n- lifecycle_candidates: 0\n- recovery_candidates: 0\n- source_concurrency: 1 effective / 1 configured\n- execution_ledger: n/a\n- repeated_failed_sources: 0\n- repeated_skipped_sources: 0\n\n## Semantic Token Usage\n\n- semantic_calls: 3\n- prompt_tokens: 0\n- prompt_cached_tokens: 0\n- prompt_cache_rate: n/a\n- prompt_stable_chars: 0\n- prompt_dynamic_chars: 0\n- dynamic_to_stable_ratio: n/a\n- completion_tokens: 0\n- total_tokens: 0\n- semantic_elapsed_seconds: n/a\n- tokens_per_second: <tokens_per_second>\n\n## Run Summary\n\n- source_status: written=1\n- segment_status: processed=3\n- write_summary: 2 page(s) written across 1 source(s)\n- failure_summary: none\n- recovery_summary: none\n\n## Sources\n\n### raw/notes/long-agent-loop.md\n\n- connector: markdown\n- source_id: markdown:golden-long-note\n- mode: full\n- status: written\n- checkpoint_type: source\n- should_process: True\n- wrote: True\n- reason: Explicit source document input.\n- semantic_skip_reason: n/a\n- redacted_count: 0\n- candidate_count: 0\n- quality_gate_passed: True\n- touched_pages: 2\n- scoped_lint_issues: not_run\n- maintenance_policy: not_run\n- maintenance_policy_triggered: False\n- elapsed_seconds: <elapsed>\n- semantic_calls: 0\n- total_tokens: 0\n- tokens_per_second: <tokens_per_second>\n- approved_operations: [0, 1]\n- segmentation: heading / 3 segment(s)\n- segment_status: processed=3\n- page_plan_context_policy: graph_first_lightweight_page_profiles_without_page_body\n- page_plan_profile_chars: 0\n- knowledge_atoms: entities=0, claims=0, relations=0, evidence_spans=0, unsupported=0, conflicting=0, rejected=0\n- materialized_context_policy: target_full_related_excerpt_candidate_profile\n- materialized_context_chars: 0\n- compile_context_pages: targets=0, related=0, candidates=0\n\nPage plan operations:\n- `create` `sources` Long Agent Loop Note Source Digest -> new page\n- `create` `concepts` Agent Loop Control Pattern -> new page\n\nDraft atom traces:\n- operation 0: `sources` Long Agent Loop Note Source Digest / atoms=none / source_digests=sd_5b7a6351e47a5aca\n- operation 1: `concepts` Agent Loop Control Pattern / atoms=claim_agent_loop_control_pattern / source_digests=sd_5b7a6351e47a5aca\n\nSegments:\n- [0] Agent Loop Overview / 1301 chars / status: processed / semantic_calls: 0 / tokens: 0 / cached: 0 / elapsed: <elapsed>s\n- [1] Workflow Boundaries / 1607 chars / status: processed / semantic_calls: 0 / tokens: 0 / cached: 0 / elapsed: <elapsed>s\n- [2] Evaluation Harness / 1480 chars / status: processed / semantic_calls: 0 / tokens: 0 / cached: 0 / elapsed: <elapsed>s\n\nGenerated pages:\n- sources/Long-Agent-Loop-Note-Source-Digest.md\n- Agent-Loop-Control-Pattern.md\n\nScoped lint pages:\n- sources/Long-Agent-Loop-Note-Source-Digest.md\n- Agent-Loop-Control-Pattern.md\n\n## Source Lifecycle Candidates\n\n- None.\n\n## Recovery Candidates\n\n- None.\n",
   "source": {
     "approved_operation_indexes": [
       0,
-      1,
-      1000,
-      1001,
-      2000,
-      2001
+      1
     ],
     "connector": "markdown",
     "context": {
@@ -17,21 +13,19 @@
         "semantic_call_count": 0,
         "total_tokens": 0
       },
-      "write_policy": {
-        "changes": [
-          "merged_source_digest_creates:3->1"
-        ]
-      }
+      "write_policy": null
     },
     "generated_pages": [
       "sources/Long-Agent-Loop-Note-Source-Digest.md",
-      "Agent-Loop-Control-Pattern.md",
-      "Workflow-Boundary-Design.md",
-      "Golden-Harness-Evaluation.md"
+      "Agent-Loop-Control-Pattern.md"
     ],
     "quality_gate": {
-      "passed": true,
-      "segment_count": 3
+      "approved_operation_indexes": [
+        0,
+        1
+      ],
+      "issues": [],
+      "passed": true
     },
     "segmentation": {
       "enabled": true,
@@ -49,15 +43,9 @@
     },
     "segments": [
       {
-        "approved_operation_indexes": [
-          0,
-          1
-        ],
+        "approved_operation_indexes": [],
         "chars": 1301,
-        "generated_pages": [
-          "sources/Long-Agent-Loop-Note-Source-Digest.md",
-          "Agent-Loop-Control-Pattern.md"
-        ],
+        "generated_pages": [],
         "index": 0,
         "is_full_source": false,
         "metrics": {
@@ -68,48 +56,7 @@
             "total_tokens": 0
           }
         },
-        "page_plan_operations": [
-          {
-            "action": "create",
-            "canonical_path": null,
-            "decision_reason": "One source digest represents the whole source across segments.",
-            "facets": [],
-            "knowledge_object": "Long Agent Loop Note provenance",
-            "legacy_paths": [],
-            "operation_index": 0,
-            "page_dir": "sources",
-            "page_kind": null,
-            "selected_claim_ids": [],
-            "selected_relation_ids": [],
-            "source_digest_ids": [
-              "sd_5b7a6351e47a5aca"
-            ],
-            "subject_kind": null,
-            "target_page": null,
-            "title": "Long Agent Loop Note Source Digest"
-          },
-          {
-            "action": "create",
-            "canonical_path": null,
-            "decision_reason": "Agent loop control is the durable object in this segment.",
-            "facets": [],
-            "knowledge_object": "agent loop control pattern",
-            "legacy_paths": [],
-            "operation_index": 1,
-            "page_dir": "concepts",
-            "page_kind": null,
-            "selected_claim_ids": [
-              "claim_agent_loop_control_pattern"
-            ],
-            "selected_relation_ids": [],
-            "source_digest_ids": [
-              "sd_5b7a6351e47a5aca"
-            ],
-            "subject_kind": null,
-            "target_page": null,
-            "title": "Agent Loop Control Pattern"
-          }
-        ],
+        "page_plan_operations": [],
         "source_range": {
           "from_index": null,
           "to_index": null
@@ -119,14 +66,9 @@
         "warnings": []
       },
       {
-        "approved_operation_indexes": [
-          0,
-          1
-        ],
+        "approved_operation_indexes": [],
         "chars": 1607,
-        "generated_pages": [
-          "Workflow-Boundary-Design.md"
-        ],
+        "generated_pages": [],
         "index": 1,
         "is_full_source": false,
         "metrics": {
@@ -137,48 +79,7 @@
             "total_tokens": 0
           }
         },
-        "page_plan_operations": [
-          {
-            "action": "create",
-            "canonical_path": null,
-            "decision_reason": "One source digest represents the whole source across segments.",
-            "facets": [],
-            "knowledge_object": "Long Agent Loop Note provenance",
-            "legacy_paths": [],
-            "operation_index": 0,
-            "page_dir": "sources",
-            "page_kind": null,
-            "selected_claim_ids": [],
-            "selected_relation_ids": [],
-            "source_digest_ids": [
-              "sd_e7f2708653e0046b"
-            ],
-            "subject_kind": null,
-            "target_page": null,
-            "title": "Long Agent Loop Note Source Digest"
-          },
-          {
-            "action": "create",
-            "canonical_path": null,
-            "decision_reason": "Workflow boundaries are a reusable process design object.",
-            "facets": [],
-            "knowledge_object": "workflow boundary design",
-            "legacy_paths": [],
-            "operation_index": 1,
-            "page_dir": "workflows",
-            "page_kind": null,
-            "selected_claim_ids": [
-              "claim_workflow_boundary_design"
-            ],
-            "selected_relation_ids": [],
-            "source_digest_ids": [
-              "sd_e7f2708653e0046b"
-            ],
-            "subject_kind": null,
-            "target_page": null,
-            "title": "Workflow Boundary Design"
-          }
-        ],
+        "page_plan_operations": [],
         "source_range": {
           "from_index": null,
           "to_index": null
@@ -188,14 +89,9 @@
         "warnings": []
       },
       {
-        "approved_operation_indexes": [
-          0,
-          1
-        ],
+        "approved_operation_indexes": [],
         "chars": 1480,
-        "generated_pages": [
-          "Golden-Harness-Evaluation.md"
-        ],
+        "generated_pages": [],
         "index": 2,
         "is_full_source": false,
         "metrics": {
@@ -206,48 +102,7 @@
             "total_tokens": 0
           }
         },
-        "page_plan_operations": [
-          {
-            "action": "create",
-            "canonical_path": null,
-            "decision_reason": "One source digest represents the whole source across segments.",
-            "facets": [],
-            "knowledge_object": "Long Agent Loop Note provenance",
-            "legacy_paths": [],
-            "operation_index": 0,
-            "page_dir": "sources",
-            "page_kind": null,
-            "selected_claim_ids": [],
-            "selected_relation_ids": [],
-            "source_digest_ids": [
-              "sd_3cd3d72752464c5a"
-            ],
-            "subject_kind": null,
-            "target_page": null,
-            "title": "Long Agent Loop Note Source Digest"
-          },
-          {
-            "action": "create",
-            "canonical_path": null,
-            "decision_reason": "Golden harnesses are a reusable evaluation method.",
-            "facets": [],
-            "knowledge_object": "golden harness evaluation",
-            "legacy_paths": [],
-            "operation_index": 1,
-            "page_dir": "concepts",
-            "page_kind": null,
-            "selected_claim_ids": [
-              "claim_golden_harness_evaluation"
-            ],
-            "selected_relation_ids": [],
-            "source_digest_ids": [
-              "sd_3cd3d72752464c5a"
-            ],
-            "subject_kind": null,
-            "target_page": null,
-            "title": "Golden Harness Evaluation"
-          }
-        ],
+        "page_plan_operations": [],
         "source_range": {
           "from_index": null,
           "to_index": null
@@ -279,26 +134,6 @@
       "type": null,
       "wikilinks": [
         "Agent Loop Control Pattern"
-      ]
-    },
-    {
-      "path": "Workflow-Boundary-Design.md",
-      "source": null,
-      "tags": [],
-      "title": "Workflow Boundary Design",
-      "type": null,
-      "wikilinks": [
-        "Workflow Boundary Design"
-      ]
-    },
-    {
-      "path": "Golden-Harness-Evaluation.md",
-      "source": null,
-      "tags": [],
-      "title": "Golden Harness Evaluation",
-      "type": null,
-      "wikilinks": [
-        "Golden Harness Evaluation"
       ]
     }
   ]

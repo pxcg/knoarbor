@@ -4,6 +4,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from knoarbor.core.schemas.ingest_review import IngestDraftReview
+from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch
+from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
+from knoarbor.core.schemas.source_digest import SourceDigest
 from knoarbor.core.schemas.sources import SourceDocument
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
 from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
@@ -20,6 +23,14 @@ class IngestSemanticRun:
     semantic_result: IngestSemanticWorkflowResult
     context_payload: dict[str, object]
     candidate_page_context: IngestCandidatePageContext
+
+
+@dataclass(frozen=True)
+class IngestSemanticExtraction:
+    knowledge_extract: KnowledgeExtract
+    source_digest: SourceDigest
+    knowledge_atom_batch: KnowledgeAtomBatch
+    context_payload: dict[str, object]
 
 
 class IngestSemanticRunner:
@@ -44,6 +55,28 @@ class IngestSemanticRunner:
         max_tokens: int | None,
     ) -> IngestSemanticRun:
         history_start = semantic_history_length(self.semantic_workflow)
+        extraction = self.extract_source(
+            document=document,
+            max_tokens=max_tokens,
+        )
+        return self.plan_compile_review(
+            vault_path=vault_path,
+            knowledge_extract=extraction.knowledge_extract,
+            source_digest=extraction.source_digest,
+            knowledge_atom_batch=extraction.knowledge_atom_batch,
+            index_payload=index_payload,
+            source_file=source_file,
+            max_tokens=max_tokens,
+            history_start=history_start,
+            extra_context=extraction.context_payload,
+        )
+
+    def extract_source(
+        self,
+        *,
+        document: SourceDocument,
+        max_tokens: int | None,
+    ) -> IngestSemanticExtraction:
         knowledge_extract = self.semantic_workflow.normalize(document, max_tokens=max_tokens)
         source_digest = build_source_digest_from_extract(knowledge_extract)
         knowledge_atom_batch = self.semantic_workflow.extract_atoms(
@@ -51,6 +84,35 @@ class IngestSemanticRunner:
             knowledge_extract=knowledge_extract,
             max_tokens=max_tokens,
         )
+        knowledge_atom_quality = evaluate_knowledge_atoms(knowledge_atom_batch)
+        return IngestSemanticExtraction(
+            knowledge_extract=knowledge_extract,
+            source_digest=source_digest,
+            knowledge_atom_batch=knowledge_atom_batch,
+            context_payload={
+                "source_digest": {
+                    "digest_id": source_digest.digest_id,
+                    "summary": source_digest.summary_counts(),
+                },
+                "knowledge_atoms": knowledge_atom_quality.summary(),
+                "knowledge_atom_quality": knowledge_atom_quality.model_dump(),
+            },
+        )
+
+    def plan_compile_review(
+        self,
+        *,
+        vault_path: Path,
+        knowledge_extract: KnowledgeExtract,
+        source_digest: SourceDigest,
+        knowledge_atom_batch: KnowledgeAtomBatch,
+        index_payload: dict[str, object],
+        source_file: str,
+        max_tokens: int | None,
+        history_start: int | None = None,
+        extra_context: dict[str, object] | None = None,
+    ) -> IngestSemanticRun:
+        resolved_history_start = semantic_history_length(self.semantic_workflow) if history_start is None else history_start
         knowledge_atom_quality = evaluate_knowledge_atoms(knowledge_atom_batch)
         wiki_context = self.context_provider.build(
             vault_path,
@@ -66,7 +128,7 @@ class IngestSemanticRunner:
             max_tokens=max_tokens,
         )
         if not has_executable_page_plan_operations(page_plan):
-            semantic_metrics = summarize_semantic_runs(semantic_history_slice(self.semantic_workflow, history_start))
+            semantic_metrics = summarize_semantic_runs(semantic_history_slice(self.semantic_workflow, resolved_history_start))
             candidate_page_context = IngestCandidatePageContext()
             return IngestSemanticRun(
                 semantic_result=IngestSemanticWorkflowResult(
@@ -77,16 +139,13 @@ class IngestSemanticRunner:
                     ingest_draft_review=empty_ingest_draft_review(page_plan),
                 ),
                 context_payload={
+                    **(extra_context or {}),
                     "retrieval": {
                         "mode": wiki_context.retrieval_mode,
                         "query": wiki_context.query,
                         "candidate_count": len(wiki_context.candidates),
                         "warnings": wiki_context.warnings,
                         "stats": wiki_context.stats,
-                    },
-                    "source_digest": {
-                        "digest_id": source_digest.digest_id,
-                        "summary": source_digest.summary_counts(),
                     },
                     "knowledge_atoms": knowledge_atom_quality.summary(),
                     "knowledge_atom_quality": knowledge_atom_quality.model_dump(),
@@ -123,7 +182,7 @@ class IngestSemanticRunner:
             ingest_compile_context=ingest_compile_context,
             max_tokens=max_tokens,
         )
-        semantic_metrics = summarize_semantic_runs(semantic_history_slice(self.semantic_workflow, history_start))
+        semantic_metrics = summarize_semantic_runs(semantic_history_slice(self.semantic_workflow, resolved_history_start))
         return IngestSemanticRun(
             semantic_result=IngestSemanticWorkflowResult(
                 knowledge_extract=knowledge_extract,
@@ -133,16 +192,13 @@ class IngestSemanticRunner:
                 ingest_draft_review=review,
             ),
             context_payload={
+                **(extra_context or {}),
                 "retrieval": {
                     "mode": wiki_context.retrieval_mode,
                     "query": wiki_context.query,
                     "candidate_count": len(wiki_context.candidates),
                     "warnings": wiki_context.warnings,
                     "stats": wiki_context.stats,
-                },
-                "source_digest": {
-                    "digest_id": source_digest.digest_id,
-                    "summary": source_digest.summary_counts(),
                 },
                 "knowledge_atoms": knowledge_atom_quality.summary(),
                 "knowledge_atom_quality": knowledge_atom_quality.model_dump(),

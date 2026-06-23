@@ -743,7 +743,7 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertEqual(semantic.calls, 3)
         self.assertEqual(result.stats["processed_count"], 1)
 
-    def test_segmented_ingest_merges_duplicate_source_digests_before_write(self) -> None:
+    def test_segmented_ingest_plans_pages_once_after_source_level_aggregation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             vault = root / "vaults" / "all"
@@ -771,7 +771,10 @@ class IngestPipelineTests(unittest.TestCase):
             self.assertEqual(len(source_pages), 1)
             self.assertEqual(result.stats["written_count"], 1)
             self.assertEqual(source.generated_pages, ["sources/Long-Source-Digest.md"])
-            self.assertEqual(source.context["write_policy"]["changes"], ["merged_source_digest_creates:3->1"])
+            self.assertEqual(source.context["segment_semantic_strategy"], "source_level_page_plan")
+            self.assertEqual(source.context["segment_aggregation"]["segment_count"], 3)
+            self.assertEqual(source.approved_operation_indexes, [0])
+            self.assertNotIn("write_policy", source.context)
             content = source_pages[0].read_text(encoding="utf-8")
             self.assertIn("## Claims", content)
             self.assertIn("Source segments describe long source provenance.", content)

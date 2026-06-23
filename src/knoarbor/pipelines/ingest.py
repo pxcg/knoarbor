@@ -25,9 +25,7 @@ from knoarbor.pipelines.ingest_quality import IngestQualityGate
 from knoarbor.pipelines.ingest_postprocess import (
     IngestPostProcessor,
     approved_write_items,
-    global_operation_index,
     scoped_lint_payload,
-    segment_write_items,
 )
 from knoarbor.pipelines.ingest_semantic import (
     IngestSemanticRunner,
@@ -42,16 +40,18 @@ from knoarbor.pipelines.ingest_checkpoint import (
     _prepare_checkpoint_plan,
     _should_commit_checkpoint_result,
 )
+from knoarbor.pipelines.ingest_aggregation import (
+    SegmentSemanticArtifacts,
+    aggregate_segment_semantic_artifacts,
+)
 from knoarbor.pipelines.ingest_lifecycle import relative_or_absolute, source_lifecycle_candidates
 from knoarbor.pipelines.ingest_metrics import (
     combine_redactions,
-    combine_semantic_metrics,
     ingest_run_metrics,
     max_segment_chars,
     recovery_candidate_count,
     segment_count,
     segment_status_count,
-    semantic_metrics,
     source_processed,
 )
 from knoarbor.pipelines.lint import WikiLintPipeline
@@ -373,10 +373,9 @@ class IngestSourceExecutor:
             return result
 
         segment_results: list[IngestSourceResult] = []
-        generated_pages: list[str] = []
         touched_pages: list[str] = []
-        approved_global_indexes: list[int] = []
-        write_items = []
+        segment_artifacts: list[SegmentSemanticArtifacts] = []
+        history_start = semantic_history_length(self.semantic_workflow)
 
         for segment in batch.segments:
             segment_started = time.perf_counter()
@@ -399,20 +398,29 @@ class IngestSourceExecutor:
                 reason=f"Segment {segment.index + 1}/{len(batch.segments)} of {result.reason}",
                 checkpoint=dict(result.checkpoint),
             )
+            segment_history_start = semantic_history_length(self.semantic_workflow)
             try:
-                segment_result = self._run_document_core(
-                    segment_result,
-                    document=segment.document,
-                    vault_path=vault_path,
-                    index_payload=index_payload,
-                    source_file=source_file,
-                    privacy_config=privacy_config,
-                    write=False,
+                redacted = redact_source_document(segment.document, privacy_config)
+                segment_result.redaction = _redaction_payload(redacted.enabled, redacted.counts)
+                extraction = self.semantic_runner.extract_source(
+                    document=redacted.document,
                     max_tokens=max_tokens,
-                    auto_scoped_lint=False,
-                    auto_apply_safe_lint_fixes=auto_apply_safe_lint_fixes,
-                    scoped_lint_include_related=scoped_lint_include_related,
                 )
+                segment_artifacts.append(
+                    SegmentSemanticArtifacts(
+                        knowledge_extract=extraction.knowledge_extract,
+                        source_digest=extraction.source_digest,
+                        knowledge_atom_batch=extraction.knowledge_atom_batch,
+                    )
+                )
+                segment_result.context = {
+                    **extraction.context_payload,
+                    "segment_semantic_stage": "atom_extraction",
+                }
+                segment_result.metrics = {
+                    "elapsed_seconds": time.perf_counter() - segment_started,
+                    "semantic": summarize_semantic_runs(semantic_history_slice(self.semantic_workflow, segment_history_start)),
+                }
             except Exception as exc:
                 _mark_failed_source(segment_result, "segment", exc)
                 segment_result.metrics.setdefault("elapsed_seconds", time.perf_counter() - segment_started)
@@ -425,33 +433,10 @@ class IngestSourceExecutor:
                     message=f"Finished segment {segment.index + 1}/{len(batch.segments)} with status {segment_result.status}.",
                     progress={"total": len(batch.segments), "completed": segment.index + 1, "current": segment.title},
                     payload={"status": segment_result.status, "approved_operations": segment_result.approved_operation_indexes},
-                )
-            touched_pages.extend(segment_result.touched_pages)
-            for operation_index in segment_result.approved_operation_indexes:
-                approved_global_indexes.append(global_operation_index(segment.index, operation_index))
-            if segment_result.status != "failed" and segment_result.semantic_result is not None and segment_result.approved_operation_indexes:
-                write_items.extend(
-                    segment_write_items(
-                        segment_result,
-                        source_file,
-                        segment_index=segment.index,
-                        privacy_config=privacy_config,
-                    )
-                )
+            )
 
         result.segments = [_segment_record(batch, index, segment_result) for index, segment_result in enumerate(segment_results)]
         result.redaction = combine_redactions([segment.redaction for segment in segment_results])
-        result.context = {"semantic_metrics": combine_semantic_metrics([semantic_metrics(segment) for segment in segment_results])}
-        result.metrics = {
-            "elapsed_seconds": time.perf_counter() - started,
-            "semantic": result.context["semantic_metrics"],
-        }
-        result.quality_gate = {
-            "passed": all(segment.status != "failed" for segment in segment_results),
-            "segment_count": len(segment_results),
-        }
-        result.approved_operation_indexes = approved_global_indexes
-        result.semantic_skip_reason = _combined_segment_skip_reason(segment_results)
         failed_segments = [segment for segment in segment_results if segment.status == "failed"]
         if failed_segments:
             first = failed_segments[0]
@@ -460,19 +445,76 @@ class IngestSourceExecutor:
             result.scoped_lint = scoped_lint_payload(result)
             return result
 
-        if write and write_items:
-            commit = self.post_processor.write_approved_items(
+        aggregate = aggregate_segment_semantic_artifacts(segment_artifacts)
+        if monitor:
+            monitor.event(
+                "segment_aggregation_finished",
+                stage="segment_aggregation",
+                current_item=result.source_id,
+                message=f"Aggregated {len(segment_artifacts)} segment semantic result(s) before page planning.",
+                payload=aggregate.stats,
+            )
+            monitor.raise_if_cancelled()
+        try:
+            semantic_run = self.semantic_runner.plan_compile_review(
+                vault_path=vault_path,
+                knowledge_extract=aggregate.knowledge_extract,
+                source_digest=aggregate.source_digest,
+                knowledge_atom_batch=aggregate.knowledge_atom_batch,
+                index_payload=index_payload,
+                source_file=source_file,
+                max_tokens=max_tokens,
+                history_start=history_start,
+                extra_context={
+                    "segment_aggregation": aggregate.stats,
+                    "segment_semantic_strategy": "source_level_page_plan",
+                },
+            )
+        except Exception as exc:
+            _mark_failed_source(result, "source_level_semantic", exc)
+            result.touched_pages = _dedupe_pages(touched_pages)
+            result.scoped_lint = scoped_lint_payload(result)
+            result.metrics = {
+                "elapsed_seconds": time.perf_counter() - started,
+                "semantic": summarize_semantic_runs(semantic_history_slice(self.semantic_workflow, history_start)),
+            }
+            return result
+
+        semantic_result = semantic_run.semantic_result
+        result.semantic_result = semantic_result
+        result.context = semantic_run.context_payload
+        result.metrics = {
+            "elapsed_seconds": time.perf_counter() - started,
+            "semantic": semantic_run.context_payload.get("semantic_metrics", summarize_semantic_runs([])),
+        }
+        approved_indexes = sorted(_approved_ingest_operation_indexes(semantic_result))
+        gate_result = self.quality_gate.validate(
+            semantic_result,
+            approved_indexes,
+            candidate_page_context=semantic_run.candidate_page_context,
+        )
+        result.quality_gate = gate_result.model_dump()
+        approved_indexes = gate_result.approved_operation_indexes
+        result.approved_operation_indexes = approved_indexes
+        result.semantic_skip_reason = _semantic_skip_reason(semantic_result)
+        if result.semantic_skip_reason and not approved_indexes:
+            result.status = "skipped"
+        if not gate_result.passed:
+            _mark_failed_source(result, "quality_gate", ValueError(_quality_gate_error_message(gate_result.model_dump())))
+
+        if write and approved_indexes:
+            self.post_processor.write_approved_items(
                 vault_path=vault_path,
                 result=result,
-                items=write_items,
-                semantic_results=[segment.semantic_result for segment in segment_results if segment.semantic_result is not None],
-                segment_records=result.segments,
+                items=approved_write_items(
+                    semantic_result=semantic_result,
+                    approved_indexes=approved_indexes,
+                    source_file=source_file,
+                    privacy_config=privacy_config,
+                ),
+                semantic_results=[semantic_result],
             )
-            generated_pages = commit.generated_pages if commit else []
-        elif not write_items and result.semantic_skip_reason:
-            result.status = "skipped"
-
-        result.touched_pages = _dedupe_pages([*generated_pages, *touched_pages])
+        result.touched_pages = _dedupe_pages([*result.generated_pages, *touched_pages, *_touched_pages(result, semantic_run.candidate_page_context)])
         result.scoped_lint = scoped_lint_payload(result)
         if write and auto_scoped_lint and result.touched_pages:
             self.post_processor.run_scoped_lint(

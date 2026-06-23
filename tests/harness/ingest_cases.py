@@ -78,9 +78,9 @@ def codex_chat_source_document() -> SourceDocument:
 class SourceDigestOnlyWorkflow:
     """Stable semantic workflow for ingest harness tests.
 
-    It models the segment-level semantic contract without calling a real model.
-    Every segment proposes the same source digest so the ingest write policy and
-    batch aggregation behavior stay visible in the golden fixtures.
+    It models the segment extraction contract without calling a real model.
+    Segments only produce normalized extracts and atom batches; page planning
+    runs once after deterministic source-level aggregation.
     """
 
     def __init__(self) -> None:
@@ -215,9 +215,9 @@ class MultiObjectSegmentWorkflow:
     """Stable workflow for long-source ingest quality snapshots.
 
     Unlike `SourceDigestOnlyWorkflow`, this fixture emits one source digest plus
-    one durable knowledge page for each segment. It keeps the model behavior
-    deterministic while exercising the page-boundary, write-policy, and report
-    surfaces that matter for long notes and long chat sessions.
+    durable knowledge pages from the aggregated source. It keeps the model
+    behavior deterministic while exercising the page-boundary, report, and
+    write surfaces that matter for long notes and long chat sessions.
     """
 
     def __init__(self) -> None:
