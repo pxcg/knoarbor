@@ -198,6 +198,33 @@ Boundary:
   page prose;
 - it extracts durable atoms rather than sentence-level exhaustive triples.
 
+## Segment-level Semantic Extraction Substeps
+
+Step 3 has four named substeps. The names describe operations; the input and
+output names describe data contracts.
+
+```text
+3.1 Normalize Source Segment
+    SourceDocument -> KnowledgeExtract
+
+3.2 Build Source Digest
+    KnowledgeExtract -> SourceDigest
+
+3.3 Extract Knowledge Atoms
+    SourceDigest + KnowledgeExtract -> KnowledgeAtomBatch
+
+3.4 Validate Knowledge Atoms
+    KnowledgeAtomBatch -> KnowledgeAtomQualityReport
+```
+
+Boundary rules:
+
+- `Normalize Source Segment` preserves source units and removes process noise;
+- `Build Source Digest` is deterministic source audit projection;
+- `Extract Knowledge Atoms` is the only substep that creates claims;
+- `Validate Knowledge Atoms` reports atom consistency issues without deciding
+  wiki page writes.
+
 ### Wiki Page Plan Agent
 
 Status: retained with retrieval responsibility moved to deterministic context

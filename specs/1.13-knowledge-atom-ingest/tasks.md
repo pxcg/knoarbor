@@ -18,10 +18,19 @@ so progress does not depend on conversation context.
 | 8 | Review / Quality Gate | Partial | `IngestQualityGate`, draft review agent | Split deterministic write gate from semantic review and make review conditional on risk signals. |
 | 9 | Write / Report / Index | Partial | `IngestPostProcessor`, atom index, graph/manifest reports | Persist pages, update indexes, emit reports, and expose atom trace consistently. |
 
-The next active module is Step 3. The review should confirm whether atom
-extraction now has a clear enough contract for claims-first pages, whether it
-overloads source normalization, and whether any prompt or schema output still
-reflects the old page-generator design.
+Step 3 is frozen as four named substeps. Use these names in code review,
+implementation notes, and future SDD updates:
+
+| Substep | Name | Input | Output | Execution |
+| --- | --- | --- | --- | --- |
+| 3.1 | Normalize Source Segment | `SourceDocument` | `KnowledgeExtract` | Model |
+| 3.2 | Build Source Digest | `KnowledgeExtract` | `SourceDigest` | Code |
+| 3.3 | Extract Knowledge Atoms | `SourceDigest` + `KnowledgeExtract` | `KnowledgeAtomBatch` | Model |
+| 3.4 | Validate Knowledge Atoms | `KnowledgeAtomBatch` | `KnowledgeAtomQualityReport` | Code |
+
+The step boundary is claims-first: claims are created only in 3.3. Step 3 does
+not decide page identity, page write action, Markdown page body, or checkpoint
+commit eligibility.
 
 ## P0 Atom Contract
 
