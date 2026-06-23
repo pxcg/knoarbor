@@ -186,34 +186,10 @@ def approved_write_items(
     ]
 
 
-def segment_write_items(
-    segment_result: IngestSourceResult,
-    source_file: str,
-    *,
-    segment_index: int,
-    privacy_config: PrivacyConfig,
-) -> list[WikiDraftBatchWriteItem]:
-    if segment_result.semantic_result is None:
-        return []
-    return [
-        item.model_copy(update={"operation_index": global_operation_index(segment_index, item.operation_index or 0)})
-        for item in approved_write_items(
-            semantic_result=segment_result.semantic_result,
-            approved_indexes=segment_result.approved_operation_indexes,
-            source_file=source_file,
-            privacy_config=privacy_config,
-        )
-    ]
-
-
 def display_source_file(source_file: str, privacy_config: PrivacyConfig) -> str:
     if not privacy_config.redact_source_paths_in_pages:
         return source_file
     return redact_display_text(source_file, privacy_config)
-
-
-def global_operation_index(segment_index: int, operation_index: int) -> int:
-    return segment_index * 1000 + operation_index
 
 
 def scoped_lint_payload(source_result: IngestSourceResult) -> dict[str, object]:

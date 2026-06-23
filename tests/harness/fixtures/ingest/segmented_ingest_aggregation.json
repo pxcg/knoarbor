@@ -11,8 +11,7 @@
         "prompt_tokens": 0,
         "semantic_call_count": 0,
         "total_tokens": 0
-      },
-      "write_policy": null
+      }
     },
     "generated_pages": [
       "sources/Long-Source-Digest.md"

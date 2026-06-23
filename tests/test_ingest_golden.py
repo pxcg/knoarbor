@@ -142,7 +142,6 @@ def _stable_source_result(result: Any) -> dict[str, object]:
         "segmentation": result.segmentation,
         "quality_gate": result.quality_gate,
         "context": {
-            "write_policy": result.context.get("write_policy"),
             "semantic_metrics": _stable_semantic_metrics(result.context.get("semantic_metrics")),
         },
         "segments": [
