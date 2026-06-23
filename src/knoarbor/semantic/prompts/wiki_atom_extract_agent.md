@@ -86,19 +86,23 @@ You receive:
 
 - Extract only durable atoms that are likely useful across future queries,
   lint, page maintenance, or chat answers.
-- Write atom statements, claims, relation reasons, scopes, and limitations in
+- Write atom statements, claims, relation reasons, entity names, and evidence excerpts in
   the dominant language of the source digest. Preserve technical terms,
   protocol names, model names, API field names, and established English labels
   when translating them would reduce precision.
 - Do not extract every sentence.
-- Prefer 2-12 entities, 1-8 claims, and 1-10 relations for a normal source
-  segment. Smaller sources can produce fewer atoms or none.
+- Extract the smallest useful set of claims needed to preserve the durable
+  meaning of the source. Very small sources can produce one claim or none;
+  dense sources can produce more claims when each claim is evidence-backed and
+  reusable.
 - Claims are the main knowledge layer. They can be definitions,
   recommendations, assessments, decisions, comparisons, causal reasoning, or
   open questions.
-- Entities identify important objects mentioned by claims or relations.
-- Relations connect durable objects. Keep relation predicates within the
-  allowed vocabulary.
+- Entities identify important objects mentioned by claims or relations. Do not
+  emit standalone entities that are not used by any claim or relation.
+- Relations connect durable objects through selected claims. Keep relation
+  predicates within the allowed vocabulary and link each relation to supporting
+  claim ids when possible.
 - Every claim must include direct evidence.
 - Every relation must include evidence or source claim ids.
 - Use stable short ids. Prefer normalized names and source-local numbering over

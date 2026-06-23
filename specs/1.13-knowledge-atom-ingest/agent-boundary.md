@@ -177,7 +177,8 @@ Semantic responsibilities:
   recommendations, comparisons, causal statements, and open questions;
 - extract typed relations between durable knowledge objects;
 - identify important entities and concepts as atom objects;
-- preserve uncertainty, scope limits, and source-local confidence;
+- preserve uncertainty and source-local confidence through claim stance,
+  confidence, warnings, and evidence;
 - map atoms to evidence spans or supporting atom ids.
 
 Deterministic responsibilities:

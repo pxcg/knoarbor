@@ -9,8 +9,8 @@ so progress does not depend on conversation context.
 | Step | Boundary | Status | Owner / Output | Notes |
 | --- | --- | --- | --- | --- |
 | 1 | Source Input | Done | Connectors, document processors, `SourceDocument` | Raw materials become normalized source documents with identity, path, hash, and connector metadata. |
-| 2 | Source Segmentation | Done | `SourceSegmenter`, `ingest_aggregation` | Long sources are split for budget, then segment-level semantic artifacts are aggregated before page planning. |
-| 3 | Segment-level Semantic Extraction | Next | `source_normalize`, `wiki_atom_extract`, `knowledge_atoms.v2` | Extract claims, entities, relations, and evidence from each source or segment. This is where claims are created. |
+| 2 | Source Segmentation | Done | `SourceSegmenter` | Long sources are split for budget and source-range preservation. Segmentation does not decide page boundaries or writes. |
+| 3 | Segment-level Semantic Extraction | In progress | `source_normalize`, `wiki_atom_extract`, `knowledge_atoms.v2` | Extract claims, entities, relations, and evidence from each source or segment. This is where claims are created. |
 | 4 | Source-level Aggregation | Done for segmented sources | `aggregate_segment_semantic_artifacts` | Merge segment extracts, remap evidence ranges, deduplicate atoms, and rebuild source-level digest. |
 | 5 | Page Planning | Implemented, needs review under new page structure | `WikiPagePlan` | Decide create/update/skip and select claim ids per page. It should not write or assemble page bodies. |
 | 6 | Claim / Relation / Evidence Closure | Done | `knowledge_atom_closure` | Given selected claims, deterministically close supported relations, entities, evidence, and source digest traces. |

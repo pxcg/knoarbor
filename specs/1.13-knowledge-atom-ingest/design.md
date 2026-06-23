@@ -12,8 +12,8 @@ The frozen design principle is:
 > readable projections of those atoms, not the durable knowledge boundary.
 
 This keeps KnoArbor distinct from a polished summarizer and from chunk-oriented
-RAG. A page is a stable knowledge-object view composed from identity, scope,
-claims, typed relations, evidence, and readable synthesis.
+RAG. A page is a stable knowledge-object view composed from identity, summary,
+claims, typed relations, entities, evidence, and readable synthesis.
 
 ```text
 Connector / Document Processor
@@ -304,17 +304,6 @@ An evidence span points to the source unit or source digest material that
 supports an atom. It contains a source digest id, optional source path/unit
 coordinates, an excerpt, and optional char offsets.
 
-### Fact
-
-A fact contains:
-
-- id;
-- statement;
-- optional structured subject/predicate/object;
-- qualifiers;
-- at least one evidence span;
-- confidence.
-
 ### Claim
 
 A claim contains:
@@ -323,8 +312,8 @@ A claim contains:
 - claim text;
 - claim type;
 - stance;
-- supporting fact ids and/or direct evidence;
-- scope and limitations;
+- direct evidence spans;
+- mentioned entity names;
 - confidence.
 
 ### Relation
@@ -335,7 +324,7 @@ A relation contains:
 - subject object;
 - predicate from a small controlled vocabulary;
 - target object;
-- supporting fact ids, claim ids, or direct evidence;
+- supporting claim ids or direct evidence;
 - confidence.
 
 ## Storage
