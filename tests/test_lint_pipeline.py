@@ -187,7 +187,7 @@ class WikiLintPipelineTests(unittest.TestCase):
                 page_type="concept",
                 updated="2026-05-01",
                 summary="Agent notes.",
-                headings=["Summary", "Key Points", "Related Pages", "Source"],
+                headings=["Summary", "Claims", "Entities", "Relations", "Evidence", "Synthesis"],
                 outgoing_links=["entities/OpenClaw.md"],
                 content_preview="Stable agent notes without temporal claims.",
                 original_content_length=1500,
@@ -414,11 +414,11 @@ class WikiLintPipelineTests(unittest.TestCase):
             )
 
         missing_sections = [issue.details["section"] for issue in response.issues if issue.code == "missing_required_section"]
-        self.assertIn("Definition", missing_sections)
         self.assertIn("Claims", missing_sections)
+        self.assertIn("Entities", missing_sections)
         self.assertIn("Relations", missing_sections)
+        self.assertIn("Evidence", missing_sections)
         self.assertIn("Synthesis", missing_sections)
-        self.assertIn("Key Points", missing_sections)
         self.assertTrue(any(fix.action == "add_missing_section" for fix in response.fixes))
 
     def test_lint_reports_specialized_page_contract_gaps(self) -> None:
@@ -634,7 +634,7 @@ class WikiLintPipelineTests(unittest.TestCase):
             page = vault / "concepts" / "RAG.md"
             page.write_text(
                 "---\ncreated: 2026-05-01\nupdated: 2026-05-01\ntype: concept\nstatus: draft\nsource: raw/notes/rag.md\ncontent_hash: a\ntags: rag\n---\n"
-                "# RAG\n\n## Summary\n\nRAG evaluation notes.\n\n## Source Focus\n\nRAG evaluation.\n\n## Definition\n\nRAG evaluates retrieval and generation.\n\n## Claims\n\n- RAG evaluation needs source-backed metrics.\n\n## Relations\n\n- RAG evaluation relates_to retrieval quality.\n\n## Synthesis\n\nBody.\n\n## Key Points\n\n- Point.\n\n## Related Pages\n\n- 暂无关联知识\n\n## Source\n\n- raw/notes/rag.md\n",
+                "# RAG\n\n## Summary\n\nRAG evaluation notes.\n\n## Claims\n\n- C1: [[RAG evaluation]] needs source-backed metrics.\n\n## Entities\n\n- [[RAG evaluation]]\n- [[Retrieval quality]]\n\n## Relations\n\n| Subject | Predicate | Object | Based on |\n|---|---|---|---|\n| [[RAG evaluation]] | evaluates | [[Retrieval quality]] | C1 |\n\n## Synthesis\n\nBody.\n",
                 encoding="utf-8",
             )
             (vault / "sources" / "RAG.md").write_text(
@@ -661,7 +661,7 @@ class WikiLintPipelineTests(unittest.TestCase):
 
         self.assertEqual(response.applied_operations[0]["action"], "add_missing_section")
         self.assertEqual(response.verifications[0]["status"], "verified")
-        self.assertIn("## Tags\n\n- rag", content)
+        self.assertIn("## Evidence", content)
         remaining_missing_sections = [issue for issue in response.rescan.issues if issue.code == "missing_required_section"]
         self.assertEqual(remaining_missing_sections, [])
 
@@ -1064,7 +1064,7 @@ class WikiLintPipelineTests(unittest.TestCase):
         self.assertIn("## Trend Summary", report)
         self.assertRegex(report, r"- previous_runs_considered: [1-9]\d*")
         self.assertIn("persistent_issue_codes:", report)
-        self.assertIn("missing_required_section=7", report)
+        self.assertIn("missing_required_section=5", report)
 
 
 class FakeLintSemanticWorkflow:
@@ -1197,13 +1197,13 @@ class MissingSectionWikiOperationWorkflow(FakeLintSemanticWorkflow):
                         "confidence": 0.95,
                         "risk_hint": "safe",
                         "executor_hint": "deterministic_wiki_operation",
-                        "evidence": [{"kind": "scan_issue", "ref": "concepts/RAG.md", "quote": "Page is missing required concepts section: Tags."}],
+                        "evidence": [{"kind": "scan_issue", "ref": "concepts/RAG.md", "quote": "Page is missing required concepts section: Evidence."}],
                         "recommended_action": {
                             "action": "add_missing_section",
-                            "params": {"section": "Tags"},
+                            "params": {"section": "Evidence"},
                         },
                         "related_pages": [],
-                        "expected_effect": "Add required Tags section.",
+                        "expected_effect": "Add required Evidence section.",
                         "review_notes": "Schema-required section scaffolding only.",
                     }
                 ],

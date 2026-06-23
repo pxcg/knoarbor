@@ -133,8 +133,8 @@ Responsibilities:
 
 - assemble readable Markdown pages from selected atoms and existing page
   context;
-- expose `Definition`, `Claims`, `Relations`, and `Synthesis` as the canonical
-  user-facing page body;
+- expose `Summary`, `Claims`, `Entities`, `Relations`, `Evidence`, and
+  `Synthesis` as the canonical user-facing page body;
 - keep legacy `answer` as a schema compatibility input that maps to
   `Synthesis`, not as the primary knowledge boundary;
 - attach source digest ids and atom ids in frontmatter or report metadata;
@@ -165,130 +165,46 @@ A wiki page is a Markdown projection of a structured knowledge object. It is not
 the durable knowledge boundary. The durable boundary is the combination of page
 identity, claims, evidence, relations, source digests, and atom traces.
 
-The frozen page design separates three concerns:
+The frozen page design uses one consistent page body shape for every maintained
+wiki page:
 
-- identity and routing metadata in frontmatter;
-- auditable knowledge sections for claims, evidence, and relations;
-- readable Markdown sections for human and host-AI consumption.
-
-Recommended frontmatter fields:
-
-- `schema_version`: page schema version, starting with `wiki_page.v1`;
-- `page_profile`: `full`, `compact`, or `micro`;
-- `role`: `knowledge_page`, `source_digest`, `generated_view`, or
-  `micro_note`;
-- `page_kind`: `concept`, `entity`, `workflow`, `comparison`, `timeline`,
-  `query`, `note`, or `source_digest`;
-- `subject_kind`: optional finer-grained subject classification;
-- `facets`: virtual browsing and filtering categories;
-- `aliases`: alternative names and legacy titles;
-- `source_digest_ids`: source digest references used by the page;
-- `atom_ids`, `claim_ids`, `relation_ids`: structured trace references;
-- `canonical_path` and `legacy_paths`: stable page identity and migration
-  aliases;
-- `confidence`, `status`, `created`, and `updated`.
-
-Canonical Markdown sections:
-
+- `Identity`: minimal metadata stored in frontmatter. The required identity
+  fields are `created`, `updated`, and `content_hash`.
 - `Summary`: short page-level abstract for scanning, cards, and quick query
-  previews. It should identify what the page answers in one or two sentences.
-- `Scope`: the page subject boundary, including what the page covers, excludes,
-  or treats as version/time scoped.
-- `Source Focus`: the source topic, question, or context this page was compiled
-  from. Source focus is provenance context, not the page subject boundary. It is
-  primarily useful on source digest pages or as collapsed provenance context.
-- `Definition`: stable identity or definition for the page subject.
-- `Claims`: auditable statements backed by selected atoms or direct source
-  evidence.
-- `Relations`: typed page/object edges, such as `contrasts`, `depends_on`,
-  `implemented_by`, or `supported_by`.
-- `Synthesis`: readable prose that integrates definition, claims, and
-  relations for human and host-AI reading.
-- `Key Points`: compact reading and retrieval hints; useful for cards and
-  skimming, but not the primary evidence boundary.
-- `Limitations / Open Questions`: evidence gaps, conflicts, weak claims,
-  version caveats, or unresolved questions.
-- `Related Pages`: navigation links for wiki browsing.
-- `Tags`: lightweight categorization for filtering and retrieval.
-- `Source`: source paths used to compile or update the page.
+  previews.
+- `Claims`: the main content layer. Claims use stable identifiers such as `C1`,
+  `C2`, and `C3`, and mark important objects with wiki links when useful.
+- `Entities`: knowledge objects mentioned by claims or relation triples.
+- `Relations`: claim-backed triples between entities, rendered as
+  `Subject | Predicate | Object | Based on`.
+- `Evidence`: source, range, basis, and confidence rows mapped to claim ids.
+- `Synthesis`: readable prose derived from claims, relations, and evidence.
 
-The sections are a projection contract, not a forced long-form template. Ingest
-must choose the smallest page profile that preserves evidence and meaning:
-
-#### Full Profile
-
-Use `page_profile: full` for complex topics, multi-source synthesis, contested
-material, or pages that define a reusable architecture or process.
-
-Expected sections:
-
-- `Summary`
-- `Scope`
-- `Definition`
-- `Claims`
-- `Evidence`
-- `Relations`
-- `Synthesis`
-- `Key Points`
-- `Limitations / Open Questions`
-- `Related Pages`
-- `Source`
-
-#### Compact Profile
-
-Use `page_profile: compact` for normal single-topic knowledge pages.
-
-Expected sections:
-
-- `Summary`
-- `Definition` or `Core Idea`
-- `Claims`
-- `Relations` when explicit relations are supported;
-- `Synthesis` when a readable integration is useful;
-- `Related Pages`
-- `Source`
-
-Evidence may be inline inside `Claims` instead of a standalone section.
-
-#### Micro Profile
-
-Use `page_profile: micro` for short selected text, quote-like material, a single
-chat insight, or thin evidence that should not be expanded into a full page.
-
-Expected sections:
-
-- `Summary`
-- `Claim` or `Note`
-- `Evidence`
-- `Source`
-
-Micro pages must preserve the compactness of the input. They should not invent
-relations, broad background, or article-length synthesis from thin evidence.
+The page structure intentionally avoids directory-specific templates and
+complex full/compact/micro profiles. Short material still uses the same
+sections, but may contain only one claim, one evidence row, and a compact
+synthesis.
 
 `Synthesis` is a derived reading layer. It may explain, connect, and organize
 claims and relations, but it must not introduce unsupported claims that are
 missing from the selected atoms or direct source evidence. If the synthesis were
 removed, the page should still retain its knowledge skeleton through identity,
-scope, claims, relations, and source evidence.
+claims, entities, relations, and evidence.
 
 Section boundaries:
 
 - `Summary` is routing and preview text, not a condensed version of every
   section.
-- `Definition` or `Core Idea` is the stable subject identity, not source
-  provenance.
 - `Claims` are evidence-backed statements that can be updated, rejected,
   contradicted, or cited.
+- `Entities` are mentioned objects, not a separate page taxonomy.
 - `Evidence` links claims to source spans, source digests, or approved atoms. It
   is not a duplicate copy of all raw source text.
 - `Relations` are typed semantic edges with direction, target, support,
   confidence, and status.
-- `Related Pages` are navigation links. They are not the same as typed
-  relations.
-- `Sources` are provenance references. They are not the same as evidence
-  mappings.
-- `Key Points` are quick reading and retrieval hints. They must not create a
-  second, conflicting set of claims.
+- Derived navigation such as related pages, tags, facets, or views belongs in
+  machine indexes and frontend projections, not in the canonical Markdown page
+  body.
 
 ### Source Digest Boundary
 
@@ -357,14 +273,16 @@ should make unsupported expansion visible.
   expansion.
 - Treating `Synthesis` or legacy `Answer` prose as the durable knowledge boundary.
   Readable prose remains a projection over claims, relations, and evidence.
-- Treating `Source Focus` as the page subject. Source focus is provenance
-  context; `Scope`, `Definition`, and page identity define the subject.
+- Treating source-side context as the page subject. Source context belongs in
+  source digests and evidence mappings; page identity, claims, entities, and
+  relations define the subject.
 - Treating every wikilink as a typed relation. Wikilinks support reading;
   accepted relations require explicit type, direction, evidence, and status.
 - Treating every related page as answer evidence. Related pages are navigation
   unless selected into the answer set by query/chat.
-- Requiring a standalone `Evidence` section on every page. Evidence is required
-  semantically, but compact pages may inline evidence references inside claims.
+- Moving `Evidence` into inline prose only. Evidence remains a first-class page
+  section so claim support can be audited and maintained independently from
+  readable synthesis.
 
 ### Index / Report Layer
 

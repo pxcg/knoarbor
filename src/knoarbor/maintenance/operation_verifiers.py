@@ -15,6 +15,7 @@ from knoarbor.storage import resolve_wiki_page
 from knoarbor.storage.wiki_index import relative_wiki_path
 
 LEGAL_PLACEHOLDERS_BY_SECTION = {
+    "Evidence": {"暂无证据", "No evidence."},
     "Related Pages": {"暂无关联知识", "No related pages."},
     "Tags": {"暂无标签", "No tags."},
     "Source": {"暂无来源", "No source."},
@@ -650,11 +651,15 @@ def _has_meaningful_section_body(section: str, body: str) -> bool:
     if not body:
         return False
     normalized = body.strip()
-    if normalized in LEGAL_PLACEHOLDERS_BY_SECTION.get(section, set()):
+    legal_placeholders = LEGAL_PLACEHOLDERS_BY_SECTION.get(section, set())
+    if normalized in legal_placeholders:
         return True
     if normalized.startswith("- "):
+        bullet_text = normalized[2:].strip()
+        if bullet_text in legal_placeholders:
+            return True
         items = extract_list_items(normalized)
-        return any(item not in LEGAL_PLACEHOLDERS_BY_SECTION.get(section, set()) for item in items)
+        return any(item not in legal_placeholders for item in items)
     return bool(re.search(r"\w|[\u4e00-\u9fff]", normalized))
 
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-REQUIRED_FRONTMATTER_KEYS = ("created", "updated", "type", "status", "source", "content_hash")
+REQUIRED_FRONTMATTER_KEYS = ("created", "updated", "content_hash")
 IGNORED_LINK_PREFIXES = ("http://", "https://", "mailto:", "#")
 KNOWLEDGE_DIRS = {"entities", "concepts", "comparisons", "queries", "timelines", "workflows"}
 WEAK_GRAPH_DIRS = KNOWLEDGE_DIRS
@@ -9,15 +9,11 @@ OVERDENSE_LINK_THRESHOLD = 30
 OVERDENSE_RELATED_THRESHOLD = 20
 KNOWLEDGE_PAGE_SECTIONS = (
     "Summary",
-    "Source Focus",
-    "Definition",
     "Claims",
+    "Entities",
     "Relations",
+    "Evidence",
     "Synthesis",
-    "Key Points",
-    "Related Pages",
-    "Tags",
-    "Source",
 )
 REQUIRED_SECTIONS_BY_DIR = {
     "sources": KNOWLEDGE_PAGE_SECTIONS,

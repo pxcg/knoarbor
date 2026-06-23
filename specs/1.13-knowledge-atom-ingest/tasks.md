@@ -41,8 +41,9 @@
 - [x] Make draft compile prompt consume page plan plus selected atom ids.
 - [x] Require major page claims to reference atoms or source evidence.
 - [x] Add page metadata for source digest ids and atom ids.
-- [x] Update Markdown templates to expose Definition, Claims, Relations, and
-  Synthesis instead of centering on legacy Answer prose.
+- [x] Update Markdown templates to expose Summary, Claims, Entities,
+  Relations, Evidence, and Synthesis instead of centering on legacy Answer
+  prose.
 - [x] Pass selected claim, relation, and source digest ids through the
   shared ingest compile context.
 - [x] Update draft review scoring from directory fit to source trace, atom

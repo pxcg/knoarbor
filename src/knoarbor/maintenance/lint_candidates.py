@@ -85,10 +85,10 @@ def _quality_candidate_reasons(page: WikiScanPage, issues: list[WikiLintIssue]) 
 
     if not page.summary.strip():
         reasons.append(_candidate_reason("quality", "missing_summary", "medium", "Page has no Summary section content.", 1.4))
-    if "key points" not in headings:
-        reasons.append(_candidate_reason("quality", "missing_key_points", "low", "Page has no Key Points section.", 0.8))
-    if "related pages" not in headings:
-        reasons.append(_candidate_reason("graph", "missing_related_pages_section", "low", "Page has no Related Pages section.", 0.7))
+    if "claims" not in headings:
+        reasons.append(_candidate_reason("quality", "missing_claims", "medium", "Page has no Claims section.", 1.0))
+    if "evidence" not in headings:
+        reasons.append(_candidate_reason("quality", "missing_evidence", "medium", "Page has no Evidence section.", 1.0))
     if page.original_content_length < 900 and page.directory != "sources":
         reasons.append(
             _candidate_reason(

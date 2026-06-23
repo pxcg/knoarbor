@@ -33,16 +33,16 @@ Do not return markdown fences or explanatory prose.
         "subject_kind": "optional normalized subject class",
         "facets": ["normalized virtual facets copied or refined from the operation"],
         "question": "source question or concise source focus",
-        "answer": "legacy synthesis-compatible page body; keep aligned with synthesis",
+        "answer": "same text as synthesis",
         "summary": "one or two sentence page summary",
-        "definition": "legacy input-compatible field; keep aligned with the first claim or summary",
+        "definition": "same text as summary",
         "claims": ["C1. auditable claim with [[Entity]] markers backed by selected atoms or direct evidence"],
         "entities": ["[[Entity Name]]"],
         "relations": ["[[Subject]] | predicate | [[Object]] | C1"],
         "evidence": ["C1 | source digest or raw source | range or source-level | basis | high|medium|low"],
         "synthesis": "readable synthesis built from the claims and relations",
-        "key_points": ["legacy input-compatible reading hints; keep concise"],
-        "tags": ["legacy input-compatible tags; keep concise"],
+        "key_points": [],
+        "tags": [],
         "source_digest_ids": ["source digest ids used by this draft"],
         "atom_ids": ["claim and relation atom ids used by this draft"],
         "patches": [
@@ -73,16 +73,15 @@ Do not return markdown fences or explanatory prose.
 - `canonical_path` is the durable page path relative to the wiki content root. `page_dir` is a compatibility classification, not the physical storage contract. KnoArbor writes new non-source knowledge pages to the unified page namespace and stores semantic classification in `page_kind` and `facets`.
 - `question` means source focus. For chat use the user question when available; for notes/documents use the source title or topic.
 - `summary`, `claims`, `entities`, `relations`, `evidence`, and `synthesis` are the canonical page body fields.
-- `answer` is retained for schema compatibility. Keep it equivalent to `synthesis`; do not add separate unsupported content there.
-- `definition`, `key_points`, and `tags` are retained for compatibility with older pipeline surfaces, but they are not first-class wiki page sections in the frozen page structure.
+- `answer` is retained only for schema compatibility. Set it to the same text as `synthesis`.
+- `definition`, `key_points`, and `tags` are retained only for schema compatibility. Set `definition` to the same text as `summary`; keep `key_points` and `tags` empty unless a legacy update patch explicitly requires them.
 - `summary` is for fast scanning and cards. Keep it short.
-- `question` is Source Focus. It should identify the source topic or source-side question, not repeat the page title mechanically.
+- `question` is source context. It should identify the source topic or source-side question, not repeat the page title mechanically.
 - `claims` must be concrete, auditable statements. Number them as `C1.`, `C2.`, etc. Mark important knowledge objects with `[[Entity]]`.
 - `entities` lists the important knowledge objects mentioned in the claims. Use wiki-link style names when possible.
 - `relations` must be claim-backed triples in the exact string form `[[Subject]] | predicate | [[Object]] | C1`. Keep predicates stable and lower_snake_case, for example `contrasts_with`, `depends_on`, `implements`, `supports`, `part_of`, or `mentions`.
 - `evidence` must map claims to support in the exact string form `C1 | source | range | basis | confidence`. Confidence must be `high`, `medium`, or `low`.
 - `synthesis` is readable prose that integrates the claims, relations, and evidence. It is for human reading and chat grounding, not a place to introduce unsupported claims.
-- `key_points` are compatibility hints. Avoid copying the full claims list into them.
 - `patches` may be empty for create. Update must include at least one patch.
 - Patch objects must use KnoArbor's section patch schema, not JSON Patch.
 - Never output JSON Patch fields such as `op`, `path`, `value`, `add`, `replace`, or JSON Pointer paths.
@@ -94,8 +93,8 @@ Do not return markdown fences or explanatory prose.
 ## Drafting Rules
 
 - Full source text is consumed before this stage by normalize and atom extraction. In this stage, `ingest_compile_context.current_content.primary_content` may be omitted by policy. Use selected `knowledge_atoms` evidence excerpts as the source-backed material for claims, relations, evidence, and synthesis.
-- Write user-facing fields (`question`, `summary`, `definition`, `claims`,
-  `relations`, `synthesis`, `key_points`, and patch content) in the dominant
+- Write user-facing fields (`question`, `summary`, `claims`, `entities`,
+  `relations`, `evidence`, `synthesis`, and patch content) in the dominant
   language of the source material. Preserve precise technical terms, model
   names, API names, and established English labels when they are the natural
   term in the source domain.

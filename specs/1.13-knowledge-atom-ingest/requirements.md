@@ -100,8 +100,8 @@ inventing a broad article from thin evidence.
 - Existing ingest behavior can continue while the atom layer is introduced.
 - Future tasks identify how reports, indexes, page drafts, lint, query, and chat
   consume atom data.
-- New Wiki pages expose `Definition`, `Claims`, `Relations`, and `Synthesis`
-  sections, with `source_digest_ids` and `atom_ids` retained as trace metadata.
+- New Wiki pages expose `Summary`, `Claims`, `Entities`, `Relations`,
+  `Evidence`, and `Synthesis` sections.
 - Page planning, draft compilation, draft review, and the deterministic quality
   gate share the same source digest and atom trace contract.
 - Approved writes are rejected before persistence when the page plan or draft

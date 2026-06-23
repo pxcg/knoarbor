@@ -168,31 +168,20 @@
       "details": {
         "directory": "sources",
         "page_type": "source",
-        "section": "Source Focus"
-      },
-      "message": "Page is missing required sources section: Source Focus.",
-      "path": "sources/Agent-Loop-Source.md",
-      "severity": "info"
-    },
-    {
-      "code": "missing_required_section",
-      "details": {
-        "directory": "sources",
-        "page_type": "source",
-        "section": "Definition"
-      },
-      "message": "Page is missing required sources section: Definition.",
-      "path": "sources/Agent-Loop-Source.md",
-      "severity": "info"
-    },
-    {
-      "code": "missing_required_section",
-      "details": {
-        "directory": "sources",
-        "page_type": "source",
         "section": "Claims"
       },
       "message": "Page is missing required sources section: Claims.",
+      "path": "sources/Agent-Loop-Source.md",
+      "severity": "info"
+    },
+    {
+      "code": "missing_required_section",
+      "details": {
+        "directory": "sources",
+        "page_type": "source",
+        "section": "Entities"
+      },
+      "message": "Page is missing required sources section: Entities.",
       "path": "sources/Agent-Loop-Source.md",
       "severity": "info"
     },
@@ -212,6 +201,17 @@
       "details": {
         "directory": "sources",
         "page_type": "source",
+        "section": "Evidence"
+      },
+      "message": "Page is missing required sources section: Evidence.",
+      "path": "sources/Agent-Loop-Source.md",
+      "severity": "info"
+    },
+    {
+      "code": "missing_required_section",
+      "details": {
+        "directory": "sources",
+        "page_type": "source",
         "section": "Synthesis"
       },
       "message": "Page is missing required sources section: Synthesis.",
@@ -223,31 +223,20 @@
       "details": {
         "directory": "entities",
         "page_type": "entity",
-        "section": "Source Focus"
-      },
-      "message": "Page is missing required entities section: Source Focus.",
-      "path": "entities/OpenClaw.md",
-      "severity": "info"
-    },
-    {
-      "code": "missing_required_section",
-      "details": {
-        "directory": "entities",
-        "page_type": "entity",
-        "section": "Definition"
-      },
-      "message": "Page is missing required entities section: Definition.",
-      "path": "entities/OpenClaw.md",
-      "severity": "info"
-    },
-    {
-      "code": "missing_required_section",
-      "details": {
-        "directory": "entities",
-        "page_type": "entity",
         "section": "Claims"
       },
       "message": "Page is missing required entities section: Claims.",
+      "path": "entities/OpenClaw.md",
+      "severity": "info"
+    },
+    {
+      "code": "missing_required_section",
+      "details": {
+        "directory": "entities",
+        "page_type": "entity",
+        "section": "Entities"
+      },
+      "message": "Page is missing required entities section: Entities.",
       "path": "entities/OpenClaw.md",
       "severity": "info"
     },
@@ -267,32 +256,21 @@
       "details": {
         "directory": "entities",
         "page_type": "entity",
-        "section": "Synthesis"
+        "section": "Evidence"
       },
-      "message": "Page is missing required entities section: Synthesis.",
+      "message": "Page is missing required entities section: Evidence.",
       "path": "entities/OpenClaw.md",
       "severity": "info"
     },
     {
       "code": "missing_required_section",
       "details": {
-        "directory": "concepts",
-        "page_type": "concept",
-        "section": "Source Focus"
+        "directory": "entities",
+        "page_type": "entity",
+        "section": "Synthesis"
       },
-      "message": "Page is missing required concepts section: Source Focus.",
-      "path": "concepts/Agent-Loop.md",
-      "severity": "info"
-    },
-    {
-      "code": "missing_required_section",
-      "details": {
-        "directory": "concepts",
-        "page_type": "concept",
-        "section": "Definition"
-      },
-      "message": "Page is missing required concepts section: Definition.",
-      "path": "concepts/Agent-Loop.md",
+      "message": "Page is missing required entities section: Synthesis.",
+      "path": "entities/OpenClaw.md",
       "severity": "info"
     },
     {
@@ -311,9 +289,31 @@
       "details": {
         "directory": "concepts",
         "page_type": "concept",
+        "section": "Entities"
+      },
+      "message": "Page is missing required concepts section: Entities.",
+      "path": "concepts/Agent-Loop.md",
+      "severity": "info"
+    },
+    {
+      "code": "missing_required_section",
+      "details": {
+        "directory": "concepts",
+        "page_type": "concept",
         "section": "Relations"
       },
       "message": "Page is missing required concepts section: Relations.",
+      "path": "concepts/Agent-Loop.md",
+      "severity": "info"
+    },
+    {
+      "code": "missing_required_section",
+      "details": {
+        "directory": "concepts",
+        "page_type": "concept",
+        "section": "Evidence"
+      },
+      "message": "Page is missing required concepts section: Evidence.",
       "path": "concepts/Agent-Loop.md",
       "severity": "info"
     },
