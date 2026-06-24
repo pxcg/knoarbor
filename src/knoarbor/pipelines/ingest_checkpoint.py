@@ -18,11 +18,19 @@ def _prepare_checkpoint_plan(
     state: dict[str, object],
 ) -> dict[str, object]:
     source_path = Path(item.raw.raw_path)
+    fingerprint = item.document.fingerprint
     if _uses_session_checkpoint(connector_name, item.document):
         payload = json.loads(item.document.content.text)
         if not isinstance(payload, dict):
             raise PolicyRejection("Session source document content must be a JSON object")
-        plan = checkpoint_store.prepare_session_payload(vault_path, state, source_path, payload)
+        plan = checkpoint_store.prepare_session_payload(
+            vault_path,
+            state,
+            source_path,
+            payload,
+            connector_version=fingerprint.connector_version,
+            parser_version=fingerprint.parser_version,
+        )
         return {
             "checkpoint_type": "session",
             "source_id": item.document.source_id,
@@ -35,8 +43,17 @@ def _prepare_checkpoint_plan(
             "from_raw_index": plan.from_raw_index,
             "to_raw_index": plan.to_raw_index,
             "last_processed_raw_index": plan.last_processed_raw_index,
+            "connector_version": plan.connector_version,
+            "parser_version": plan.parser_version,
         }
-    plan = checkpoint_store.prepare_source_file(vault_path, state, source_path)
+    plan = checkpoint_store.prepare_source_file(
+        vault_path,
+        state,
+        source_path,
+        content_hash=fingerprint.content_hash,
+        connector_version=fingerprint.connector_version,
+        parser_version=fingerprint.parser_version,
+    )
     return {
         "checkpoint_type": "source",
         "source_id": plan.source_id,
@@ -46,6 +63,8 @@ def _prepare_checkpoint_plan(
         "reason": plan.reason,
         "content_hash": plan.content_hash,
         "last_processed_content_hash": plan.last_processed_content_hash,
+        "connector_version": plan.connector_version,
+        "parser_version": plan.parser_version,
     }
 
 
@@ -137,6 +156,8 @@ def _commit_checkpoint_plan(
                 last_processed_raw_index=to_raw_index,
                 last_processed_content_hash=str(checkpoint_plan.get("content_hash") or fallback_content_hash),
                 generated_pages=generated_pages,
+                connector_version=_optional_str(checkpoint_plan.get("connector_version")),
+                parser_version=_optional_str(checkpoint_plan.get("parser_version")),
             )
         return
     checkpoint_store.commit_source(
@@ -146,6 +167,8 @@ def _commit_checkpoint_plan(
         source_file=str(checkpoint_plan["source_file"]),
         content_hash=str(checkpoint_plan.get("content_hash") or fallback_content_hash),
         generated_pages=generated_pages,
+        connector_version=_optional_str(checkpoint_plan.get("connector_version")),
+        parser_version=_optional_str(checkpoint_plan.get("parser_version")),
     )
 
 
@@ -180,6 +203,12 @@ def _checkpoint_payload(checkpoint_plan: dict[str, object]) -> dict[str, object]
             "to_raw_index",
             "last_processed_raw_index",
             "last_processed_content_hash",
+            "connector_version",
+            "parser_version",
         }
         and value is not None
     }
+
+
+def _optional_str(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None

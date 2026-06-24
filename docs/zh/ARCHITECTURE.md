@@ -216,6 +216,7 @@ connector discovery
 职责：
 
 - connector 将来源特定材料标准化为共享 `SourceDocument`。
+- source input 区分发现引用（`SourceRef`）、原始状态（`RawSource`）、标准化内容（`SourceDocument`）、处理身份（`SourceFingerprint`）和 checkpoint window；即使来源字节未变化，connector 或 parser 版本变化也会重新进入处理。
 - ingest 只决定当前 source 如何进入 Wiki。
 - ingest 支持 `create`、`update`、`skip`。
 - merge、archive、delete、rename 和跨页面生命周期治理属于 lint/maintenance。

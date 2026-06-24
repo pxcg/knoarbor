@@ -21,6 +21,8 @@ class SessionCheckpointPlan(BaseModel):
     to_raw_index: int | None = None
     last_processed_raw_index: int | None = None
     content_hash: str | None = None
+    connector_version: str | None = None
+    parser_version: str | None = None
     reason: str
 
 
@@ -32,6 +34,8 @@ class SourceCheckpointPlan(BaseModel):
     mode: str
     content_hash: str | None = None
     last_processed_content_hash: str | None = None
+    connector_version: str | None = None
+    parser_version: str | None = None
     reason: str
 
 
@@ -74,6 +78,9 @@ class CheckpointStore:
         state: dict[str, Any],
         source_path: Path,
         payload: dict[str, Any],
+        *,
+        connector_version: str | None = None,
+        parser_version: str | None = None,
     ) -> SessionCheckpointPlan:
         if not isinstance(payload, dict):
             raise InvalidConfig(f"Session payload must be a JSON object: {source_path}")
@@ -95,6 +102,7 @@ class CheckpointStore:
         content_hash = message_window_hash(messages, 0, latest_raw_index)
         checkpoint = state.get("sessions", {}).get(session_id)
         last_processed = checkpoint.get("last_processed_raw_index") if checkpoint else None
+        version_changed = checkpoint_versions_changed(checkpoint, connector_version, parser_version)
 
         if last_processed is None:
             return SessionCheckpointPlan(
@@ -106,7 +114,25 @@ class CheckpointStore:
                 from_raw_index=None,
                 to_raw_index=latest_raw_index,
                 content_hash=content_hash,
+                connector_version=connector_version,
+                parser_version=parser_version,
                 reason="No checkpoint exists.",
+            )
+
+        if version_changed:
+            return SessionCheckpointPlan(
+                session_id=session_id,
+                source_file=source_file,
+                source_path=str(source_path),
+                should_process=True,
+                mode="changed_parser",
+                from_raw_index=None,
+                to_raw_index=latest_raw_index,
+                last_processed_raw_index=int(last_processed),
+                content_hash=content_hash,
+                connector_version=connector_version,
+                parser_version=parser_version,
+                reason="Connector or parser version changed after checkpoint.",
             )
 
         if latest_raw_index <= int(last_processed):
@@ -120,6 +146,8 @@ class CheckpointStore:
                 to_raw_index=latest_raw_index,
                 last_processed_raw_index=int(last_processed),
                 content_hash=content_hash,
+                connector_version=connector_version,
+                parser_version=parser_version,
                 reason="No new messages after checkpoint.",
             )
 
@@ -135,6 +163,8 @@ class CheckpointStore:
             to_raw_index=latest_raw_index,
             last_processed_raw_index=int(last_processed),
             content_hash=incremental_hash,
+            connector_version=connector_version,
+            parser_version=parser_version,
             reason="New messages found after checkpoint.",
         )
 
@@ -148,6 +178,8 @@ class CheckpointStore:
         last_processed_raw_index: int,
         last_processed_content_hash: str | None,
         generated_pages: list[str],
+        connector_version: str | None = None,
+        parser_version: str | None = None,
     ) -> list[str]:
         sessions = state.setdefault("sessions", {})
         existing = sessions.get(session_id, {})
@@ -156,12 +188,23 @@ class CheckpointStore:
             "source_file": relative_to_vault(vault_path, Path(source_file)),
             "last_processed_raw_index": last_processed_raw_index,
             "last_processed_content_hash": last_processed_content_hash,
+            "connector_version": connector_version,
+            "parser_version": parser_version,
             "last_processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "generated_pages": merged_pages,
         }
         return merged_pages
 
-    def prepare_source_file(self, vault_path: Path, state: dict[str, Any], source_path: Path) -> SourceCheckpointPlan:
+    def prepare_source_file(
+        self,
+        vault_path: Path,
+        state: dict[str, Any],
+        source_path: Path,
+        *,
+        content_hash: str | None = None,
+        connector_version: str | None = None,
+        parser_version: str | None = None,
+    ) -> SourceCheckpointPlan:
         if not source_path.exists() or not source_path.is_file():
             raise SourceNotFound(f"Source file does not exist: {source_path}")
 
@@ -177,9 +220,10 @@ class CheckpointStore:
                 reason="Source file is empty.",
             )
 
-        content_hash = file_hash(source_path)
+        content_hash = content_hash or file_hash(source_path)
         checkpoint = state.get("sources", {}).get(source_id)
         last_hash = checkpoint.get("last_processed_content_hash") if checkpoint else None
+        version_changed = checkpoint_versions_changed(checkpoint, connector_version, parser_version)
 
         if last_hash is None:
             return SourceCheckpointPlan(
@@ -189,7 +233,23 @@ class CheckpointStore:
                 should_process=True,
                 mode="new_source",
                 content_hash=content_hash,
+                connector_version=connector_version,
+                parser_version=parser_version,
                 reason="No source checkpoint exists.",
+            )
+
+        if version_changed:
+            return SourceCheckpointPlan(
+                source_id=source_id,
+                source_file=source_file,
+                source_path=str(source_path),
+                should_process=True,
+                mode="changed_parser",
+                content_hash=content_hash,
+                last_processed_content_hash=str(last_hash),
+                connector_version=connector_version,
+                parser_version=parser_version,
+                reason="Connector or parser version changed after checkpoint.",
             )
 
         if str(last_hash) == content_hash:
@@ -201,6 +261,8 @@ class CheckpointStore:
                 mode="unchanged",
                 content_hash=content_hash,
                 last_processed_content_hash=str(last_hash),
+                connector_version=connector_version,
+                parser_version=parser_version,
                 reason="Source content hash matches checkpoint.",
             )
 
@@ -212,6 +274,8 @@ class CheckpointStore:
             mode="changed",
             content_hash=content_hash,
             last_processed_content_hash=str(last_hash),
+            connector_version=connector_version,
+            parser_version=parser_version,
             reason="Source content hash changed after checkpoint.",
         )
 
@@ -224,6 +288,8 @@ class CheckpointStore:
         source_file: str,
         content_hash: str,
         generated_pages: list[str],
+        connector_version: str | None = None,
+        parser_version: str | None = None,
     ) -> list[str]:
         sources = state.setdefault("sources", {})
         existing = sources.get(source_id, {})
@@ -231,6 +297,8 @@ class CheckpointStore:
         sources[source_id] = {
             "source_file": relative_to_vault(vault_path, Path(source_file)),
             "last_processed_content_hash": content_hash,
+            "connector_version": connector_version,
+            "parser_version": parser_version,
             "last_processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "generated_pages": merged_pages,
         }
@@ -252,6 +320,16 @@ def merge_pages(existing: Any, new_pages: list[str], vault_path: Path) -> list[s
         if normalized not in pages:
             pages.append(normalized)
     return pages
+
+
+def checkpoint_versions_changed(checkpoint: Any, connector_version: str | None, parser_version: str | None) -> bool:
+    if not isinstance(checkpoint, dict):
+        return False
+    if connector_version and checkpoint.get("connector_version") not in {None, connector_version}:
+        return True
+    if parser_version and checkpoint.get("parser_version") not in {None, parser_version}:
+        return True
+    return False
 
 
 def message_window_hash(messages: list[Any], start: int, end: int) -> str:

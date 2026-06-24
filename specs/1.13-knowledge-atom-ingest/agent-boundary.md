@@ -94,6 +94,54 @@ Boundaries:
 - hard splitting is a last-resort budget operation and must remain visible in
   segment warnings.
 
+### Frozen Source Input Contract
+
+Source input is frozen as the ingest identity and windowing boundary. It answers
+three questions before any semantic processing starts:
+
+1. which source was discovered;
+2. what immutable raw state and parser identity produced the normalized
+   document;
+3. which source window should enter the current ingest run.
+
+The stable source contracts are:
+
+- `SourceRef`: discovery reference. `source_id` is the stable connector-level
+  logical identity, `connector` names the adapter, `source_type` names the
+  source family, `uri` is the connector-addressable location, and
+  `display_name` is a human label.
+- `RawSource`: raw state. `raw_path` is the local raw or normalized raw path,
+  `content_hash` identifies raw content bytes, `content_type` identifies the
+  raw media type, and parser metadata records how the raw state was read.
+- `SourceDocument`: normalized document contract for segmentation and semantic
+  extraction. `origin.uri` preserves the connector location,
+  `origin.raw_path` preserves the raw path, and `origin.original_path`
+  preserves the user-facing original path when preprocessing created an
+  intermediate Markdown file.
+- `SourceFingerprint`: processing identity. `content_hash`,
+  `connector_version`, and `parser_version` together define whether a source
+  can be safely skipped. A connector or parser version change re-enters the
+  source/window even when raw content is unchanged.
+- `SourceCheckpointWindow`: current ingest window. File-like sources use full
+  windows; append-only sessions use `from_index` and `to_index` based on
+  connector-normalized raw indexes.
+
+Session raw indexes are source-position indexes, not semantic turn ids. They
+must remain stable across normalization filters so checkpoint windows do not
+shift when system/tool/process-only records are ignored. Chat connectors should
+store the original record index as `raw_index` in normalized turns/messages.
+
+`SourceContent.text` is the canonical normalized content payload.
+`SourceContent.sections` is a structured companion used by segmentation when
+available. Connectors may omit sections only when the segmenter can recover
+structure from text; chat connectors should populate sections with the same
+stable raw indexes used by checkpoint windows.
+
+Document processors are not knowledge connectors. Rich documents are converted
+to Markdown or text first, then enter the shared connector path as ordinary
+source documents. Source input does not own page planning, claim importance,
+relation meaning, Markdown rendering, or wiki write policy.
+
 ## Long Source Aggregation Boundary
 
 Segmentation is a budget and structure-preservation mechanism, not a wiki page

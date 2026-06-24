@@ -236,6 +236,7 @@ connector discovery
 Responsibilities:
 
 - connectors discover and normalize source-specific material into shared `SourceDocument` contracts;
+- source input separates discovery (`SourceRef`), raw state (`RawSource`), normalized content (`SourceDocument`), processing identity (`SourceFingerprint`), and checkpoint windows; connector or parser version changes re-enter processing even when source bytes are unchanged;
 - ingest decides how the current source enters the wiki;
 - ingest supports `create`, `update`, and `skip`;
 - merge, archive, delete, rename, and cross-page lifecycle governance belong to lint/maintenance;
