@@ -16,6 +16,7 @@ from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
 from knoarbor.semantic.ingest_compile_context import build_ingest_compile_context
 from knoarbor.semantic.knowledge_atom_closure import close_plan_atoms
 from knoarbor.semantic.knowledge_atom_quality import evaluate_knowledge_atoms
+from knoarbor.semantic.page_assembly import build_page_assembly_payload
 from knoarbor.semantic.runner import SemanticRunner
 from knoarbor.semantic.source_digest import build_source_digest_from_extract
 from knoarbor.semantic.source_normalize import build_source_normalize_input
@@ -152,6 +153,10 @@ class IngestSemanticWorkflow:
             "wiki_draft_compile",
             {
                 "knowledge_atoms": _selected_knowledge_atoms_for_plan(
+                    knowledge_atom_batch,
+                    wiki_page_plan,
+                ),
+                "page_assembly": build_page_assembly_payload(
                     knowledge_atom_batch,
                     wiki_page_plan,
                 ),

@@ -10,6 +10,7 @@ Do not return markdown fences or explanatory prose.
 - Do not add, remove, merge, split, or reclassify operations.
 - Treat selected atom ids on each operation as the evidence plan for the draft.
 - `knowledge_atoms` contains only atoms selected by actionable page plan operations plus dependency atoms required to keep claims and relations auditable. It is not the full extraction output.
+- `page_assembly` is the deterministic scaffold for page identity, selected claims, entities, relations, evidence, source digest ids, and atom ids. Treat it as the canonical page body plan.
 - Treat `ingest_compile_context.operations` as the authoritative per-operation evidence trace.
 - For create operations, write complete standalone page bodies.
 - For update operations, write concise durable material and explicit patches.
@@ -70,6 +71,7 @@ Do not return markdown fences or explanatory prose.
 - `canonical_path` is the durable page path relative to the wiki content root. `page_dir` is a compatibility classification, not the physical storage contract. KnoArbor writes new non-source knowledge pages to the unified page namespace and stores semantic classification in `page_kind` and `facets`.
 - `question` means source focus. For chat use the user question when available; for notes/documents use the source title or topic.
 - For non-source pages, `summary`, `claims`, `entities`, `relations`, `evidence`, and `synthesis` are the canonical page body fields.
+- For non-source pages, copy `claims`, `entities`, `relations`, `evidence`, `source_digest_ids`, and `atom_ids` from the matching `page_assembly.operations[]` item unless that scaffold is empty. Do not broaden or replace the deterministic scaffold.
 - For `page_dir: "sources"`, these transport fields are projected into the source digest audit template instead of the ordinary knowledge-page template:
   - `summary`: short source-level summary.
   - `claims`: accepted source contributions, as short claim ids/text for the contribution map.
@@ -102,11 +104,10 @@ Do not return markdown fences or explanatory prose.
   names, API names, and established English labels when they are the natural
   term in the source domain.
 - Use the provided `knowledge_atoms` and the matching operation's selected atom ids from `ingest_compile_context.operations` to structure the draft. These atoms are already scoped to the planned pages.
-- For non-source pages, build `claims` first. Each selected claim atom should normally become one numbered page claim; do not hide selected claims inside synthesis only.
-- Derive `entities` from the numbered page claims and selected relation endpoints.
-- Derive `relations` from selected relation atoms and express each relation as a triple backed by numbered page claim ids.
-- Derive `evidence` by mapping every numbered page claim to its source, range, basis, and confidence.
-- Write `synthesis` last as a readable projection of the claims, entities, relations, and evidence, not an unrelated free-form rewrite.
+- For non-source pages, the selected claims are already numbered in `page_assembly`. Keep those numbers stable. Do not renumber, merge, or delete selected claims.
+- Use `page_assembly.entities` and `page_assembly.relations` as the page's canonical object and triple view.
+- Use `page_assembly.evidence` to produce `evidence` rows in the required `C1 | source | range | basis | confidence` string form.
+- Write `synthesis` last as a readable projection of the assembled claims, entities, relations, and evidence, not an unrelated free-form rewrite.
 - Do not invent or expand atom ids. If the operation selected too little evidence for a safe non-source page, return a draft with a warning-worthy narrow synthesis rather than broad unsupported content.
 - If source metadata indicates a segmented long source, write only what is supported by the current segment, avoid duplicate source digests across sibling segments, and prefer update patches when the segment extends an object already represented in retrieved context.
 - Use `ingest_compile_context` as the authoritative compile context. `target` pages carry existing body content; `related` and `candidate` pages are background only.

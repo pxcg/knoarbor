@@ -168,9 +168,9 @@ digest existence belongs to the source digest contract rather than atom closure.
 - [x] Aggregate segmented source atoms before page planning so long sources are
   planned and written from a source-level view.
 - [x] Add deterministic claim/relation/evidence closure as a reusable service.
-- [ ] Add deterministic `PageAssemblyService` for identity, entities,
+- [x] Add deterministic `PageAssemblyService` for identity, entities,
   relations, evidence, and Markdown skeleton.
-- [ ] Narrow `wiki_draft_compile` into synthesis-generation behavior.
+- [x] Narrow `wiki_draft_compile` into synthesis-generation behavior.
 - [ ] Add deterministic `IngestWriteGate` before persistence.
 - [ ] Make semantic draft review conditional on risk, update, conflict,
   duplicate, or failed-gate signals.

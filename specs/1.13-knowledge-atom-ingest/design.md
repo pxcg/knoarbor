@@ -164,6 +164,14 @@ selected atoms + page operation
 This keeps page structure stable and uses semantic generation for summary,
 synthesis, and complex update language rather than full page construction.
 
+The first implementation of `PageAssemblyService` emits a `page_assembly.v1`
+payload for draft compilation. For each actionable operation it carries the
+operation identity, selected source digest ids, selected atom ids, numbered
+claims, linked entities, claim-backed relation triples, and evidence rows. The
+draft compile agent treats this payload as canonical scaffolding. It may write
+readable summary, synthesis, and safe update patch language, but it does not
+own claim selection, relation closure, entity closure, or evidence mapping.
+
 ### Wiki Page Projection Contract
 
 A wiki page is a Markdown projection of a structured knowledge object. It is not
