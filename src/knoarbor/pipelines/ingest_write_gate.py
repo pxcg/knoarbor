@@ -81,8 +81,10 @@ class IngestWriteGate:
                 )
 
             closure = close_operation_atoms(atom_batch, operation)
-            for closure_issue in closure.issues:
-                issues.append(_issue(operation_index, closure_issue.code, closure_issue.message))
+            requires_atom_trace = operation.page_dir != "sources" and draft.page_dir != "sources"
+            if requires_atom_trace:
+                for closure_issue in closure.issues:
+                    issues.append(_issue(operation_index, closure_issue.code, closure_issue.message))
             expected_atom_ids = set(closure.atom_ids)
             if operation.page_dir != "sources" and not operation.selected_claim_ids:
                 issues.append(
@@ -92,7 +94,7 @@ class IngestWriteGate:
                         "Non-source page plan operation must select at least one claim atom id; relation atoms are auxiliary.",
                     )
                 )
-            if expected_atom_ids and not expected_atom_ids.issubset(set(draft.atom_ids)):
+            if requires_atom_trace and expected_atom_ids and not expected_atom_ids.issubset(set(draft.atom_ids)):
                 missing = sorted(expected_atom_ids.difference(set(draft.atom_ids)))
                 issues.append(
                     _issue(
@@ -127,7 +129,7 @@ class IngestWriteGate:
                         "Approved draft has no source digest trace.",
                     )
                 )
-            if operation.page_dir != "sources" and not expected_atom_ids:
+            if requires_atom_trace and not expected_atom_ids:
                 issues.append(
                     _issue(
                         operation_index,
@@ -135,7 +137,7 @@ class IngestWriteGate:
                         "Non-source page plan operation has no selected claim or relation atom ids.",
                     )
                 )
-            if draft.page_dir != "sources" and not draft.atom_ids:
+            if requires_atom_trace and not draft.atom_ids:
                 issues.append(
                     _issue(
                         operation_index,

@@ -326,6 +326,14 @@ class SourceOnlySemanticWorkflow(FakeIngestSemanticWorkflow):
         )
 
 
+class SourceOnlyWithSelectedAtomsSemanticWorkflow(SourceOnlySemanticWorkflow):
+    def plan_pages(self, knowledge_extract, **kwargs):
+        plan = super().plan_pages(knowledge_extract, **kwargs)
+        plan.operations[0].selected_claim_ids = ["claim_agent_loop_control"]
+        plan.operations[0].selected_relation_ids = ["rel_agent_loop_mentions_workflow"]
+        return plan
+
+
 class SourceAndConceptSemanticWorkflow(FakeIngestSemanticWorkflow):
     def plan_pages(self, knowledge_extract, **kwargs):
         source_digest_id = kwargs["knowledge_atom_batch"].source_digest_id
@@ -841,6 +849,37 @@ class IngestPipelineTests(unittest.TestCase):
             self.assertNotIn("## Evidence", content)
             self.assertNotIn("## Key Points", content)
             self.assertNotIn("## Tags", content)
+
+    def test_source_digest_operation_does_not_require_atom_trace(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "vaults" / "all"
+            notes = root / "notes"
+            vault.mkdir(parents=True)
+            notes.mkdir()
+            (notes / "source.md").write_text("# Source\n\nAgent loop source.", encoding="utf-8")
+            config = KnoArborConfig(
+                vault=VaultConfig(path=vault),
+                connectors={
+                    "markdown": ConnectorConfig(
+                        enabled=True,
+                        settings={"roots": [str(notes)]},
+                    )
+                },
+            )
+
+            result = IngestPipeline(SourceOnlyWithSelectedAtomsSemanticWorkflow()).run(
+                config,
+                connector_names=["markdown"],
+                write=True,
+                write_report=False,
+                append_ledger=False,
+            )  # type: ignore[arg-type]
+            source = result.results[0]
+
+        self.assertEqual(source.status, "written")
+        self.assertTrue(source.write_gate["passed"])
+        self.assertEqual(source.generated_pages, ["sources/Long-Source-Digest.md"])
 
     def test_ingest_uses_provenance_links_without_broad_lexical_related_links(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
