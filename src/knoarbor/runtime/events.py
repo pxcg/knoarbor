@@ -27,6 +27,7 @@ RunEventType = Literal[
     "source_finished",
     "source_failed",
     "segments_created",
+    "source_units_created",
     "segment_started",
     "segment_finished",
     "ingest_step_started",

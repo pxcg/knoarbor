@@ -115,6 +115,7 @@ class IngestSemanticRunner:
             knowledge_atom_batch=knowledge_atom_batch,
             knowledge_atom_quality=knowledge_atom_quality,
             context_payload={
+                "source_unitization": document.metadata.get("source_unitization", {}) if isinstance(document.metadata, dict) else {},
                 "source_digest": {
                     "digest_id": source_digest.digest_id,
                     "summary": source_digest.summary_counts(),

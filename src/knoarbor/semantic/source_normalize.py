@@ -7,8 +7,10 @@ from knoarbor.core.schemas.sources import SourceDocument
 def build_source_normalize_input(document: SourceDocument) -> dict[str, object]:
     """Build the model input for the source normalize semantic contract."""
 
+    source_unitization = document.metadata.get("source_unitization") if isinstance(document.metadata, dict) else None
     return {
         "source_document": document.model_dump(),
+        "source_unitization": source_unitization if isinstance(source_unitization, dict) else {},
         "source_hint": {
             "source_type": _knowledge_source_type(document),
             "source_app": document.origin.connector,

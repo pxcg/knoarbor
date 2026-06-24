@@ -151,22 +151,22 @@ reports must preserve generated page paths even if a later index step fails.
 - [x] Freeze the mature source-type matrix for Markdown/document, parsed
   PDF/Office Markdown, chat, agent records, Hermes conversation, selected
   excerpt, plain text, code, web/HTML, table/CSV, and image OCR sources.
-- [ ] Add deterministic Markdown/document heading unitization.
-- [ ] Add deterministic PDF/Office parsed Markdown heading, page-span, table
+- [x] Add deterministic Markdown/document heading unitization.
+- [x] Add deterministic PDF/Office parsed Markdown heading, page-span, table
   block, and figure-caption unitization.
-- [ ] Add deterministic chat turn-group unitization for Codex, Claude Code,
+- [x] Add deterministic chat turn-group unitization for Codex, Claude Code,
   OpenClaw, and Hermes sources.
-- [ ] Add selected excerpt and plain text paragraph/full-source unitization.
-- [ ] Add web/HTML heading and article-section unitization.
-- [ ] Add table/CSV sheet, table, and row-group unitization.
+- [x] Add selected excerpt and plain text paragraph/full-source unitization.
+- [x] Add web/HTML heading and article-section unitization.
+- [x] Add table/CSV sheet, table, and row-group unitization.
 - [ ] Add image OCR block and page-region unitization.
-- [ ] Add code file function/class/comment-block unitization when code becomes a
+- [x] Add code file function/class/comment-block unitization when code becomes a
   core source type.
-- [ ] Pass source unit hints into source normalization and source digest
+- [x] Pass source unit hints into source normalization and source digest
   projection.
-- [ ] Add report fields for source unit count, unitization rule, fallback rule,
+- [x] Add report fields for source unit count, unitization rule, fallback rule,
   and unitization warnings.
-- [ ] Add tests proving segment count and source unit count can differ.
+- [x] Add tests proving segment count and source unit count can differ.
 
 ## P2 Atom Extraction
 

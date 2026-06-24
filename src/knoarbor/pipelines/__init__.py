@@ -7,6 +7,7 @@ any external workflow adapter.
 
 from knoarbor.pipelines.source import SourcePipeline, SourcePipelineBatchResult, SourcePipelineItem, SourcePipelineResult
 from knoarbor.pipelines.source_segmentation import SourceSegmentBatch, SourceSegmenter
+from knoarbor.core.source_unitization import SourceUnitizationResult, SourceUnitizer, attach_source_unitization
 from knoarbor.core.schemas.ingest_pipeline import IngestPipelineResult, IngestSourceResult
 from knoarbor.pipelines.ingest import IngestPipeline
 from knoarbor.pipelines.ingest_context import IngestContextProvider, IngestWikiContext, IngestCandidatePageContext
@@ -42,6 +43,9 @@ __all__ = [
     "SourcePipelineResult",
     "SourceSegmentBatch",
     "SourceSegmenter",
+    "SourceUnitizationResult",
+    "SourceUnitizer",
+    "attach_source_unitization",
     "WikiLintPipeline",
     "WikiOperationPipeline",
     "WikiWritePipeline",

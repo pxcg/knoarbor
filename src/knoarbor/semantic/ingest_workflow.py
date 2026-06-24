@@ -13,6 +13,7 @@ from knoarbor.core.schemas.source_digest import SourceDigest
 from knoarbor.core.schemas.sources import SourceDocument
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch, WikiDraftBatchItem
 from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
+from knoarbor.core.source_unitization import apply_source_units_to_extract
 from knoarbor.semantic.ingest_compile_context import build_ingest_compile_context
 from knoarbor.semantic.knowledge_atom_normalization import normalize_knowledge_atom_batch
 from knoarbor.semantic.knowledge_atom_closure import close_plan_atoms
@@ -96,7 +97,7 @@ class IngestSemanticWorkflow:
             build_source_normalize_input(document),
             max_tokens=max_tokens,
         )
-        return _expect_output(result.output, KnowledgeExtract)
+        return apply_source_units_to_extract(document, _expect_output(result.output, KnowledgeExtract))
 
     def extract_atoms(
         self,

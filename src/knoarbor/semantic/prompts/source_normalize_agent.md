@@ -15,10 +15,12 @@ Do not return markdown fences or explanatory prose.
 You receive:
 
 - `source_document`: one normalized source document from Python Core.
+- `source_unitization`: deterministic source units produced by Python Core.
 - `source_hint`: deterministic source metadata derived from the connector.
 
 The source may represent a Hermes chat, Codex chat, Markdown note, parsed document, web capture, text note, selected excerpt, or manual source.
 For segmented sources, use `source_document.metadata.segmentation` as outline context only: preserve segment metadata, do not infer unseen sibling content, and do not overfit extraction to the segment boundary.
+When `source_unitization.units` is present, treat those units as the structural evidence boundary. Preserve their order, titles, ranges, and content. You may clean labels or remove process noise, but do not invent a different unit split.
 
 ## Output Shape
 
@@ -75,7 +77,7 @@ For segmented sources, use `source_document.metadata.segmentation` as outline co
 - `source.title` should be a human-readable title, not a filename. Remove extensions such as `.md`, `.markdown`, `.pdf`, `.docx`, and `.txt` when deriving it from a file path.
 - For chat sources, include complete substantive user/assistant dialogue units and preserve message indexes when available.
 - For coding-assistant chat sources such as Codex, OpenClaw, and Claude Code, retain user requests and assistant final answers, but exclude system/developer instructions, hidden reasoning, tool schemas, terminal output, patch logs, and process-only status messages unless they are themselves the knowledge being discussed.
-- For Markdown or document sources, split by meaningful headings when useful; keep short notes as one complete unit.
+- For Markdown or document sources, follow the deterministic source units. Heading, page, table, figure, paragraph, and excerpt boundaries are supplied by Python Core when available.
 - For selected excerpts, preserve the exact selected sentence or sentences and their expression value. Treat user selection as a high-value signal, but do not inflate a short quote into a broad concept without supporting context.
 - `compile_context.primary_content` must be readable standalone input for source digest projection and atom extraction.
 - `compile_context.links` must be an array of strings only. Use URLs, page paths, or compact labels; do not emit link objects.

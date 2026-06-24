@@ -45,6 +45,7 @@ uv run python -m unittest \
   tests.test_ingest_pipeline \
   tests.test_semantic_golden \
   tests.test_source_digest \
+  tests.test_source_unitization \
   tests.test_knowledge_atoms \
   tests.test_knowledge_atom_quality
 
@@ -63,6 +64,7 @@ uv run ruff check \
   tests/test_knowledge_atoms.py \
   tests/test_knowledge_atom_quality.py \
   tests/test_source_digest.py \
+  tests/test_source_unitization.py \
   tests/test_ingest_pipeline.py
 ```
 

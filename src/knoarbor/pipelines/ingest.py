@@ -58,6 +58,7 @@ from knoarbor.pipelines.ingest_observer import IngestObserver
 from knoarbor.pipelines.lint import WikiLintPipeline
 from knoarbor.pipelines.source import SourcePipeline, SourcePipelineFailure, SourcePipelineItem
 from knoarbor.pipelines.source_segmentation import SourceSegmentBatch, SourceSegmenter
+from knoarbor.core.source_unitization import attach_source_unitization
 from knoarbor.pipelines.write import WikiWritePipeline
 from knoarbor.runtime import current_run_monitor, vault_write_lock
 from knoarbor.storage.source_metrics import connector_source_metric_key, update_source_counts
@@ -306,12 +307,30 @@ class IngestSourceExecutor:
     ) -> IngestSourceResult:
         started = time.perf_counter()
         redacted = redact_source_document(document, privacy_config)
+        unitized_document = attach_source_unitization(redacted.document)
         result.redaction = _redaction_payload(redacted.enabled, redacted.counts)
+        unitization_payload = unitized_document.metadata.get("source_unitization", {})
+        IngestObserver.current().finished(
+            "source_unitization",
+            message=f"Created {unitization_payload.get('unit_count', 0)} source unit(s).",
+            current_item=result.source_id,
+            payload=unitization_payload if isinstance(unitization_payload, dict) else {},
+        )
+        monitor = current_run_monitor()
+        if monitor:
+            monitor.event(
+                "source_units_created",
+                stage="source_unitization",
+                current_item=result.source_id,
+                message=f"Created {unitization_payload.get('unit_count', 0) if isinstance(unitization_payload, dict) else 0} source unit(s).",
+                payload=unitization_payload if isinstance(unitization_payload, dict) else {},
+            )
+            monitor.raise_if_cancelled()
         history_start = semantic_history_length(self.semantic_workflow)
         try:
             semantic_run = self.semantic_runner.run(
                 vault_path=vault_path,
-                document=redacted.document,
+                document=unitized_document,
                 index_payload=index_payload,
                 source_file=source_file,
                 max_tokens=max_tokens,
@@ -465,9 +484,26 @@ class IngestSourceExecutor:
             segment_history_start = semantic_history_length(self.semantic_workflow)
             try:
                 redacted = redact_source_document(segment.document, privacy_config)
+                unitized_document = attach_source_unitization(redacted.document)
                 segment_result.redaction = _redaction_payload(redacted.enabled, redacted.counts)
+                unitization_payload = unitized_document.metadata.get("source_unitization", {})
+                observer.finished(
+                    "source_unitization",
+                    message=f"Created {unitization_payload.get('unit_count', 0) if isinstance(unitization_payload, dict) else 0} source unit(s).",
+                    current_item=segment.title,
+                    payload=unitization_payload if isinstance(unitization_payload, dict) else {},
+                )
+                if monitor:
+                    monitor.event(
+                        "source_units_created",
+                        stage="source_unitization",
+                        current_item=segment.title,
+                        message=f"Created {unitization_payload.get('unit_count', 0) if isinstance(unitization_payload, dict) else 0} source unit(s).",
+                        payload=unitization_payload if isinstance(unitization_payload, dict) else {},
+                    )
+                    monitor.raise_if_cancelled()
                 extraction = self.semantic_runner.extract_source(
-                    document=redacted.document,
+                    document=unitized_document,
                     max_tokens=max_tokens,
                 )
                 segment_artifacts.append(
