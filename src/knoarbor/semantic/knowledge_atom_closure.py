@@ -78,7 +78,6 @@ def close_operation_atoms(
                 )
             )
             continue
-        selected_relation_ids.append(relation_id)
         missing_claims = sorted(set(relation.source_claim_ids).difference(selected_claim_ids))
         if missing_claims:
             issues.append(
@@ -91,6 +90,8 @@ def close_operation_atoms(
                     ),
                 )
             )
+            continue
+        selected_relation_ids.append(relation_id)
 
     selected_claims = [claims_by_id[claim_id] for claim_id in selected_claim_ids if claim_id in claims_by_id]
     selected_relations = [relations_by_id[relation_id] for relation_id in _dedupe(selected_relation_ids) if relation_id in relations_by_id]

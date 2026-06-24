@@ -72,13 +72,8 @@ class IngestQualityGate:
 
             closure = close_operation_atoms(atom_batch, operation)
             for closure_issue in closure.issues:
-                if closure_issue.code == "relation_selected_without_source_claim":
-                    issues.append(_issue(operation_index, closure_issue.code, closure_issue.message))
-            expected_atom_ids = {
-                *operation.selected_claim_ids,
-                *operation.selected_relation_ids,
-                *closure.relation_ids,
-            }
+                issues.append(_issue(operation_index, closure_issue.code, closure_issue.message))
+            expected_atom_ids = set(closure.atom_ids)
             if operation.page_dir != "sources" and not operation.selected_claim_ids:
                 issues.append(
                     _issue(

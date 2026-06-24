@@ -13,7 +13,7 @@ so progress does not depend on conversation context.
 | 3 | Segment-level Semantic Extraction | Done | `source_normalize`, `wiki_atom_extract`, `knowledge_atoms.v2` | Extract claims, entities, relations, and evidence from each source or segment. This is where claims are created. |
 | 4 | Source-level Aggregation | Done | `AggregatedSemanticArtifacts` | Merge segment extracts, remap evidence ranges, deduplicate atoms, rebuild source-level digest, and emit source-level atom quality. |
 | 5 | Page Planning | Frozen | `WikiPagePlan` | Decide create/update/skip and select claim ids per page. It should not retrieve, write, or assemble page bodies. |
-| 6 | Claim / Relation / Evidence Closure | Done | `knowledge_atom_closure` | Given selected claims, deterministically close supported relations, entities, evidence, and source digest traces. |
+| 6 | Claim / Relation / Evidence Closure | Frozen | `knowledge_atom_closure` | Given selected claims, deterministically close supported relations, entities, evidence, and source digest traces. |
 | 7 | Page Assembly / Draft Compile | Pending | `PageAssemblyService` + narrowed synthesis generation | Assemble identity, claims, relations, entities, evidence, and Markdown skeleton deterministically; use LLM mainly for synthesis. |
 | 8 | Review / Quality Gate | Partial | `IngestQualityGate`, draft review agent | Split deterministic write gate from semantic review and make review conditional on risk signals. |
 | 9 | Write / Report / Index | Partial | `IngestPostProcessor`, atom index, graph/manifest reports | Persist pages, update indexes, emit reports, and expose atom trace consistently. |
@@ -71,6 +71,26 @@ Every actionable operation must carry `source_digest_ids`. Every non-source
 operation must select at least one claim atom id. Relation ids are auxiliary and
 cannot replace selected claims. Step 5 does not materialize full page bodies;
 full target, related, and candidate content is loaded only after planning.
+
+Step 6 is frozen as deterministic claim closure. It receives the page plan and
+source-level atom batch, then produces only the atom subset that can safely
+support later page assembly:
+
+| Substep | Name | Input | Output | Execution |
+| --- | --- | --- | --- | --- |
+| 6.1 | Validate Selected Claim Trace | `WikiPageOperation` + `KnowledgeAtomBatch` | claim ids + closure issues | Code |
+| 6.2 | Close Supported Relations | selected claim ids + relation atoms | relation ids + relation issues | Code |
+| 6.3 | Close Entities and Evidence | selected claims + closed relations | entity names + evidence spans | Code |
+| 6.4 | Carry Source Digest Trace | operation source digest ids + evidence spans | source digest ids | Code |
+| 6.5 | Build Selected Atom Batch | operation closures | scoped `KnowledgeAtomBatch` | Code |
+
+The closure is claims-first. A relation may enter the selected atom batch only
+when all its source claims are selected by the same operation. Explicit relation
+ids from page planning are treated as requests, not authority. Invalid selected
+claim ids or relation ids are reported as closure issues and must be blocked by
+the deterministic quality gate before write. Source digest id presence is
+already enforced by page planning and draft quality gates; cross-object source
+digest existence belongs to the source digest contract rather than atom closure.
 
 ## P0 Atom Contract
 

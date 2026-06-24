@@ -34,7 +34,7 @@ class KnowledgeAtomClosureTests(unittest.TestCase):
         )
 
         self.assertEqual(closure.claim_ids, ["claim_agent_loop"])
-        self.assertEqual(closure.relation_ids, ["rel_agent_loop_depends_on_memory", "rel_agent_loop_mentions_unselected"])
+        self.assertEqual(closure.relation_ids, ["rel_agent_loop_depends_on_memory"])
         self.assertEqual([issue.code for issue in closure.issues], ["relation_selected_without_source_claim"])
 
     def test_plan_closure_returns_selected_batch_for_compile_agents(self) -> None:

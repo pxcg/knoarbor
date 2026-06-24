@@ -160,9 +160,14 @@ class MismatchedWriteActionSemanticWorkflow(FakeIngestSemanticWorkflow):
 class MissingAtomTraceSemanticWorkflow(FakeIngestSemanticWorkflow):
     def plan_pages(self, knowledge_extract, **kwargs):
         plan = super().plan_pages(knowledge_extract, **kwargs)
-        plan.operations[0].selected_claim_ids = ["claim_agent_loop_cycle"]
+        plan.operations[0].selected_claim_ids = ["claim_agent_loop"]
         plan.operations[0].source_digest_ids = ["sd_test_agent"]
         return plan
+
+    def compile_drafts(self, knowledge_extract, wiki_page_plan, **kwargs):
+        batch = super().compile_drafts(knowledge_extract, wiki_page_plan, **kwargs)
+        batch.drafts[0].atom_ids = []
+        return batch
 
 
 class AtomTraceSemanticWorkflow(FakeIngestSemanticWorkflow):
@@ -337,7 +342,7 @@ class SourceAndConceptSemanticWorkflow(FakeIngestSemanticWorkflow):
                     page_dir="concepts",
                     title="Agent Loop Control",
                     knowledge_object="Agent loop control",
-                    selected_claim_ids=["claim_agent_loop_control"],
+                    selected_claim_ids=["claim_agent_loop"],
                     source_digest_ids=[source_digest_id],
                     decision_reason="Create durable concept.",
                 ),
@@ -383,7 +388,7 @@ class SourceAndConceptSemanticWorkflow(FakeIngestSemanticWorkflow):
                     key_points=["Observe, decide, act."],
                     tags=["agent", "loop"],
                     source_digest_ids=[kwargs["knowledge_atom_batch"].source_digest_id],
-                    atom_ids=["claim_agent_loop_control"],
+                    atom_ids=["claim_agent_loop", "rel_agent_loop_control_cycle"],
                     model_provider="test",
                     model_name="fake",
                 ),
@@ -432,7 +437,7 @@ class ScenarioSemanticWorkflow(FakeIngestSemanticWorkflow):
                     page_dir=self.page_dir,
                     title=f"{self.page_dir.title()} Page",
                     knowledge_object=f"{self.page_dir} object",
-                    selected_claim_ids=[] if self.page_dir == "sources" else ["claim_scenario"],
+                    selected_claim_ids=[] if self.page_dir == "sources" else ["claim_agent_loop"],
                     source_digest_ids=[source_digest_id],
                     candidate_pages=[
                         WikiCandidatePage(path=self.target_page, title="Existing", match_reason="Scenario target.")
@@ -478,7 +483,7 @@ class ScenarioSemanticWorkflow(FakeIngestSemanticWorkflow):
                     key_points=[f"{self.page_dir} key point."],
                     tags=[self.page_dir],
                     source_digest_ids=[kwargs["knowledge_atom_batch"].source_digest_id],
-                    atom_ids=[] if self.page_dir == "sources" else ["claim_scenario"],
+                    atom_ids=[] if self.page_dir == "sources" else ["claim_agent_loop", "rel_agent_loop_control_cycle"],
                     patches=patches,
                     model_provider="test",
                     model_name="fake",

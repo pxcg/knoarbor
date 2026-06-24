@@ -8,7 +8,7 @@ from knoarbor.core.schemas.ingest_review import (
     IngestReviewChecks,
     IngestReviewDimensionScores,
 )
-from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch
+from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch, KnowledgeAtomObject, KnowledgeClaim, KnowledgeEvidenceSpan
 from knoarbor.core.schemas.knowledge_extract import CompileContext, ContentUnit, KnowledgeExtract, KnowledgeSource
 from knoarbor.core.schemas.sources import SourceContent, SourceDocument, SourceFingerprint, SourceOrigin
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch, WikiDraftBatchItem
@@ -106,7 +106,7 @@ class SourceDigestOnlyWorkflow:
         )
 
     def extract_atoms(self, source_digest, **_: object) -> KnowledgeAtomBatch:
-        return KnowledgeAtomBatch(source_digest_id=source_digest.digest_id)
+        return _scripted_atom_batch(source_digest)
 
     def plan_pages(self, knowledge_extract: KnowledgeExtract, **kwargs: object) -> WikiPagePlan:
         source_digest_id = kwargs["knowledge_atom_batch"].source_digest_id  # type: ignore[index,union-attr]
@@ -250,12 +250,12 @@ class MultiObjectSegmentWorkflow:
         )
 
     def extract_atoms(self, source_digest, **_: object) -> KnowledgeAtomBatch:
-        return KnowledgeAtomBatch(source_digest_id=source_digest.digest_id)
+        return _scripted_atom_batch(source_digest)
 
     def plan_pages(self, knowledge_extract: KnowledgeExtract, **kwargs: object) -> WikiPagePlan:
         topic = _topic_for_extract(knowledge_extract)
         source_digest_id = kwargs["knowledge_atom_batch"].source_digest_id  # type: ignore[index,union-attr]
-        atom_id = f"claim_{topic['title'].lower().replace(' ', '_').replace('-', '_')}"
+        atom_id = _first_claim_atom_id(kwargs["knowledge_atom_batch"])  # type: ignore[arg-type]
         return WikiPagePlan(
             operations=[
                 WikiPageOperation(
@@ -291,7 +291,7 @@ class MultiObjectSegmentWorkflow:
         source_label = _source_label(knowledge_extract)
         segment_title = knowledge_extract.source.title or "Segment"
         source_digest_id = kwargs["knowledge_atom_batch"].source_digest_id  # type: ignore[index,union-attr]
-        atom_id = f"claim_{topic['title'].lower().replace(' ', '_').replace('-', '_')}"
+        atom_id = _first_claim_atom_id(kwargs["knowledge_atom_batch"])  # type: ignore[arg-type]
         return WikiDraftBatch(
             drafts=[
                 WikiDraftBatchItem(
@@ -410,7 +410,47 @@ def _source_label(knowledge_extract: KnowledgeExtract) -> str:
 
 def _topic_for_extract(knowledge_extract: KnowledgeExtract) -> dict[str, object]:
     title = (knowledge_extract.source.title or "").lower()
-    is_chat = knowledge_extract.source.source_app == "codex"
+    return _topic_for_title(title, is_chat=knowledge_extract.source.source_app == "codex")
+
+
+def _first_claim_atom_id(batch: KnowledgeAtomBatch) -> str:
+    if not batch.claims:
+        raise AssertionError("MultiObjectSegmentWorkflow requires at least one claim atom.")
+    return batch.claims[0].id
+
+
+def _scripted_atom_batch(source_digest) -> KnowledgeAtomBatch:
+    title = source_digest.source.title or "Source"
+    topic = _topic_for_title(title, is_chat=source_digest.source.source_app == "codex")
+    atom_id = f"claim_{topic['title'].lower().replace(' ', '_').replace('-', '_')}"
+    evidence = KnowledgeEvidenceSpan(
+        source_digest_id=source_digest.digest_id,
+        source_path=source_digest.source.source_path,
+        source_unit_index=0,
+        excerpt=source_digest.summary or topic["summary"],
+    )
+    return KnowledgeAtomBatch(
+        source_digest_id=source_digest.digest_id,
+        entities=[
+            KnowledgeAtomObject(object_type="knowledge_object", name=entity.strip("[]"))
+            for entity in topic["entities"]
+        ],
+        claims=[
+            KnowledgeClaim(
+                id=atom_id,
+                claim=topic["claims"][0].split(":", 1)[-1].strip(),
+                claim_type="definition",
+                evidence=[evidence],
+                entity_names=[entity.strip("[]") for entity in topic["entities"]],
+                confidence=0.9,
+            )
+        ],
+        evidence=[evidence],
+    )
+
+
+def _topic_for_title(title: str, *, is_chat: bool) -> dict[str, object]:
+    title = title.lower()
     if "workflow" in title or "2-3" in title:
         return {
             "page_dir": "workflows",

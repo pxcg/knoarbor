@@ -520,11 +520,13 @@ Responsibilities:
 - keep selected claim ids as the page spine;
 - include relation atoms whose `source_claim_ids` are fully covered by the
   selected claims;
-- include explicitly selected relation atoms and report when their supporting
-  claims were not selected by the same operation;
+- treat explicitly selected relation atoms as requests. Include them only when
+  their supporting claims were selected by the same operation, otherwise report
+  a closure issue;
 - derive entity names from selected claim entity markers and selected relation
   subjects/objects;
 - derive evidence keys from selected claim and relation evidence;
+- carry selected source digest ids through to later draft and write gates;
 - produce the selected atom batch consumed by compile and review agents.
 
 Boundaries:
@@ -532,9 +534,10 @@ Boundaries:
 - closure does not choose page identity, write action, title, or path;
 - closure does not invent claims, relations, entities, or evidence;
 - closure does not repair unsupported atoms;
-- closure does not make unknown atom-id existence a new hard gate in this
-  phase. Atom existence and schema validity remain part of atom contract and
-  quality-gate evolution.
+- closure reports unknown selected claim ids and relation ids as deterministic
+  issues. The quality gate blocks writes when such issues are present.
+- closure does not validate source digest existence from atom evidence alone;
+  that belongs to the source digest contract and write gate.
 
 ## Deferred Implementation
 
