@@ -50,7 +50,6 @@ class IngestSemanticWorkflow:
         source_digest = build_source_digest_from_extract(knowledge_extract)
         knowledge_atom_batch = self.extract_atoms(
             source_digest,
-            knowledge_extract=knowledge_extract,
             max_tokens=max_tokens,
         )
         knowledge_atom_quality = self.validate_atoms(knowledge_atom_batch)
@@ -98,15 +97,11 @@ class IngestSemanticWorkflow:
         self,
         source_digest: SourceDigest,
         *,
-        knowledge_extract: KnowledgeExtract | None = None,
         max_tokens: int | None = None,
     ) -> KnowledgeAtomBatch:
         result = self.runner.run(
             "wiki_atom_extract",
-            {
-                "source_digest": source_digest.model_dump(),
-                "knowledge_extract": knowledge_extract.model_dump() if knowledge_extract else {},
-            },
+            {"source_digest": source_digest.model_dump()},
             max_tokens=max_tokens,
         )
         return _expect_output(result.output, KnowledgeAtomBatch)

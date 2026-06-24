@@ -18,6 +18,7 @@ def evaluate_knowledge_atoms(batch: KnowledgeAtomBatch) -> KnowledgeAtomQualityR
     issues.extend(_unsupported_claim_issues(batch))
     issues.extend(_unsupported_relation_issues(batch))
     issues.extend(_conflicting_relation_issues(batch.relations))
+    issues.extend(_undefined_entity_reference_issues(batch))
     issues.extend(_unused_entity_issues(batch))
     return KnowledgeAtomQualityReport(
         source_digest_id=batch.source_digest_id,
@@ -63,7 +64,7 @@ def _unsupported_relation_issues(batch: KnowledgeAtomBatch) -> list[KnowledgeAto
     issues: list[KnowledgeAtomQualityIssue] = []
     for relation in batch.relations:
         missing_claim_ids = [claim_id for claim_id in relation.source_claim_ids if claim_id not in claim_ids]
-        if missing_claim_ids and not relation.evidence:
+        if missing_claim_ids:
             issues.append(
                 KnowledgeAtomQualityIssue(
                     issue_type="unsupported_relation",
@@ -120,6 +121,38 @@ def _unused_entity_issues(batch: KnowledgeAtomBatch) -> list[KnowledgeAtomQualit
                     severity="info",
                     atom_id=entity.atom_id,
                     message=f"Entity `{entity.name}` is not referenced by any claim or relation.",
+                )
+            )
+    return issues
+
+
+def _undefined_entity_reference_issues(batch: KnowledgeAtomBatch) -> list[KnowledgeAtomQualityIssue]:
+    declared = {_object_key(entity.name) for entity in batch.entities}
+    issues: list[KnowledgeAtomQualityIssue] = []
+    for claim in batch.claims:
+        missing = sorted(name for name in claim.entity_names if _object_key(name) not in declared)
+        if missing:
+            issues.append(
+                KnowledgeAtomQualityIssue(
+                    issue_type="undefined_entity_reference",
+                    severity="error",
+                    atom_id=claim.id,
+                    message=f"Claim references undeclared entities: {', '.join(missing)}.",
+                )
+            )
+    for relation in batch.relations:
+        missing_relation_objects = [
+            item.name
+            for item in (relation.subject, relation.object)
+            if _object_key(item.name) not in declared
+        ]
+        if missing_relation_objects:
+            issues.append(
+                KnowledgeAtomQualityIssue(
+                    issue_type="undefined_entity_reference",
+                    severity="error",
+                    atom_id=relation.id,
+                    message=f"Relation references undeclared entities: {', '.join(sorted(missing_relation_objects))}.",
                 )
             )
     return issues

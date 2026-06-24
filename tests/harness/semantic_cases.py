@@ -94,12 +94,12 @@ def wiki_atom_extract_output() -> dict[str, object]:
             "source_digest_id": "sd_test_agent",
             "entities": [
                 {
-                    "object_type": "concept",
+                    "object_type": "knowledge_object",
                     "name": "Agent Loop",
                     "atom_id": "entity_agent_loop",
                 },
                 {
-                    "object_type": "concept",
+                    "object_type": "knowledge_object",
                     "name": "Agent Control",
                     "atom_id": "entity_agent_control",
                 },
@@ -125,9 +125,9 @@ def wiki_atom_extract_output() -> dict[str, object]:
             "relations": [
                 {
                     "id": "rel_agent_loop_mentions_control",
-                    "subject": {"object_type": "concept", "name": "Agent Loop"},
+                    "subject": {"object_type": "knowledge_object", "name": "Agent Loop"},
                     "predicate": "includes",
-                    "object": {"object_type": "concept", "name": "Agent Control"},
+                    "object": {"object_type": "knowledge_object", "name": "Agent Control"},
                     "source_claim_ids": ["claim_agent_loop_control_pattern"],
                     "evidence": [],
                     "reason": "Agent loop describes a control cycle.",

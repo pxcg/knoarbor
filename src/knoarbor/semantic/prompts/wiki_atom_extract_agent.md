@@ -14,8 +14,7 @@ Do not return markdown fences or explanatory prose.
 
 You receive:
 
-- `source_digest`: a `source_digest.v1` object.
-- `knowledge_extract`: the compatibility normalized source object, when available.
+- `source_digest`: a `source_digest.v1` object containing source units and evidence spans.
 
 ## Output Shape
 
@@ -26,7 +25,7 @@ You receive:
     "source_digest_id": "same digest id as source_digest.digest_id",
     "entities": [
       {
-        "object_type": "concept",
+        "object_type": "knowledge_object",
         "name": "Object name",
         "page_path": null,
         "atom_id": "entity_stable_short_id",
@@ -57,9 +56,9 @@ You receive:
     "relations": [
       {
         "id": "rel_stable_short_id",
-        "subject": {"object_type": "concept", "name": "Subject", "page_path": null, "atom_id": null, "aliases": []},
+        "subject": {"object_type": "knowledge_object", "name": "Subject", "page_path": null, "atom_id": null, "aliases": []},
         "predicate": "supports | contradicts | contrasts_with | derived_from | depends_on | requires | uses | implements | constrains | part_of | coordinates | includes | can_mask | preferred_over",
-        "object": {"object_type": "concept", "name": "Object", "page_path": null, "atom_id": null, "aliases": []},
+        "object": {"object_type": "knowledge_object", "name": "Object", "page_path": null, "atom_id": null, "aliases": []},
         "source_claim_ids": ["claim_stable_short_id"],
         "evidence": [],
         "reason": "Why this relation matters.",
@@ -102,11 +101,11 @@ You receive:
   emit standalone entities that are not used by any claim or relation.
 - Relations connect durable objects through selected claims. Keep relation
   predicates within the allowed vocabulary and link each relation to supporting
-  claim ids when possible. Prefer specific predicates such as `coordinates`,
+  claim ids. Prefer specific predicates such as `coordinates`,
   `implements`, `requires`, `depends_on`, `contrasts_with`, or `part_of` over
   generic topical association.
 - Every claim must include direct evidence.
-- Every relation must include evidence or source claim ids.
+- Every relation must include `source_claim_ids`; relation-level evidence is optional supporting detail, not a replacement for claim support.
 - Use stable short ids. Prefer normalized names and source-local numbering over
   random ids.
 - Preserve uncertainty. Use `tentative` or lower confidence when the source is

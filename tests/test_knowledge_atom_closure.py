@@ -106,9 +106,9 @@ def _batch() -> KnowledgeAtomBatch:
     return KnowledgeAtomBatch(
         source_digest_id="sd_agent",
         entities=[
-            KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
-            KnowledgeAtomObject(object_type="concept", name="Memory"),
-            KnowledgeAtomObject(object_type="concept", name="Unselected"),
+            KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop"),
+            KnowledgeAtomObject(object_type="knowledge_object", name="Memory"),
+            KnowledgeAtomObject(object_type="knowledge_object", name="Unselected"),
         ],
         claims=[
             KnowledgeClaim(
@@ -135,9 +135,9 @@ def _batch() -> KnowledgeAtomBatch:
         relations=[
             KnowledgeRelation(
                 id="rel_agent_loop_depends_on_memory",
-                subject=KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
+                subject=KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop"),
                 predicate="depends_on",
-                object=KnowledgeAtomObject(object_type="concept", name="Memory"),
+                object=KnowledgeAtomObject(object_type="knowledge_object", name="Memory"),
                 source_claim_ids=["claim_agent_loop"],
                 evidence=[relation_evidence],
             )

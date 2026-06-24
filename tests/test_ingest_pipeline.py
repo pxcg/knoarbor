@@ -176,8 +176,8 @@ class AtomTraceSemanticWorkflow(FakeIngestSemanticWorkflow):
         return KnowledgeAtomBatch(
             source_digest_id=source_digest.digest_id,
             entities=[
-                KnowledgeAtomObject(object_type="concept", name="Agent Loop", atom_id="entity_agent_loop"),
-                KnowledgeAtomObject(object_type="workflow", name="Workflow", atom_id="entity_workflow"),
+                KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop", atom_id="entity_agent_loop"),
+                KnowledgeAtomObject(object_type="knowledge_object", name="Workflow", atom_id="entity_workflow"),
             ],
             claims=[
                 KnowledgeClaim(
@@ -191,9 +191,9 @@ class AtomTraceSemanticWorkflow(FakeIngestSemanticWorkflow):
             relations=[
                 KnowledgeRelation(
                     id="rel_agent_loop_mentions_workflow",
-                    subject=KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
+                    subject=KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop"),
                     predicate="coordinates",
-                    object=KnowledgeAtomObject(object_type="workflow", name="Workflow"),
+                    object=KnowledgeAtomObject(object_type="knowledge_object", name="Workflow"),
                     source_claim_ids=["claim_agent_loop_control"],
                 )
             ],
@@ -686,8 +686,8 @@ class IngestSemanticWorkflowFixtures:
         return KnowledgeAtomBatch(
             source_digest_id=source_digest_id,
             entities=[
-                KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
-                KnowledgeAtomObject(object_type="concept", name="Control Cycle"),
+                KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop"),
+                KnowledgeAtomObject(object_type="knowledge_object", name="Control Cycle"),
             ],
             claims=[
                 KnowledgeClaim(
@@ -702,9 +702,9 @@ class IngestSemanticWorkflowFixtures:
             relations=[
                 KnowledgeRelation(
                     id="rel_agent_loop_control_cycle",
-                    subject=KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
+                    subject=KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop"),
                     predicate="coordinates",
-                    object=KnowledgeAtomObject(object_type="concept", name="Control Cycle"),
+                    object=KnowledgeAtomObject(object_type="knowledge_object", name="Control Cycle"),
                     source_claim_ids=["claim_agent_loop"],
                     evidence=[evidence],
                     reason="The source describes agent loop as a repeated control cycle.",

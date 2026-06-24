@@ -79,8 +79,8 @@ class KnowledgeAtomLintTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
             _write_page(vault)
-            subject = KnowledgeAtomObject(object_type="concept", name="Agent Loop")
-            target = KnowledgeAtomObject(object_type="concept", name="Workflow")
+            subject = KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop")
+            target = KnowledgeAtomObject(object_type="knowledge_object", name="Workflow")
             upsert_knowledge_atom_batch(
                 vault,
                 KnowledgeAtomBatch(
@@ -106,7 +106,7 @@ class KnowledgeAtomLintTests(unittest.TestCase):
                             subject=subject,
                             predicate="contradicts",
                             object=target,
-                            evidence=[_evidence()],
+                            source_claim_ids=["claim_missing_support"],
                         ),
                     ],
                 ),

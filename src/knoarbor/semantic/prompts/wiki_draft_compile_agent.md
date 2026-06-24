@@ -82,7 +82,7 @@ Do not return markdown fences or explanatory prose.
 - `question` is source context. It should identify the source topic or source-side question, not repeat the page title mechanically.
 - `claims` must be concrete, auditable statements. Number them as `C1.`, `C2.`, etc. Mark important knowledge objects with `[[Entity]]`.
 - `entities` lists the important knowledge objects mentioned in the claims. Use wiki-link style names when possible.
-- `relations` must be claim-backed triples in the exact string form `[[Subject]] | predicate | [[Object]] | C1`. Keep predicates stable and lower_snake_case, for example `contrasts_with`, `depends_on`, `implements`, `supports`, `part_of`, or `mentions`.
+- `relations` must be claim-backed triples in the exact string form `[[Subject]] | predicate | [[Object]] | C1`. Keep predicates stable and lower_snake_case, for example `contrasts_with`, `depends_on`, `implements`, `supports`, `part_of`, `coordinates`, or `includes`.
 - `evidence` must map claims to support in the exact string form `C1 | source | range | basis | confidence`. Confidence must be `high`, `medium`, or `low`.
 - `synthesis` is readable prose that integrates the claims, relations, and evidence. It is for human reading and chat grounding, not a place to introduce unsupported claims.
 - `patches` may be empty for create. Update must include at least one patch.

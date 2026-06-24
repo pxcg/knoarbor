@@ -81,6 +81,7 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
         draft_payload = _dynamic_payload(client.requests[3])
         review_payload = _dynamic_payload(client.requests[4])
         self.assertIn("source_digest", atom_payload)
+        self.assertNotIn("knowledge_extract", atom_payload)
         self.assertNotIn("knowledge_extract", plan_payload)
         self.assertTrue(str(plan_payload["source_digest"]["digest_id"]).startswith("sd_"))
         self.assertIn("raw_source", plan_payload["source_digest"])
@@ -151,7 +152,7 @@ def _atom_output_with_unselected_material() -> dict[str, object]:
     assert isinstance(atom_batch, dict)
     atom_batch["entities"].append(
         {
-            "object_type": "concept",
+            "object_type": "knowledge_object",
             "name": "Noise",
             "atom_id": "entity_noise",
         }
@@ -177,9 +178,9 @@ def _atom_output_with_unselected_material() -> dict[str, object]:
     atom_batch["relations"].append(
         {
             "id": "rel_unselected_noise",
-            "subject": {"object_type": "concept", "name": "Noise"},
+            "subject": {"object_type": "knowledge_object", "name": "Noise"},
             "predicate": "coordinates",
-            "object": {"object_type": "concept", "name": "Background"},
+            "object": {"object_type": "knowledge_object", "name": "Background"},
             "source_claim_ids": ["claim_unselected_noise"],
             "evidence": [],
             "reason": "Noise is unrelated.",

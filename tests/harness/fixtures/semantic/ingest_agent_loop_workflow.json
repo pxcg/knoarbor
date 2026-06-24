@@ -72,14 +72,14 @@
         "aliases": [],
         "atom_id": "entity_agent_loop",
         "name": "Agent Loop",
-        "object_type": "concept",
+        "object_type": "knowledge_object",
         "page_path": null
       },
       {
         "aliases": [],
         "atom_id": "entity_agent_control",
         "name": "Agent Control",
-        "object_type": "concept",
+        "object_type": "knowledge_object",
         "page_path": null
       }
     ],
@@ -103,7 +103,7 @@
           "aliases": [],
           "atom_id": null,
           "name": "Agent Control",
-          "object_type": "concept",
+          "object_type": "knowledge_object",
           "page_path": null
         },
         "predicate": "includes",
@@ -115,7 +115,7 @@
           "aliases": [],
           "atom_id": null,
           "name": "Agent Loop",
-          "object_type": "concept",
+          "object_type": "knowledge_object",
           "page_path": null
         }
       }

@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
-KnowledgeAtomObjectType = Literal["page", "source", "entity", "concept", "claim", "workflow", "comparison", "timeline", "unknown"]
+KnowledgeAtomObjectType = Literal["knowledge_object", "page", "source", "claim", "unknown"]
 KnowledgeClaimType = Literal["definition", "recommendation", "assessment", "causal", "decision", "comparison", "open_question"]
 KnowledgeClaimStance = Literal["asserted", "tentative", "disputed"]
 KnowledgeRelationPredicate = Literal[
@@ -30,6 +30,7 @@ KnowledgeAtomIssueType = Literal[
     "unsupported_claim",
     "unsupported_relation",
     "conflicting_relation",
+    "undefined_entity_reference",
     "unused_entity",
 ]
 
@@ -63,7 +64,7 @@ class KnowledgeEvidenceSpan(BaseModel):
 class KnowledgeAtomObject(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    object_type: KnowledgeAtomObjectType = "unknown"
+    object_type: KnowledgeAtomObjectType = "knowledge_object"
     name: str = Field(..., min_length=1)
     page_path: str | None = None
     atom_id: str | None = None
@@ -168,8 +169,8 @@ class KnowledgeRelation(BaseModel):
 
     @model_validator(mode="after")
     def require_support(self) -> "KnowledgeRelation":
-        if not self.source_claim_ids and not self.evidence:
-            raise ValueError("relation requires source_claim_ids or evidence")
+        if not self.source_claim_ids:
+            raise ValueError("relation requires source_claim_ids")
         return self
 
 

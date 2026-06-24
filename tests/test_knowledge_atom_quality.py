@@ -26,8 +26,8 @@ class KnowledgeAtomQualityTests(unittest.TestCase):
         batch = KnowledgeAtomBatch(
             source_digest_id="sd_agent",
             entities=[
-                KnowledgeAtomObject(object_type="concept", name="Agent Loop", atom_id="entity_agent_loop"),
-                KnowledgeAtomObject(object_type="concept", name="Tool Governance", atom_id="entity_tool_governance"),
+                KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop", atom_id="entity_agent_loop"),
+                KnowledgeAtomObject(object_type="knowledge_object", name="Tool Governance", atom_id="entity_tool_governance"),
             ],
             claims=[
                 KnowledgeClaim(
@@ -41,9 +41,9 @@ class KnowledgeAtomQualityTests(unittest.TestCase):
             relations=[
                 KnowledgeRelation(
                     id="rel_agent_loop_supports_tools",
-                    subject=KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
+                    subject=KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop"),
                     predicate="supports",
-                    object=KnowledgeAtomObject(object_type="concept", name="Tool Governance"),
+                    object=KnowledgeAtomObject(object_type="knowledge_object", name="Tool Governance"),
                     source_claim_ids=["claim_agent_loop_production"],
                 )
             ],
@@ -56,10 +56,14 @@ class KnowledgeAtomQualityTests(unittest.TestCase):
         self.assertEqual(report.summary()["rejected"], 0)
 
     def test_quality_report_flags_missing_support_ids_and_conflicts(self) -> None:
-        subject = KnowledgeAtomObject(object_type="concept", name="Agent Loop")
-        obj = KnowledgeAtomObject(object_type="concept", name="Workflow")
+        subject = KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop")
+        obj = KnowledgeAtomObject(object_type="knowledge_object", name="Workflow")
         batch = KnowledgeAtomBatch(
             source_digest_id="sd_agent",
+            entities=[
+                KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop", atom_id="entity_agent_loop"),
+                KnowledgeAtomObject(object_type="knowledge_object", name="Workflow", atom_id="entity_workflow"),
+            ],
             claims=[
                 KnowledgeClaim(
                     id="claim_missing_fact",
@@ -82,7 +86,7 @@ class KnowledgeAtomQualityTests(unittest.TestCase):
                     subject=subject,
                     predicate="contradicts",
                     object=obj,
-                    evidence=[_evidence()],
+                    source_claim_ids=["claim_missing_fact"],
                 ),
             ],
         )
@@ -97,12 +101,42 @@ class KnowledgeAtomQualityTests(unittest.TestCase):
         self.assertEqual(report.summary()["conflicting"], 1)
         self.assertEqual(report.summary()["rejected"], 2)
 
+    def test_quality_report_flags_undeclared_entities(self) -> None:
+        batch = KnowledgeAtomBatch(
+            source_digest_id="sd_agent",
+            entities=[KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop", atom_id="entity_agent_loop")],
+            claims=[
+                KnowledgeClaim(
+                    id="claim_agent_loop",
+                    claim="Agent Loop coordinates tool governance.",
+                    claim_type="definition",
+                    evidence=[_evidence()],
+                    entity_names=["Agent Loop", "Tool Governance"],
+                )
+            ],
+            relations=[
+                KnowledgeRelation(
+                    id="rel_agent_loop_tools",
+                    subject=KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop"),
+                    predicate="coordinates",
+                    object=KnowledgeAtomObject(object_type="knowledge_object", name="Tool Governance"),
+                    source_claim_ids=["claim_agent_loop"],
+                )
+            ],
+        )
+
+        report = evaluate_knowledge_atoms(batch)
+
+        issues = [issue for issue in report.issues if issue.issue_type == "undefined_entity_reference"]
+        self.assertEqual(len(issues), 2)
+        self.assertEqual(report.summary()["rejected"], 2)
+
     def test_quality_report_flags_entities_not_used_by_claims_or_relations(self) -> None:
         batch = KnowledgeAtomBatch(
             source_digest_id="sd_agent",
             entities=[
-                KnowledgeAtomObject(object_type="concept", name="Agent Loop", atom_id="entity_agent_loop"),
-                KnowledgeAtomObject(object_type="concept", name="Unused Object", atom_id="entity_unused"),
+                KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop", atom_id="entity_agent_loop"),
+                KnowledgeAtomObject(object_type="knowledge_object", name="Unused Object", atom_id="entity_unused"),
             ],
             claims=[
                 KnowledgeClaim(

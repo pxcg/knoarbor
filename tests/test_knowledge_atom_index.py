@@ -31,8 +31,8 @@ def _batch(statement: str = "Agent loops reason and act.") -> KnowledgeAtomBatch
     return KnowledgeAtomBatch(
         source_digest_id="sd_agent",
         entities=[
-            KnowledgeAtomObject(object_type="concept", name="Agent Loop", atom_id="entity_agent_loop"),
-            KnowledgeAtomObject(object_type="concept", name="Workflow", atom_id="entity_workflow"),
+            KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop", atom_id="entity_agent_loop"),
+            KnowledgeAtomObject(object_type="knowledge_object", name="Workflow", atom_id="entity_workflow"),
         ],
         claims=[
             KnowledgeClaim(
@@ -46,9 +46,9 @@ def _batch(statement: str = "Agent loops reason and act.") -> KnowledgeAtomBatch
         relations=[
             KnowledgeRelation(
                 id="rel_agent_loop",
-                subject=KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
+                subject=KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop"),
                 predicate="coordinates",
-                object=KnowledgeAtomObject(object_type="concept", name="Workflow"),
+                object=KnowledgeAtomObject(object_type="knowledge_object", name="Workflow"),
                 source_claim_ids=["claim_agent_loop"],
             )
         ],

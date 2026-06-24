@@ -250,12 +250,16 @@ Markdown wikilinks and typed relations coexist:
 - typed relations are the machine-usable semantic edge.
 
 A wikilink only says that a page mentions another page. A typed relation says
-how they are connected, such as `requires`, `depends_on`, `contrasts`,
-`implements`, `supports`, `contradicts`, `example_of`, or `part_of`.
+how they are connected, such as `requires`, `depends_on`, `contrasts_with`,
+`implements`, `supports`, `contradicts`, `coordinates`, `includes`, or `part_of`.
 
 Page rendering may emit wikilinks from typed relations, but not every wikilink
 must become a relation. Accepted relations require a relation type, direction,
-target, support, confidence, and status.
+target, claim support, confidence, and status.
+
+Atom object types identify generic knowledge objects. They do not encode the
+old page-directory taxonomy. Page shape and page grouping are later planning
+decisions; Stage 3 atoms only need objects, claims, relations, and evidence.
 
 ### Short Text And Excerpt Boundary
 

@@ -204,7 +204,7 @@ def _render_relations(items: list[str]) -> str:
         if len(parts) >= 4:
             subject, predicate, obj, based_on = parts[:4]
         else:
-            subject, predicate, obj, based_on = item, "relates_to", "未结构化对象", "C1"
+            subject, predicate, obj, based_on = item, "coordinates", "未结构化对象", "C1"
         rows.append(f"| {_escape_table_cell(subject)} | {_escape_table_cell(predicate)} | {_escape_table_cell(obj)} | {_escape_table_cell(based_on)} |")
     return "\n".join(rows)
 

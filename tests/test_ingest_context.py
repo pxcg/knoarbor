@@ -7,7 +7,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch, KnowledgeAtomObject, KnowledgeEvidenceSpan, KnowledgeRelation
+from knoarbor.core.schemas.knowledge_atoms import (
+    KnowledgeAtomBatch,
+    KnowledgeAtomObject,
+    KnowledgeClaim,
+    KnowledgeEvidenceSpan,
+    KnowledgeRelation,
+)
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 from knoarbor.core.schemas.wiki_page_plan import WikiPageOperation, WikiPagePlan
 from knoarbor.pipelines.ingest_context import IngestContextProvider
@@ -126,12 +132,15 @@ class IngestContextProviderTests(unittest.TestCase):
             )
             atom_batch = KnowledgeAtomBatch(
                 source_digest_id="sd_graph_only",
-                relations=[
-                    KnowledgeRelation(
-                        id="rel_graph_only",
-                        subject=KnowledgeAtomObject(object_type="entity", name="GraphOnlyEntity"),
-                        predicate="includes",
-                        object=KnowledgeAtomObject(object_type="concept", name="Graph Candidate"),
+                entities=[
+                    KnowledgeAtomObject(object_type="knowledge_object", name="GraphOnlyEntity"),
+                    KnowledgeAtomObject(object_type="knowledge_object", name="Graph Candidate"),
+                ],
+                claims=[
+                    KnowledgeClaim(
+                        id="claim_graph_only",
+                        claim="GraphOnlyEntity is related to Graph Candidate.",
+                        claim_type="assessment",
                         evidence=[
                             KnowledgeEvidenceSpan(
                                 source_digest_id="sd_graph_only",
@@ -139,6 +148,16 @@ class IngestContextProviderTests(unittest.TestCase):
                                 excerpt="GraphOnlyEntity appears in the source.",
                             )
                         ],
+                        entity_names=["GraphOnlyEntity", "Graph Candidate"],
+                    )
+                ],
+                relations=[
+                    KnowledgeRelation(
+                        id="rel_graph_only",
+                        subject=KnowledgeAtomObject(object_type="knowledge_object", name="GraphOnlyEntity"),
+                        predicate="includes",
+                        object=KnowledgeAtomObject(object_type="knowledge_object", name="Graph Candidate"),
+                        source_claim_ids=["claim_graph_only"],
                     )
                 ],
             )

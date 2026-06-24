@@ -79,8 +79,8 @@ def _artifact(segment_index: int, title: str, claim_text: str) -> SegmentSemanti
     batch = KnowledgeAtomBatch(
         source_digest_id=digest.digest_id,
         entities=[
-            KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
-            KnowledgeAtomObject(object_type="concept", name="Control Cycle"),
+            KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop"),
+            KnowledgeAtomObject(object_type="knowledge_object", name="Control Cycle"),
         ],
         claims=[
             KnowledgeClaim(
@@ -95,9 +95,9 @@ def _artifact(segment_index: int, title: str, claim_text: str) -> SegmentSemanti
         relations=[
             KnowledgeRelation(
                 id="rel_agent_loop_cycle",
-                subject=KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
+                subject=KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop"),
                 predicate="coordinates",
-                object=KnowledgeAtomObject(object_type="concept", name="Control Cycle"),
+                object=KnowledgeAtomObject(object_type="knowledge_object", name="Control Cycle"),
                 source_claim_ids=["claim_agent_loop"],
                 evidence=[evidence],
                 reason="Agent loop is described as a repeated control cycle.",

@@ -111,6 +111,9 @@ Knowledge page rules:
 - Claims should mark entities with wiki links, such as `[[Agent Loop]]`.
 - Entities are the knowledge objects mentioned by claims.
 - Relations are claim-backed triples between entities.
+- Atom object types describe generic knowledge objects. They do not recreate
+  old page-directory categories such as concept, workflow, comparison, or
+  timeline.
 - Relations should use a tabular triple form:
 
   ```md
@@ -218,7 +221,11 @@ Recommended initial predicate vocabulary:
 Relation rules:
 
 - Relations must have `Subject`, `Predicate`, `Object`, and `Based on`.
-- `Based on` must reference one or more claim numbers.
+- At the atom layer, relation support must point to one or more claim ids.
+- At the rendered page layer, `Based on` must reference one or more page claim
+  numbers such as `C1` or `C2`.
+- Direct source evidence can supplement a relation, but it must not replace
+  claim support.
 - Relations should be extracted from claims, not invented from loose topical
   similarity.
 - Wikilinks are navigation. Relations are typed semantic edges.
