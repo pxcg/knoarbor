@@ -103,6 +103,17 @@ class SourceSegmentationTests(unittest.TestCase):
         self.assertTrue(any(warning.startswith("hard_split:heading:Large") for warning in warnings))
         self.assertGreater(len(batch.segments), 1)
 
+    def test_hard_split_preserves_oversized_block_content(self) -> None:
+        markers = [f"marker-{index:03d}-" + ("x" * 180) for index in range(30)]
+        document = make_document(source_type="markdown", text="# Large\n\n" + "\n\n".join(markers))
+
+        batch = SourceSegmenter(test_config()).segment(document)
+        combined = "\n".join(segment.content for segment in batch.segments)
+
+        self.assertGreater(len(batch.segments), 1)
+        for marker in markers:
+            self.assertIn(marker, combined)
+
     def test_oversized_chat_message_is_split_into_bounded_json_segments(self) -> None:
         payload = {
             "session_id": "s1",

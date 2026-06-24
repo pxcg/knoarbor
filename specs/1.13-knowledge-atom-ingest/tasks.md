@@ -9,7 +9,7 @@ so progress does not depend on conversation context.
 | Step | Boundary | Status | Owner / Output | Notes |
 | --- | --- | --- | --- | --- |
 | 1 | Source Input | Frozen | Connectors, document processors, `SourceDocument`, checkpoint identity | Raw materials become normalized source documents with source identity, raw state, fingerprint, stable session raw indexes, and checkpoint windows. |
-| 2 | Source Segmentation | Done | `SourceSegmenter` | Long sources are split for budget and source-range preservation. Segmentation does not decide page boundaries or writes. |
+| 2 | Source Segmentation | Frozen | `SourceSegmenter` | Long sources are split for budget and source-range preservation. Segmentation does not decide page boundaries or writes. |
 | 3 | Segment-level Semantic Extraction | Done | `source_normalize`, `wiki_atom_extract`, `knowledge_atoms.v2` | Extract claims, entities, relations, and evidence from each source or segment. This is where claims are created. |
 | 4 | Source-level Aggregation | Done | `AggregatedSemanticArtifacts` | Merge segment extracts, remap evidence ranges, deduplicate atoms, rebuild source-level digest, and emit source-level atom quality. |
 | 5 | Page Planning | Implemented, needs review under new page structure | `WikiPagePlan` | Decide create/update/skip and select claim ids per page. It should not write or assemble page bodies. |

@@ -142,6 +142,39 @@ to Markdown or text first, then enter the shared connector path as ordinary
 source documents. Source input does not own page planning, claim importance,
 relation meaning, Markdown rendering, or wiki write policy.
 
+### Frozen Source Segmentation Contract
+
+Source segmentation is frozen as the ingest budget and structure-preservation
+boundary. It answers three questions after source input and before semantic
+extraction:
+
+1. whether the normalized source can be processed as one unit;
+2. which source-native structure should define processing windows;
+3. which segment metadata and warnings must travel with semantic extraction.
+
+The stable segmentation contract is:
+
+- short sources remain a single full-source segment with `mode: none`;
+- Markdown sources split by heading blocks first, then paragraphs when heading
+  structure is unavailable;
+- chat sources split by complete turn groups and preserve connector-normalized
+  `raw_index` ranges;
+- parsed document sources split by provided sections or pages;
+- plain text sources split by paragraphs;
+- hard splitting is allowed only when a structural block exceeds
+  `max_chars_per_segment`, and it must preserve content by emitting multiple
+  bounded parts plus a visible `hard_split` warning;
+- segment metadata uses sibling outline context only. It may expose segment
+  titles, indexes, source ranges, previous/next titles, and a source-level
+  outline, but it does not copy sibling segment bodies into the current segment;
+- `max_segments_per_source` is a warning threshold, not permission to fold
+  tail content into oversized segments or drop later segments.
+
+Segmentation does not perform semantic extraction, claim selection, relation
+interpretation, page planning, wiki writes, or checkpoint commits. It also does
+not use raw text overlap; cross-segment continuity is handled by source-level
+aggregation after segment-local semantic extraction.
+
 ## Long Source Aggregation Boundary
 
 Segmentation is a budget and structure-preservation mechanism, not a wiki page
