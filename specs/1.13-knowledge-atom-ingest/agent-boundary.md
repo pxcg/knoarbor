@@ -197,8 +197,9 @@ Responsibilities:
 - segment-level agents preserve local meaning, source ranges, claims, entities,
   relations, and evidence;
 - deterministic aggregation remaps segment unit indexes, merges duplicate atom
-  objects, deduplicates equivalent claims and relation triples, and preserves
-  warnings with segment provenance;
+  objects, merges entity aliases, deduplicates equivalent claims, merges claim
+  evidence, deduplicates relation triples, merges relation support, and
+  preserves warnings with segment provenance;
 - page planning sees the aggregated source contract and decides page boundaries
   from the full source context;
 - checkpoint commit remains source/window-level and advances only after the
@@ -222,7 +223,8 @@ It owns:
 - source-unit merge and segment provenance metadata;
 - evidence unit remapping from segment indexes to source-level indexes;
 - equivalent claim deduplication and evidence merge;
-- relation triple deduplication after claim id remapping;
+- relation triple deduplication after claim id remapping, including merged
+  support claim ids and evidence spans;
 - source-level `KnowledgeAtomQualityReport`;
 - pending `SourceDigest.contribution_map` entries derived from claims.
 
@@ -313,7 +315,7 @@ output names describe data contracts.
     KnowledgeExtract -> SourceDigest
 
 3.3 Extract Knowledge Atoms
-    SourceDigest + KnowledgeExtract -> KnowledgeAtomBatch
+    SourceDigest -> KnowledgeAtomBatch
 
 3.4 Validate Knowledge Atoms
     KnowledgeAtomBatch -> KnowledgeAtomQualityReport

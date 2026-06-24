@@ -151,7 +151,7 @@ def _aggregate_atom_batches(
     for segment_index, batch in enumerate(batches):
         unit_index_map = unit_index_maps[segment_index] if segment_index < len(unit_index_maps) else {}
         for entity in batch.entities:
-            entities.setdefault((entity.object_type, entity.name.casefold()), entity)
+            _merge_entity(entities, entity)
         for claim in batch.claims:
             normalized_claim = _normalize_text(claim.claim)
             mapped_id = claim_id_by_text.get(normalized_claim)
@@ -161,7 +161,7 @@ def _aggregate_atom_batches(
             ]
             if mapped_id:
                 claim_id_by_segment_key[(segment_index, claim.id)] = mapped_id
-                _merge_claim_evidence(claims, mapped_id, rewritten_evidence)
+                _merge_claim_metadata(claims, mapped_id, claim, rewritten_evidence)
                 for span in rewritten_evidence:
                     evidence[_evidence_key(span)] = span
                 continue
@@ -182,7 +182,7 @@ def _aggregate_atom_batches(
             )
 
     relations: list[KnowledgeRelation] = []
-    relation_keys: set[tuple[str, str, str, tuple[str, ...]]] = set()
+    relation_id_by_triple: dict[tuple[str, str, str], str] = {}
     used_relation_ids: set[str] = set()
     for segment_index, batch in enumerate(batches):
         unit_index_map = unit_index_maps[segment_index] if segment_index < len(unit_index_maps) else {}
@@ -191,21 +191,24 @@ def _aggregate_atom_batches(
                 claim_id_by_segment_key.get((segment_index, claim_id), claim_id)
                 for claim_id in relation.source_claim_ids
             ]
-            key = (
+            triple_key = (
                 relation.subject.name.casefold(),
                 relation.predicate,
                 relation.object.name.casefold(),
-                tuple(mapped_claim_ids),
             )
-            if key in relation_keys:
-                continue
-            relation_keys.add(key)
-            mapped_relation_id = _unique_atom_id(relation.id, used_relation_ids, segment_index=segment_index)
-            used_relation_ids.add(mapped_relation_id)
             rewritten_evidence = [
                 _rewrite_evidence_span(span, source_digest_id=source_digest_id, unit_index_map=unit_index_map)
                 for span in relation.evidence
             ]
+            existing_relation_id = relation_id_by_triple.get(triple_key)
+            if existing_relation_id:
+                _merge_relation_metadata(relations, existing_relation_id, relation, mapped_claim_ids, rewritten_evidence)
+                for span in rewritten_evidence:
+                    evidence[_evidence_key(span)] = span
+                continue
+            mapped_relation_id = _unique_atom_id(relation.id, used_relation_ids, segment_index=segment_index)
+            used_relation_ids.add(mapped_relation_id)
+            relation_id_by_triple[triple_key] = mapped_relation_id
             for span in rewritten_evidence:
                 evidence[_evidence_key(span)] = span
             relations.append(
@@ -217,8 +220,8 @@ def _aggregate_atom_batches(
                     }
                 )
             )
-            entities.setdefault((relation.subject.object_type, relation.subject.name.casefold()), relation.subject)
-            entities.setdefault((relation.object.object_type, relation.object.name.casefold()), relation.object)
+            _merge_entity(entities, relation.subject)
+            _merge_entity(entities, relation.object)
         warnings.extend(f"segment:{segment_index}:{warning}" for warning in batch.warnings)
 
     return KnowledgeAtomBatch(
@@ -231,9 +234,29 @@ def _aggregate_atom_batches(
     )
 
 
-def _merge_claim_evidence(
+def _merge_entity(
+    entities: dict[tuple[str, str], KnowledgeAtomObject],
+    entity: KnowledgeAtomObject,
+) -> None:
+    key = (entity.object_type, entity.name.casefold())
+    existing = entities.get(key)
+    if existing is None:
+        entities[key] = entity
+        return
+    aliases = _dedupe([*existing.aliases, *entity.aliases])
+    entities[key] = existing.model_copy(
+        update={
+            "aliases": aliases,
+            "page_path": existing.page_path or entity.page_path,
+            "atom_id": existing.atom_id or entity.atom_id,
+        }
+    )
+
+
+def _merge_claim_metadata(
     claims: list[KnowledgeClaim],
     claim_id: str,
+    incoming_claim: KnowledgeClaim,
     incoming: list[KnowledgeEvidenceSpan],
 ) -> None:
     for index, claim in enumerate(claims):
@@ -242,7 +265,36 @@ def _merge_claim_evidence(
         existing = {_evidence_key(span): span for span in claim.evidence}
         for span in incoming:
             existing.setdefault(_evidence_key(span), span)
-        claims[index] = claim.model_copy(update={"evidence": list(existing.values())})
+        claims[index] = claim.model_copy(
+            update={
+                "evidence": list(existing.values()),
+                "entity_names": _dedupe([*claim.entity_names, *incoming_claim.entity_names]),
+                "confidence": min(claim.confidence, incoming_claim.confidence),
+            }
+        )
+        return
+
+
+def _merge_relation_metadata(
+    relations: list[KnowledgeRelation],
+    relation_id: str,
+    incoming_relation: KnowledgeRelation,
+    incoming_claim_ids: list[str],
+    incoming: list[KnowledgeEvidenceSpan],
+) -> None:
+    for index, relation in enumerate(relations):
+        if relation.id != relation_id:
+            continue
+        existing = {_evidence_key(span): span for span in relation.evidence}
+        for span in incoming:
+            existing.setdefault(_evidence_key(span), span)
+        relations[index] = relation.model_copy(
+            update={
+                "source_claim_ids": _dedupe([*relation.source_claim_ids, *incoming_claim_ids]),
+                "evidence": list(existing.values()),
+                "confidence": min(relation.confidence, incoming_relation.confidence),
+            }
+        )
         return
 
 

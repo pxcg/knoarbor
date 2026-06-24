@@ -46,8 +46,56 @@ class IngestAggregationTests(unittest.TestCase):
         self.assertEqual(result.source_digest.contribution_map[0].target_page, None)
         self.assertEqual(result.knowledge_atom_quality.summary()["unsupported"], 0)
 
+    def test_aggregates_entity_aliases_and_duplicate_claim_metadata(self) -> None:
+        first = _artifact(
+            0,
+            "Agent Loop",
+            "Agent loop coordinates tool use.",
+            entity_aliases=["ReAct Loop"],
+            entity_names=["Agent Loop"],
+            confidence=0.92,
+        )
+        second = _artifact(
+            1,
+            "Agent Loop",
+            "Agent loop coordinates tool use.",
+            entity_aliases=["Reason-Act Loop"],
+            entity_names=["Agent Loop", "Tool Use"],
+            confidence=0.74,
+        )
 
-def _artifact(segment_index: int, title: str, claim_text: str) -> SegmentSemanticArtifacts:
+        result = aggregate_segment_semantic_artifacts([first, second])
+
+        entity = next(item for item in result.knowledge_atom_batch.entities if item.name == "Agent Loop")
+        self.assertEqual(entity.aliases, ["ReAct Loop", "Reason-Act Loop"])
+        claim = result.knowledge_atom_batch.claims[0]
+        self.assertEqual(claim.entity_names, ["Agent Loop", "Tool Use"])
+        self.assertEqual(claim.confidence, 0.74)
+        self.assertEqual([span.source_unit_index for span in claim.evidence], [0, 1])
+
+    def test_aggregates_duplicate_relation_triples_with_claim_support(self) -> None:
+        first = _artifact(0, "Agent Loop", "Agent loop coordinates tool use.", claim_id="claim_a", relation_claim_ids=["claim_a"])
+        second = _artifact(1, "Agent Loop", "Agent loop requires monitoring.", claim_id="claim_b", relation_claim_ids=["claim_b", "claim_a"])
+
+        result = aggregate_segment_semantic_artifacts([first, second])
+
+        self.assertEqual(len(result.knowledge_atom_batch.relations), 1)
+        relation = result.knowledge_atom_batch.relations[0]
+        self.assertEqual(relation.source_claim_ids, ["claim_a", "claim_b"])
+        self.assertEqual([span.source_unit_index for span in relation.evidence], [0, 1])
+
+
+def _artifact(
+    segment_index: int,
+    title: str,
+    claim_text: str,
+    *,
+    claim_id: str = "claim_agent_loop",
+    relation_claim_ids: list[str] | None = None,
+    entity_aliases: list[str] | None = None,
+    entity_names: list[str] | None = None,
+    confidence: float = 0.9,
+) -> SegmentSemanticArtifacts:
     extract = KnowledgeExtract(
         source=KnowledgeSource(
             source_type="markdown",
@@ -76,20 +124,22 @@ def _artifact(segment_index: int, title: str, claim_text: str) -> SegmentSemanti
         source_unit_index=0,
         excerpt=claim_text,
     )
+    relation_claim_ids = relation_claim_ids or [claim_id]
+    entity_names = entity_names or ["Agent Loop", "Control Cycle"]
     batch = KnowledgeAtomBatch(
         source_digest_id=digest.digest_id,
         entities=[
-            KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop"),
+            KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop", aliases=entity_aliases or []),
             KnowledgeAtomObject(object_type="knowledge_object", name="Control Cycle"),
         ],
         claims=[
             KnowledgeClaim(
-                id="claim_agent_loop",
+                id=claim_id,
                 claim=claim_text,
                 claim_type="definition",
                 evidence=[evidence],
-                entity_names=["Agent Loop", "Control Cycle"],
-                confidence=0.9,
+                entity_names=entity_names,
+                confidence=confidence,
             )
         ],
         relations=[
@@ -98,7 +148,7 @@ def _artifact(segment_index: int, title: str, claim_text: str) -> SegmentSemanti
                 subject=KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop"),
                 predicate="coordinates",
                 object=KnowledgeAtomObject(object_type="knowledge_object", name="Control Cycle"),
-                source_claim_ids=["claim_agent_loop"],
+                source_claim_ids=relation_claim_ids,
                 evidence=[evidence],
                 reason="Agent loop is described as a repeated control cycle.",
                 confidence=0.85,
