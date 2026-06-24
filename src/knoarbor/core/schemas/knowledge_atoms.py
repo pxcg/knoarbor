@@ -11,12 +11,18 @@ KnowledgeClaimStance = Literal["asserted", "tentative", "disputed"]
 KnowledgeRelationPredicate = Literal[
     "supports",
     "contradicts",
-    "relates_to",
-    "contrasts",
+    "contrasts_with",
     "derived_from",
     "depends_on",
+    "requires",
+    "uses",
+    "implements",
+    "constrains",
     "part_of",
-    "mentions",
+    "coordinates",
+    "includes",
+    "can_mask",
+    "preferred_over",
 ]
 KnowledgeAtomIssueSeverity = Literal["error", "warning", "info"]
 KnowledgeAtomIssueType = Literal[

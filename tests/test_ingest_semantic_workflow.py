@@ -178,7 +178,7 @@ def _atom_output_with_unselected_material() -> dict[str, object]:
         {
             "id": "rel_unselected_noise",
             "subject": {"object_type": "concept", "name": "Noise"},
-            "predicate": "relates_to",
+            "predicate": "coordinates",
             "object": {"object_type": "concept", "name": "Background"},
             "source_claim_ids": ["claim_unselected_noise"],
             "evidence": [],

@@ -96,7 +96,7 @@ def _artifact(segment_index: int, title: str, claim_text: str) -> SegmentSemanti
             KnowledgeRelation(
                 id="rel_agent_loop_cycle",
                 subject=KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
-                predicate="relates_to",
+                predicate="coordinates",
                 object=KnowledgeAtomObject(object_type="concept", name="Control Cycle"),
                 source_claim_ids=["claim_agent_loop"],
                 evidence=[evidence],

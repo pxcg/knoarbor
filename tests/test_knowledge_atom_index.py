@@ -47,7 +47,7 @@ def _batch(statement: str = "Agent loops reason and act.") -> KnowledgeAtomBatch
             KnowledgeRelation(
                 id="rel_agent_loop",
                 subject=KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
-                predicate="relates_to",
+                predicate="coordinates",
                 object=KnowledgeAtomObject(object_type="concept", name="Workflow"),
                 source_claim_ids=["claim_agent_loop"],
             )

@@ -58,7 +58,7 @@ You receive:
       {
         "id": "rel_stable_short_id",
         "subject": {"object_type": "concept", "name": "Subject", "page_path": null, "atom_id": null, "aliases": []},
-        "predicate": "supports | contradicts | relates_to | contrasts | derived_from | depends_on | part_of | mentions",
+        "predicate": "supports | contradicts | contrasts_with | derived_from | depends_on | requires | uses | implements | constrains | part_of | coordinates | includes | can_mask | preferred_over",
         "object": {"object_type": "concept", "name": "Object", "page_path": null, "atom_id": null, "aliases": []},
         "source_claim_ids": ["claim_stable_short_id"],
         "evidence": [],
@@ -102,7 +102,9 @@ You receive:
   emit standalone entities that are not used by any claim or relation.
 - Relations connect durable objects through selected claims. Keep relation
   predicates within the allowed vocabulary and link each relation to supporting
-  claim ids when possible.
+  claim ids when possible. Prefer specific predicates such as `coordinates`,
+  `implements`, `requires`, `depends_on`, `contrasts_with`, or `part_of` over
+  generic topical association.
 - Every claim must include direct evidence.
 - Every relation must include evidence or source claim ids.
 - Use stable short ids. Prefer normalized names and source-local numbering over

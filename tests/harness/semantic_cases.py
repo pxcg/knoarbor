@@ -126,7 +126,7 @@ def wiki_atom_extract_output() -> dict[str, object]:
                 {
                     "id": "rel_agent_loop_mentions_control",
                     "subject": {"object_type": "concept", "name": "Agent Loop"},
-                    "predicate": "mentions",
+                    "predicate": "includes",
                     "object": {"object_type": "concept", "name": "Agent Control"},
                     "source_claim_ids": ["claim_agent_loop_control_pattern"],
                     "evidence": [],

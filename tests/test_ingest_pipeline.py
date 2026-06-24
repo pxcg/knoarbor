@@ -192,7 +192,7 @@ class AtomTraceSemanticWorkflow(FakeIngestSemanticWorkflow):
                 KnowledgeRelation(
                     id="rel_agent_loop_mentions_workflow",
                     subject=KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
-                    predicate="relates_to",
+                    predicate="coordinates",
                     object=KnowledgeAtomObject(object_type="workflow", name="Workflow"),
                     source_claim_ids=["claim_agent_loop_control"],
                 )
@@ -358,7 +358,7 @@ class SourceAndConceptSemanticWorkflow(FakeIngestSemanticWorkflow):
                     summary="Source digest for agent loop control.",
                     claims=["C1: Source digest documents agent loop control."],
                     entities=["[[Agent Loop]]"],
-                    relations=["[[Agent Source]] | mentions | [[Agent Loop]] | C1"],
+                    relations=["[[Agent Source]] | includes | [[Agent Loop]] | C1"],
                     evidence=["C1 | raw/source | source-level | source digest support | medium"],
                     synthesis="Source digest for agent loop control.",
                     key_points=["Source provenance."],
@@ -472,7 +472,7 @@ class ScenarioSemanticWorkflow(FakeIngestSemanticWorkflow):
                     summary=f"Scenario summary for {self.page_dir}.",
                     claims=[f"C1: [[{self.page_dir.title()} Page]] has durable scenario evidence."],
                     entities=[f"[[{self.page_dir.title()} Page]]"],
-                    relations=[f"[[{self.page_dir.title()} Page]] | mentions | [[Scenario]] | C1"],
+                    relations=[f"[[{self.page_dir.title()} Page]] | includes | [[Scenario]] | C1"],
                     evidence=["C1 | sd_test | unit:0 | scenario source support | high"],
                     synthesis=f"Scenario answer for {self.page_dir}.",
                     key_points=[f"{self.page_dir} key point."],
@@ -703,7 +703,7 @@ class IngestSemanticWorkflowFixtures:
                 KnowledgeRelation(
                     id="rel_agent_loop_control_cycle",
                     subject=KnowledgeAtomObject(object_type="concept", name="Agent Loop"),
-                    predicate="relates_to",
+                    predicate="coordinates",
                     object=KnowledgeAtomObject(object_type="concept", name="Control Cycle"),
                     source_claim_ids=["claim_agent_loop"],
                     evidence=[evidence],

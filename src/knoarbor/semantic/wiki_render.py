@@ -197,7 +197,7 @@ def _render_relations(items: list[str]) -> str:
     rows = ["| Subject | Predicate | Object | Based on |", "|---|---|---|---|"]
     values = [item.strip() for item in items if item.strip()]
     if not values:
-        rows.append("| 暂无显式关系 | relates_to | 暂无显式对象 | C1 |")
+        rows.append("| 暂无显式关系 | coordinates | 暂无显式对象 | C1 |")
         return "\n".join(rows)
     for item in values:
         parts = [part.strip() for part in item.split("|")]

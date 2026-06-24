@@ -106,7 +106,7 @@
           "object_type": "concept",
           "page_path": null
         },
-        "predicate": "mentions",
+        "predicate": "includes",
         "reason": "Agent loop describes a control cycle.",
         "source_claim_ids": [
           "claim_agent_loop_control_pattern"

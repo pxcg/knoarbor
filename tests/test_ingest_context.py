@@ -130,7 +130,7 @@ class IngestContextProviderTests(unittest.TestCase):
                     KnowledgeRelation(
                         id="rel_graph_only",
                         subject=KnowledgeAtomObject(object_type="entity", name="GraphOnlyEntity"),
-                        predicate="mentions",
+                        predicate="includes",
                         object=KnowledgeAtomObject(object_type="concept", name="Graph Candidate"),
                         evidence=[
                             KnowledgeEvidenceSpan(

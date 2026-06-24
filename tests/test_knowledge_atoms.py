@@ -49,18 +49,32 @@ class KnowledgeAtomSchemaTest(unittest.TestCase):
             KnowledgeRelation(
                 id="rel_without_support",
                 subject=subject,
-                predicate="contrasts",
+                predicate="contrasts_with",
                 object=obj,
             )
 
         relation = KnowledgeRelation(
             id="rel_supported",
             subject=subject,
-            predicate="contrasts",
+            predicate="contrasts_with",
             object=obj,
             source_claim_ids=["claim_soundanalysis_activity_detector"],
         )
-        self.assertEqual(relation.predicate, "contrasts")
+        self.assertEqual(relation.predicate, "contrasts_with")
+
+    def test_relation_rejects_legacy_generic_predicates(self) -> None:
+        subject = KnowledgeAtomObject(object_type="concept", name="SoundAnalysis")
+        obj = KnowledgeAtomObject(object_type="concept", name="Energy Peak Baseline")
+        for predicate in ("relates_to", "mentions", "contrasts"):
+            with self.subTest(predicate=predicate):
+                with self.assertRaises(ValidationError):
+                    KnowledgeRelation(
+                        id=f"rel_{predicate}",
+                        subject=subject,
+                        predicate=predicate,  # type: ignore[arg-type]
+                        object=obj,
+                        source_claim_ids=["claim_soundanalysis_activity_detector"],
+                    )
 
     def test_atom_batch_summary_counts_unique_evidence(self) -> None:
         evidence = _evidence()
@@ -74,7 +88,7 @@ class KnowledgeAtomSchemaTest(unittest.TestCase):
         relation = KnowledgeRelation(
             id="rel_soundanalysis_mentions_ios_workflow",
             subject=KnowledgeAtomObject(object_type="concept", name="SoundAnalysis"),
-            predicate="mentions",
+            predicate="includes",
             object=KnowledgeAtomObject(object_type="workflow", name="iOS Audio ML Workflow"),
             evidence=[_evidence("SoundAnalysis is part of the iOS audio workflow.")],
         )
