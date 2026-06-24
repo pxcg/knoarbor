@@ -220,14 +220,18 @@ connector discovery
   -> checkpoint window
   -> source segmentation
   -> source normalize agent
+  -> source digest + atom extraction
+  -> source-level aggregation
   -> candidate page retrieval
   -> page planning
-  -> candidate page materialization
-  -> draft compilation
+  -> claim / relation / evidence closure
+  -> deterministic page assembly
+  -> synthesis generation
   -> draft review
-  -> deterministic quality gate
+  -> deterministic write gate
   -> ingest write policy
   -> wiki write
+  -> machine index + atom index
   -> scoped deterministic lint
   -> checkpoint commit
   -> report and ledger
@@ -253,10 +257,10 @@ Implementation boundary:
 - `pipelines/source_segmentation.py` owns segment planning and source-window chunk boundaries.
 - `pipelines/ingest_semantic.py` owns the semantic ingest agent chain: source normalization, atom extraction, candidate retrieval, page planning, draft compilation, and draft review.
 - `pipelines/ingest_context.py` owns candidate page retrieval and materialization.
-- `pipelines/ingest_postprocess.py` owns approved draft write commits, atom-index updates, and source-scoped deterministic lint after writes.
+- `pipelines/ingest_postprocess.py` owns the deterministic write/report/index boundary after approval: approved draft write commits, generated page recording, atom-index updates, and source-scoped deterministic lint.
 - `pipelines/ingest_metrics.py` owns source/segment metrics, redaction aggregation, and semantic token statistics.
 - `pipelines/ingest_lifecycle.py` owns missing/moved source lifecycle candidates emitted from checkpoint state.
-- `pipelines/ingest_quality.py` and `pipelines/ingest_write_policy.py` own pre-write validation and write invariants.
+- `pipelines/ingest_write_gate.py` and `pipelines/ingest_write_policy.py` own pre-persistence validation and write invariants.
 
 ### Lint
 

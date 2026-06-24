@@ -85,13 +85,17 @@ class IngestPostProcessor:
             relative_wiki_path(vault_path, Path(item.wiki_file_path))
             for item in write_response.results
         ]
+        result.generated_pages = generated_pages
+        result.context["write_commit"] = {
+            "generated_pages": generated_pages,
+            "written_count": len(generated_pages),
+        }
         if segment_records is not None:
             attach_written_pages_to_segment_records(segment_records, generated_pages, write_response.results)
         atom_index_path = upsert_atom_index(vault_path, semantic_results, write_response.results)
         if atom_index_path:
             result.context["knowledge_atom_index_path"] = atom_index_path
 
-        result.generated_pages = generated_pages
         self.clear_context_cache()
         result.wrote = True
         result.status = "written"

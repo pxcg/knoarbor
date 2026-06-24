@@ -200,14 +200,18 @@ connector discovery
   -> checkpoint window
   -> source segmentation
   -> source normalize agent
+  -> source digest + atom extraction
+  -> source-level aggregation
   -> candidate page retrieval
   -> page planning
-  -> candidate page materialization
-  -> draft compilation
+  -> claim / relation / evidence closure
+  -> deterministic page assembly
+  -> synthesis generation
   -> draft review
-  -> deterministic quality gate
+  -> deterministic write gate
   -> ingest write policy
   -> wiki write
+  -> machine index + atom index
   -> scoped deterministic lint
   -> checkpoint commit
   -> report and ledger
@@ -231,10 +235,12 @@ connector discovery
 - `pipelines/ingest.py` 是编排外壳：connector 执行、segment 执行、写入/scoped lint/report 协调和 checkpoint 提交。
 - `pipelines/ingest_checkpoint.py` 负责 checkpoint 计划和提交载荷。
 - `pipelines/source_segmentation.py` 负责分段计划和 source-window 切分边界。
+- `pipelines/ingest_semantic.py` 负责语义 ingest 链路：source normalization、atom extraction、候选检索、page planning、draft compilation 和 draft review。
 - `pipelines/ingest_context.py` 负责候选页面检索和 materialization。
+- `pipelines/ingest_postprocess.py` 负责 approval 之后的确定性写入/report/index 边界：写入已批准页面、记录生成页面、更新 atom index，并按配置运行 source-scoped deterministic lint。
 - `pipelines/ingest_metrics.py` 负责 source/segment 指标、脱敏统计聚合和语义 token 统计。
 - `pipelines/ingest_lifecycle.py` 负责从 checkpoint 状态生成 missing/moved source 生命周期候选。
-- `pipelines/ingest_quality.py` 与 `pipelines/ingest_write_policy.py` 负责写入前校验和写入不变量。
+- `pipelines/ingest_write_gate.py` 与 `pipelines/ingest_write_policy.py` 负责持久化前校验和写入不变量。
 
 ### Lint / 校验维护
 

@@ -16,7 +16,7 @@ so progress does not depend on conversation context.
 | 6 | Claim / Relation / Evidence Closure | Frozen | `knowledge_atom_closure` | Given selected claims, deterministically close supported relations, entities, evidence, and source digest traces. |
 | 7 | Page Assembly / Draft Compile | Done | `PageAssemblyService` + narrowed synthesis generation | Assemble identity, claims, relations, entities, evidence, and Markdown skeleton deterministically; use LLM mainly for synthesis. |
 | 8 | Review / Write Gate | Partial | `IngestWriteGate`, draft review agent | Split deterministic write gate from semantic review and make review conditional on risk signals. |
-| 9 | Write / Report / Index | Partial | `IngestPostProcessor`, atom index, graph/manifest reports | Persist pages, update indexes, emit reports, and expose atom trace consistently. |
+| 9 | Write / Report / Index | Frozen | `IngestPostProcessor`, `WikiWritePipeline`, atom index, graph/manifest reports | Persist approved pages, refresh indexes, run scoped maintenance, commit checkpoints, and emit reports without creating new semantic decisions. |
 
 Step 3 is frozen as four named substeps. Use these names in code review,
 implementation notes, and future SDD updates:
@@ -91,6 +91,25 @@ claim ids or relation ids are reported as closure issues and must be blocked by
 the deterministic write gate before write. Source digest id presence is
 already enforced by page planning and draft write gates; cross-object source
 digest existence belongs to the source digest contract rather than atom closure.
+
+Step 9 is frozen as the deterministic write, index, and reporting boundary. It
+receives only operation indexes that passed semantic review and
+`IngestWriteGate`, then records what actually happened:
+
+| Substep | Name | Input | Output | Execution |
+| --- | --- | --- | --- | --- |
+| 9.1 | Build Approved Write Items | approved operation ids + drafts | `WikiDraftBatchWriteItem[]` | Code |
+| 9.2 | Apply Write Policy | write items | canonicalized write items + policy changes | Code |
+| 9.3 | Commit Pages | canonicalized write items | `WikiDraftWriteResponse[]` + generated pages | Code |
+| 9.4 | Refresh Machine Indexes | written pages + vault content | generated views, machine pages, graph index, manifest | Code |
+| 9.5 | Upsert Atom Index | source-level atom batches + written page refs | `.knoarbor/index/knowledge_atoms.jsonl` | Code |
+| 9.6 | Scoped Maintenance | touched pages | scoped deterministic lint result | Code |
+| 9.7 | Commit Checkpoint | successful written/skipped source result | checkpoint state | Code |
+| 9.8 | Emit Reports and Ledgers | run result | report, run ledger, token ledger, execution ledger | Code |
+
+Step 9 does not create claims, choose page boundaries, revise semantic content,
+or reinterpret write safety. Page writes and index writes are distinct facts:
+reports must preserve generated page paths even if a later index step fails.
 
 ## P0 Atom Contract
 

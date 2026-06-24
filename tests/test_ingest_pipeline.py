@@ -5,6 +5,7 @@ import tempfile
 import unittest
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -1137,6 +1138,34 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertEqual(len(records), 5)
         claim = next(record for record in records if record.atom_id == "claim_agent_loop_control")
         self.assertEqual(claim.page_paths, ["Agent-Loop.md"])
+
+    def test_ingest_records_written_pages_when_atom_index_fails_after_write(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            vault = root / "vaults" / "all"
+            notes = root / "notes"
+            vault.mkdir(parents=True)
+            notes.mkdir()
+            (notes / "agent.md").write_text("# Agent Loop\n\nObserve and act.", encoding="utf-8")
+            config = KnoArborConfig(
+                vault=VaultConfig(path=vault),
+                connectors={
+                    "markdown": ConnectorConfig(
+                        enabled=True,
+                        settings={"roots": [str(notes)]},
+                    )
+                },
+            )
+
+            with patch("knoarbor.pipelines.ingest_postprocess.upsert_knowledge_atom_batches", side_effect=RuntimeError("atom index failed")):
+                result = IngestPipeline(AtomTraceSemanticWorkflow()).run(config, connector_names=["markdown"], write=True)  # type: ignore[arg-type]
+
+        source = result.results[0]
+        self.assertEqual(source.status, "failed")
+        self.assertEqual(source.generated_pages, ["Agent-Loop.md"])
+        self.assertEqual(source.context["write_commit"]["generated_pages"], ["Agent-Loop.md"])
+        self.assertFalse(source.wrote)
+        self.assertEqual(source.error_stage, "source")
 
     def test_ingest_report_includes_knowledge_atom_index_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

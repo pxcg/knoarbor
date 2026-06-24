@@ -511,6 +511,49 @@ page-assembly projection. The semantic review agent owns meaning-level risk.
 The remaining refactor is to make semantic review conditional and to report
 deterministic gate decisions separately from semantic review decisions.
 
+## Write / Report / Index Boundary
+
+The final ingest boundary is deterministic. It receives approved operation
+indexes and already-rendered draft content. It records write facts, refreshes
+machine state, and emits user-visible audit artifacts:
+
+```text
+approved operation indexes + draft batch
+  -> approved write items
+  -> write policy
+  -> WikiWritePipeline
+  -> machine index refresh
+  -> knowledge atom index upsert
+  -> scoped deterministic lint
+  -> checkpoint commit
+  -> run report + ledgers
+```
+
+Responsibilities:
+
+- persist approved create, update, and merge operations;
+- canonicalize draft output before writing;
+- record generated page paths immediately after page persistence;
+- refresh generated views, page/search/link/source machine indexes, graph
+  index, and manifest;
+- upsert atom-to-page records for written pages;
+- run scoped deterministic maintenance on touched pages when configured;
+- commit checkpoints only after the write path produces a successful source
+  result;
+- write run reports, token ledgers, execution ledgers, and user-readable
+  maintenance reports.
+
+Boundaries:
+
+- this stage does not call semantic agents;
+- this stage does not create claims, entities, relations, evidence, page
+  identities, or write decisions;
+- this stage does not hide partial facts. If page persistence succeeds but a
+  later index step fails, generated page paths remain part of the source result
+  and reportable recovery context;
+- checkpoint commit is source/window-level and belongs after write/index
+  success, not inside page rendering or atom indexing.
+
 ## Selected Atom Closure Boundary
 
 Selected atom closure is deterministic and claims-first. It answers one narrow
