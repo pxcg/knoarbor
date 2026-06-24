@@ -154,7 +154,7 @@ class IngestWriteGate:
 
             if not draft.summary.strip():
                 issues.append(_issue(operation_index, "missing_summary", "Draft summary is empty."))
-            if not _nonempty_items(draft.claims):
+            if draft.page_dir != "sources" and not _nonempty_items(draft.claims):
                 issues.append(_issue(operation_index, "missing_claims", "Draft has no auditable claims."))
             if draft.page_dir != "sources" and len(_nonempty_items(draft.claims)) < len(operation.selected_claim_ids):
                 issues.append(
@@ -169,19 +169,20 @@ class IngestWriteGate:
             assembly = assembly_by_index.get(operation_index)
             if draft.page_dir != "sources" and assembly:
                 issues.extend(_assembly_projection_issues(operation_index, draft, assembly))
-            claim_ids = _claim_ids(draft.claims)
-            evidence_claims, evidence_issues = _evidence_claims(draft.evidence, draft.page_dir)
-            relation_claims, relation_issues = _relation_claims(draft.relations)
-            for code, message in [*evidence_issues, *relation_issues]:
-                issues.append(_issue(operation_index, code, message))
-            if draft.page_dir != "sources" and not evidence_claims:
-                issues.append(_issue(operation_index, "missing_evidence", "Non-source drafts must include explicit evidence rows."))
-            for claim_id in sorted(claim_ids.difference(evidence_claims)):
-                issues.append(_issue(operation_index, "claim_without_evidence", f"Claim {claim_id} has no matching evidence row."))
-            for claim_id in sorted(evidence_claims.difference(claim_ids)):
-                issues.append(_issue(operation_index, "evidence_without_claim", f"Evidence references missing claim {claim_id}."))
-            for claim_id in sorted(relation_claims.difference(claim_ids)):
-                issues.append(_issue(operation_index, "relation_without_claim", f"Relation references missing claim {claim_id}."))
+            if draft.page_dir != "sources":
+                claim_ids = _claim_ids(draft.claims)
+                evidence_claims, evidence_issues = _evidence_claims(draft.evidence, draft.page_dir)
+                relation_claims, relation_issues = _relation_claims(draft.relations)
+                for code, message in [*evidence_issues, *relation_issues]:
+                    issues.append(_issue(operation_index, code, message))
+                if not evidence_claims:
+                    issues.append(_issue(operation_index, "missing_evidence", "Non-source drafts must include explicit evidence rows."))
+                for claim_id in sorted(claim_ids.difference(evidence_claims)):
+                    issues.append(_issue(operation_index, "claim_without_evidence", f"Claim {claim_id} has no matching evidence row."))
+                for claim_id in sorted(evidence_claims.difference(claim_ids)):
+                    issues.append(_issue(operation_index, "evidence_without_claim", f"Evidence references missing claim {claim_id}."))
+                for claim_id in sorted(relation_claims.difference(claim_ids)):
+                    issues.append(_issue(operation_index, "relation_without_claim", f"Relation references missing claim {claim_id}."))
 
             if draft.write_action == "create":
                 if draft.target_page:

@@ -21,15 +21,14 @@ Connector / Document Processor
   -> Checkpoint Window
   -> Source Segmentation
   -> Deterministic Source Parse
-  -> Source Digest
+  -> Source Digest Audit
   -> Knowledge Atom Extract
   -> Atom Validate / Deduplicate / Link
   -> Graph + Text Candidate Retrieval
   -> Page Plan
   -> Deterministic Page Assembly
-  -> Synthesis Generation
-  -> Semantic Review Agent
   -> Deterministic Write Gate
+  -> Conditional Semantic Review
   -> Write Pages
   -> Update Atom Index + Page Index + Reports
 ```
@@ -55,15 +54,15 @@ This layer does not interpret source meaning.
 
 ### Source Digest Layer
 
-Owner: semantic source normalization and deterministic source digest projection.
+Owner: source normalization and deterministic source digest projection.
 
 Responsibilities:
 
 - identify one source or source segment;
-- preserve source focus and compact source summary;
+- preserve source focus and compact audit summary;
 - provide stable source units and evidence spans that downstream atoms can cite;
 - expose the structured inputs needed by the source digest Markdown view:
-  source identity, source summary, source units, contribution map placeholders,
+  source identity, audit summary, source units, contribution map placeholders,
   unresolved/rejected items, and raw source pointers.
 
 Source digest Markdown is a view. It is not the only storage shape.
@@ -128,8 +127,8 @@ and chooses among them.
 
 ### Page Draft Layer
 
-Owner: deterministic page assembly, synthesis generation, deterministic write
-gate, and conditional semantic review.
+Owner: deterministic page assembly, page-local prose generation,
+deterministic write gate, and conditional semantic review.
 
 Responsibilities:
 
@@ -137,9 +136,9 @@ Responsibilities:
   context;
 - expose `Summary`, `Claims`, `Entities`, `Relations`, `Evidence`, and
   `Synthesis` as the canonical user-facing body for ordinary knowledge pages;
-- expose `Source Identity`, `Source Summary`, `Source Units`,
-  `Contribution Map`, `Unresolved / Rejected`, and `Raw Source` as the
-  canonical source digest audit body;
+- source digest audit pages are code-generated provenance views from source
+  units, selected atoms, write results, warnings, and raw pointers. They are
+  not compiled by the page draft agent;
 - keep legacy `answer` as a schema compatibility input that maps to
   `Synthesis`, not as the primary knowledge boundary;
 - attach source digest ids and atom ids in frontmatter or report metadata;
@@ -150,29 +149,31 @@ Responsibilities:
 - treat source trace, atom coverage, page identity, synthesis quality, and
   update safety as write gates before persistence.
 
-The current page draft implementation is:
+The target page draft implementation is:
 
 ```text
 selected atoms + page operation
   -> deterministic PageAssemblyService
-  -> synthesis-generation agent
+  -> page-local prose generation agent
   -> deterministic Markdown renderer
-  -> semantic review agent
   -> deterministic IngestWriteGate
+  -> conditional semantic review when risk signals require it
 ```
 
 This keeps page structure stable and uses semantic generation for summary,
-synthesis, and complex update language rather than full page construction.
-The remaining target is to make semantic review conditional without weakening
-the deterministic write gate before persistence.
+synthesis, and complex update language rather than full page construction or
+source digest construction. The remaining implementation target is to make
+semantic review conditional without weakening the deterministic write gate
+before persistence.
 
 The first implementation of `PageAssemblyService` emits a `page_assembly.v1`
 payload for draft compilation. For each actionable operation it carries the
 operation identity, selected source digest ids, selected atom ids, numbered
 claims, linked entities, claim-backed relation triples, and evidence rows. The
 draft compile agent treats this payload as canonical scaffolding. It may write
-readable summary, synthesis, and safe update patch language, but it does not
-own claim selection, relation closure, entity closure, or evidence mapping.
+readable summary, synthesis, and safe update patch language for ordinary
+knowledge pages, but it does not own claim selection, relation closure, entity
+closure, evidence mapping, source digest ids, or source digest audit pages.
 
 ### Wiki Page Projection Contract
 
@@ -364,13 +365,15 @@ The target readable wiki layout is:
 wiki/
   pages/      # maintained knowledge pages
   sources/    # source digest and provenance pages
-  _views/     # generated browsing views and virtual facets
+  raw/        # archived normalized inputs
+  .knoarbor/  # machine indexes, logs, ledgers, and runtime state
 ```
 
 During migration, legacy paths such as `concepts/<slug>.md` or
 `entities/<slug>.md` may remain as aliases or existing pages. New schema and
 index work should avoid treating those path prefixes as the durable page type
-boundary.
+boundary. Generated browsing views and virtual facets are derived from machine
+indexes and UI projections; they are not written as canonical wiki directories.
 
 ## Prompt Boundary
 

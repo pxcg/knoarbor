@@ -217,10 +217,10 @@ uv run knoar vaults migrate-namespace --vault ./vaults/default --dir concepts
 uv run knoar vaults migrate-namespace --vault ./vaults/default --apply
 ```
 
-`migrate-layout` 处理更早期的根目录布局，把根目录下的页面目录移动到
-`pages/`。`migrate-namespace` 处理 `pages/` 内旧 typed 知识目录到统一 flat
+`migrate-layout` 处理更早期的根目录布局，把根目录下的旧知识目录移动到
+`pages/`，但保留 `sources/` 作为来源摘要和溯源审计目录。`migrate-namespace` 处理 `pages/` 内旧 typed 知识目录到统一 flat
 namespace 的迁移。该命令默认 dry-run，只报告计划；只有显式 `--apply` 才写文件。
-来源摘要页仍保留在 `pages/sources/`，`pages/_views/` 会重新生成。
+来源摘要页保留在 `sources/`；浏览视图由机器索引派生，并由 UI 渲染。
 
 ## 运行报告
 

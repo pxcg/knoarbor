@@ -18,7 +18,7 @@ from knoarbor.core.wiki_schema import (
     is_index_excluded_file,
 )
 from knoarbor.runtime import vault_write_lock
-from knoarbor.storage.wiki_paths import content_relative_path, content_root, vault_relative_path
+from knoarbor.storage.wiki_paths import SOURCE_DIGEST_ROOT_DIR, content_relative_path, content_root, source_digest_root, vault_relative_path
 
 
 ALLOWED_PAGE_KINDS = {
@@ -43,15 +43,14 @@ def relative_wiki_path(vault_path: Path, path: Path) -> str:
 
 
 def wiki_link_for_path(vault_path: Path, md_path: Path, title: str | None = None) -> str:
-    link_path = md_path.resolve().relative_to(content_root(vault_path).resolve()).with_suffix("").as_posix()
+    link_path = Path(relative_wiki_path(vault_path, md_path)).with_suffix("").as_posix()
     if title:
         return f"[[{link_path}|{title}]]"
     return f"[[{link_path}]]"
 
 
 def index_entry(vault_path: Path, md_path: Path) -> str:
-    relative = md_path.resolve().relative_to(content_root(vault_path).resolve()).with_suffix("")
-    link_path = relative.as_posix()
+    link_path = Path(relative_wiki_path(vault_path, md_path)).with_suffix("").as_posix()
     fallback_title = md_path.stem
 
     try:
@@ -286,16 +285,6 @@ def update_machine_index(vault_path: Path) -> None:
 def update_index(vault_path: Path) -> None:
     root = content_root(vault_path)
     root.mkdir(parents=True, exist_ok=True)
-    entries: dict[str, list[str]] = {UNIFIED_KNOWLEDGE_PAGE_DIR: []}
-    entries.update({name: [] for name in INDEX_PAGE_DIRS})
-    indexable_paths = _iter_indexable_page_paths(root)
-    page_records = _page_records_for_views(vault_path, indexable_paths)
-
-    for md_path in indexable_paths:
-        entries[_page_directory(vault_path, md_path)].append(index_entry(vault_path, md_path))
-
-    with vault_write_lock(vault_path):
-        _write_generated_views(root, page_records)
     update_machine_index(vault_path)
 
 
@@ -415,7 +404,7 @@ def _wiki_content_hash(vault_path: Path) -> str:
     root = content_root(vault_path)
     digest = sha256()
     for md_path in _iter_indexable_page_paths(root):
-        relative = md_path.resolve().relative_to(root.resolve()).as_posix()
+        relative = relative_wiki_path(vault_path, md_path)
         digest.update(relative.encode("utf-8"))
         digest.update(b"\0")
         digest.update(md_path.read_bytes())
@@ -590,9 +579,15 @@ def _extract_headings(content: str) -> list[str]:
 
 def _iter_indexable_page_paths(root: Path) -> list[Path]:
     paths: list[Path] = []
+    vault = root.parent if root.name == "pages" else root
+    source_root = source_digest_root(vault)
     for md_path in sorted(root.glob("*.md")):
         if not is_index_excluded_file(md_path.name):
             paths.append(md_path)
+    if source_root.exists():
+        for md_path in sorted(source_root.glob("*.md")):
+            if not is_index_excluded_file(md_path.name):
+                paths.append(md_path)
     for page_type in INDEX_PAGE_DIRS:
         page_dir = root / page_type
         if not page_dir.exists():
@@ -605,6 +600,11 @@ def _iter_indexable_page_paths(root: Path) -> list[Path]:
 
 def _page_directory(vault_path: Path, md_path: Path) -> str:
     root = content_root(vault_path)
+    try:
+        md_path.resolve().relative_to(source_digest_root(vault_path).resolve())
+        return SOURCE_DIGEST_ROOT_DIR
+    except ValueError:
+        pass
     if md_path.parent.resolve() == root.resolve():
         return UNIFIED_KNOWLEDGE_PAGE_DIR
     return md_path.parent.name

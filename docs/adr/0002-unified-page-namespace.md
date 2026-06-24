@@ -32,12 +32,10 @@ wiki/
     <slug>.md
   sources/
     <source-digest>.md
-  _views/
-    Concepts.md
-    Entities.md
-    Workflows.md
-    Comparisons.md
-    Open-Questions.md
+  .knoarbor/
+    index/
+      manifest.json
+      graph_index.json
 ```
 
 Knowledge pages live under `pages/`. Page type and classification are expressed
@@ -88,10 +86,10 @@ Virtual facets replace physical type directories:
 - `relations` becomes typed relation index data plus a page section.
 - `sources` remains a physical provenance directory.
 
-Generated `_views/` pages or console filters should provide human browsing
-entry points for concepts, entities, workflows, comparisons, recent pages, open
-questions, and source audit. These views replace the browsing role previously
-played by physical type directories.
+UI and index-derived views should provide human browsing entry points for
+concepts, entities, workflows, comparisons, recent pages, open questions, and
+source audit. These views replace the browsing role previously played by
+physical type directories without writing generated view pages into the wiki.
 
 ## Consequences
 
@@ -130,8 +128,8 @@ all existing files.
 4. Add canonical path resolution so old paths such as `concepts/X.md` can point
    to `pages/X.md` when migrated.
 5. Add a new ingest write mode for canonical `pages/` output.
-6. Generate `_views/` pages or equivalent console filters before broad physical
-   migration, so Obsidian and filesystem browsing do not degrade.
+6. Provide equivalent UI/index filters before broad physical migration, so
+   browsing does not depend on physical type directories.
 7. Migrate existing knowledge pages in controlled batches, updating wikilinks,
    atom refs, reports, and indexes.
 
@@ -169,6 +167,5 @@ Follow-up work should verify:
 - query and chat do not infer answer role from path prefix alone;
 - graph and UI show type/facet counts instead of relying on directory counts;
 - lint validates required page metadata and source digest separation;
-- `_views/` or equivalent UI filters keep browsing clear after physical
-  directory reduction;
+- UI/index filters keep browsing clear after physical directory reduction;
 - slug collision handling is deterministic and reported.

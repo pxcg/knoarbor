@@ -15,8 +15,8 @@ Source digest 是 `sources/` 下的来源摘要页面。它解释某个 raw sour
 Wiki page 是真正面向查询和维护的知识页面。维护后的页面位于 `pages/`：
 
 - `pages/<slug>.md`：普通知识页面。
-- `pages/sources/`：来源摘要页面。
-- `pages/_views/`：自动生成的浏览视图。
+- `sources/`：来源摘要页面。
+- 浏览视图由机器索引派生，并由 UI 渲染，不再写入物理目录。
 
 页面类型不再依赖必须存在的物理类型目录，而是由页面身份元数据表达：
 

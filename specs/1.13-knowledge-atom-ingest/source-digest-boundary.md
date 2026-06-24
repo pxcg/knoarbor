@@ -218,10 +218,10 @@ Default behavior:
 - Content hash: ...
 - Ingest run: ...
 
-## Source Summary
+## Audit Summary
 
-This source mainly discusses Agent Loop, tool calling, memory, and multi-agent
-orchestration.
+This audit record covers one Markdown source, 2 stable source units, 2 accepted
+contributions, 0 rejected contributions, and one raw source pointer.
 
 ## Source Units
 
@@ -253,9 +253,10 @@ orchestration.
   extraction and page drafting.
 - Source digests can be written as Markdown views, but they remain provenance
   artifacts rather than primary knowledge objects.
-- Source digest Markdown should use source identity, source summary, source
+- Source digest Markdown should use source identity, audit summary, source
   units, contribution map, unresolved/rejected material, and raw source
-  pointers. It should not use the ordinary knowledge-page
+  pointers. The audit summary is generated from processing facts rather than
+  semantic source prose. It should not use the ordinary knowledge-page
   `Claims`/`Entities`/`Relations`/`Evidence`/`Synthesis` section set.
 - Knowledge pages may reference source digests in their `Sources` or evidence
   mappings.

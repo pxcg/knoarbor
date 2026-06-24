@@ -89,9 +89,9 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 知识层保存维护后的 Wiki 页面，物理位置是 `vaults/default/pages/`。
 当你希望在 Obsidian 中打开干净的知识库时，应打开 `vaults/default/pages`，而不是整个 `vaults/default` 运行时工作区：
 
-- `pages/sources/`：来源摘要页面。
 - `pages/<slug>.md`：维护后的知识页面。
-- `pages/_views/`：按概念、实体、流程、对比、开放问题和来源审计生成的浏览视图。
+- `sources/*.md`：来源摘要和溯源审计页面。
+- UI 浏览视图由 `.knoarbor/index/manifest.json` 和 `.knoarbor/index/graph_index.json` 派生，不再作为 wiki fact 写入物理目录。
 
 知识页面的类型由页面身份元数据和索引 facets 表达：
 
@@ -100,7 +100,7 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 - `facets`：用于检索和浏览的多标签，例如 `agent_architecture`、`workflow_pattern`、`claims`、`relations`。
 - `canonical_path` 与 `legacy_paths`：迁移期间保持稳定解析的路径身份。
 
-`pages/concepts/`、`pages/entities/` 等旧 typed 目录在迁移期仍可读取，但新知识页写入统一的 flat namespace。来源摘要页仍保留在 `pages/sources/`。
+`pages/concepts/`、`pages/entities/` 等旧 typed 目录在迁移期仍可读取，但新知识页写入统一的 flat namespace。来源摘要页仍保留在 `sources/`。
 
 迁移状态：
 
@@ -200,15 +200,15 @@ connector discovery
   -> checkpoint window
   -> source segmentation
   -> source normalize agent
-  -> source digest + atom extraction
+  -> source digest audit projection + atom extraction
   -> source-level aggregation
   -> candidate page retrieval
   -> page planning
   -> claim / relation / evidence closure
   -> deterministic page assembly
-  -> synthesis generation
-  -> draft review
+  -> page-local prose generation
   -> deterministic write gate
+  -> conditional semantic draft review
   -> ingest write policy
   -> wiki write
   -> machine index + atom index
@@ -227,6 +227,8 @@ connector discovery
 - 长来源切分位于 `SourceDocument` 标准化之后、语义 ingest 之前。
 - 分段来源按 segment 处理，再在 source/window 边界聚合写入、报告和提交 checkpoint。
 - `IngestWritePolicy` 在写入前执行 source/window 级不变量：同一 raw source 在同一批 ingest 中最多创建一个 source digest。
+- source digest 页面是 provenance 审计视图，由 source units、已选择 atoms、写入结果、warning 和 raw 指针生成。它不是普通知识页，也不由页面 draft agent 撰写。
+- 普通知识页采用 claims-first 结构：已选择 claims 决定 entities、relations、evidence 和可读 synthesis。
 - ingest 默认不做宽泛词面 Related Pages 扫描，只保留 source digest 与同源生成页面之间的确定性 provenance 链接。
 - `ingest --input` 是一次性本地输入边界：Markdown 文件和文件夹直接进入共享 ingest；非 Markdown 必须先经过已配置的 MinerU-compatible 预处理器，缺少预处理器时显式失败。
 
@@ -235,7 +237,7 @@ connector discovery
 - `pipelines/ingest.py` 是编排外壳：connector 执行、segment 执行、写入/scoped lint/report 协调和 checkpoint 提交。
 - `pipelines/ingest_checkpoint.py` 负责 checkpoint 计划和提交载荷。
 - `pipelines/source_segmentation.py` 负责分段计划和 source-window 切分边界。
-- `pipelines/ingest_semantic.py` 负责语义 ingest 链路：source normalization、atom extraction、候选检索、page planning、draft compilation 和 draft review。
+- `pipelines/ingest_semantic.py` 负责语义 ingest 链路：source normalization、atom extraction、候选检索、page planning、page-local prose generation 和 conditional draft review。
 - `pipelines/ingest_context.py` 负责候选页面检索和 materialization。
 - `pipelines/ingest_postprocess.py` 负责 approval 之后的确定性写入/report/index 边界：写入已批准页面、记录生成页面、更新 atom index，并按配置运行 source-scoped deterministic lint。
 - `pipelines/ingest_metrics.py` 负责 source/segment 指标、脱敏统计聚合和语义 token 统计。

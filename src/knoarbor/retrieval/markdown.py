@@ -9,7 +9,7 @@ from knoarbor.core.wiki_schema import INDEX_EXCLUDED_DIRS, INDEX_PAGE_DIRS, UNIF
 from knoarbor.retrieval.bm25 import BM25Document, BM25Field, score_bm25_documents
 from knoarbor.retrieval.wiki_links import resolve_wikilink_target
 from knoarbor.storage import relative_wiki_path
-from knoarbor.storage.wiki_paths import content_root
+from knoarbor.storage.wiki_paths import SOURCE_DIGEST_ROOT_DIR, content_root, source_digest_root
 
 
 FIELD_WEIGHTS: dict[str, float] = {
@@ -141,9 +141,15 @@ def collect_search_pages(vault_path: Path) -> list[SearchPage]:
 
 def _iter_search_page_paths(root: Path) -> list[Path]:
     paths: list[Path] = []
+    vault = root.parent if root.name == "pages" else root
+    source_root = source_digest_root(vault)
     for md_path in sorted(root.glob("*.md")):
         if not is_index_excluded_file(md_path.name):
             paths.append(md_path)
+    if source_root.exists():
+        for md_path in sorted(source_root.glob("*.md")):
+            if not is_index_excluded_file(md_path.name):
+                paths.append(md_path)
     for page_dir in INDEX_PAGE_DIRS:
         directory_path = root / page_dir
         if not directory_path.exists():
@@ -156,13 +162,21 @@ def _iter_search_page_paths(root: Path) -> list[Path]:
 
 def _page_directory(vault_path: Path, md_path: Path) -> str:
     root = content_root(vault_path)
+    try:
+        md_path.resolve().relative_to(source_digest_root(vault_path).resolve())
+        return SOURCE_DIGEST_ROOT_DIR
+    except ValueError:
+        pass
     if md_path.parent.resolve() == root.resolve():
         return UNIFIED_KNOWLEDGE_PAGE_DIR
     return md_path.parent.name
 
 
 def should_skip_page(vault_path: Path, path: Path) -> bool:
-    parts = path.relative_to(content_root(vault_path)).parts
+    try:
+        parts = path.relative_to(content_root(vault_path)).parts
+    except ValueError:
+        parts = path.relative_to(source_digest_root(vault_path)).parts
     return is_index_excluded_file(path.name) or any(part in INDEX_EXCLUDED_DIRS for part in parts)
 
 

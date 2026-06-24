@@ -120,33 +120,29 @@ class WikiIndexStorageTests(unittest.TestCase):
         self.assertEqual(records["OpenClaw.md"]["page_kind"], "entity")
         self.assertIn("agent_platform", records["OpenClaw.md"]["facets"])
 
-    def test_update_index_generates_views_without_indexing_them_as_sources(self) -> None:
+    def test_update_index_keeps_generated_views_virtual(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
             pages = vault / "pages"
-            (pages / "sources").mkdir(parents=True)
+            sources = vault / "sources"
+            sources.mkdir(parents=True)
+            pages.mkdir(parents=True)
             (pages / "Agent-Loop.md").write_text(
                 "---\ntype: page\npage_kind: concept\nfacets: [agent-loop]\n---\n"
                 "# Agent Loop\n\n## Summary\n\nAgent loop coordinates model and tool execution.\n",
                 encoding="utf-8",
             )
-            (pages / "sources" / "Agent-Loop-Source.md").write_text(
+            (sources / "Agent-Loop-Source.md").write_text(
                 "---\ntype: source\npage_kind: source_digest\nrole: source_digest\n---\n"
                 "# Agent Loop Source\n\n## Summary\n\nSource digest for agent loop notes.\n",
                 encoding="utf-8",
             )
 
             update_index(vault)
-            home = (pages / "_views" / "Home.md").read_text(encoding="utf-8")
-            concepts = (pages / "_views" / "Concepts.md").read_text(encoding="utf-8")
-            source_audit = (pages / "_views" / "Source-Audit.md").read_text(encoding="utf-8")
             pages_index = json.loads((machine_index_dir(vault) / "pages.json").read_text(encoding="utf-8"))
             indexed_paths = {record["path"] for record in pages_index["pages"]}
 
-        self.assertIn("[[_views/Concepts|Concepts]]", home)
-        self.assertIn("[[Agent-Loop|Agent Loop]]", concepts)
-        self.assertIn("[[sources/Agent-Loop-Source|Agent Loop Source]]", source_audit)
-        self.assertIn("page_kind: generated_view", home)
+        self.assertFalse((pages / "_views").exists())
         self.assertNotIn("_views/Home.md", indexed_paths)
         self.assertEqual(indexed_paths, {"Agent-Loop.md", "sources/Agent-Loop-Source.md"})
 

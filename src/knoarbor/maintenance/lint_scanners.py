@@ -116,8 +116,6 @@ def _lint_page_structure(pages: list[LintPage]) -> list[WikiLintIssue]:
         actual_type = page.metadata.get("type")
         if page.directory != UNIFIED_KNOWLEDGE_PAGE_DIR and expected_type and actual_type and actual_type != expected_type:
             issues.append(_issue("frontmatter_type_mismatch", "error", page.relative_path, "Frontmatter type does not match the containing directory.", {"expected": expected_type, "actual": actual_type}))
-        if page.directory == UNIFIED_KNOWLEDGE_PAGE_DIR and page.is_knowledge_page and page.page_kind == "unknown":
-            issues.append(_issue("missing_page_identity_metadata", "warning", page.relative_path, "Unified knowledge page is missing page_kind metadata.", {"role": page.role}))
         if page.is_source_digest and page.directory != "sources":
             issues.append(_issue("source_digest_wrong_location", "warning", page.relative_path, "Source digest pages should stay under the sources directory.", {"role": page.role, "page_kind": page.page_kind}))
         for section in _required_sections_for_page(page):

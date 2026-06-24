@@ -10,11 +10,11 @@ so progress does not depend on conversation context.
 | --- | --- | --- | --- | --- |
 | 1 | Source Input | Frozen | Connectors, document processors, `SourceDocument`, checkpoint identity | Raw materials become normalized source documents with source identity, raw state, fingerprint, stable session raw indexes, and checkpoint windows. |
 | 2 | Source Segmentation | Frozen | `SourceSegmenter` | Long sources are split for budget and source-range preservation. Segmentation does not decide page boundaries or writes. |
-| 3 | Segment-level Semantic Extraction | Done | `source_normalize`, `wiki_atom_extract`, `knowledge_atoms.v2` | Extract claims, entities, relations, and evidence from each source or segment. This is where claims are created. |
-| 4 | Source-level Aggregation | Done | `AggregatedSemanticArtifacts` | Merge segment extracts, remap evidence ranges, deduplicate atoms, rebuild source-level digest, and emit source-level atom quality. |
+| 3 | Segment-level Semantic Extraction | Frozen | `source_normalize`, `wiki_atom_extract`, `knowledge_atoms.v2` | Extract claims, entities, relations, and evidence from each source or segment. This is where claims are created. |
+| 4 | Source-level Aggregation | Frozen | `AggregatedSemanticArtifacts` | Merge segment extracts, remap evidence ranges, deduplicate atoms, rebuild source-level digest audit data, and emit source-level atom quality. |
 | 5 | Page Planning | Frozen | `WikiPagePlan` | Decide create/update/skip and select claim ids per page. It should not retrieve, write, or assemble page bodies. |
 | 6 | Claim / Relation / Evidence Closure | Frozen | `knowledge_atom_closure` | Given selected claims, deterministically close supported relations, entities, evidence, and source digest traces. |
-| 7 | Page Assembly / Draft Compile | Done | `PageAssemblyService` + narrowed synthesis generation | Assemble identity, claims, relations, entities, evidence, and Markdown skeleton deterministically; use LLM mainly for synthesis. |
+| 7 | Page Assembly / Draft Compile | Frozen | `PageAssemblyService` + page-local prose generation | Assemble identity, claims, relations, entities, evidence, and Markdown skeleton deterministically; use LLM mainly for summary, synthesis, and safe update prose. |
 | 8 | Review / Write Gate | Partial | `IngestWriteGate`, draft review agent | Split deterministic write gate from semantic review and make review conditional on risk signals. |
 | 9 | Write / Report / Index | Frozen | `IngestPostProcessor`, `WikiWritePipeline`, atom index, graph/manifest reports | Persist approved pages, refresh indexes, run scoped maintenance, commit checkpoints, and emit reports without creating new semantic decisions. |
 
@@ -24,7 +24,7 @@ implementation notes, and future SDD updates:
 | Substep | Name | Input | Output | Execution |
 | --- | --- | --- | --- | --- |
 | 3.1 | Normalize Source Segment | `SourceDocument` | `KnowledgeExtract` | Model |
-| 3.2 | Build Source Digest | `KnowledgeExtract` | `SourceDigest` | Code |
+| 3.2 | Build Source Digest Audit | `KnowledgeExtract` | `SourceDigest` | Code |
 | 3.3 | Extract Knowledge Atoms | `SourceDigest` | `KnowledgeAtomBatch` | Model |
 | 3.4 | Validate Knowledge Atoms | `KnowledgeAtomBatch` | `KnowledgeAtomQualityReport` | Code |
 
@@ -36,8 +36,8 @@ Step 3 artifacts are first-class outputs:
 
 - `KnowledgeExtract` preserves normalized source units after semantic cleanup.
 - `SourceDigest` provides the data layer for source digest audit pages:
-  source identity, source summary, source units, raw source pointer,
-  source-level unresolved items, and later contribution-map fields.
+  source identity, code-generated audit summary, source units, raw source
+  pointer, source-level unresolved items, and later contribution-map fields.
 - `KnowledgeAtomBatch` carries claims, entities, relations, and evidence.
 - `KnowledgeAtomQualityReport` records unsupported, conflicting, duplicate, or
   unused atom signals before page planning.
@@ -49,7 +49,7 @@ planning:
 | Substep | Name | Input | Output | Execution |
 | --- | --- | --- | --- | --- |
 | 4.1 | Merge Source Units | segment `KnowledgeExtract` list | source-level `KnowledgeExtract` | Code |
-| 4.2 | Rebuild Source Digest Audit | source-level `KnowledgeExtract` + atoms | enriched `SourceDigest` | Code |
+| 4.2 | Rebuild Source Digest Audit | source-level `KnowledgeExtract` + atoms + write/result facts | enriched `SourceDigest` | Code |
 | 4.3 | Merge Knowledge Atoms | segment `KnowledgeAtomBatch` list | source-level `KnowledgeAtomBatch` | Code |
 | 4.4 | Validate Aggregated Atoms | source-level `KnowledgeAtomBatch` | source-level `KnowledgeAtomQualityReport` | Code |
 
@@ -189,8 +189,14 @@ reports must preserve generated page paths even if a later index step fails.
 - [x] Add deterministic claim/relation/evidence closure as a reusable service.
 - [x] Add deterministic `PageAssemblyService` for identity, entities,
   relations, evidence, and Markdown skeleton.
-- [x] Narrow `wiki_draft_compile` into synthesis-generation behavior.
+- [x] Narrow `wiki_draft_compile` into page-local prose-generation behavior.
 - [x] Add deterministic `IngestWriteGate` before persistence.
+- [ ] Remove source digest audit page writing from page planning and draft
+  compilation.
+- [ ] Generate source digest audit Markdown from source units, selected atoms,
+  write results, unresolved items, and raw pointers.
+- [ ] Narrow `wiki_draft_compile` payloads so the model receives selected page
+  scaffolds, not source digest audit pages or broad source text.
 - [ ] Make semantic draft review conditional on risk, update, conflict,
   duplicate, or failed-gate signals.
 - [ ] Separate deterministic gate decisions and semantic review decisions in

@@ -10,19 +10,24 @@ from knoarbor.core.schemas.page_identity import PageIdentity, normalize_facet
 from knoarbor.core.schemas.wiki_lint import WikiLintIssue
 from knoarbor.core.wiki_schema import FRONTMATTER_TYPES, INDEX_PAGE_DIRS, UNIFIED_KNOWLEDGE_PAGE_DIR, is_index_excluded_file
 from knoarbor.maintenance.lint_models import LintPage
-from knoarbor.storage.wiki_paths import content_root
+from knoarbor.storage.wiki_paths import SOURCE_DIGEST_ROOT_DIR, content_relative_path, content_root, source_digest_root
 
 
 def collect_pages(vault_path: Path) -> list[LintPage]:
     pages: list[LintPage] = []
     root = content_root(vault_path)
-    for md_path in _iter_lint_page_paths(root):
+    source_root = source_digest_root(vault_path)
+    seen_relative_paths: set[str] = set()
+    for md_path in _iter_lint_page_paths(root, source_root):
         try:
             content = md_path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             content = ""
-        relative_path = md_path.relative_to(root).as_posix()
-        directory = _page_directory(root, md_path)
+        relative_path = content_relative_path(vault_path, md_path)
+        if relative_path in seen_relative_paths:
+            continue
+        seen_relative_paths.add(relative_path)
+        directory = _page_directory(root, source_root, md_path)
         metadata = parse_frontmatter(content) if content else {}
         title = extract_heading(content, md_path.stem) if content else md_path.stem
         identity = _page_identity(relative_path, directory, metadata, title, content)
@@ -46,11 +51,12 @@ def collect_pages(vault_path: Path) -> list[LintPage]:
     return pages
 
 
-def _iter_lint_page_paths(root: Path) -> list[Path]:
+def _iter_lint_page_paths(root: Path, source_root: Path) -> list[Path]:
     paths: list[Path] = []
-    for md_path in sorted(root.glob("*.md")):
-        if not is_index_excluded_file(md_path.name):
-            paths.append(md_path)
+    if root.exists():
+        for md_path in sorted(root.glob("*.md")):
+            if not is_index_excluded_file(md_path.name):
+                paths.append(md_path)
     for directory in INDEX_PAGE_DIRS:
         page_dir = root / directory
         if not page_dir.exists():
@@ -58,10 +64,19 @@ def _iter_lint_page_paths(root: Path) -> list[Path]:
         for md_path in sorted(page_dir.glob("*.md")):
             if not is_index_excluded_file(md_path.name):
                 paths.append(md_path)
+    if source_root.exists():
+        for md_path in sorted(source_root.glob("*.md")):
+            if not is_index_excluded_file(md_path.name):
+                paths.append(md_path)
     return paths
 
 
-def _page_directory(root: Path, md_path: Path) -> str:
+def _page_directory(root: Path, source_root: Path, md_path: Path) -> str:
+    try:
+        md_path.resolve().relative_to(source_root.resolve())
+        return SOURCE_DIGEST_ROOT_DIR
+    except ValueError:
+        pass
     if md_path.parent.resolve() == root.resolve():
         return UNIFIED_KNOWLEDGE_PAGE_DIR
     return md_path.parent.name

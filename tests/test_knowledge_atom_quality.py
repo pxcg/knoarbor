@@ -9,6 +9,7 @@ from knoarbor.core.schemas.knowledge_atoms import (
     KnowledgeEvidenceSpan,
     KnowledgeRelation,
 )
+from knoarbor.semantic.knowledge_atom_normalization import normalize_knowledge_atom_batch
 from knoarbor.semantic.knowledge_atom_quality import evaluate_knowledge_atoms
 
 
@@ -130,6 +131,37 @@ class KnowledgeAtomQualityTests(unittest.TestCase):
         issues = [issue for issue in report.issues if issue.issue_type == "undefined_entity_reference"]
         self.assertEqual(len(issues), 2)
         self.assertEqual(report.summary()["rejected"], 2)
+
+    def test_normalization_closes_undeclared_entity_references(self) -> None:
+        batch = KnowledgeAtomBatch(
+            source_digest_id="sd_agent",
+            entities=[KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop", atom_id="entity_agent_loop")],
+            claims=[
+                KnowledgeClaim(
+                    id="claim_agent_loop",
+                    claim="Agent Loop coordinates tool governance.",
+                    claim_type="definition",
+                    evidence=[_evidence()],
+                    entity_names=["Agent Loop", "Tool Governance"],
+                )
+            ],
+            relations=[
+                KnowledgeRelation(
+                    id="rel_agent_loop_tools",
+                    subject=KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop"),
+                    predicate="coordinates",
+                    object=KnowledgeAtomObject(object_type="knowledge_object", name="Tool Governance"),
+                    source_claim_ids=["claim_agent_loop"],
+                )
+            ],
+        )
+
+        normalized = normalize_knowledge_atom_batch(batch)
+        report = evaluate_knowledge_atoms(normalized)
+
+        self.assertIn("Tool Governance", [entity.name for entity in normalized.entities])
+        self.assertTrue(any(item.startswith("auto_declared_entity:Tool Governance") for item in normalized.warnings))
+        self.assertNotIn("undefined_entity_reference", {issue.issue_type for issue in report.issues})
 
     def test_quality_report_flags_entities_not_used_by_claims_or_relations(self) -> None:
         batch = KnowledgeAtomBatch(

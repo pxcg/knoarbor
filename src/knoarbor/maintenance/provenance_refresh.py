@@ -8,7 +8,7 @@ from knoarbor.core.markdown import extract_list_items, extract_section, parse_fr
 from knoarbor.core.schemas.wiki_write import WikiDraftBatchWriteItem, WikiDraftBatchWriteRequest, WikiDraftBatchWriteResponse, WikiDraftInput
 from knoarbor.pipelines.write import WikiWritePipeline
 from knoarbor.storage.wiki_index import relative_wiki_path, update_index
-from knoarbor.storage.wiki_paths import content_root, normalize_source_digest_title, resolve_existing_target
+from knoarbor.storage.wiki_paths import normalize_source_digest_title, resolve_existing_target, source_digest_root
 
 
 @dataclass
@@ -180,7 +180,7 @@ class ProvenanceRefreshExecutor:
 
 def _source_digest_by_source(vault_path: Path) -> dict[str, str]:
     mapping: dict[str, str] = {}
-    sources_dir = content_root(vault_path) / "sources"
+    sources_dir = source_digest_root(vault_path)
     if not sources_dir.exists():
         return mapping
     for page_path in sorted(sources_dir.glob("*.md")):

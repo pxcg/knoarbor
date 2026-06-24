@@ -496,10 +496,11 @@ connectors: {{}}
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault_path = Path(tmp_dir) / "vaults" / "all"
             init_wiki_vault(vault_path)
-            (content_root(vault_path) / "concepts" / "Unit.md").write_text(
+            (content_root(vault_path) / "Unit.md").write_text(
                 "# Unit\n\n## Summary\n\nA unit page.\n",
                 encoding="utf-8",
             )
+            (vault_path / "raw" / "notes").mkdir(parents=True)
             (vault_path / "raw" / "notes" / "unit.md").write_text("# Unit", encoding="utf-8")
             client = TestClient(create_app())
 
@@ -508,7 +509,7 @@ connectors: {{}}
             self.assertEqual(response.status_code, 200)
             payload = response.json()
             self.assertEqual(payload["pages"], 1)
-            self.assertEqual(payload["directories"]["concepts"], 1)
+            self.assertEqual(payload["directories"]["pages"], 1)
             self.assertEqual(payload["raw_sources"], 1)
             self.assertIsInstance(payload["issues"], int)
 
@@ -516,11 +517,11 @@ connectors: {{}}
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault_path = Path(tmp_dir) / "vaults" / "all"
             init_wiki_vault(vault_path)
-            source_path = content_root(vault_path) / "sources" / "Source.md"
-            concept_path = content_root(vault_path) / "concepts" / "Agent-Loop.md"
+            source_path = vault_path / "sources" / "Source.md"
+            concept_path = content_root(vault_path) / "Agent-Loop.md"
             source_path.write_text(
                 "# Source\n\n---\ntype: source\nsource: raw/notes/source.md\ntags: [source-digest]\n---\n\n"
-                "## Summary\n\nSource summary.\n\n## Related Pages\n\n- [[concepts/Agent-Loop|Agent Loop]]\n",
+                "## Summary\n\nSource summary.\n\n## Related Pages\n\n- [[Agent-Loop|Agent Loop]]\n",
                 encoding="utf-8",
             )
             concept_path.write_text(
@@ -546,7 +547,7 @@ connectors: {{}}
             self.assertIn("source_digest", source_node["facets"])
             self.assertEqual(payload["stats"]["tag_counts"]["agent"], 1)
             self.assertEqual(payload["edges"][0]["source"], "sources/Source.md")
-            self.assertEqual(payload["edges"][0]["target"], "concepts/Agent-Loop.md")
+            self.assertEqual(payload["edges"][0]["target"], "Agent-Loop.md")
 
 
 if __name__ == "__main__":

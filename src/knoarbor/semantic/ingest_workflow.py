@@ -14,9 +14,11 @@ from knoarbor.core.schemas.sources import SourceDocument
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
 from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
 from knoarbor.semantic.ingest_compile_context import build_ingest_compile_context
+from knoarbor.semantic.knowledge_atom_normalization import normalize_knowledge_atom_batch
 from knoarbor.semantic.knowledge_atom_closure import close_plan_atoms
 from knoarbor.semantic.knowledge_atom_quality import evaluate_knowledge_atoms
 from knoarbor.semantic.page_assembly import build_page_assembly_payload
+from knoarbor.semantic.page_projection import project_draft_batch_from_page_assembly
 from knoarbor.semantic.runner import SemanticRunner
 from knoarbor.semantic.source_digest import build_source_digest_from_extract
 from knoarbor.semantic.source_normalize import build_source_normalize_input
@@ -65,6 +67,7 @@ class IngestSemanticWorkflow:
         wiki_draft_batch = self.compile_drafts(
             knowledge_extract,
             wiki_page_plan,
+            source_digest=source_digest,
             knowledge_atom_batch=knowledge_atom_batch,
             candidate_page_context=candidate_page_context,
             max_tokens=max_tokens,
@@ -105,7 +108,7 @@ class IngestSemanticWorkflow:
             {"source_digest": source_digest.model_dump()},
             max_tokens=max_tokens,
         )
-        return _expect_output(result.output, KnowledgeAtomBatch)
+        return normalize_knowledge_atom_batch(_expect_output(result.output, KnowledgeAtomBatch))
 
     def validate_atoms(self, knowledge_atom_batch: KnowledgeAtomBatch) -> KnowledgeAtomQualityReport:
         return evaluate_knowledge_atoms(knowledge_atom_batch)
@@ -138,6 +141,7 @@ class IngestSemanticWorkflow:
         knowledge_extract: KnowledgeExtract,
         wiki_page_plan: WikiPagePlan,
         *,
+        source_digest: SourceDigest | None = None,
         knowledge_atom_batch: KnowledgeAtomBatch | None = None,
         candidate_page_context: dict[str, Any] | None = None,
         ingest_compile_context: IngestCompileContext | dict[str, Any] | None = None,
@@ -149,6 +153,10 @@ class IngestSemanticWorkflow:
             candidate_page_context,
             ingest_compile_context,
         )
+        page_assembly = build_page_assembly_payload(
+            knowledge_atom_batch,
+            wiki_page_plan,
+        )
         result = self.runner.run(
             "wiki_draft_compile",
             {
@@ -156,16 +164,19 @@ class IngestSemanticWorkflow:
                     knowledge_atom_batch,
                     wiki_page_plan,
                 ),
-                "page_assembly": build_page_assembly_payload(
-                    knowledge_atom_batch,
-                    wiki_page_plan,
-                ),
+                "page_assembly": page_assembly,
                 "ingest_compile_context": _model_compile_context_payload(compile_context),
             },
             max_tokens=max_tokens,
         )
         draft_batch = _expect_output(result.output, WikiDraftBatch)
-        return _with_runtime_model_metadata(draft_batch, provider=result.provider, model=result.model)
+        draft_batch = _with_runtime_model_metadata(draft_batch, provider=result.provider, model=result.model)
+        return project_draft_batch_from_page_assembly(
+            draft_batch,
+            page_assembly,
+            wiki_page_plan,
+            source_digest or build_source_digest_from_extract(knowledge_extract),
+        )
 
     def review_drafts(
         self,

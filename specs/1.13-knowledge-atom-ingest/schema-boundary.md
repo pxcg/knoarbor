@@ -153,7 +153,7 @@ or raw segment contributed to the maintained wiki.
 Recommended source digest sections:
 
 - `Source Identity`
-- `Source Summary`
+- `Audit Summary`
 - `Source Units`
 - `Contribution Map`
 - `Unresolved / Rejected`
@@ -164,6 +164,9 @@ Source digest rules:
 - The digest is organized by source, not by subject.
 - It should record stable source units, downstream page contributions,
   rejected material, unresolved material, and raw source references.
+- `Audit Summary` is generated from processing facts. It describes source
+  identity, unit count, accepted contribution count, unresolved count, and raw
+  pointer status. It is not an AI-authored knowledge summary.
 - It should not duplicate ordinary wiki-page `Claims`, `Entities`,
   `Relations`, `Evidence`, or `Synthesis` sections. Accepted claim and relation
   ids may appear inside `Contribution Map` only as audit pointers.

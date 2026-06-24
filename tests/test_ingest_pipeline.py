@@ -36,7 +36,7 @@ from knoarbor.runtime import RunMonitor, run_monitor_context
 from knoarbor.semantic.knowledge_atom_quality import evaluate_knowledge_atoms
 from knoarbor.semantic.source_digest import build_source_digest_from_extract
 from knoarbor.storage.knowledge_atom_index import read_knowledge_atom_records
-from knoarbor.storage.wiki_paths import content_root
+from knoarbor.storage.wiki_paths import content_root, source_digest_root
 
 
 class FakeIngestSemanticWorkflow:
@@ -817,7 +817,7 @@ class IngestPipelineTests(unittest.TestCase):
 
             result = pipeline.run(config, connector_names=["markdown"], write=True, write_report=False, append_ledger=False)
             source = result.results[0]
-            source_pages = sorted((content_root(vault) / "sources").glob("*.md"))
+            source_pages = sorted(source_digest_root(vault).glob("*.md"))
             self.assertEqual(len(source_pages), 1)
             self.assertEqual(result.stats["written_count"], 1)
             self.assertEqual(source.generated_pages, ["sources/Long-Source-Digest.md"])

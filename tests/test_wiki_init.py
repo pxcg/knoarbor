@@ -23,7 +23,11 @@ class WikiInitTests(unittest.TestCase):
             self.assertTrue((vault / ".knoarbor" / "index" / "manifest.json").exists())
             self.assertTrue((vault / ".knoarbor" / "index" / "graph_index.json").exists())
             self.assertTrue((vault / ".knoarborignore").exists())
-            self.assertTrue((vault / "raw" / "documents" / "markdown").is_dir())
+            self.assertTrue((vault / "raw").is_dir())
+            self.assertTrue((vault / "sources").is_dir())
+            self.assertFalse((vault / "pages" / "concepts").exists())
+            self.assertFalse((vault / "pages" / "_views").exists())
+            self.assertFalse((vault / "raw" / "documents" / "markdown").exists())
             self.assertIn("pages/SCHEMA.md", result.created_paths)
 
     def test_migrate_wiki_pages_layout_moves_legacy_content_only(self) -> None:

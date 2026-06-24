@@ -90,12 +90,12 @@ Rules:
 
 The knowledge layer stores maintained wiki pages under `vaults/default/pages/`.
 Open `vaults/default/pages` in Obsidian when you want a clean vault without raw sources,
-reports, or machine state:
+source audit pages, reports, or machine state:
 
-- `pages/sources/`: source digest pages.
 - `pages/<slug>.md`: maintained knowledge pages.
-- `pages/_views/`: generated browsing views for concepts, entities, workflows,
-  comparisons, open questions, and source audit.
+- `sources/*.md`: source digest and provenance audit pages.
+- UI browsing views are derived from `.knoarbor/index/manifest.json` and
+  `.knoarbor/index/graph_index.json`; they are not written as wiki facts.
 
 Knowledge-page type is expressed through page identity metadata and indexed
 facets:
@@ -110,7 +110,7 @@ facets:
 Legacy typed directories such as `pages/concepts/` and `pages/entities/` remain
 readable during migration, but new knowledge-page writes target the unified
 flat page namespace. Source digest pages remain physically separated under
-`pages/sources/`.
+`sources/`.
 
 Migration status:
 
@@ -220,15 +220,15 @@ connector discovery
   -> checkpoint window
   -> source segmentation
   -> source normalize agent
-  -> source digest + atom extraction
+  -> source digest audit projection + atom extraction
   -> source-level aggregation
   -> candidate page retrieval
   -> page planning
   -> claim / relation / evidence closure
   -> deterministic page assembly
-  -> synthesis generation
-  -> draft review
+  -> page-local prose generation
   -> deterministic write gate
+  -> conditional semantic draft review
   -> ingest write policy
   -> wiki write
   -> machine index + atom index
@@ -247,6 +247,8 @@ Responsibilities:
 - long-source segmentation belongs after `SourceDocument` normalization and before semantic ingest;
 - segmented sources are processed segment by segment, then aggregated at the source/window boundary before write, report, and checkpoint commit.
 - `IngestWritePolicy` enforces source/window-level write invariants before vault writes: one raw source may create at most one source digest in one ingest batch.
+- source digest pages are provenance audit views generated from source units, selected atoms, write results, warnings, and raw pointers. They are not ordinary knowledge pages and are not authored by the page draft agent.
+- ordinary wiki page structure is claims-first: selected claims determine linked entities, relation triples, evidence rows, and the readable synthesis layer.
 - ingest writes disable broad lexical Related Pages scanning by default. They keep deterministic provenance links between the source digest and pages generated from the same source; weak topical links should be reviewed by lint or surfaced by query.
 - `ingest --input` is the one-off local input boundary: Markdown files and folders enter the shared ingest path directly; non-Markdown files must pass through the configured MinerU-compatible preprocessor first, and missing preprocessors fail explicitly.
 
@@ -255,7 +257,7 @@ Implementation boundary:
 - `pipelines/ingest.py` is the orchestration shell: connector execution, segment execution, report coordination, and checkpoint commit.
 - `pipelines/ingest_checkpoint.py` owns checkpoint planning, checkpoint commit payloads, and the checkpoint-commit eligibility rule. Checkpoints advance only after approved writes or a source-level semantic skip.
 - `pipelines/source_segmentation.py` owns segment planning and source-window chunk boundaries.
-- `pipelines/ingest_semantic.py` owns the semantic ingest agent chain: source normalization, atom extraction, candidate retrieval, page planning, draft compilation, and draft review.
+- `pipelines/ingest_semantic.py` owns the semantic ingest agent chain: source normalization, atom extraction, candidate retrieval, page planning, page-local prose generation, and conditional draft review.
 - `pipelines/ingest_context.py` owns candidate page retrieval and materialization.
 - `pipelines/ingest_postprocess.py` owns the deterministic write/report/index boundary after approval: approved draft write commits, generated page recording, atom-index updates, and source-scoped deterministic lint.
 - `pipelines/ingest_metrics.py` owns source/segment metrics, redaction aggregation, and semantic token statistics.

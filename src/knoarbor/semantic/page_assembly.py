@@ -158,7 +158,7 @@ def _evidence_range(span: KnowledgeEvidenceSpan) -> str:
 
 
 def _compact_excerpt(text: str, *, limit: int = 220) -> str:
-    compact = " ".join(text.split())
+    compact = " ".join(text.replace("|", "/").split())
     if len(compact) <= limit:
         return compact
     return compact[: limit - 1].rstrip() + "…"

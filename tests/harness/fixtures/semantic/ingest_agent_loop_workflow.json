@@ -229,11 +229,18 @@
           "rel_agent_loop_mentions_control"
         ],
         "canonical_path": "Agent-Loop.md",
-        "claims": [],
+        "claims": [
+          "C1. [[Agent Loop]] is an observe, decide, act, feedback cycle and a reusable control pattern for agents."
+        ],
         "confidence": 0.9,
         "definition": "Agent Loop is a basic control cycle for agents.",
-        "entities": [],
-        "evidence": [],
+        "entities": [
+          "[[Agent Loop]]",
+          "[[Agent Control]]"
+        ],
+        "evidence": [
+          "C1 | sd_test_agent | unit:0 | Agent loop is observe, decide, act, feedback. | high"
+        ],
         "facets": [
           "agent_loop",
           "agent_architecture"
@@ -251,7 +258,9 @@
         "page_kind": "concept",
         "patches": [],
         "question": "Agent Loop",
-        "relations": [],
+        "relations": [
+          "[[Agent Loop]] | includes | [[Agent Control]] | C1"
+        ],
         "source_digest_ids": [
           "sd_test_agent"
         ],

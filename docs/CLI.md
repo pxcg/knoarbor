@@ -291,15 +291,16 @@ uv run knoar vaults migrate-namespace --vault ./vaults/default --dir concepts
 uv run knoar vaults migrate-namespace --vault ./vaults/default --apply
 ```
 
-`migrate-layout` moves legacy root-level page directories such as `concepts/`,
-`entities/`, and `sources/` into `pages/`. It does not move `raw/`,
-`maintenance/`, or `.knoarbor/`.
+`migrate-layout` moves legacy root-level knowledge directories such as
+`concepts/` and `entities/` into `pages/`. It keeps `sources/` as the source
+digest and provenance audit directory, and does not move `raw/`, `maintenance/`,
+or `.knoarbor/`.
 
 `migrate-namespace` plans migration from legacy typed knowledge directories
 inside `pages/` into the flat namespace. It is a dry-run by default and reports
 planned moves, link rewrites, skipped paths, and conflicts. `--apply` is
-required to write files. Source digest pages stay under `pages/sources/`; views
-under `pages/_views/` are regenerated.
+required to write files. Source digest pages stay under `sources/`; browsing
+views are derived from machine indexes and rendered by the UI.
 
 ### `reports`
 

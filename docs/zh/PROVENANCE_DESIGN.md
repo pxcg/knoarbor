@@ -15,7 +15,7 @@
 | 层级 | 目录/字段 | 职责 |
 | --- | --- | --- |
 | Raw Source | `raw/**` | 原始输入，原则上不可改写。 |
-| Source Digest | `pages/sources/*.md` | 对单个 raw source 的可读摘要、重点和生成页反向链接。 |
+| Source Digest | `sources/*.md` | 对单个 raw source 的可读摘要、重点和生成页反向链接。 |
 | Knowledge Page | `pages/<slug>.md` | 面向复用的知识对象页面。页面类型和 facets 保存在元数据中，声明和类型化关系保存在页面内部与机器 atom 索引中。 |
 
 `pages/concepts/`、`pages/entities/` 等旧 typed 目录在迁移期仍可读取，但不再作为规范的类型系统。

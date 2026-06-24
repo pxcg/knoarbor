@@ -57,9 +57,9 @@ KnoArbor 会把 Markdown 笔记、AI 对话记录和已解析文档编译成本�
 KnoArbor 会把页面写入一个普通的本地 Markdown 工作区：
 
 - `pages/`：面向 Obsidian 的干净 Wiki 根目录。需要在 Obsidian 中查看时，打开这个目录。
-- `pages/sources/`：来源摘要页面，说明某个原始资料贡献了什么内容。
+- `sources/`：来源摘要页面，说明某个原始资料贡献了什么内容。
 - `pages/<slug>.md`：维护后的知识页面。页面身份元数据记录 `page_kind`、`role`、`facets`、`canonical_path` 和 `legacy_paths`。
-- `pages/_views/`：按概念、实体、流程、对比、开放问题和来源审计生成的浏览视图。
+- UI 浏览视图由机器索引派生，不再写成 wiki 页面。
 - `raw/`：不可变的原始资料或标准化后的资料副本。
 - `maintenance/`：人类可读的运行报告。
 - `.knoarbor/`：机器状态、索引、账本、锁和运行记录。

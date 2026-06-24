@@ -273,7 +273,7 @@ class WikiWritePipelineTests(unittest.TestCase):
             output_path = Path(response.results[0].wiki_file_path)
             content = output_path.read_text(encoding="utf-8")
 
-            self.assertEqual(output_path.resolve().relative_to((vault / "pages").resolve()).as_posix(), "sources/LLM-Wiki-Source.md")
+            self.assertEqual(output_path.resolve().relative_to(vault.resolve()).as_posix(), "sources/LLM-Wiki-Source.md")
             self.assertEqual(output_path.name, "LLM-Wiki-Source.md")
             self.assertIn("# LLM-Wiki Source", content)
             self.assertIn("## Source Identity", content)

@@ -7,7 +7,7 @@ from pathlib import Path
 from knoarbor.core.markdown import wiki_target_key
 from knoarbor.storage import ensure_machine_index, machine_index_dir
 from knoarbor.storage.wiki_index import relative_wiki_path
-from knoarbor.storage.wiki_paths import content_root
+from knoarbor.storage.wiki_paths import content_root, source_digest_root
 
 
 @dataclass(frozen=True)
@@ -88,8 +88,9 @@ def _page_records(vault_path: Path) -> list[dict[str, object]]:
 
 def _fallback_page_records(vault_path: Path) -> list[dict[str, object]]:
     root = content_root(vault_path)
+    source_root = source_digest_root(vault_path)
     records: list[dict[str, object]] = []
-    for md_path in sorted(root.rglob("*.md")):
+    for md_path in [*sorted(root.rglob("*.md")), *sorted(source_root.rglob("*.md"))]:
         if not md_path.is_file():
             continue
         records.append({"path": relative_wiki_path(vault_path, md_path), "title": md_path.stem, "legacy_paths": []})

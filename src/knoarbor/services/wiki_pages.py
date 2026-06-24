@@ -10,7 +10,8 @@ from knoarbor.core.errors import UserInputError, VaultPathError, WikiPageNotFoun
 from knoarbor.core.markdown import compact_inline_text, extract_heading, extract_section, extract_tags, parse_frontmatter
 from knoarbor.retrieval.page_resolver import resolve_page_reference
 from knoarbor.storage import ensure_machine_index, machine_index_dir
-from knoarbor.storage.wiki_paths import content_root
+from knoarbor.storage.wiki_index import relative_wiki_path
+from knoarbor.storage.wiki_paths import content_path
 
 
 class WikiPageSummary(BaseModel):
@@ -84,7 +85,7 @@ class WikiPageService:
         vault = _resolve_vault(vault_path)
         page_path = _resolve_vault_file(vault, relative_path)
         content = page_path.read_text(encoding="utf-8")
-        page_relative = page_path.relative_to(content_root(vault)).as_posix()
+        page_relative = relative_wiki_path(vault, page_path)
         links = self.page_links(vault, page_relative, vault_id=vault_id, vault_name=vault_name)
         return WikiPageDetail(
             path=page_relative,
@@ -130,12 +131,12 @@ def _resolve_vault(vault_path: Path) -> Path:
 
 
 def _resolve_vault_file(vault_path: Path, relative_path: str) -> Path:
-    root = content_root(vault_path)
     resolution = resolve_page_reference(vault_path, relative_path)
     resolved_relative_path = resolution.resolved_path or relative_path
-    page_path = (root / resolved_relative_path).resolve()
+    page_path = content_path(vault_path, resolved_relative_path).resolve()
+    vault = vault_path.expanduser().resolve()
     try:
-        page_path.relative_to(root)
+        page_path.relative_to(vault)
     except ValueError as exc:
         raise VaultPathError("Path must stay inside the configured vault") from exc
     if not page_path.exists() or not page_path.is_file():
@@ -204,7 +205,7 @@ def _summary_from_record(record: dict[str, object]) -> WikiPageSummary:
 
 def _summary_from_content(vault_path: Path, path: Path, content: str) -> WikiPageSummary:
     metadata = parse_frontmatter(content)
-    relative = path.relative_to(content_root(vault_path)).as_posix()
+    relative = relative_wiki_path(vault_path, path)
     directory = relative.split("/", 1)[0] if "/" in relative else "root"
     return WikiPageSummary(
         path=relative,

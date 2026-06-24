@@ -31,7 +31,7 @@ class DoctorServiceTests(unittest.TestCase):
             notes = root / "notes"
             init_wiki_vault(vault)
             notes.mkdir()
-            (vault / "pages" / "concepts" / "Note.md").write_text("# Note\n\nCompiled page.", encoding="utf-8")
+            (vault / "pages" / "Note.md").write_text("# Note\n\nCompiled page.", encoding="utf-8")
             (notes / "note.md").write_text("# Note\n\nBody.", encoding="utf-8")
             config = root / "config.yaml"
             config.write_text(

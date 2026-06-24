@@ -57,11 +57,11 @@ Inspect the generated knowledge network.
 KnoArbor writes normal Markdown pages into a local vault:
 
 - `pages/`: the Obsidian-facing Wiki root. Open this directory in Obsidian.
-- `pages/sources/`: source digest pages that explain what each source contributes.
+- `sources/`: source digest pages that explain what each source contributes.
 - `pages/<slug>.md`: maintained knowledge pages. Page identity metadata records
   `page_kind`, `role`, `facets`, `canonical_path`, and `legacy_paths`.
-- `pages/_views/`: generated browsing views for concepts, entities, workflows,
-  comparisons, open questions, and source audit.
+- UI browsing views are derived from machine indexes rather than written as
+  wiki pages.
 - `raw/`: immutable copied or normalized source material.
 - `maintenance/`: human-readable run reports.
 - `.knoarbor/`: machine state, indexes, ledgers, locks, and run records.

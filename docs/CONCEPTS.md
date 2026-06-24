@@ -23,7 +23,7 @@ This keeps the rest of the system independent from source-specific details.
 ## Wiki Page Identity
 
 The maintained wiki is stored under `pages/`. Source digest pages stay in
-`pages/sources/`; ordinary knowledge pages use the flat `pages/<slug>.md`
+`sources/`; ordinary knowledge pages use the flat `pages/<slug>.md`
 namespace.
 
 Page type is described by metadata rather than by mandatory physical
@@ -37,8 +37,8 @@ directories:
 - `canonical_path`: the current stable path.
 - `legacy_paths`: old paths that still resolve after migration.
 
-Generated `_views/` pages and the console provide human browsing by concepts,
-entities, workflows, comparisons, open questions, and source audit. Page
+The console provides human browsing by concepts, entities, workflows,
+comparisons, open questions, and source audit from machine indexes. Page
 `Claims` and `Relations` sections carry evidence-backed statements and typed
 edges; `.knoarbor/index/` stores the machine-readable index, atoms, run state,
 and ledgers.

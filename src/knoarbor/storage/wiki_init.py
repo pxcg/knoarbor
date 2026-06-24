@@ -5,23 +5,12 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from knoarbor.core.errors import StorageConflict
-from knoarbor.core.wiki_schema import CONTENT_PAGE_DIRS, SYSTEM_PAGE_DIRS
-from knoarbor.storage.wiki_index import ensure_log, update_index
-from knoarbor.storage.wiki_paths import CONTENT_ROOT_DIR
+from knoarbor.core.wiki_schema import SYSTEM_PAGE_DIRS
+from knoarbor.storage.wiki_index import ensure_log, update_index, update_machine_index
+from knoarbor.storage.wiki_paths import CONTENT_ROOT_DIR, SOURCE_DIGEST_ROOT_DIR, LEGACY_KNOWLEDGE_PAGE_DIRS
 
 
-RAW_DIRS = (
-    "raw/articles",
-    "raw/chats",
-    "raw/datasets",
-    "raw/documents/originals",
-    "raw/documents/markdown",
-    "raw/media",
-    "raw/notes",
-    "raw/papers",
-    "raw/excerpts",
-    "raw/transcripts",
-)
+RAW_ROOT_DIR = "raw"
 
 
 class WikiInitResult(BaseModel):
@@ -45,11 +34,9 @@ def init_wiki_vault(vault_path: Path, *, force: bool = False) -> WikiInitResult:
     for relative in _initial_directories():
         _ensure_directory(vault_path, relative, created, existing)
 
-    pages_root = vault_path / CONTENT_ROOT_DIR
     _ensure_directory(vault_path, CONTENT_ROOT_DIR, created, existing)
-    for relative in CONTENT_PAGE_DIRS:
-        _ensure_directory(pages_root, relative, created, existing, display_prefix=CONTENT_ROOT_DIR)
-
+    _ensure_directory(vault_path, SOURCE_DIGEST_ROOT_DIR, created, existing)
+    pages_root = vault_path / CONTENT_ROOT_DIR
     _write_file(
         pages_root,
         "SCHEMA.md",
@@ -68,7 +55,7 @@ def init_wiki_vault(vault_path: Path, *, force: bool = False) -> WikiInitResult:
         force=force,
     )
     ensure_log(vault_path)
-    update_index(vault_path)
+    update_machine_index(vault_path)
 
     for relative in ("log.md",):
         display = f"{CONTENT_ROOT_DIR}/{relative}"
@@ -88,7 +75,7 @@ def migrate_wiki_pages_layout(vault_path: Path) -> WikiLayoutMigrationResult:
     skipped: list[str] = []
     pages_root.mkdir(parents=True, exist_ok=True)
 
-    for relative in (*CONTENT_PAGE_DIRS, "log.md", "SCHEMA.md"):
+    for relative in (*LEGACY_KNOWLEDGE_PAGE_DIRS, "log.md", "SCHEMA.md"):
         source = vault_path / relative
         if not source.exists():
             skipped.append(relative)
@@ -105,7 +92,7 @@ def migrate_wiki_pages_layout(vault_path: Path) -> WikiLayoutMigrationResult:
 
 
 def _initial_directories() -> tuple[str, ...]:
-    return tuple(SYSTEM_PAGE_DIRS) + RAW_DIRS
+    return tuple(SYSTEM_PAGE_DIRS) + (RAW_ROOT_DIR,)
 
 
 def _ensure_directory(vault_path: Path, relative: str, created: list[str], existing: list[str], *, display_prefix: str | None = None) -> None:
@@ -147,10 +134,10 @@ This file defines the local wiki contract for LLM and automation workflows.
 
 - `pages/`: Obsidian-facing wiki pages. Open this directory in Obsidian.
 - `raw/`: immutable source material.
-- `pages/sources/`: source digest pages.
+- `sources/`: source digest and audit pages.
 - `pages/<slug>.md`: unified maintained knowledge pages.
-- `pages/entities/`, `pages/concepts`, `pages/comparisons`, `pages/queries`, `pages/timelines`, `pages/workflows`: legacy typed page locations accepted during migration.
-- `pages/_views/`: generated navigation views such as Home, Concepts, and Source Audit. Views are not fact sources.
+- Legacy typed page locations such as `pages/concepts/` and `pages/entities/` are readable during migration, but new vaults use the unified page namespace.
+- Navigation views are rendered by the KnoArbor UI from machine indexes rather than stored as wiki facts.
 - Page-level `Claims`, `Entities`, `Relations`, `Evidence`, and `Synthesis` sections carry auditable wiki knowledge.
 - `maintenance/`: human-readable run and maintenance reports.
 - `.knoarbor/`: machine state such as runs, locks, ledgers, checkpoints, and indexes.

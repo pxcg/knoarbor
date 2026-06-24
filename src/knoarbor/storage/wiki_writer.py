@@ -15,6 +15,7 @@ from knoarbor.storage.wiki_paths import (
     content_root,
     resolve_existing_by_hash,
     resolve_required_target,
+    source_digest_root,
 )
 
 
@@ -199,7 +200,7 @@ def write_draft(
 def _draft_output_dir(vault_path: Path, draft: WikiDraft) -> Path:
     root = content_root(vault_path)
     if draft.role == "source_digest" or draft.page_kind == "source_digest" or draft.page_dir == "sources":
-        return root / "sources"
+        return source_digest_root(vault_path)
     return root
 
 

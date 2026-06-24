@@ -164,6 +164,36 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
         self.assertEqual(_ids(atom_payload["relations"]), ["rel_agent_loop_mentions_control"])
         self.assertEqual([item["atom_id"] for item in atom_payload["entities"]], ["entity_agent_loop", "entity_agent_control"])
 
+    def test_draft_compile_projects_auditable_fields_from_page_assembly(self) -> None:
+        bad_draft = wiki_draft_batch_output()
+        draft = bad_draft["output"]["drafts"][0]
+        assert isinstance(draft, dict)
+        draft["claims"] = ["U1: model used source-unit numbering instead of claim numbering."]
+        draft["entities"] = []
+        draft["relations"] = []
+        draft["evidence"] = ["U1 | raw/notes/Agent.md | unit:0 | model-authored evidence row | high"]
+        client = ScriptedChatClient(
+            [
+                source_normalize_output(),
+                wiki_atom_extract_output(),
+                wiki_page_plan_output(),
+                bad_draft,
+                ingest_review_output(),
+            ]
+        )
+
+        result = IngestSemanticWorkflow(SemanticRunner(client)).run(markdown_source_document())
+
+        projected = result.wiki_draft_batch.drafts[0]
+        self.assertEqual(
+            projected.claims,
+            ["C1. [[Agent Loop]] is an observe, decide, act, feedback cycle and a reusable control pattern for agents."],
+        )
+        self.assertEqual(projected.entities, ["[[Agent Loop]]", "[[Agent Control]]"])
+        self.assertEqual(projected.relations, ["[[Agent Loop]] | includes | [[Agent Control]] | C1"])
+        self.assertEqual(len(projected.evidence), 1)
+        self.assertTrue(projected.evidence[0].startswith("C1 | sd_test_agent | unit:0 | Agent loop is observe"))
+
 
 def _dynamic_payload(request) -> dict[str, object]:
     marker = "Input JSON:\n"

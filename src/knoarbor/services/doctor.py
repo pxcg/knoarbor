@@ -10,8 +10,8 @@ from knoarbor.connectors.registry import ConnectorRegistry
 from knoarbor.connectors.selection import selected_connector_configs
 from knoarbor.core.config import KnoArborConfig, ModelProviderConfig, default_config_path, load_config
 from knoarbor.core.schemas.doctor import DoctorCheck, DoctorReport, DoctorStatus
-from knoarbor.core.wiki_schema import CONTENT_PAGE_DIRS
-from knoarbor.storage.wiki_paths import content_root
+from knoarbor.core.wiki_schema import is_index_excluded_file
+from knoarbor.storage.wiki_paths import LEGACY_KNOWLEDGE_PAGE_DIRS, content_root, source_digest_root
 from knoarbor.storage.wiki_index import machine_index_dir
 from knoarbor.runtime.run_monitor import list_runs
 from knoarbor.semantic.llm import ModelGateway, ProviderHealthCheck, is_local_or_private_model_endpoint
@@ -176,9 +176,15 @@ class DoctorService:
             return []
         page_root = content_root(vault)
         counts = {
-            page_dir: len([path for path in (page_root / page_dir).glob("*.md") if path.is_file()]) if (page_root / page_dir).exists() else 0
-            for page_dir in CONTENT_PAGE_DIRS
+            "pages": len([path for path in page_root.glob("*.md") if path.is_file() and not is_index_excluded_file(path.name)]),
+            "sources": len([path for path in source_digest_root(vault).glob("*.md") if path.is_file()]),
         }
+        counts.update(
+            {
+                page_dir: len([path for path in (page_root / page_dir).glob("*.md") if path.is_file()]) if (page_root / page_dir).exists() else 0
+                for page_dir in LEGACY_KNOWLEDGE_PAGE_DIRS
+            }
+        )
         page_count = sum(counts.values())
         return [
             DoctorCheck(

@@ -19,7 +19,7 @@ raw source -> source digest -> wiki page -> query context
 | Layer | Location / Field | Responsibility |
 | --- | --- | --- |
 | Raw Source | `raw/**` | Original input. It should not be rewritten by LLM workflows. |
-| Source Digest | `pages/sources/*.md` | Readable summary, source focus, key points, and backlinks to generated pages. |
+| Source Digest | `sources/*.md` | Readable summary, source focus, key points, and backlinks to generated pages. |
 | Knowledge Page | `pages/<slug>.md` | Reusable maintained knowledge objects. Page kind and facets live in metadata; claims and typed relations live inside pages and the machine atom index. |
 
 Legacy typed knowledge directories such as `pages/concepts/` remain readable
