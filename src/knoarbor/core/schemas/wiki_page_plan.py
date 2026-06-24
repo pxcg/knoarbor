@@ -83,6 +83,10 @@ class WikiPageOperation(BaseModel):
                 raise ValueError(f"{self.action} operation requires title")
             if not self.knowledge_object or not self.knowledge_object.strip():
                 raise ValueError(f"{self.action} operation requires knowledge_object")
+            if not self.source_digest_ids:
+                raise ValueError(f"{self.action} operation requires source_digest_ids")
+            if self.page_dir != "sources" and not self.selected_claim_ids:
+                raise ValueError(f"{self.action} non-source operation requires selected_claim_ids")
         if self.action == "skip":
             self.title = (self.title or "Skipped source").strip()
             self.knowledge_object = (self.knowledge_object or "No durable wiki object").strip()

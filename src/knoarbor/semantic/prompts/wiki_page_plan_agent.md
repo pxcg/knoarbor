@@ -85,7 +85,7 @@ Do not return markdown fences or explanatory prose.
 - Use `knowledge_atoms` when available. Every actionable operation must include `source_digest_ids`. Non-source operations must select directly relevant claim atom ids; relation atom ids are auxiliary and cannot substitute for selected claims.
 - Treat a non-source page as a durable cluster of selected claims around one knowledge object. Page identity follows the claims first; entities, relations, evidence, and synthesis are projections of those claims.
 - Select relation atom ids only when they help connect or explain selected claims. If a relation atom has source claim ids, include those claim ids in the same operation unless they are outside the page boundary.
-- If `knowledge_atoms` is empty, leave atom id lists empty and plan from `source_digest`.
+- If `knowledge_atoms` is empty, plan only a `sources` operation or `skip`; non-source knowledge pages require selected claim atom ids.
 - Prefer `update` when one existing page clearly covers the same object.
 - Prefer `create` when overlap is only broad topical similarity.
 - Do not use page merge operations during ingest. Consolidating, archiving, deleting, or merging existing wiki pages belongs to lint/maintenance, not source ingest.

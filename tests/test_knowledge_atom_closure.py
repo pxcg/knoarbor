@@ -30,11 +30,11 @@ class KnowledgeAtomClosureTests(unittest.TestCase):
     def test_explicit_relation_reports_missing_source_claim(self) -> None:
         closure = close_operation_atoms(
             _batch(),
-            _operation(selected_claim_ids=[], selected_relation_ids=["rel_agent_loop_depends_on_memory"]),
+            _operation(selected_claim_ids=["claim_agent_loop"], selected_relation_ids=["rel_agent_loop_mentions_unselected"]),
         )
 
-        self.assertEqual(closure.claim_ids, [])
-        self.assertEqual(closure.relation_ids, ["rel_agent_loop_depends_on_memory"])
+        self.assertEqual(closure.claim_ids, ["claim_agent_loop"])
+        self.assertEqual(closure.relation_ids, ["rel_agent_loop_depends_on_memory", "rel_agent_loop_mentions_unselected"])
         self.assertEqual([issue.code for issue in closure.issues], ["relation_selected_without_source_claim"])
 
     def test_plan_closure_returns_selected_batch_for_compile_agents(self) -> None:
@@ -139,6 +139,14 @@ def _batch() -> KnowledgeAtomBatch:
                 predicate="depends_on",
                 object=KnowledgeAtomObject(object_type="knowledge_object", name="Memory"),
                 source_claim_ids=["claim_agent_loop"],
+                evidence=[relation_evidence],
+            ),
+            KnowledgeRelation(
+                id="rel_agent_loop_mentions_unselected",
+                subject=KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop"),
+                predicate="coordinates",
+                object=KnowledgeAtomObject(object_type="knowledge_object", name="Unselected"),
+                source_claim_ids=["claim_unselected"],
                 evidence=[relation_evidence],
             )
         ],

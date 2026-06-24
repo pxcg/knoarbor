@@ -375,6 +375,9 @@ Boundary:
 - it does not read full candidate page bodies during planning;
 - it does not invent candidates outside the deterministic candidate pool;
 - it does not write page bodies or patches.
+- every actionable operation must carry `source_digest_ids`;
+- every non-source actionable operation must select claim atom ids; relation
+  atom ids are auxiliary and cannot replace the selected claim spine.
 
 ### Page Draft Compile Agent
 

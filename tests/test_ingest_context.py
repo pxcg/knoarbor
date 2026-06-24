@@ -239,6 +239,8 @@ class IngestContextProviderTests(unittest.TestCase):
                         page_dir="concepts",
                         title="Agent",
                         knowledge_object="Agent",
+                        selected_claim_ids=["claim_agent"],
+                        source_digest_ids=["sd_agent"],
                         decision_reason="Update existing page.",
                     )
                 ],
@@ -279,6 +281,8 @@ class IngestContextProviderTests(unittest.TestCase):
                         page_dir="concepts",
                         title="Target",
                         knowledge_object="Target",
+                        selected_claim_ids=["claim_target"],
+                        source_digest_ids=["sd_target"],
                         related_pages=[
                             {
                                 "path": "concepts/Related.md",
@@ -331,6 +335,8 @@ class IngestContextProviderTests(unittest.TestCase):
                         page_dir="concepts",
                         title="Agent",
                         knowledge_object="Agent",
+                        selected_claim_ids=["claim_agent"],
+                        source_digest_ids=["sd_agent"],
                         candidate_pages=[
                             {
                                 "path": "concepts/Agent.md",

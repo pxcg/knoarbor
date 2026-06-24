@@ -95,6 +95,8 @@ def _page_plan() -> WikiPagePlan:
                 page_dir="concepts",
                 title="Agent Loop",
                 knowledge_object="Agent Loop",
+                selected_claim_ids=["claim_agent_loop"],
+                source_digest_ids=["sd_agent"],
                 decision_reason="Stable concept.",
             )
         ],

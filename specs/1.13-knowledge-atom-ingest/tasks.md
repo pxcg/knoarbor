@@ -12,7 +12,7 @@ so progress does not depend on conversation context.
 | 2 | Source Segmentation | Frozen | `SourceSegmenter` | Long sources are split for budget and source-range preservation. Segmentation does not decide page boundaries or writes. |
 | 3 | Segment-level Semantic Extraction | Done | `source_normalize`, `wiki_atom_extract`, `knowledge_atoms.v2` | Extract claims, entities, relations, and evidence from each source or segment. This is where claims are created. |
 | 4 | Source-level Aggregation | Done | `AggregatedSemanticArtifacts` | Merge segment extracts, remap evidence ranges, deduplicate atoms, rebuild source-level digest, and emit source-level atom quality. |
-| 5 | Page Planning | Implemented, needs review under new page structure | `WikiPagePlan` | Decide create/update/skip and select claim ids per page. It should not write or assemble page bodies. |
+| 5 | Page Planning | Frozen | `WikiPagePlan` | Decide create/update/skip and select claim ids per page. It should not retrieve, write, or assemble page bodies. |
 | 6 | Claim / Relation / Evidence Closure | Done | `knowledge_atom_closure` | Given selected claims, deterministically close supported relations, entities, evidence, and source digest traces. |
 | 7 | Page Assembly / Draft Compile | Pending | `PageAssemblyService` + narrowed synthesis generation | Assemble identity, claims, relations, entities, evidence, and Markdown skeleton deterministically; use LLM mainly for synthesis. |
 | 8 | Review / Quality Gate | Partial | `IngestQualityGate`, draft review agent | Split deterministic write gate from semantic review and make review conditional on risk signals. |
@@ -56,6 +56,21 @@ planning:
 Step 4 does not call an LLM. It must preserve segment provenance, remap evidence
 unit indexes, deduplicate equivalent claims and relation triples, and expose
 pending source contributions without choosing target pages.
+
+Step 5 is frozen as claims-first page planning. It receives the source-level
+digest, source-level atoms, and deterministic lightweight candidate profiles,
+then emits only page operations:
+
+| Substep | Name | Input | Output | Execution |
+| --- | --- | --- | --- | --- |
+| 5.1 | Build Candidate Profiles | source-level atoms + graph/text indexes | `IngestWikiContext` | Code |
+| 5.2 | Plan Page Operations | `SourceDigest` + `KnowledgeAtomBatch` + candidate profiles | `WikiPagePlan` | Model |
+| 5.3 | Validate Page Plan Contract | `WikiPagePlan` + atoms | validated `WikiPagePlan` | Schema / Code |
+
+Every actionable operation must carry `source_digest_ids`. Every non-source
+operation must select at least one claim atom id. Relation ids are auxiliary and
+cannot replace selected claims. Step 5 does not materialize full page bodies;
+full target, related, and candidate content is loaded only after planning.
 
 ## P0 Atom Contract
 

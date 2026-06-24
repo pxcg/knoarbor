@@ -22,6 +22,8 @@ class IngestCompileContextTests(unittest.TestCase):
                     legacy_paths=["concepts/Agent.md"],
                     title="Agent",
                     knowledge_object="Agent",
+                    selected_claim_ids=["claim_agent_loop_control_pattern"],
+                    source_digest_ids=["sd_test_agent"],
                     decision_reason="Update existing page.",
                 )
             ],

@@ -151,6 +151,8 @@ class SemanticContractTests(unittest.TestCase):
                         "page_dir": "entities",
                         "title": "OpenClaw",
                         "knowledge_object": "OpenClaw engineering agent",
+                        "selected_claim_ids": ["claim_openclaw_agent"],
+                        "source_digest_ids": ["sd_agent_loop"],
                         "related_pages": [
                             {
                                 "path": "concepts/Agent Loop.md",
@@ -196,6 +198,8 @@ class SemanticContractTests(unittest.TestCase):
                         "page_dir": "concepts",
                         "title": "Agent Loop",
                         "knowledge_object": "Agent Loop",
+                        "selected_claim_ids": ["claim_agent_loop"],
+                        "source_digest_ids": ["sd_agent"],
                         "related_pages": [],
                         "candidate_pages": [],
                         "decision_reason": "Durable knowledge.",
@@ -234,6 +238,47 @@ class SemanticContractTests(unittest.TestCase):
 
         self.assertEqual(plan.operations[0].title, "Skipped source")
         self.assertEqual(plan.operations[0].knowledge_object, "No durable wiki object")
+
+    def test_wiki_page_plan_requires_source_digest_trace_for_actionable_operations(self) -> None:
+        with self.assertRaises(ValueError):
+            WikiPagePlan.model_validate(
+                {
+                    "operations": [
+                        {
+                            "action": "create",
+                            "target_page": None,
+                            "page_dir": "sources",
+                            "title": "Agent Source",
+                            "knowledge_object": "Agent source digest",
+                            "related_pages": [],
+                            "candidate_pages": [],
+                            "decision_reason": "Source digest pages still require source trace.",
+                        }
+                    ],
+                    "overall_summary": "Invalid source operation.",
+                }
+            )
+
+    def test_wiki_page_plan_requires_claim_trace_for_non_source_operations(self) -> None:
+        with self.assertRaises(ValueError):
+            WikiPagePlan.model_validate(
+                {
+                    "operations": [
+                        {
+                            "action": "create",
+                            "target_page": None,
+                            "page_dir": "concepts",
+                            "title": "Agent Loop",
+                            "knowledge_object": "Agent Loop",
+                            "source_digest_ids": ["sd_agent"],
+                            "related_pages": [],
+                            "candidate_pages": [],
+                            "decision_reason": "Knowledge pages require selected claims.",
+                        }
+                    ],
+                    "overall_summary": "Invalid non-source operation.",
+                }
+            )
 
     def test_wiki_page_plan_rejects_ingest_merge(self) -> None:
         with self.assertRaises(ValueError):
