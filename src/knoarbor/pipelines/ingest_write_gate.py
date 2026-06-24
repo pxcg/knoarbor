@@ -1,27 +1,31 @@
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
+from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatchItem
 from knoarbor.core.wiki_schema import normalize_page_dir
 from knoarbor.semantic.ingest_workflow import IngestSemanticWorkflowResult
 from knoarbor.semantic.knowledge_atom_closure import close_operation_atoms
 from knoarbor.semantic.knowledge_atom_quality import evaluate_knowledge_atoms
+from knoarbor.semantic.page_assembly import build_page_assembly_payload
 from knoarbor.pipelines.ingest_context import IngestCandidatePageContext
 
 
-class IngestQualityGateIssue(BaseModel):
+class IngestWriteGateIssue(BaseModel):
     operation_index: int
     code: str
     message: str
 
 
-class IngestQualityGateResult(BaseModel):
+class IngestWriteGateResult(BaseModel):
     passed: bool
     approved_operation_indexes: list[int] = Field(default_factory=list)
-    issues: list[IngestQualityGateIssue] = Field(default_factory=list)
+    issues: list[IngestWriteGateIssue] = Field(default_factory=list)
 
 
-class IngestQualityGate:
+class IngestWriteGate:
     """Deterministic hard checks before wiki drafts are written."""
 
     def validate(
@@ -30,14 +34,20 @@ class IngestQualityGate:
         approved_operation_indexes: list[int],
         *,
         candidate_page_context: IngestCandidatePageContext,
-    ) -> IngestQualityGateResult:
+    ) -> IngestWriteGateResult:
         drafts_by_index = {draft.operation_index: draft for draft in semantic_result.wiki_draft_batch.drafts}
         operations_by_index = {
             index: operation
             for index, operation in enumerate(semantic_result.wiki_page_plan.operations)
         }
+        assembly_by_index = _assembly_by_operation_index(
+            build_page_assembly_payload(
+                semantic_result.knowledge_atom_batch,
+                semantic_result.wiki_page_plan,
+            )
+        )
         materialized_paths = {page.path for page in candidate_page_context.pages if page.exists}
-        issues: list[IngestQualityGateIssue] = []
+        issues: list[IngestWriteGateIssue] = []
         atom_batch = semantic_result.knowledge_atom_batch
         atom_quality = evaluate_knowledge_atoms(semantic_result.knowledge_atom_batch)
         for issue_item in atom_quality.issues:
@@ -156,6 +166,9 @@ class IngestQualityGate:
                 )
             if not draft.synthesis.strip():
                 issues.append(_issue(operation_index, "missing_synthesis", "Draft synthesis is empty."))
+            assembly = assembly_by_index.get(operation_index)
+            if draft.page_dir != "sources" and assembly:
+                issues.extend(_assembly_projection_issues(operation_index, draft, assembly))
             claim_ids = _claim_ids(draft.claims)
             evidence_claims, evidence_issues = _evidence_claims(draft.evidence, draft.page_dir)
             relation_claims, relation_issues = _relation_claims(draft.relations)
@@ -187,15 +200,94 @@ class IngestQualityGate:
                         )
                     )
 
-        return IngestQualityGateResult(
+        return IngestWriteGateResult(
             passed=not issues,
             approved_operation_indexes=list(approved_operation_indexes) if not issues else [],
             issues=issues,
         )
 
 
-def _issue(operation_index: int, code: str, message: str) -> IngestQualityGateIssue:
-    return IngestQualityGateIssue(operation_index=operation_index, code=code, message=message)
+def _issue(operation_index: int, code: str, message: str) -> IngestWriteGateIssue:
+    return IngestWriteGateIssue(operation_index=operation_index, code=code, message=message)
+
+
+def _assembly_by_operation_index(payload: dict[str, object]) -> dict[int, dict[str, object]]:
+    operations = payload.get("operations")
+    if not isinstance(operations, list):
+        return {}
+    by_index: dict[int, dict[str, object]] = {}
+    for item in operations:
+        if not isinstance(item, dict):
+            continue
+        operation_index = item.get("operation_index")
+        if isinstance(operation_index, int):
+            by_index[operation_index] = item
+    return by_index
+
+
+def _assembly_projection_issues(
+    operation_index: int,
+    draft: WikiDraftBatchItem,
+    assembly: dict[str, object],
+) -> list[IngestWriteGateIssue]:
+    issues: list[IngestWriteGateIssue] = []
+    expected_claim_ids = {
+        _normalize_claim_id(str(item.get("number", "")))
+        for item in _dict_list(assembly.get("claims"))
+    }
+    expected_claim_ids.discard(None)
+    actual_claim_ids = _claim_ids(draft.claims)
+    for expected in sorted(str(item) for item in expected_claim_ids if item):
+        if expected not in actual_claim_ids:
+            issues.append(
+                _issue(
+                    operation_index,
+                    "assembly_claim_not_projected",
+                    f"Draft Claims must include deterministic page assembly claim {expected}.",
+                )
+            )
+
+    expected_relation_claims = {
+        _normalize_claim_id(str(claim_id))
+        for item in _dict_list(assembly.get("relations"))
+        for claim_id in _object_list(item.get("based_on"))
+    }
+    expected_relation_claims.discard(None)
+    actual_relation_claims, _relation_issues = _relation_claims(draft.relations)
+    for expected_claim in sorted(str(item) for item in expected_relation_claims if item):
+        if expected_claim not in actual_relation_claims:
+            issues.append(
+                _issue(
+                    operation_index,
+                    "assembly_relation_not_projected",
+                    f"Draft Relations must include a deterministic page assembly relation backed by {expected_claim}.",
+                )
+            )
+
+    expected_evidence_claims = {
+        _normalize_claim_id(str(item.get("claim", "")))
+        for item in _dict_list(assembly.get("evidence"))
+    }
+    expected_evidence_claims.discard(None)
+    actual_evidence_claims, _issues = _evidence_claims(draft.evidence, draft.page_dir)
+    for expected_claim in sorted(str(item) for item in expected_evidence_claims if item):
+        if expected_claim not in actual_evidence_claims:
+            issues.append(
+                _issue(
+                    operation_index,
+                    "assembly_evidence_not_projected",
+                    f"Draft Evidence must include deterministic page assembly evidence for {expected_claim}.",
+                )
+            )
+    return issues
+
+
+def _dict_list(value: object) -> list[dict[str, Any]]:
+    return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+
+def _object_list(value: object) -> list[object]:
+    return value if isinstance(value, list) else []
 
 
 def _nonempty_items(items: list[str]) -> list[str]:

@@ -28,8 +28,8 @@ Connector / Document Processor
   -> Page Plan
   -> Deterministic Page Assembly
   -> Synthesis Generation
+  -> Semantic Review Agent
   -> Deterministic Write Gate
-  -> Conditional Semantic Review
   -> Write Pages
   -> Update Atom Index + Page Index + Reports
 ```
@@ -150,19 +150,21 @@ Responsibilities:
 - treat source trace, atom coverage, page identity, synthesis quality, and
   update safety as write gates before persistence.
 
-The long-term page draft direction is:
+The current page draft implementation is:
 
 ```text
 selected atoms + page operation
   -> deterministic PageAssemblyService
   -> synthesis-generation agent
   -> deterministic Markdown renderer
+  -> semantic review agent
   -> deterministic IngestWriteGate
-  -> conditional semantic review
 ```
 
 This keeps page structure stable and uses semantic generation for summary,
 synthesis, and complex update language rather than full page construction.
+The remaining target is to make semantic review conditional without weakening
+the deterministic write gate before persistence.
 
 The first implementation of `PageAssemblyService` emits a `page_assembly.v1`
 payload for draft compilation. For each actionable operation it carries the
@@ -381,7 +383,7 @@ Semantic agents may extract atoms and propose page plans. They must not own:
 - lint policy;
 - index rebuilds.
 
-Validation and quality gates enforce the schema before writes.
+Validation and write gates enforce the schema before writes.
 
 ## Rejected Alternatives
 

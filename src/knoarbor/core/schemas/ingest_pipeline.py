@@ -28,7 +28,7 @@ class IngestSourceResult(BaseModel):
     generated_pages: list[str] = Field(default_factory=list)
     redaction: dict[str, object] = Field(default_factory=dict)
     context: dict[str, object] = Field(default_factory=dict)
-    quality_gate: dict[str, object] = Field(default_factory=dict)
+    write_gate: dict[str, object] = Field(default_factory=dict)
     touched_pages: list[str] = Field(default_factory=list)
     scoped_lint: dict[str, object] = Field(default_factory=dict)
     scoped_lint_result: dict[str, object] = Field(default_factory=dict)

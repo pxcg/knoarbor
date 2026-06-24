@@ -10,7 +10,7 @@ from knoarbor.pipelines.source_segmentation import SourceSegmentBatch, SourceSeg
 from knoarbor.core.schemas.ingest_pipeline import IngestPipelineResult, IngestSourceResult
 from knoarbor.pipelines.ingest import IngestPipeline
 from knoarbor.pipelines.ingest_context import IngestContextProvider, IngestWikiContext, IngestCandidatePageContext
-from knoarbor.pipelines.ingest_quality import IngestQualityGate, IngestQualityGateResult
+from knoarbor.pipelines.ingest_write_gate import IngestWriteGate, IngestWriteGateResult
 from knoarbor.pipelines.ingest_write_policy import IngestWritePolicy, IngestWritePolicyResult
 from knoarbor.pipelines.lint import WikiLintPipeline
 from knoarbor.pipelines.operation import WikiOperationPipeline
@@ -23,8 +23,8 @@ __all__ = [
     "QueryPipelineResult",
     "IngestPipeline",
     "IngestContextProvider",
-    "IngestQualityGate",
-    "IngestQualityGateResult",
+    "IngestWriteGate",
+    "IngestWriteGateResult",
     "IngestWritePolicy",
     "IngestWritePolicyResult",
     "IngestWikiContext",

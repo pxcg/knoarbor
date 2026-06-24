@@ -36,8 +36,8 @@ Connector / Document Processor
   -> Wiki Page Plan Agent
   -> Deterministic Page Assembly
   -> Synthesis Generation Agent
+  -> Semantic Review Agent
   -> Deterministic Write Gate
-  -> Conditional Semantic Review Agent
   -> Write Pages
   -> Update Graph Index + Manifest + Atom Index + Reports
 ```
@@ -491,8 +491,8 @@ post-processing. The current implementation has these stable boundaries:
   source-scoped deterministic lint.
 - `ingest_checkpoint` owns checkpoint eligibility and commit payloads.
 
-The long-term page-assembly path should further separate assembly, synthesis,
-gate, and review:
+The current page-assembly path separates assembly, synthesis, semantic review,
+the deterministic write gate, and persistence:
 
 ```text
 Page Plan
@@ -500,14 +500,16 @@ Page Plan
   -> PageAssemblyService
   -> Synthesis Generation Agent
   -> MarkdownPageRenderer
+  -> Semantic Review Agent
   -> IngestWriteGate
-  -> Conditional Semantic Review
   -> Write
 ```
 
 The write gate is deterministic and runs before persistence. It owns hard
-checks. The semantic review agent owns meaning-level risk. Reports should show
-which layer accepted, rejected, or requested regeneration.
+checks over source trace, selected atom trace, write action eligibility, and
+page-assembly projection. The semantic review agent owns meaning-level risk.
+The remaining refactor is to make semantic review conditional and to report
+deterministic gate decisions separately from semantic review decisions.
 
 ## Selected Atom Closure Boundary
 
@@ -535,17 +537,12 @@ Boundaries:
 - closure does not invent claims, relations, entities, or evidence;
 - closure does not repair unsupported atoms;
 - closure reports unknown selected claim ids and relation ids as deterministic
-  issues. The quality gate blocks writes when such issues are present.
+  issues. The write gate blocks writes when such issues are present.
 - closure does not validate source digest existence from atom evidence alone;
   that belongs to the source digest contract and write gate.
 
 ## Deferred Implementation
 
-- Deterministic `PageAssemblyService`.
-- Rename or narrow `wiki_draft_compile` toward synthesis generation once page
-  claims, entities, relations, and evidence can be assembled deterministically
-  from selected atoms without weakening page quality.
-- Deterministic `IngestWriteGate` before semantic review.
 - Conditional semantic review triggers.
 - Report fields that separate deterministic gate decisions from semantic review
   decisions.

@@ -102,7 +102,7 @@ inventing a broad article from thin evidence.
   consume atom data.
 - New Wiki pages expose `Summary`, `Claims`, `Entities`, `Relations`,
   `Evidence`, and `Synthesis` sections.
-- Page planning, draft compilation, draft review, and the deterministic quality
+- Page planning, draft compilation, draft review, and the deterministic write
   gate share the same source digest and atom trace contract.
 - Approved writes are rejected before persistence when the page plan or draft
   lacks source digest trace, or when a non-source page lacks selected atom

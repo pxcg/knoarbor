@@ -139,7 +139,7 @@ def _stable_source_result(result: Any) -> dict[str, object]:
         "generated_pages": result.generated_pages,
         "approved_operation_indexes": result.approved_operation_indexes,
         "segmentation": result.segmentation,
-        "quality_gate": result.quality_gate,
+        "write_gate": result.write_gate,
         "context": {
             "semantic_metrics": _stable_semantic_metrics(result.context.get("semantic_metrics")),
         },

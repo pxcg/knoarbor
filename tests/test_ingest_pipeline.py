@@ -1202,7 +1202,7 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertIn("error_code: KA-INTERNAL-001", report)
         self.assertIn("error_type: RuntimeError", report)
 
-    def test_quality_gate_blocks_invalid_approved_draft_before_write(self) -> None:
+    def test_write_gate_blocks_invalid_approved_draft_before_write(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             vault = root / "vaults" / "all"
@@ -1225,14 +1225,14 @@ class IngestPipelineTests(unittest.TestCase):
             report = (vault / (result.report_path or "")).read_text(encoding="utf-8")
 
         self.assertEqual(source.status, "failed")
-        self.assertEqual(source.error_stage, "quality_gate")
+        self.assertEqual(source.error_stage, "write_gate")
         self.assertEqual(source.error_code, "KA-INPUT-001")
         self.assertIn("missing_evidence", source.error_message or "")
         self.assertEqual(source.generated_pages, [])
         self.assertFalse((vault / "concepts" / "Agent-Loop.md").exists())
-        self.assertIn("quality_gate_passed: False", report)
+        self.assertIn("write_gate_passed: False", report)
 
-    def test_quality_gate_blocks_atom_quality_errors_before_write(self) -> None:
+    def test_write_gate_blocks_atom_quality_errors_before_write(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             vault = root / "vaults" / "all"
@@ -1255,13 +1255,13 @@ class IngestPipelineTests(unittest.TestCase):
             report = (vault / (result.report_path or "")).read_text(encoding="utf-8")
 
         self.assertEqual(source.status, "failed")
-        self.assertEqual(source.error_stage, "quality_gate")
+        self.assertEqual(source.error_stage, "write_gate")
         self.assertEqual(source.error_code, "KA-INPUT-001")
         self.assertIn("knowledge_atom_unsupported_claim", source.error_message or "")
         self.assertEqual(source.generated_pages, [])
-        self.assertIn("quality_gate_passed: False", report)
+        self.assertIn("write_gate_passed: False", report)
 
-    def test_quality_gate_blocks_write_action_mismatch(self) -> None:
+    def test_write_gate_blocks_write_action_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             vault = root / "vaults" / "all"
@@ -1283,12 +1283,12 @@ class IngestPipelineTests(unittest.TestCase):
             source = result.results[0]
 
         self.assertEqual(source.status, "failed")
-        self.assertEqual(source.error_stage, "quality_gate")
+        self.assertEqual(source.error_stage, "write_gate")
         self.assertEqual(source.error_code, "KA-INPUT-001")
         self.assertIn("write_action_mismatch", source.error_message or "")
         self.assertEqual(source.generated_pages, [])
 
-    def test_quality_gate_blocks_missing_atom_trace(self) -> None:
+    def test_write_gate_blocks_missing_atom_trace(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             vault = root / "vaults" / "all"
@@ -1310,12 +1310,12 @@ class IngestPipelineTests(unittest.TestCase):
             source = result.results[0]
 
         self.assertEqual(source.status, "failed")
-        self.assertEqual(source.error_stage, "quality_gate")
+        self.assertEqual(source.error_stage, "write_gate")
         self.assertEqual(source.error_code, "KA-INPUT-001")
         self.assertIn("missing_selected_atom_trace", source.error_message or "")
         self.assertIn("missing_source_digest_trace", source.error_message or "")
 
-    def test_quality_gate_blocks_relation_only_non_source_operation(self) -> None:
+    def test_write_gate_blocks_relation_only_non_source_operation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             vault = root / "vaults" / "all"
@@ -1337,7 +1337,7 @@ class IngestPipelineTests(unittest.TestCase):
             source = result.results[0]
 
         self.assertEqual(source.status, "failed")
-        self.assertEqual(source.error_stage, "quality_gate")
+        self.assertEqual(source.error_stage, "write_gate")
         self.assertEqual(source.error_code, "KA-INPUT-001")
         self.assertIn("missing_operation_claim_trace", source.error_message or "")
         self.assertIn("relation_selected_without_source_claim", source.error_message or "")

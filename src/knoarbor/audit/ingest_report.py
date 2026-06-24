@@ -124,7 +124,7 @@ def render_ingest_report(record: dict[str, object]) -> str:
         page_plan_operations = as_list(source.get("page_plan_operations"))
         redaction = as_dict(source.get("redaction"))
         context = as_dict(source.get("context"))
-        quality_gate = as_dict(source.get("quality_gate"))
+        write_gate = as_dict(source.get("write_gate"))
         checkpoint = as_dict(source.get("checkpoint"))
         source_metrics = as_dict(source.get("metrics"))
         source_semantic = as_dict(source_metrics.get("semantic"))
@@ -152,7 +152,7 @@ def render_ingest_report(record: dict[str, object]) -> str:
                 f"- semantic_skip_reason: {source.get('semantic_skip_reason') or 'n/a'}",
                 f"- redacted_count: {redaction.get('redacted_count', 0)}",
                 f"- candidate_count: {retrieval.get('candidate_count', 0)}",
-                f"- quality_gate_passed: {quality_gate.get('passed')}",
+                f"- write_gate_passed: {write_gate.get('passed')}",
                 f"- touched_pages: {len(touched_pages)}",
                 f"- scoped_lint_issues: {scoped_lint_stats.get('issue_count', 'not_run')}",
                 f"- maintenance_policy: {policy_decision.get('recommended_mode', 'not_run')}",
@@ -334,7 +334,7 @@ def build_source_quality_trend(record: dict[str, object], previous_records: list
                 "previous_failed_count": previous_failed,
                 "previous_skipped_count": previous_skipped,
                 "current_status": source.get("status"),
-                "current_quality_gate_passed": as_dict(source.get("quality_gate")).get("passed"),
+                "current_write_gate_passed": as_dict(source.get("write_gate")).get("passed"),
                 "current_semantic_skip_reason": source.get("semantic_skip_reason"),
             }
         )
@@ -433,7 +433,7 @@ def _source_record(source_result: Any) -> dict[str, object]:
         "error_message": source_result.error_message,
         "redaction": dict(source_result.redaction),
         "context": dict(source_result.context),
-        "quality_gate": dict(source_result.quality_gate),
+        "write_gate": dict(source_result.write_gate),
         "checkpoint": dict(source_result.checkpoint),
         "touched_pages": list(source_result.touched_pages),
         "scoped_lint": dict(source_result.scoped_lint),

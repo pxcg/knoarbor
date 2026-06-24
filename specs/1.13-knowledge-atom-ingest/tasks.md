@@ -14,8 +14,8 @@ so progress does not depend on conversation context.
 | 4 | Source-level Aggregation | Done | `AggregatedSemanticArtifacts` | Merge segment extracts, remap evidence ranges, deduplicate atoms, rebuild source-level digest, and emit source-level atom quality. |
 | 5 | Page Planning | Frozen | `WikiPagePlan` | Decide create/update/skip and select claim ids per page. It should not retrieve, write, or assemble page bodies. |
 | 6 | Claim / Relation / Evidence Closure | Frozen | `knowledge_atom_closure` | Given selected claims, deterministically close supported relations, entities, evidence, and source digest traces. |
-| 7 | Page Assembly / Draft Compile | Pending | `PageAssemblyService` + narrowed synthesis generation | Assemble identity, claims, relations, entities, evidence, and Markdown skeleton deterministically; use LLM mainly for synthesis. |
-| 8 | Review / Quality Gate | Partial | `IngestQualityGate`, draft review agent | Split deterministic write gate from semantic review and make review conditional on risk signals. |
+| 7 | Page Assembly / Draft Compile | Done | `PageAssemblyService` + narrowed synthesis generation | Assemble identity, claims, relations, entities, evidence, and Markdown skeleton deterministically; use LLM mainly for synthesis. |
+| 8 | Review / Write Gate | Partial | `IngestWriteGate`, draft review agent | Split deterministic write gate from semantic review and make review conditional on risk signals. |
 | 9 | Write / Report / Index | Partial | `IngestPostProcessor`, atom index, graph/manifest reports | Persist pages, update indexes, emit reports, and expose atom trace consistently. |
 
 Step 3 is frozen as four named substeps. Use these names in code review,
@@ -88,8 +88,8 @@ The closure is claims-first. A relation may enter the selected atom batch only
 when all its source claims are selected by the same operation. Explicit relation
 ids from page planning are treated as requests, not authority. Invalid selected
 claim ids or relation ids are reported as closure issues and must be blocked by
-the deterministic quality gate before write. Source digest id presence is
-already enforced by page planning and draft quality gates; cross-object source
+the deterministic write gate before write. Source digest id presence is
+already enforced by page planning and draft write gates; cross-object source
 digest existence belongs to the source digest contract rather than atom closure.
 
 ## P0 Atom Contract
@@ -115,7 +115,7 @@ digest existence belongs to the source digest contract rather than atom closure.
 
 - [x] Add `wiki_atom_extract_agent` prompt and semantic runner method.
 - [x] Insert atom extraction after source digest and before page planning.
-- [x] Add quality gate checks for unsupported claims and relations.
+- [x] Add write gate checks for unsupported claims and relations.
 - [x] Add report fields for extracted entity, claim, relation, and evidence span
   counts.
 - [x] Add report fields for rejected, unsupported, and conflicting
@@ -140,7 +140,7 @@ digest existence belongs to the source digest contract rather than atom closure.
   shared ingest compile context.
 - [x] Update draft review scoring from directory fit to source trace, atom
   coverage, identity fit, synthesis quality, and update safety.
-- [x] Add deterministic quality-gate checks for missing source digest trace and
+- [x] Add deterministic write-gate checks for missing source digest trace and
   missing non-source atom trace before write.
 
 ## P5 Index, Lint, Query, Chat
@@ -163,7 +163,7 @@ digest existence belongs to the source digest contract rather than atom closure.
 - [x] Move checkpoint commit eligibility into `ingest_checkpoint`.
 - [x] Rename ingest agent-facing page profiles from legacy key-point/tag
   language to claim/entity language.
-- [x] Enforce claims-first page planning and quality-gate invariants for
+- [x] Enforce claims-first page planning and write-gate invariants for
   non-source pages.
 - [x] Aggregate segmented source atoms before page planning so long sources are
   planned and written from a source-level view.
@@ -171,7 +171,7 @@ digest existence belongs to the source digest contract rather than atom closure.
 - [x] Add deterministic `PageAssemblyService` for identity, entities,
   relations, evidence, and Markdown skeleton.
 - [x] Narrow `wiki_draft_compile` into synthesis-generation behavior.
-- [ ] Add deterministic `IngestWriteGate` before persistence.
+- [x] Add deterministic `IngestWriteGate` before persistence.
 - [ ] Make semantic draft review conditional on risk, update, conflict,
   duplicate, or failed-gate signals.
 - [ ] Separate deterministic gate decisions and semantic review decisions in

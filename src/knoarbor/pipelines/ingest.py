@@ -21,7 +21,7 @@ from knoarbor.audit.ingest_report import write_ingest_run_artifacts
 from knoarbor.semantic.ingest_workflow import IngestSemanticWorkflow, IngestSemanticWorkflowResult
 from knoarbor.semantic.metrics import empty_run_metrics, summarize_semantic_runs
 from knoarbor.pipelines.ingest_context import IngestContextProvider
-from knoarbor.pipelines.ingest_quality import IngestQualityGate
+from knoarbor.pipelines.ingest_write_gate import IngestWriteGate
 from knoarbor.pipelines.ingest_postprocess import (
     IngestPostProcessor,
     approved_write_items,
@@ -71,7 +71,7 @@ class IngestSourceExecutor:
         semantic_workflow: IngestSemanticWorkflow,
         write_pipeline: WikiWritePipeline,
         context_provider: IngestContextProvider,
-        quality_gate: IngestQualityGate,
+        write_gate: IngestWriteGate,
         checkpoint_store: CheckpointStore,
         lint_pipeline: WikiLintPipeline | None = None,
         write_policy: IngestWritePolicy | None = None,
@@ -79,7 +79,7 @@ class IngestSourceExecutor:
         self.semantic_workflow = semantic_workflow
         self.write_pipeline = write_pipeline
         self.context_provider = context_provider
-        self.quality_gate = quality_gate
+        self.write_gate = write_gate
         self.checkpoint_store = checkpoint_store
         self.lint_pipeline = lint_pipeline or WikiLintPipeline()
         self.write_policy = write_policy or IngestWritePolicy()
@@ -286,12 +286,12 @@ class IngestSourceExecutor:
             "semantic": context_payload.get("semantic_metrics", summarize_semantic_runs([])),
         }
         approved_indexes = sorted(_approved_ingest_operation_indexes(semantic_result))
-        gate_result = self.quality_gate.validate(
+        gate_result = self.write_gate.validate(
             semantic_result,
             approved_indexes,
             candidate_page_context=candidate_page_context,
         )
-        result.quality_gate = gate_result.model_dump()
+        result.write_gate = gate_result.model_dump()
         approved_indexes = gate_result.approved_operation_indexes
         result.semantic_result = semantic_result
         result.approved_operation_indexes = approved_indexes
@@ -299,7 +299,7 @@ class IngestSourceExecutor:
         if result.semantic_skip_reason and not approved_indexes:
             result.status = "skipped"
         if not gate_result.passed:
-            _mark_failed_source(result, "quality_gate", ValueError(_quality_gate_error_message(gate_result.model_dump())))
+            _mark_failed_source(result, "write_gate", ValueError(_write_gate_error_message(gate_result.model_dump())))
 
         if write and approved_indexes:
             self.post_processor.write_approved_items(
@@ -489,19 +489,19 @@ class IngestSourceExecutor:
             "semantic": semantic_run.context_payload.get("semantic_metrics", summarize_semantic_runs([])),
         }
         approved_indexes = sorted(_approved_ingest_operation_indexes(semantic_result))
-        gate_result = self.quality_gate.validate(
+        gate_result = self.write_gate.validate(
             semantic_result,
             approved_indexes,
             candidate_page_context=semantic_run.candidate_page_context,
         )
-        result.quality_gate = gate_result.model_dump()
+        result.write_gate = gate_result.model_dump()
         approved_indexes = gate_result.approved_operation_indexes
         result.approved_operation_indexes = approved_indexes
         result.semantic_skip_reason = _semantic_skip_reason(semantic_result)
         if result.semantic_skip_reason and not approved_indexes:
             result.status = "skipped"
         if not gate_result.passed:
-            _mark_failed_source(result, "quality_gate", ValueError(_quality_gate_error_message(gate_result.model_dump())))
+            _mark_failed_source(result, "write_gate", ValueError(_write_gate_error_message(gate_result.model_dump())))
 
         if write and approved_indexes:
             self.post_processor.write_approved_items(
@@ -621,7 +621,7 @@ class IngestPipeline:
         source_pipeline: SourcePipeline | None = None,
         write_pipeline: WikiWritePipeline | None = None,
         context_provider: IngestContextProvider | None = None,
-        quality_gate: IngestQualityGate | None = None,
+        write_gate: IngestWriteGate | None = None,
         document_processing_pipeline: DocumentProcessingPipeline | None = None,
         checkpoint_store: CheckpointStore | None = None,
         lint_pipeline: WikiLintPipeline | None = None,
@@ -632,7 +632,7 @@ class IngestPipeline:
         self.source_pipeline = source_pipeline or SourcePipeline()
         self.write_pipeline = write_pipeline or WikiWritePipeline()
         self.context_provider = context_provider or IngestContextProvider()
-        self.quality_gate = quality_gate or IngestQualityGate()
+        self.write_gate = write_gate or IngestWriteGate()
         self.document_processing_pipeline = document_processing_pipeline or DocumentProcessingPipeline()
         self.checkpoint_store = checkpoint_store or CheckpointStore()
         self._external_lint_pipeline = lint_pipeline is not None
@@ -641,7 +641,7 @@ class IngestPipeline:
             semantic_workflow=self.semantic_workflow,
             write_pipeline=self.write_pipeline,
             context_provider=self.context_provider,
-            quality_gate=self.quality_gate,
+            write_gate=self.write_gate,
             checkpoint_store=self.checkpoint_store,
             lint_pipeline=self.lint_pipeline,
         )
@@ -654,7 +654,7 @@ class IngestPipeline:
             semantic_workflow=workflow,
             write_pipeline=self.write_pipeline,
             context_provider=self.context_provider,
-            quality_gate=self.quality_gate,
+            write_gate=self.write_gate,
             checkpoint_store=self.checkpoint_store,
             lint_pipeline=self.lint_pipeline,
         )
@@ -1083,12 +1083,12 @@ def _copy_source_error(target: IngestSourceResult, source: IngestSourceResult, *
     target.error_message = source.error_message
 
 
-def _quality_gate_error_message(gate_payload: dict[str, object]) -> str:
+def _write_gate_error_message(gate_payload: dict[str, object]) -> str:
     issues = gate_payload.get("issues")
     if not isinstance(issues, list) or not issues:
-        return "Ingest quality gate failed."
+        return "Ingest write gate failed."
     messages = []
     for issue in issues[:5]:
         if isinstance(issue, dict):
             messages.append(f"{issue.get('code')}: {issue.get('message')}")
-    return "; ".join(messages) or "Ingest quality gate failed."
+    return "; ".join(messages) or "Ingest write gate failed."
