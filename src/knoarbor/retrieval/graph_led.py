@@ -6,7 +6,8 @@ from typing import Any
 
 from knoarbor.retrieval.graph_index import load_graph_index
 from knoarbor.retrieval.index_provider import IndexProvider, IndexRequest
-from knoarbor.retrieval.markdown import ScoredPage, SearchPage, build_inbound_paths, graph_relevance_boost, query_terms, score_pages
+from knoarbor.retrieval.markdown import ScoredPage, SearchPage, query_terms, score_pages
+from knoarbor.retrieval.page_graph import build_inbound_paths, graph_relevance_boost
 
 
 @dataclass(frozen=True)
