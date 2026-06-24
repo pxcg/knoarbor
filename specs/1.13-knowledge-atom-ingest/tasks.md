@@ -191,14 +191,14 @@ reports must preserve generated page paths even if a later index step fails.
   relations, evidence, and Markdown skeleton.
 - [x] Narrow `wiki_draft_compile` into page-local prose-generation behavior.
 - [x] Add deterministic `IngestWriteGate` before persistence.
-- [ ] Remove source digest audit page writing from page planning and draft
+- [x] Remove source digest audit page writing from page planning and draft
   compilation.
-- [ ] Generate source digest audit Markdown from source units, selected atoms,
+- [x] Generate source digest audit Markdown from source units, selected atoms,
   write results, unresolved items, and raw pointers.
-- [ ] Narrow `wiki_draft_compile` payloads so the model receives selected page
+- [x] Narrow `wiki_draft_compile` payloads so the model receives selected page
   scaffolds, not source digest audit pages or broad source text.
-- [ ] Make semantic draft review conditional on risk, update, conflict,
-  duplicate, or failed-gate signals.
+- [x] Make semantic draft review conditional on update, conflict, duplicate,
+  weak evidence, low-confidence, or structural-risk signals.
 - [ ] Separate deterministic gate decisions and semantic review decisions in
   ingest reports.
 

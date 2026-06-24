@@ -566,15 +566,19 @@ Page Plan
   -> PageAssemblyService
   -> Page-local Prose Generation Agent
   -> MarkdownPageRenderer
-  -> IngestWriteGate
+  -> Deterministic Review Policy
   -> Conditional Semantic Review Agent
+  -> IngestWriteGate
   -> Write
 ```
 
-The write gate is deterministic and runs before persistence. It owns hard
-checks over source trace, selected atom trace, write action eligibility, and
-page-assembly projection. The semantic review agent owns meaning-level risk.
-The remaining refactor is to make semantic review conditional and to report
+The review policy is deterministic and decides whether the semantic review
+agent is needed. Low-risk creates can receive an auto-approved review object so
+the downstream write path keeps one contract. Updates, duplicate candidates,
+weak evidence, conflicts, and low-confidence drafts still enter semantic
+review. The write gate remains deterministic and runs before persistence. It
+owns hard checks over source trace, selected atom trace, write action
+eligibility, and page-assembly projection. The remaining refactor is to report
 deterministic gate decisions separately from semantic review decisions.
 
 ## Write / Report / Index Boundary

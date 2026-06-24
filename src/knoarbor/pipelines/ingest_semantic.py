@@ -11,6 +11,7 @@ from knoarbor.core.schemas.sources import SourceDocument
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
 from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
 from knoarbor.pipelines.ingest_context import IngestCandidatePageContext, IngestContextProvider
+from knoarbor.pipelines.ingest_review_policy import IngestDraftReviewPolicy, auto_approve_ingest_draft_review
 from knoarbor.semantic.ingest_compile_context import build_ingest_compile_context
 from knoarbor.semantic.ingest_workflow import IngestSemanticWorkflow, IngestSemanticWorkflowResult
 from knoarbor.semantic.knowledge_atom_quality import evaluate_knowledge_atoms
@@ -42,9 +43,11 @@ class IngestSemanticRunner:
         *,
         semantic_workflow: IngestSemanticWorkflow,
         context_provider: IngestContextProvider,
+        review_policy: IngestDraftReviewPolicy | None = None,
     ) -> None:
         self.semantic_workflow = semantic_workflow
         self.context_provider = context_provider
+        self.review_policy = review_policy or IngestDraftReviewPolicy()
 
     def run(
         self,
@@ -179,14 +182,26 @@ class IngestSemanticRunner:
             max_tokens=max_tokens,
         )
         draft_batch = materialize_draft_source_files(draft_batch, source_file)
-        review = self.semantic_workflow.review_drafts(
-            knowledge_extract,
-            page_plan,
-            draft_batch,
-            candidate_page_context=candidate_page_context.model_dump(),
-            ingest_compile_context=ingest_compile_context,
-            max_tokens=max_tokens,
+        review_policy = self.review_policy.evaluate(
+            page_plan=page_plan,
+            draft_batch=draft_batch,
+            atom_quality=knowledge_atom_quality,
         )
+        if review_policy.should_review:
+            review = self.semantic_workflow.review_drafts(
+                knowledge_extract,
+                page_plan,
+                draft_batch,
+                candidate_page_context=candidate_page_context.model_dump(),
+                ingest_compile_context=ingest_compile_context,
+                max_tokens=max_tokens,
+            )
+        else:
+            review = auto_approve_ingest_draft_review(
+                page_plan=page_plan,
+                draft_batch=draft_batch,
+                policy_decision=review_policy,
+            )
         semantic_metrics = summarize_semantic_runs(semantic_history_slice(self.semantic_workflow, resolved_history_start))
         return IngestSemanticRun(
             semantic_result=IngestSemanticWorkflowResult(
@@ -216,6 +231,7 @@ class IngestSemanticRunner:
                     "related_pages": len(ingest_compile_context.page_context.related),
                     "candidate_pages": len(ingest_compile_context.page_context.candidates),
                 },
+                "review_policy": review_policy.as_context(),
                 "semantic_metrics": semantic_metrics,
             },
             candidate_page_context=candidate_page_context,

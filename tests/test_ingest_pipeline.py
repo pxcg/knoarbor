@@ -756,8 +756,10 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertNotIn("alice@example.com", semantic.last_document.content.text)
         self.assertNotIn("sk-abcdefghijklmnop1234567890", semantic.last_document.content.text)
         self.assertGreater(first.results[0].redaction["redacted_count"], 0)
-        self.assertIsNotNone(semantic.last_review_draft_batch)
-        self.assertEqual(semantic.last_review_draft_batch.drafts[0].source_file, str((notes / "agent.md").resolve()))
+        semantic_result = first.results[0].semantic_result
+        self.assertIsNotNone(semantic_result)
+        self.assertEqual(semantic_result.wiki_draft_batch.drafts[0].source_file, str((notes / "agent.md").resolve()))
+        self.assertIn("ingest_draft_review skipped", semantic_result.ingest_draft_review.warnings[0])
         self.assertTrue((first.report_path or "").startswith("maintenance/ingest_report_"))
         self.assertEqual(first.ledger_path, "maintenance/ingest_ledger.jsonl")
 
