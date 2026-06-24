@@ -277,7 +277,7 @@ class WikiWritePipelineTests(unittest.TestCase):
             self.assertEqual(output_path.name, "LLM-Wiki-Source.md")
             self.assertIn("# LLM-Wiki Source", content)
             self.assertIn("## Source Identity", content)
-            self.assertIn("## Source Summary", content)
+            self.assertIn("## Audit Summary", content)
             self.assertIn("## Source Units", content)
             self.assertIn("## Contribution Map", content)
             self.assertIn("## Unresolved / Rejected", content)

@@ -186,9 +186,9 @@
       "details": {
         "directory": "sources",
         "page_type": "source",
-        "section": "Source Summary"
+        "section": "Audit Summary"
       },
-      "message": "Page is missing required sources section: Source Summary.",
+      "message": "Page is missing required sources section: Audit Summary.",
       "path": "sources/Agent-Loop-Source.md",
       "severity": "info"
     },

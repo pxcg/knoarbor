@@ -27,7 +27,7 @@ TRACKED_WRITE_SECTIONS = (
     "Evidence",
     "Synthesis",
     "Source Identity",
-    "Source Summary",
+    "Audit Summary",
     "Source Units",
     "Contribution Map",
     "Unresolved / Rejected",

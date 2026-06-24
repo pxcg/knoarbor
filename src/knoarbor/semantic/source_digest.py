@@ -36,7 +36,7 @@ def build_source_digest_from_extract(extract: KnowledgeExtract, *, digest_id: st
         raw_source=extract.source.source_path,
         content_hash=content_fingerprint,
         source_focus=extract.source.title,
-        summary=_summary_from_extract(extract),
+        summary=_audit_summary_from_extract(extract, units),
         units=units,
         unresolved_items=_unresolved_items_from_extract(extract, units),
         confidence=extract.confidence,
@@ -63,12 +63,17 @@ def _unit_summary(unit: ContentUnit) -> str:
     return text[:160]
 
 
-def _summary_from_extract(extract: KnowledgeExtract) -> str:
-    primary = " ".join(extract.compile_context.primary_content.split())
-    if primary:
-        return primary[:500]
-    unit_text = " ".join(" ".join(unit.content.split()) for unit in extract.content_units[:3])
-    return unit_text[:500]
+def _audit_summary_from_extract(extract: KnowledgeExtract, units: list[SourceDigestUnit]) -> str:
+    source_label = extract.source.title or extract.source.source_path or extract.source.source_id or "source"
+    raw_pointer = extract.source.source_path or extract.source.source_id or "not recorded"
+    warning_count = len([warning for warning in extract.warnings if warning.strip()])
+    return (
+        f"Audit record for {source_label}. "
+        f"Connector: {extract.source.source_app}. "
+        f"Source units: {len(units)}. "
+        f"Warnings: {warning_count}. "
+        f"Raw pointer: {raw_pointer}."
+    )
 
 
 def _extract_content_hash(extract: KnowledgeExtract) -> str:

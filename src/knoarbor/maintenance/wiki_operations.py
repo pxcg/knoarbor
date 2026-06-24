@@ -360,8 +360,10 @@ def _default_missing_section_content(content: str, section: str) -> str:
             f"- Content hash: {metadata.get('content_hash', 'unknown')}",
         ]
         return "\n".join(rows)
-    if section == "Source Summary":
-        return extract_section(content, "Summary") or extract_heading(content, "Untitled")
+    if section == "Audit Summary":
+        title = extract_heading(content, "Untitled")
+        source = metadata.get("source", "").strip() or "unknown"
+        return f"Audit record for {title}. Raw pointer: {source}."
     if section == "Source Units":
         source = metadata.get("source", "").strip() or "unknown"
         return "\n".join(

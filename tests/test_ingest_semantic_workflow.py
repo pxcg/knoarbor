@@ -194,6 +194,40 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
         self.assertEqual(len(projected.evidence), 1)
         self.assertTrue(projected.evidence[0].startswith("C1 | sd_test_agent | unit:0 | Agent loop is observe"))
 
+    def test_source_digest_draft_is_generated_outside_model_compile(self) -> None:
+        plan_output = _plan_with_source_digest_operation()
+        draft_output = wiki_draft_batch_output()
+        draft = draft_output["output"]["drafts"][0]
+        assert isinstance(draft, dict)
+        draft["operation_index"] = 1
+        client = ScriptedChatClient(
+            [
+                source_normalize_output(),
+                wiki_atom_extract_output(),
+                plan_output,
+                draft_output,
+                ingest_review_output(),
+            ]
+        )
+
+        result = IngestSemanticWorkflow(SemanticRunner(client)).run(markdown_source_document())
+
+        draft_payload = _dynamic_payload(client.requests[3])
+        self.assertEqual(
+            [operation["operation_index"] for operation in draft_payload["page_assembly"]["operations"]],
+            [1],
+        )
+        self.assertEqual(
+            [operation["operation_index"] for operation in draft_payload["ingest_compile_context"]["operations"]],
+            [1],
+        )
+        self.assertEqual([draft.operation_index for draft in result.wiki_draft_batch.drafts], [0, 1])
+        source_draft = result.wiki_draft_batch.drafts[0]
+        self.assertEqual(source_draft.page_dir, "sources")
+        self.assertEqual(source_draft.model_provider, "knoarbor")
+        self.assertEqual(source_draft.model_name, "deterministic-source-digest")
+        self.assertIn("Audit record for", source_draft.summary)
+
 
 def _dynamic_payload(request) -> dict[str, object]:
     marker = "Input JSON:\n"
@@ -203,6 +237,36 @@ def _dynamic_payload(request) -> dict[str, object]:
 
 def _ids(items: list[dict[str, object]]) -> list[str]:
     return [str(item["id"]) for item in items]
+
+
+def _plan_with_source_digest_operation() -> dict[str, object]:
+    output = deepcopy(wiki_page_plan_output())
+    plan = output["output"]
+    assert isinstance(plan, dict)
+    operations = plan["operations"]
+    assert isinstance(operations, list)
+    operations.insert(
+        0,
+        {
+            "action": "create",
+            "target_page": None,
+            "page_dir": "sources",
+            "canonical_path": "sources/Agent-Source.md",
+            "legacy_paths": [],
+            "page_kind": "source_digest",
+            "subject_kind": "source",
+            "facets": ["source_audit"],
+            "title": "Agent Source",
+            "knowledge_object": "Agent source audit",
+            "selected_claim_ids": [],
+            "selected_relation_ids": [],
+            "source_digest_ids": ["sd_test_agent"],
+            "related_pages": [],
+            "candidate_pages": [],
+            "decision_reason": "Every substantive source has one audit page.",
+        },
+    )
+    return output
 
 
 def _atom_output_with_unselected_material() -> dict[str, object]:

@@ -17,7 +17,7 @@ KNOWLEDGE_PAGE_SECTIONS = (
 )
 SOURCE_DIGEST_SECTIONS = (
     "Source Identity",
-    "Source Summary",
+    "Audit Summary",
     "Source Units",
     "Contribution Map",
     "Unresolved / Rejected",

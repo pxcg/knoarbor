@@ -197,7 +197,7 @@
       "updated_at": null
     },
     "source_focus": "Agent",
-    "summary": "Agent loop is observe, decide, act, feedback.",
+    "summary": "Audit record for Agent. Connector: markdown. Source units: 1. Warnings: 0. Raw pointer: raw/notes/Agent.md.",
     "units": [
       {
         "evidence": {

@@ -108,7 +108,7 @@ content_hash: {digest}
 - Atom ids: {atom_ids}
 - Content hash: {digest}
 
-## Source Summary
+## Audit Summary
 
 {summary}
 
