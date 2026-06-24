@@ -83,7 +83,6 @@ class IngestSemanticRunner:
         source_digest = build_source_digest_from_extract(knowledge_extract)
         knowledge_atom_batch = self.semantic_workflow.extract_atoms(
             source_digest,
-            knowledge_extract=knowledge_extract,
             max_tokens=max_tokens,
         )
         knowledge_atom_quality = evaluate_knowledge_atoms(knowledge_atom_batch)

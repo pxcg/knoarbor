@@ -16,7 +16,7 @@ from knoarbor.core.schemas.knowledge_atoms import (
 )
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 from knoarbor.core.schemas.wiki_page_plan import WikiPageOperation, WikiPagePlan
-from knoarbor.pipelines.ingest_context import IngestContextProvider
+from knoarbor.pipelines.ingest_context import IngestContextProvider, build_ingest_query
 from knoarbor.pipelines.query import QueryPipelineResult
 from knoarbor.retrieval.markdown import ScoredPage, SearchPage
 from knoarbor.storage import update_machine_index
@@ -54,6 +54,60 @@ class CountingQueryPipeline:
 
 
 class IngestContextProviderTests(unittest.TestCase):
+    def test_ingest_query_prefers_atom_signals_over_full_source_body(self) -> None:
+        extract = KnowledgeExtract.model_validate(
+            source_normalize_output(
+                title="Noisy Source",
+                content="NoisyBodyOnlyPhrase should not be used once atom signals exist.",
+            )["output"]
+        )
+        atom_batch = KnowledgeAtomBatch(
+            source_digest_id="sd_query_policy",
+            entities=[KnowledgeAtomObject(object_type="knowledge_object", name="GraphSignalEntity")],
+            claims=[
+                KnowledgeClaim(
+                    id="claim_query_policy",
+                    claim="GraphSignalEntity drives the retrieval signal.",
+                    claim_type="assessment",
+                    evidence=[
+                        KnowledgeEvidenceSpan(
+                            source_digest_id="sd_query_policy",
+                            source_path="raw/notes/query-policy.md",
+                            excerpt="GraphSignalEntity appears here.",
+                        )
+                    ],
+                    entity_names=["GraphSignalEntity"],
+                )
+            ],
+            relations=[
+                KnowledgeRelation(
+                    id="rel_query_policy",
+                    subject=KnowledgeAtomObject(object_type="knowledge_object", name="GraphSignalEntity"),
+                    predicate="includes",
+                    object=KnowledgeAtomObject(object_type="knowledge_object", name="Retrieval Policy"),
+                    source_claim_ids=["claim_query_policy"],
+                )
+            ],
+        )
+
+        query = build_ingest_query(extract, atom_batch)
+
+        self.assertIn("GraphSignalEntity", query)
+        self.assertIn("Retrieval Policy", query)
+        self.assertNotIn("NoisyBodyOnlyPhrase", query)
+
+    def test_ingest_query_falls_back_to_source_body_before_atoms_exist(self) -> None:
+        extract = KnowledgeExtract.model_validate(
+            source_normalize_output(
+                title="Fallback Source",
+                content="FallbackBodySignal remains useful before atom extraction.",
+            )["output"]
+        )
+
+        query = build_ingest_query(extract)
+
+        self.assertIn("FallbackBodySignal", query)
+
     def test_build_reuses_same_run_query_cache(self) -> None:
         page = SearchPage(
             path=Path("/tmp/concepts/Agent.md"),
@@ -166,7 +220,8 @@ class IngestContextProviderTests(unittest.TestCase):
 
         self.assertEqual(context.candidates[0].path, "concepts/Graph-Candidate.md")
         self.assertEqual(context.stats["graph_first_candidate_count"], 1)
-        self.assertEqual(context.stats["text_candidate_count"], 0)
+        self.assertEqual(context.stats["pre_rerank_candidate_count"], 1)
+        self.assertIn("GraphOnlyEntity", context.query)
         self.assertIn("graph_recall", context.candidates[0].matched_fields)
 
     def test_materialize_cache_is_local_and_clearable(self) -> None:

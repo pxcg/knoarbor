@@ -93,7 +93,7 @@ class IngestContextProvider:
             self._materialize_cache.clear()
 
     def build(self, vault_path: Path, extract: KnowledgeExtract, knowledge_atom_batch: KnowledgeAtomBatch | None = None) -> IngestWikiContext:
-        query = build_ingest_query(extract)
+        query = build_ingest_query(extract, knowledge_atom_batch)
         if not query:
             return IngestWikiContext(
                 retrieval_mode="none",
@@ -205,11 +205,23 @@ class IngestContextProvider:
         return result
 
 
-def build_ingest_query(extract: KnowledgeExtract) -> str:
+def build_ingest_query(extract: KnowledgeExtract, atom_batch: KnowledgeAtomBatch | None = None) -> str:
     parts: list[str] = [extract.source.title]
-    for unit in extract.content_units[:6]:
+    for unit in extract.content_units[:8]:
         if unit.title:
             parts.append(unit.title)
+    if atom_batch is not None:
+        for entity in atom_batch.entities:
+            parts.append(entity.name)
+            parts.extend(entity.aliases)
+        for claim in atom_batch.claims:
+            parts.append(claim.claim)
+            parts.extend(claim.entity_names)
+        for relation in atom_batch.relations:
+            parts.extend([relation.subject.name, relation.predicate, relation.object.name, relation.reason])
+        return compact_inline_text("\n".join(part for part in parts if part), 1200)
+
+    for unit in extract.content_units[:6]:
         if unit.is_primary and unit.content:
             parts.append(unit.content)
     if extract.compile_context.primary_content:
@@ -238,7 +250,7 @@ def build_ingest_recall_signals(extract: KnowledgeExtract, atom_batch: Knowledge
             relation_pairs.append((relation.subject.name, relation.object.name))
             source_terms.extend(span.source_path or "" for span in relation.evidence)
     return GraphRecallSignals(
-        text_query=build_ingest_query(extract),
+        text_query=build_ingest_query(extract, atom_batch),
         entities=_dedupe_signal_terms(entities),
         relation_pairs=relation_pairs,
         source_terms=_dedupe_signal_terms(source_terms),
@@ -287,7 +299,7 @@ def rerank_ingest_candidates(extract: KnowledgeExtract, matches: list[ScoredPage
             item.matched_fields.add("source_overlap")
             item.matched_terms["source_overlap"] = overlap_hits[:12]
         if item.page.source and extract.source.source_path and _same_source(item.page.source, extract.source.source_path):
-            boost += 4.0
+            boost += 12.0
             item.matched_fields.add("same_source")
             item.matched_terms["same_source"] = [extract.source.source_path]
         if item.page.related_pages:
@@ -329,7 +341,21 @@ def _overlap_hits(item: ScoredPage, terms: list[str]) -> list[str]:
 
 
 def _same_source(page_source: str, extract_source_path: str) -> bool:
-    return page_source.strip().strip("/") == extract_source_path.strip().strip("/")
+    left = _normalize_source_identity(page_source)
+    right = _normalize_source_identity(extract_source_path)
+    return bool(left and right and left == right)
+
+
+def _normalize_source_identity(value: str) -> str:
+    text = value.strip()
+    if not text:
+        return ""
+    if text.startswith("/") or text.startswith("~"):
+        try:
+            return Path(text).expanduser().resolve(strict=False).as_posix().strip("/")
+        except OSError:
+            return text.strip("/")
+    return text.strip("/")
 
 
 def selected_page_plan_paths(page_plan: WikiPagePlan) -> list[str]:

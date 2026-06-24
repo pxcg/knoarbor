@@ -8,6 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from knoarbor.pipelines.ingest_context import IngestContextProvider
+from knoarbor.pipelines.ingest_semantic import IngestSemanticRunner
 from knoarbor.semantic import IngestSemanticWorkflow, SemanticRunner
 
 from tests.harness.llm import ScriptedChatClient
@@ -22,6 +24,26 @@ from tests.harness.semantic_cases import (
 
 
 class IngestSemanticWorkflowTests(unittest.TestCase):
+    def test_ingest_semantic_runner_extract_source_uses_digest_only_atom_input(self) -> None:
+        client = ScriptedChatClient(
+            [
+                source_normalize_output(),
+                wiki_atom_extract_output(),
+            ]
+        )
+        workflow = IngestSemanticWorkflow(SemanticRunner(client))
+        runner = IngestSemanticRunner(
+            semantic_workflow=workflow,
+            context_provider=IngestContextProvider(),
+        )
+
+        result = runner.extract_source(document=markdown_source_document(), max_tokens=None)
+
+        self.assertEqual(result.knowledge_atom_batch.summary()["claims"], 1)
+        atom_payload = _dynamic_payload(client.requests[1])
+        self.assertIn("source_digest", atom_payload)
+        self.assertNotIn("knowledge_extract", atom_payload)
+
     def test_ingest_semantic_workflow_runs_four_contracts_without_writing(self) -> None:
         client = ScriptedChatClient(
             [

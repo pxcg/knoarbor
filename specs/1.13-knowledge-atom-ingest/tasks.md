@@ -25,7 +25,7 @@ implementation notes, and future SDD updates:
 | --- | --- | --- | --- | --- |
 | 3.1 | Normalize Source Segment | `SourceDocument` | `KnowledgeExtract` | Model |
 | 3.2 | Build Source Digest | `KnowledgeExtract` | `SourceDigest` | Code |
-| 3.3 | Extract Knowledge Atoms | `SourceDigest` + `KnowledgeExtract` | `KnowledgeAtomBatch` | Model |
+| 3.3 | Extract Knowledge Atoms | `SourceDigest` | `KnowledgeAtomBatch` | Model |
 | 3.4 | Validate Knowledge Atoms | `KnowledgeAtomBatch` | `KnowledgeAtomQualityReport` | Code |
 
 The step boundary is claims-first: claims are created only in 3.3. Step 3 does
