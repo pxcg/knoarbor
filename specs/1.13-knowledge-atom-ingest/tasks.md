@@ -9,7 +9,7 @@ so progress does not depend on conversation context.
 | Step | Boundary | Status | Owner / Output | Notes |
 | --- | --- | --- | --- | --- |
 | 1 | Source Input | Frozen | Connectors, document processors, `SourceDocument`, checkpoint identity | Raw materials become normalized source documents with source identity, raw state, fingerprint, stable session raw indexes, and checkpoint windows. |
-| 2 | Source Segmentation | Frozen | `SourceSegmenter` | Long sources are split for budget and source-range preservation. Segmentation does not decide page boundaries or writes. |
+| 2 | Source Segmentation + Source Unitization | Frozen / Unitization Planned | `SourceSegmenter`, planned deterministic unitizer | Segmentation splits long sources for budget. Unitization produces source-native evidence spans for source digests and atoms. Neither boundary decides page boundaries or writes. |
 | 3 | Segment-level Semantic Extraction | Frozen | `source_normalize`, `wiki_atom_extract`, `knowledge_atoms.v2` | Extract claims, entities, relations, and evidence from each source or segment. This is where claims are created. |
 | 4 | Source-level Aggregation | Frozen | `AggregatedSemanticArtifacts` | Merge segment extracts, remap evidence ranges, deduplicate atoms, rebuild source-level digest audit data, and emit source-level atom quality. |
 | 5 | Page Planning | Frozen | `WikiPagePlan` | Decide create/update/skip and select claim ids per page. It should not retrieve, write, or assemble page bodies. |
@@ -17,6 +17,20 @@ so progress does not depend on conversation context.
 | 7 | Page Assembly / Draft Compile | Frozen | `PageAssemblyService` + page-local prose generation | Assemble identity, claims, relations, entities, evidence, and Markdown skeleton deterministically; use LLM mainly for summary, synthesis, and safe update prose. |
 | 8 | Review / Write Gate | Partial | `IngestWriteGate`, draft review agent | Split deterministic write gate from semantic review and make review conditional on risk signals. |
 | 9 | Write / Report / Index | Frozen | `IngestPostProcessor`, `WikiWritePipeline`, atom index, graph/manifest reports | Persist approved pages, refresh indexes, run scoped maintenance, commit checkpoints, and emit reports without creating new semantic decisions. |
+
+Step 2 has one implemented boundary and one frozen implementation target:
+
+| Substep | Name | Input | Output | Execution |
+| --- | --- | --- | --- | --- |
+| 2.1 | Segment Source | `SourceDocument` | `SourceSegmentBatch` | Code |
+| 2.2 | Unitize Source | `SourceDocument` or `SourceSegment` | deterministic source units + warnings | Code |
+
+Segmentation is an execution and budget boundary. Unitization is an evidence and
+audit boundary. The detailed contract is frozen in
+[Source Unitization Boundary](source-unitization-boundary.md). Current code
+still relies on semantic source normalization for some unit boundaries; the next
+implementation task is to move source-type unit boundaries into deterministic
+code according to the frozen matrix.
 
 Step 3 is frozen as four named substeps. Use these names in code review,
 implementation notes, and future SDD updates:
@@ -129,6 +143,30 @@ reports must preserve generated page paths even if a later index step fails.
   `SourceDigest`.
 - [x] Update source digest report payloads without changing existing page
   output.
+
+## P1A Source Unitization Boundary
+
+- [x] Freeze Source Unitization as a distinct SDD boundary between
+  segmentation and source normalization.
+- [x] Freeze the mature source-type matrix for Markdown/document, parsed
+  PDF/Office Markdown, chat, agent records, Hermes conversation, selected
+  excerpt, plain text, code, web/HTML, table/CSV, and image OCR sources.
+- [ ] Add deterministic Markdown/document heading unitization.
+- [ ] Add deterministic PDF/Office parsed Markdown heading, page-span, table
+  block, and figure-caption unitization.
+- [ ] Add deterministic chat turn-group unitization for Codex, Claude Code,
+  OpenClaw, and Hermes sources.
+- [ ] Add selected excerpt and plain text paragraph/full-source unitization.
+- [ ] Add web/HTML heading and article-section unitization.
+- [ ] Add table/CSV sheet, table, and row-group unitization.
+- [ ] Add image OCR block and page-region unitization.
+- [ ] Add code file function/class/comment-block unitization when code becomes a
+  core source type.
+- [ ] Pass source unit hints into source normalization and source digest
+  projection.
+- [ ] Add report fields for source unit count, unitization rule, fallback rule,
+  and unitization warnings.
+- [ ] Add tests proving segment count and source unit count can differ.
 
 ## P2 Atom Extraction
 

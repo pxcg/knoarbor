@@ -94,12 +94,14 @@ inventing a broad article from thin evidence.
 - Ingest design documents define the pipeline boundary:
 
   ```text
-  raw -> source digest -> knowledge atoms -> page plan -> page draft -> indexes/reports
+  raw -> source units -> source digest -> knowledge atoms -> page plan -> page draft -> indexes/reports
   ```
 
 - Existing ingest behavior can continue while the atom layer is introduced.
 - Future tasks identify how reports, indexes, page drafts, lint, query, and chat
   consume atom data.
+- Source unitization remains distinct from long-source segmentation: source
+  units define evidence spans, while segments define execution windows.
 - New Wiki pages expose `Summary`, `Claims`, `Entities`, `Relations`,
   `Evidence`, and `Synthesis` sections.
 - Page planning, draft compilation, draft review, and the deterministic write

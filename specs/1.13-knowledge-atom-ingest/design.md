@@ -20,6 +20,7 @@ Connector / Document Processor
   -> SourceDocument
   -> Checkpoint Window
   -> Source Segmentation
+  -> Source Unitization
   -> Deterministic Source Parse
   -> Source Digest Audit
   -> Knowledge Atom Extract
@@ -51,6 +52,13 @@ Responsibilities:
 - provide stable source units for evidence references.
 
 This layer does not interpret source meaning.
+
+Source segmentation and source unitization are separate boundaries.
+Segmentation defines execution windows for model budget. Unitization defines
+source-native evidence spans for source digests and atom evidence. A short
+Markdown source may remain one segment and still produce several source units.
+The detailed boundary is frozen in
+[Source Unitization Boundary](source-unitization-boundary.md).
 
 ### Source Digest Layer
 

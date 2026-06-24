@@ -174,6 +174,44 @@ interpretation, page planning, wiki writes, or checkpoint commits. It also does
 not use raw text overlap; cross-segment continuity is handled by source-level
 aggregation after segment-local semantic extraction.
 
+### Frozen Source Unitization Contract
+
+Source unitization is frozen as the ingest evidence and audit boundary. It is
+adjacent to segmentation but owns a different question:
+
+1. which source-native spans should become stable evidence units;
+2. which unit ids, titles, raw indexes, ranges, and structural paths are stable
+   enough for source digests and atom evidence;
+3. which unitization warnings must be visible in reports.
+
+The stable unitization contract is:
+
+- Markdown and document sources use heading blocks before paragraph groups;
+- PDF and Office sources parsed into Markdown use headings, page markers, table
+  blocks, and figure caption blocks when available;
+- chat and agent-session sources use complete user-led turn groups or topic
+  spans with stable `raw_index` ranges;
+- selected excerpts preserve the exact selected text or selected text groups as
+  explicit units;
+- plain text uses paragraph groups with a full-source fallback for very short
+  text;
+- code files, when supported, use function, class, or documentation/comment
+  blocks;
+- web and HTML sources, when supported, use DOM headings and article sections;
+- table and CSV sources, when supported, use sheet, table, or row-group units;
+- image OCR sources, when supported, use OCR block or page-region units;
+- source units preserve source order and can be remapped from segment-local
+  indexes to source-level indexes during aggregation;
+- unitization warnings are separate from segmentation warnings.
+
+Unitization does not decide wiki page boundaries, create claims, infer relation
+meaning, choose write operations, or generate page prose. The source
+normalization agent may clean unit labels and remove process noise, while the
+deterministic unit boundaries remain the source digest and evidence anchor.
+
+The detailed implementation target is documented in
+[Source Unitization Boundary](source-unitization-boundary.md).
+
 ## Long Source Aggregation Boundary
 
 Segmentation is a budget and structure-preservation mechanism, not a wiki page
@@ -384,9 +422,10 @@ output names describe data contracts.
 
 Boundary rules:
 
-- `Normalize Source Segment` preserves source units and removes process noise.
-  It may use a model because mixed chat, notes, and tool output require
-  semantic judgment.
+- `Normalize Source Segment` preserves deterministic source units and removes
+  process noise. It may use a model because mixed chat, notes, and tool output
+  require semantic judgment, but it should not invent structural unit boundaries
+  when unitization has already provided them.
 - `Build Source Digest` is deterministic source audit projection. It owns the
   structured data for `Source Identity`, source audit summary, `Source Units`,
   raw source pointers, and source-level unresolved/warning items. It does not

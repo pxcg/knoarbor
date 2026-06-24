@@ -7,6 +7,18 @@
 - Relations without direct evidence or source claim references fail validation.
 - Atom batch summaries report entity, claim, relation, and evidence counts.
 - Existing ingest tests pass while the atom layer is introduced.
+- Source unitization tests verify that segment count and source unit count can
+  differ.
+- Markdown unitization tests verify heading-first source units for short sources
+  that remain one segment.
+- Chat unitization tests verify complete turn-group units with stable raw
+  indexes.
+- Parsed document tests verify headings, page spans, table blocks, and figure
+  caption blocks when those structures are available.
+- Unitization report tests verify unit count, unitization rule, fallback rule,
+  and warnings.
+- Source digest tests verify deterministic source units are listed and available
+  for knowledge atom evidence spans.
 - Page planning payloads use compact source digest profiles and selected atom
   context.
 - Draft and review payloads omit full raw source bodies after atom extraction.
@@ -64,6 +76,8 @@ uv run ruff check \
   consumed early, while later stages use source digest, selected atoms, and
   materialized page context.
 - Verify source digest pages remain readable.
+- Verify source digest pages expose deterministic source units rather than an
+  AI-invented source outline.
 - Verify generated wiki pages remain readable and do not expose raw atom ids in
   the default view.
 - Verify page claims can be traced to source digest or source evidence in debug
