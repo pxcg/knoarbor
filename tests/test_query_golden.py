@@ -105,6 +105,15 @@ def _agent_loop_query_vault(root: Path) -> Path:
         "## Key Points\n\n"
         "- Agent loops are dynamic and tool-aware.\n"
         "- Workflows provide deterministic structure around uncertain agent decisions.\n\n"
+        "## Entities\n\n"
+        "- [[Agent Loop]]\n"
+        "- [[Workflow]]\n"
+        "- [[OpenClaw]]\n\n"
+        "## Relations\n\n"
+        "| Subject | Predicate | Object | Based on |\n"
+        "|---|---|---|---|\n"
+        "| [[Agent Loop]] | differs from | [[Workflow]] | C1 |\n"
+        "| [[OpenClaw]] | implements | [[Agent Loop]] | C2 |\n\n"
         "## Answer\n\n"
         "Agent loop systems repeat observation, reasoning, action, and feedback. A workflow follows a predefined path, while an agent loop lets the model choose the next step.\n\n"
         "## Related Pages\n\n"
@@ -119,7 +128,10 @@ def _agent_loop_query_vault(root: Path) -> Path:
         "tags: [agent]\n"
         "---\n\n"
         "## Summary\n\n"
-        "OpenClaw is an engineering agent system that combines structured workflows with agent loops.\n",
+        "OpenClaw is an engineering agent system that combines structured workflows with agent loops.\n\n"
+        "## Entities\n\n"
+        "- [[OpenClaw]]\n"
+        "- [[Agent Loop]]\n",
         encoding="utf-8",
     )
     (vault / "sources" / "Agent-Loop-Source.md").write_text(
@@ -130,7 +142,10 @@ def _agent_loop_query_vault(root: Path) -> Path:
         "source: raw/notes/agent-loop.md\n"
         "---\n\n"
         "## Summary\n\n"
-        "Source digest for agent loop and workflow comparison notes.\n",
+        "Source digest for agent loop and workflow comparison notes.\n\n"
+        "## Entities\n\n"
+        "- [[Agent Loop]]\n"
+        "- [[Workflow]]\n",
         encoding="utf-8",
     )
     return vault

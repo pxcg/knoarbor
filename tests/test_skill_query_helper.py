@@ -344,7 +344,7 @@ class SkillQueryHelperTests(unittest.TestCase):
         text = helper._format_query(
             {
                 "query": "Agent Loop",
-                "retrieval_mode": "machine_hybrid_balanced",
+                "retrieval_mode": "machine_graph_led_bm25_balanced",
                 "stats": {"vault_path": "/tmp/vaults/all"},
                 "results": [
                     {
@@ -369,7 +369,7 @@ class SkillQueryHelperTests(unittest.TestCase):
         text = helper._format_query(
             {
                 "query": "Agent Loop",
-                "retrieval_mode": "machine_hybrid_balanced",
+                "retrieval_mode": "machine_graph_led_bm25_balanced",
                 "stats": {"multi_vault": True, "vault_count": 2},
                 "results": [
                     {

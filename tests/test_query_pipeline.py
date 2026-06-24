@@ -51,7 +51,7 @@ class QueryPipelineTests(unittest.TestCase):
                 )
             )
 
-        self.assertEqual(result.retrieval_mode, "machine_hybrid_balanced")
+        self.assertEqual(result.retrieval_mode, "machine_graph_led_bm25_balanced")
         self.assertEqual(result.matches[0].page.relative_path, "concepts/Agent-Loop.md")
         self.assertIn("title", result.matches[0].matched_terms)
         self.assertEqual(result.stats["index_provider"], "machine")
@@ -212,7 +212,7 @@ class QueryPipelineTests(unittest.TestCase):
         self.assertIn("concepts/Tool-Execution.md", paths)
         self.assertIn("graph_index", expanded.matched_fields)
         self.assertTrue(any(reason.startswith("relation:") or reason.startswith("shared_entity:") for reason in expanded.graph_reasons))
-        self.assertEqual(result.stats["graph_index_seed_pages"], ["concepts/Agent-Loop.md"])
+        self.assertIn("concepts/Agent-Loop.md", result.stats["graph_index_seed_pages"])
         self.assertIn("concepts/Tool-Execution.md", result.stats["graph_index_result_paths"])
 
     def test_query_pipeline_uses_index_provider_boundary(self) -> None:
@@ -312,15 +312,15 @@ class QueryPipelineTests(unittest.TestCase):
             (vault / "concepts").mkdir()
             (vault / "entities").mkdir()
             (vault / "concepts" / "Agent-Loop.md").write_text(
-                "# Agent Loop\n\n## Summary\n\nAgent loop explains reasoning and tool execution patterns.\n",
+                "# Agent Loop\n\n## Summary\n\nAgent loop explains reasoning and tool execution patterns.\n\n## Entities\n\n- [[Agent Loop]]\n",
                 encoding="utf-8",
             )
             (vault / "concepts" / "Session-Memory.md").write_text(
-                "# Session Memory\n\n## Summary\n\nSession memory supports long-running agent loops and context compaction.\n",
+                "# Session Memory\n\n## Summary\n\nSession memory supports long-running agent loops and context compaction.\n\n## Entities\n\n- [[Agent Loop]]\n- [[Session Memory]]\n",
                 encoding="utf-8",
             )
             (vault / "entities" / "OpenClaw.md").write_text(
-                "# OpenClaw\n\n## Summary\n\nOpenClaw implements production agent loop infrastructure.\n",
+                "# OpenClaw\n\n## Summary\n\nOpenClaw implements production agent loop infrastructure.\n\n## Entities\n\n- [[Agent Loop]]\n- [[OpenClaw]]\n",
                 encoding="utf-8",
             )
 

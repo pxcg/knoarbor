@@ -173,7 +173,7 @@ def build_result(item: ScoredPage, terms: list[str], request: WikiSearchRequest)
         status=page.status,
         score=score,
         relevance=relevance_label(score),
-        match_kind="related" if item.matched_fields == {"related_graph"} else "direct",
+        match_kind="related" if {"related_graph", "graph_related"}.intersection(item.matched_fields) else "direct",
         matched_fields=sorted(item.matched_fields),
         matched_terms={key: sorted(set(value)) for key, value in sorted(item.matched_terms.items())},
         reason=match_reason(item),

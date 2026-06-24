@@ -8,11 +8,11 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from knoarbor.core.markdown import compact_inline_text, extract_heading, extract_list_items, extract_section, extract_tags, parse_frontmatter
-from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch
+from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch, KnowledgeAtomObject
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
-from knoarbor.pipelines.ingest_candidate_provider import graph_first_ingest_candidates, merge_candidate_matches
-from knoarbor.pipelines.query import QueryPipeline, QueryPipelineRequest
+from knoarbor.pipelines.query import QueryPipeline
+from knoarbor.retrieval import GraphLedRetrievalRequest, GraphLedRetriever, GraphRecallSignals
 from knoarbor.retrieval.markdown import ScoredPage, extract_headings, query_terms, strip_frontmatter
 from knoarbor.storage.vault import VaultStore
 
@@ -79,6 +79,7 @@ class IngestContextProvider:
         max_chars_per_page: int = 6000,
     ) -> None:
         self.query_pipeline = query_pipeline or QueryPipeline()
+        self.retriever = GraphLedRetriever(self.query_pipeline.index_provider)
         self.candidate_limit = candidate_limit
         self.materialized_page_limit = materialized_page_limit
         self.max_chars_per_page = max_chars_per_page
@@ -101,23 +102,15 @@ class IngestContextProvider:
                 stats={"candidate_count": 0},
             )
 
-        query_request = QueryPipelineRequest(
+        retrieval_request = GraphLedRetrievalRequest(
             vault_path=vault_path,
             query=query,
-            mode="balanced",
+            signals=build_ingest_recall_signals(extract, knowledge_atom_batch),
             limit=self.candidate_limit,
             include_related=True,
         )
-        result = self._cached_query(query_request)
-        graph_matches = graph_first_ingest_candidates(
-            vault_path=vault_path,
-            extract=extract,
-            atom_batch=knowledge_atom_batch,
-            index_provider=self.query_pipeline.index_provider,
-            limit=self.candidate_limit,
-        )
-        merged_matches = merge_candidate_matches(result.matches, graph_matches)
-        matches = rerank_ingest_candidates(extract, merged_matches)
+        result = self._cached_retrieval(retrieval_request)
+        matches = rerank_ingest_candidates(extract, result.matches)
         candidates = [
             IngestCandidatePage(
                 path=item.page.relative_path,
@@ -137,18 +130,17 @@ class IngestContextProvider:
             for item in matches
         ]
         profile_chars = _candidate_profile_chars(candidates)
-        graph_paths = [item.page.relative_path for item in graph_matches]
         return IngestWikiContext(
-            retrieval_mode=f"graph_first+{result.retrieval_mode}" if graph_matches else result.retrieval_mode,
+            retrieval_mode=f"{self.query_pipeline.index_provider.name}_graph_led_bm25",
             query=query,
             candidates=candidates,
-            warnings=result.warnings + result.gaps,
+            warnings=result.warnings,
             stats={
                 **result.stats,
-                "graph_first_candidate_count": len(graph_matches),
-                "graph_first_result_paths": graph_paths,
-                "graph_first_reasons": {item.page.relative_path: item.graph_reasons for item in graph_matches},
-                "text_candidate_count": len(result.matches),
+                "graph_first_candidate_count": result.stats.get("graph_candidate_count", 0),
+                "graph_first_result_paths": result.stats.get("graph_index_result_paths", []),
+                "graph_first_reasons": {item.page.relative_path: item.graph_reasons for item in result.matches},
+                "text_candidate_count": result.stats.get("bm25_reranked_count", 0),
                 "pre_rerank_candidate_count": len(result.matches),
                 "candidate_count": len(candidates),
                 "page_plan_profile_chars": profile_chars,
@@ -201,13 +193,13 @@ class IngestContextProvider:
             self._materialize_cache[cache_key] = context.model_copy(deep=True)
         return context
 
-    def _cached_query(self, request: QueryPipelineRequest):
+    def _cached_retrieval(self, request: GraphLedRetrievalRequest):
         cache_key = _query_cache_key(request, self.query_pipeline.index_provider.name)
         with self._lock:
             cached = self._query_cache.get(cache_key)
             if cached is not None:
                 return deepcopy(cached)
-        result = self.query_pipeline.run(request)
+        result = self.retriever.retrieve(request)
         with self._lock:
             self._query_cache[cache_key] = deepcopy(result)
         return result
@@ -225,8 +217,58 @@ def build_ingest_query(extract: KnowledgeExtract) -> str:
     return compact_inline_text("\n".join(part for part in parts if part), 1200)
 
 
+def build_ingest_recall_signals(extract: KnowledgeExtract, atom_batch: KnowledgeAtomBatch | None) -> GraphRecallSignals:
+    entities = [
+        extract.source.title,
+        extract.source.source_id or "",
+        extract.source.source_path or "",
+    ]
+    relation_pairs: list[tuple[str, str]] = []
+    source_terms = [
+        extract.source.source_path or "",
+        extract.source.source_id or "",
+        extract.source.title,
+    ]
+    if atom_batch is not None:
+        for claim in atom_batch.claims:
+            source_terms.extend(span.source_path or "" for span in claim.evidence)
+        for relation in atom_batch.relations:
+            _append_object_terms(entities, relation.subject)
+            _append_object_terms(entities, relation.object)
+            relation_pairs.append((relation.subject.name, relation.object.name))
+            source_terms.extend(span.source_path or "" for span in relation.evidence)
+    return GraphRecallSignals(
+        text_query=build_ingest_query(extract),
+        entities=_dedupe_signal_terms(entities),
+        relation_pairs=relation_pairs,
+        source_terms=_dedupe_signal_terms(source_terms),
+    )
+
+
 def _inline_text(value: str) -> str:
     return " ".join(value.split())
+
+
+def _append_object_terms(terms: list[str], obj: KnowledgeAtomObject | None) -> None:
+    if obj is None:
+        return
+    terms.append(obj.name)
+    terms.extend(obj.aliases)
+    if obj.page_path:
+        terms.append(Path(obj.page_path).stem)
+
+
+def _dedupe_signal_terms(values: list[str]) -> list[str]:
+    output: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value).strip()
+        key = " ".join(text.lower().replace("_", " ").replace("-", " ").split())
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        output.append(text)
+    return output
 
 
 def _candidate_profile_chars(candidates: list[IngestCandidatePage]) -> int:
@@ -309,15 +351,21 @@ def selected_page_plan_path_roles(page_plan: WikiPagePlan) -> list[tuple[str, Ma
     return [(path, _highest_page_plan_role(path, page_plan)) for path in paths]
 
 
-def _query_cache_key(request: QueryPipelineRequest, index_provider_name: str) -> tuple[object, ...]:
+def _query_cache_key(request: GraphLedRetrievalRequest, index_provider_name: str) -> tuple[object, ...]:
+    signals = getattr(request, "signals", None)
     return (
-        "query",
+        "graph_led",
         request.vault_path.expanduser().resolve().as_posix(),
         index_provider_name,
         request.query,
-        request.mode,
+        tuple(getattr(signals, "entities", [])),
+        tuple(getattr(signals, "relation_pairs", [])),
+        tuple(getattr(signals, "source_terms", [])),
         request.limit,
         tuple(request.page_dirs),
+        tuple(getattr(request, "page_kinds", [])),
+        tuple(getattr(request, "page_roles", [])),
+        tuple(getattr(request, "facets", [])),
         request.include_related,
     )
 

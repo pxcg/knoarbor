@@ -1,5 +1,5 @@
 {
-  "context_pack": "Relevant KnoArbor context for the host AI.\nQuery: agent loop workflow\n\nAnswer guidance:\n- Use primary_pages as the maintained wiki answer unit when they answer the question directly.\n- Use supporting_pages and source_pages for context, provenance, and follow-up suggestions.\n- Use the returned wiki pages as local evidence, not as the only possible source of truth.\n- Cite page paths when making claims, especially for specific facts or recommendations.\n- Primary page candidate: concepts/Agent-Loop.md.\n\n1. Agent Loop (concepts/Agent-Loop.md, relevance: high, score: 20.853)\nAnswer role: primary\nMatch origin: direct\nSummary: Agent loop is a control pattern where a model observes context, reasons, acts with tools, and uses feedback.\nKey points:\n- Agent loops are dynamic and tool-aware.\n- Workflows provide deterministic structure around uncertain agent decisions.\nRelevant excerpts:\n- concepts/Agent-Loop.md#Key Points: - Agent loops are dynamic and tool-aware. - Workflows provide deterministic structure around uncertain agent decisions.\n- concepts/Agent-Loop.md#Answer: Agent loop systems repeat observation, reasoning, action, and feedback. A workflow follows a predefined path, while an agent loop lets the model choose the next step.\nFull page body:\n# Agent Loop\n\n## Summary\n\nAgent loop is a control pattern where a model observes context, reasons, acts with tools, and uses feedback.\n\n## Key Points\n\n- Agent loops are dynamic and tool-aware.\n- Workflows provide deterministic structure around uncertain agent decisions.\n\n## Answer\n\nAgent loop systems repeat observation, reasoning, action, and feedback. A workflow follows a predefined path, while an agent loop lets the model choose the next step.\n\n## Related Pages\n\n- [[entities/OpenClaw|OpenClaw]]\n- [[sources/Agent-Loop-Source|Agent Loop Source]]\nSource: raw/notes/agent-loop.md\nWhy matched: Matched body, headings, key_points, path, related_graph, summary, tags, title; graph relevance boost 3.954 via backlink, shared_source.\n\n2. OpenClaw (entities/OpenClaw.md, relevance: medium, score: 6.813)\nAnswer role: supporting\nMatch origin: direct\nSummary: OpenClaw is an engineering agent system that combines structured workflows with agent loops.\nRelevant excerpts:\n- entities/OpenClaw.md#Summary: OpenClaw is an engineering agent system that combines structured workflows with agent loops.\nFull page body:\n# OpenClaw\n\n## Summary\n\nOpenClaw is an engineering agent system that combines structured workflows with agent loops.\nWhy matched: Matched body, related_graph, summary, tags; graph relevance boost 2.4 via outbound_link.\n\n3. Agent Loop Source (sources/Agent-Loop-Source.md, relevance: high, score: 13.453)\nAnswer role: source\nMatch origin: direct\nSummary: Source digest for agent loop and workflow comparison notes.\nRelevant excerpts:\n- sources/Agent-Loop-Source.md#Summary: Source digest for agent loop and workflow comparison notes.\nSource: raw/notes/agent-loop.md\nWhy matched: Matched body, headings, path, related_graph, summary, title; graph relevance boost 3.6 via outbound_link, shared_source.",
+  "context_pack": "Relevant KnoArbor context for the host AI.\nQuery: agent loop workflow\n\nAnswer guidance:\n- Use primary_pages as the maintained wiki answer unit when they answer the question directly.\n- Use supporting_pages and source_pages for context, provenance, and follow-up suggestions.\n- Use the returned wiki pages as local evidence, not as the only possible source of truth.\n- Cite page paths when making claims, especially for specific facts or recommendations.\n- Primary page candidate: concepts/Agent-Loop.md.\n\n1. Agent Loop (concepts/Agent-Loop.md, relevance: high, score: 81.594)\nAnswer role: primary\nMatch origin: related\nSummary: Agent loop is a control pattern where a model observes context, reasons, acts with tools, and uses feedback.\nKey points:\n- Agent loops are dynamic and tool-aware.\n- Workflows provide deterministic structure around uncertain agent decisions.\nRelevant excerpts:\n- concepts/Agent-Loop.md#Key Points: - Agent loops are dynamic and tool-aware. - Workflows provide deterministic structure around uncertain agent decisions.\n- concepts/Agent-Loop.md#Entities: - [[Agent Loop]] - [[Workflow]] - [[OpenClaw]]\nFull page body:\n# Agent Loop\n\n## Summary\n\nAgent loop is a control pattern where a model observes context, reasons, acts with tools, and uses feedback.\n\n## Key Points\n\n- Agent loops are dynamic and tool-aware.\n- Workflows provide deterministic structure around uncertain agent decisions.\n\n## Entities\n\n- [[Agent Loop]]\n- [[Workflow]]\n- [[OpenClaw]]\n\n## Relations\n\n| Subject | Predicate | Object | Based on |\n|---|---|---|---|\n| [[Agent Loop]] | differs from | [[Workflow]] | C1 |\n| [[OpenClaw]] | implements | [[Agent Loop]] | C2 |\n\n## Answer\n\nAgent loop systems repeat observation, reasoning, action, and feedback. A workflow follows a predefined path, while an agent loop lets the model choose the next step.\n\n## Related Pages\n\n- [[entities/OpenClaw|OpenClaw]]\n- [[sources/Agent-Loop-Source|Agent Loop Source]]\nSource: raw/notes/agent-loop.md\nWhy matched: Matched body, graph_index, graph_recall, graph_related, headings, key_points, path, related_graph, summary, tags, title; graph relevance boost 64.56 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:outbound_link, related:shared_source, relation:Agent Loop-differs from-Workflow.\n\n2. OpenClaw (entities/OpenClaw.md, relevance: high, score: 30.737)\nAnswer role: supporting\nMatch origin: related\nSummary: OpenClaw is an engineering agent system that combines structured workflows with agent loops.\nRelevant excerpts:\n- entities/OpenClaw.md#Summary: OpenClaw is an engineering agent system that combines structured workflows with agent loops.\n- entities/OpenClaw.md#Entities: - [[OpenClaw]] - [[Agent Loop]]\nFull page body:\n# OpenClaw\n\n## Summary\n\nOpenClaw is an engineering agent system that combines structured workflows with agent loops.\n\n## Entities\n\n- [[OpenClaw]]\n- [[Agent Loop]]\nWhy matched: Matched body, graph_index, graph_recall, graph_related, related_graph, summary, tags; graph relevance boost 26.3 via node:Agent Loop, page_identity:entity, related:backlink, related:outbound_link, relation:Agent Loop-differs from-Workflow.\n\n3. Agent Loop Source (sources/Agent-Loop-Source.md, relevance: high, score: 59.36)\nAnswer role: source\nMatch origin: related\nSummary: Source digest for agent loop and workflow comparison notes.\nRelevant excerpts:\n- sources/Agent-Loop-Source.md#Summary: Source digest for agent loop and workflow comparison notes.\n- sources/Agent-Loop-Source.md#Entities: - [[Agent Loop]] - [[Workflow]]\nSource: raw/notes/agent-loop.md\nWhy matched: Matched body, graph_index, graph_recall, graph_related, headings, path, related_graph, summary, title; graph relevance boost 49.4 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:outbound_link, related:shared_source, relation:Agent Loop-differs from-Workflow.",
   "results": [
     {
       "excerpts": [
@@ -10,15 +10,18 @@
           "section": "Key Points"
         },
         {
-          "content": "Agent loop systems repeat observation, reasoning, action, and feedback. A workflow follows a predefined path, while an agent loop lets the model choose the next step.",
+          "content": "- [[Agent Loop]] - [[Workflow]] - [[OpenClaw]]",
           "path": "concepts/Agent-Loop.md",
           "score": 3.0,
-          "section": "Answer"
+          "section": "Entities"
         }
       ],
-      "match_kind": "direct",
+      "match_kind": "related",
       "matched_fields": [
         "body",
+        "graph_index",
+        "graph_recall",
+        "graph_related",
         "headings",
         "key_points",
         "path",
@@ -39,11 +42,20 @@
           "path": "sources/Agent-Loop-Source.md",
           "score": 3.0,
           "section": "Summary"
+        },
+        {
+          "content": "- [[Agent Loop]] - [[Workflow]]",
+          "path": "sources/Agent-Loop-Source.md",
+          "score": 3.0,
+          "section": "Entities"
         }
       ],
-      "match_kind": "direct",
+      "match_kind": "related",
       "matched_fields": [
         "body",
+        "graph_index",
+        "graph_recall",
+        "graph_related",
         "headings",
         "path",
         "related_graph",
@@ -62,22 +74,31 @@
           "path": "entities/OpenClaw.md",
           "score": 3.0,
           "section": "Summary"
+        },
+        {
+          "content": "- [[OpenClaw]] - [[Agent Loop]]",
+          "path": "entities/OpenClaw.md",
+          "score": 2.0,
+          "section": "Entities"
         }
       ],
-      "match_kind": "direct",
+      "match_kind": "related",
       "matched_fields": [
         "body",
+        "graph_index",
+        "graph_recall",
+        "graph_related",
         "related_graph",
         "summary",
         "tags"
       ],
       "path": "entities/OpenClaw.md",
-      "relevance": "medium",
+      "relevance": "high",
       "title": "OpenClaw",
       "type": "entity"
     }
   ],
-  "retrieval_mode": "machine_hybrid_balanced",
+  "retrieval_mode": "machine_graph_led_bm25_balanced",
   "trace": {
     "answer_scope": {
       "expanded_page_dirs": [
@@ -96,25 +117,33 @@
       "vault_ids": []
     },
     "answer_set": {
-      "further_reading_paths": [],
+      "further_reading_paths": [
+        "entities/OpenClaw.md"
+      ],
       "kind": "single_page",
       "primary_paths": [
         "concepts/Agent-Loop.md"
       ],
       "reason": "The query is narrow enough to anchor on concepts/Agent-Loop.md. Source digest pages are kept for provenance.",
-      "rejected_candidates": [],
+      "rejected_candidates": [
+        {
+          "path": "entities/OpenClaw.md",
+          "reason": "redundant_facet",
+          "role_hint": "further_reading",
+          "score": 30.737,
+          "title": "OpenClaw"
+        }
+      ],
       "source_paths": [],
       "stop_reason": "answer_set_selected",
-      "supporting_paths": [
-        "entities/OpenClaw.md"
-      ]
+      "supporting_paths": []
     },
     "atom_trace_count": 0,
     "atom_trace_counts": {},
     "candidate_count": 3,
-    "context_pack_chars": 3067,
+    "context_pack_chars": 3879,
     "context_pack_truncated": false,
-    "direct_match_count": 3,
+    "direct_match_count": 0,
     "direct_page_count": 3,
     "expanded_scope_dirs": [
       "concepts",
@@ -130,8 +159,8 @@
       "sources"
     ],
     "origin_counts": {
-      "direct": 3,
-      "related": 0
+      "direct": 0,
+      "related": 3
     },
     "page_count": 3,
     "query_terms": [
@@ -139,7 +168,15 @@
       "loop",
       "workflow"
     ],
-    "rejected_candidates": [],
+    "rejected_candidates": [
+      {
+        "path": "entities/OpenClaw.md",
+        "reason": "redundant_facet",
+        "role_hint": "further_reading",
+        "score": 30.737,
+        "title": "OpenClaw"
+      }
+    ],
     "related_expansion_count": 3,
     "related_result_paths": [
       "concepts/Agent-Loop.md",
@@ -163,12 +200,15 @@
       "supporting": 1
     },
     "schema_version": "query_trace.v1",
-    "scoring_model": "field_weighted_bm25",
+    "scoring_model": "graph_recall_then_field_weighted_bm25",
     "top_matches": [
       {
         "atom_trace_count": 0,
         "matched_fields": [
           "body",
+          "graph_index",
+          "graph_recall",
+          "graph_related",
           "headings",
           "key_points",
           "path",
@@ -178,14 +218,17 @@
           "title"
         ],
         "path": "concepts/Agent-Loop.md",
-        "reason": "Matched body, headings, key_points, path, related_graph, summary, tags, title; graph relevance boost 3.954 via backlink, shared_source.",
+        "reason": "Matched body, graph_index, graph_recall, graph_related, headings, key_points, path, related_graph, summary, tags, title; graph relevance boost 64.56 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:outbound_link, related:shared_source, relation:Agent Loop-differs from-Workflow.",
         "relevance": "high",
-        "score": 20.853
+        "score": 81.594
       },
       {
         "atom_trace_count": 0,
         "matched_fields": [
           "body",
+          "graph_index",
+          "graph_recall",
+          "graph_related",
           "headings",
           "path",
           "related_graph",
@@ -193,22 +236,25 @@
           "title"
         ],
         "path": "sources/Agent-Loop-Source.md",
-        "reason": "Matched body, headings, path, related_graph, summary, title; graph relevance boost 3.6 via outbound_link, shared_source.",
+        "reason": "Matched body, graph_index, graph_recall, graph_related, headings, path, related_graph, summary, title; graph relevance boost 49.4 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:outbound_link, related:shared_source, relation:Agent Loop-differs from-Workflow.",
         "relevance": "high",
-        "score": 13.453
+        "score": 59.36
       },
       {
         "atom_trace_count": 0,
         "matched_fields": [
           "body",
+          "graph_index",
+          "graph_recall",
+          "graph_related",
           "related_graph",
           "summary",
           "tags"
         ],
         "path": "entities/OpenClaw.md",
-        "reason": "Matched body, related_graph, summary, tags; graph relevance boost 2.4 via outbound_link.",
-        "relevance": "medium",
-        "score": 6.813
+        "reason": "Matched body, graph_index, graph_recall, graph_related, related_graph, summary, tags; graph relevance boost 26.3 via node:Agent Loop, page_identity:entity, related:backlink, related:outbound_link, relation:Agent Loop-differs from-Workflow.",
+        "relevance": "high",
+        "score": 30.737
       }
     ]
   }

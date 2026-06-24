@@ -20,15 +20,19 @@ from tests.harness.semantic_cases import source_normalize_output
 
 class CountingQueryPipeline:
     def __init__(self, page: SearchPage) -> None:
-        self.index_provider = type("Provider", (), {"name": "counting"})()
+        self.index_provider = self
+        self.name = "counting"
         self.page = page
         self.calls = 0
 
-    def run(self, request):
+    def collect(self, request):
         self.calls += 1
+        return [self.page]
+
+    def run(self, request):
         return QueryPipelineResult(
             query=request.query,
-            retrieval_mode="counting_hybrid_balanced",
+            retrieval_mode="counting_graph_led_bm25_balanced",
             matches=[
                 ScoredPage(
                     page=self.page,
@@ -144,7 +148,7 @@ class IngestContextProviderTests(unittest.TestCase):
         self.assertEqual(context.candidates[0].path, "concepts/Graph-Candidate.md")
         self.assertEqual(context.stats["graph_first_candidate_count"], 1)
         self.assertEqual(context.stats["text_candidate_count"], 0)
-        self.assertIn("graph_first", context.candidates[0].matched_fields)
+        self.assertIn("graph_recall", context.candidates[0].matched_fields)
 
     def test_materialize_cache_is_local_and_clearable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
