@@ -16,6 +16,7 @@ from knoarbor.core.schemas.wiki_write import (
     WikiDraftInput,
     WikiDraftWriteResponse,
 )
+from knoarbor.pipelines.ingest_observer import IngestObserver
 from knoarbor.pipelines.ingest_write_policy import IngestWritePolicy
 from knoarbor.pipelines.lint import WikiLintPipeline
 from knoarbor.pipelines.write import WikiWritePipeline
@@ -62,6 +63,13 @@ class IngestPostProcessor:
             return None
 
         monitor = current_run_monitor()
+        observer = IngestObserver.current()
+        observer.started(
+            "write",
+            message=f"Writing {len(items)} approved draft(s).",
+            current_item=result.source_id,
+            payload={"draft_count": len(items)},
+        )
         if monitor:
             monitor.event(
                 "pages_write_started",
@@ -108,6 +116,12 @@ class IngestPostProcessor:
                 message=f"Wrote {len(generated_pages)} page(s).",
                 payload={"generated_pages": generated_pages},
             )
+        observer.finished(
+            "write",
+            message=f"Wrote {len(generated_pages)} page(s).",
+            current_item=result.source_id,
+            payload={"generated_pages": generated_pages, "written_count": len(generated_pages)},
+        )
         return IngestWriteCommit(
             generated_pages=generated_pages,
             write_results=write_response.results,

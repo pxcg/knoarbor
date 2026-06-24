@@ -54,6 +54,7 @@ from knoarbor.pipelines.ingest_metrics import (
     segment_status_count,
     source_processed,
 )
+from knoarbor.pipelines.ingest_observer import IngestObserver
 from knoarbor.pipelines.lint import WikiLintPipeline
 from knoarbor.pipelines.source import SourcePipeline, SourcePipelineFailure, SourcePipelineItem
 from knoarbor.pipelines.source_segmentation import SourceSegmentBatch, SourceSegmenter
@@ -117,6 +118,13 @@ class IngestSourceExecutor:
         if monitor:
             monitor.event("source_started", stage="checkpoint", current_item=item.raw.source_id, message=f"Checking source {item.raw.source_id}.")
             monitor.raise_if_cancelled()
+        observer = IngestObserver.current()
+        observer.started(
+            "input",
+            message=f"Preparing source {item.raw.source_id}.",
+            current_item=item.raw.source_id,
+            payload={"connector": connector_name, "source_id": item.raw.source_id, "raw_path": item.raw.raw_path},
+        )
         checkpoint_plan = _prepare_checkpoint_plan(
             self.checkpoint_store,
             connector_name=connector_name,
@@ -127,6 +135,12 @@ class IngestSourceExecutor:
         if _is_ignored(ignore, vault_path, Path(item.raw.raw_path), checkpoint_plan["source_file"]):
             if monitor:
                 monitor.event("source_ignored", stage="checkpoint", current_item=checkpoint_plan["source_id"], message="Source ignored by .knoarborignore.")
+            observer.skipped(
+                "input",
+                message="Source ignored by .knoarborignore.",
+                current_item=checkpoint_plan["source_id"],
+                payload={"connector": connector_name, "source_id": checkpoint_plan["source_id"]},
+            )
             result = IngestSourceResult(
                 connector=connector_name,
                 source_id=checkpoint_plan["source_id"],
@@ -153,6 +167,12 @@ class IngestSourceExecutor:
         if not checkpoint_plan["should_process"]:
             if monitor:
                 monitor.event("source_skipped", stage="checkpoint", current_item=checkpoint_plan["source_id"], message=checkpoint_plan["reason"])
+            observer.skipped(
+                "input",
+                message=checkpoint_plan["reason"],
+                current_item=checkpoint_plan["source_id"],
+                payload={"connector": connector_name, "source_id": checkpoint_plan["source_id"]},
+            )
             result.status = "skipped"
             result.metrics = empty_run_metrics(time.perf_counter() - started)
             return result
@@ -161,6 +181,17 @@ class IngestSourceExecutor:
             if monitor:
                 monitor.event("source_processing", stage="segmentation", current_item=checkpoint_plan["source_id"], message="Preparing source segments.")
             document = _document_for_checkpoint(item.document, checkpoint_plan)
+            observer.finished(
+                "input",
+                message="Source input prepared.",
+                current_item=checkpoint_plan["source_id"],
+                payload={
+                    "connector": connector_name,
+                    "source_id": checkpoint_plan["source_id"],
+                    "mode": checkpoint_plan["mode"],
+                    "source_file": checkpoint_plan["source_file"],
+                },
+            )
             result = self._run_document_segments(
                 result,
                 document=document,
@@ -224,6 +255,19 @@ class IngestSourceExecutor:
             reason="Explicit source document input.",
         )
         try:
+            observer = IngestObserver.current()
+            observer.started(
+                "input",
+                message=f"Preparing explicit source document {document.source_id}.",
+                current_item=document.source_id,
+                payload={"connector": document.origin.connector, "source_id": document.source_id, "raw_path": document.origin.raw_path},
+            )
+            observer.finished(
+                "input",
+                message="Explicit source document prepared.",
+                current_item=document.source_id,
+                payload={"connector": document.origin.connector, "source_id": document.source_id, "source_file": document.origin.raw_path},
+            )
             result = self._run_document_segments(
                 result,
                 document=document,
@@ -286,10 +330,22 @@ class IngestSourceExecutor:
             "semantic": context_payload.get("semantic_metrics", summarize_semantic_runs([])),
         }
         approved_indexes = sorted(_approved_ingest_operation_indexes(semantic_result))
+        IngestObserver.current().started(
+            "write_gate",
+            message="Validating approved drafts before write.",
+            current_item=result.source_id,
+            payload={"approved_operation_indexes": approved_indexes},
+        )
         gate_result = self.write_gate.validate(
             semantic_result,
             approved_indexes,
             candidate_page_context=candidate_page_context,
+        )
+        IngestObserver.current().finished(
+            "write_gate",
+            message="Write gate passed." if gate_result.passed else "Write gate blocked the source.",
+            current_item=result.source_id,
+            payload=gate_result.model_dump(),
         )
         result.write_gate = gate_result.model_dump()
         approved_indexes = gate_result.approved_operation_indexes
@@ -343,8 +399,16 @@ class IngestSourceExecutor:
     ) -> IngestSourceResult:
         started = time.perf_counter()
         monitor = current_run_monitor()
+        observer = IngestObserver.current()
+        observer.started("segment", message="Segmenting source document.", current_item=result.source_id)
         batch = SourceSegmenter(segmentation_config).segment(document)
         result.segmentation = batch.summary()
+        observer.finished(
+            "segment",
+            message=f"Created {len(batch.segments)} segment(s).",
+            current_item=result.source_id,
+            payload=result.segmentation,
+        )
         if monitor:
             monitor.event(
                 "segments_created",
@@ -489,10 +553,22 @@ class IngestSourceExecutor:
             "semantic": semantic_run.context_payload.get("semantic_metrics", summarize_semantic_runs([])),
         }
         approved_indexes = sorted(_approved_ingest_operation_indexes(semantic_result))
+        IngestObserver.current().started(
+            "write_gate",
+            message="Validating approved drafts before write.",
+            current_item=result.source_id,
+            payload={"approved_operation_indexes": approved_indexes},
+        )
         gate_result = self.write_gate.validate(
             semantic_result,
             approved_indexes,
             candidate_page_context=semantic_run.candidate_page_context,
+        )
+        IngestObserver.current().finished(
+            "write_gate",
+            message="Write gate passed." if gate_result.passed else "Write gate blocked the source.",
+            current_item=result.source_id,
+            payload=gate_result.model_dump(),
         )
         result.write_gate = gate_result.model_dump()
         approved_indexes = gate_result.approved_operation_indexes

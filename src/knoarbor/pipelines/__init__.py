@@ -10,6 +10,7 @@ from knoarbor.pipelines.source_segmentation import SourceSegmentBatch, SourceSeg
 from knoarbor.core.schemas.ingest_pipeline import IngestPipelineResult, IngestSourceResult
 from knoarbor.pipelines.ingest import IngestPipeline
 from knoarbor.pipelines.ingest_context import IngestContextProvider, IngestWikiContext, IngestCandidatePageContext
+from knoarbor.pipelines.ingest_observer import IngestObserver
 from knoarbor.pipelines.ingest_review_policy import IngestDraftReviewPolicy, IngestReviewPolicyDecision
 from knoarbor.pipelines.ingest_write_gate import IngestWriteGate, IngestWriteGateResult
 from knoarbor.pipelines.ingest_write_policy import IngestWritePolicy, IngestWritePolicyResult
@@ -24,6 +25,7 @@ __all__ = [
     "QueryPipelineResult",
     "IngestPipeline",
     "IngestContextProvider",
+    "IngestObserver",
     "IngestDraftReviewPolicy",
     "IngestReviewPolicyDecision",
     "IngestWriteGate",

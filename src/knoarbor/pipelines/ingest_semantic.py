@@ -11,6 +11,7 @@ from knoarbor.core.schemas.sources import SourceDocument
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
 from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
 from knoarbor.pipelines.ingest_context import IngestCandidatePageContext, IngestContextProvider
+from knoarbor.pipelines.ingest_observer import IngestObserver
 from knoarbor.pipelines.ingest_review_policy import IngestDraftReviewPolicy, auto_approve_ingest_draft_review
 from knoarbor.semantic.ingest_compile_context import build_ingest_compile_context
 from knoarbor.semantic.ingest_workflow import IngestSemanticWorkflow, IngestSemanticWorkflowResult
@@ -82,13 +83,32 @@ class IngestSemanticRunner:
         document: SourceDocument,
         max_tokens: int | None,
     ) -> IngestSemanticExtraction:
+        observer = IngestObserver.current()
+        observer.started("normalize_agent", message="Standardizing source document.", current_item=document.source_id)
         knowledge_extract = self.semantic_workflow.normalize(document, max_tokens=max_tokens)
+        observer.finished(
+            "normalize_agent",
+            message="Source document standardized.",
+            current_item=document.source_id,
+            payload={"units": len(knowledge_extract.content_units), "source_title": knowledge_extract.source.title},
+        )
         source_digest = build_source_digest_from_extract(knowledge_extract)
+        observer.started("atom_agent", message="Extracting knowledge atoms.", current_item=source_digest.digest_id)
         knowledge_atom_batch = self.semantic_workflow.extract_atoms(
             source_digest,
             max_tokens=max_tokens,
         )
         knowledge_atom_quality = evaluate_knowledge_atoms(knowledge_atom_batch)
+        observer.finished(
+            "atom_agent",
+            message="Knowledge atoms extracted.",
+            current_item=source_digest.digest_id,
+            payload={
+                "source_digest_id": source_digest.digest_id,
+                "summary": knowledge_atom_batch.summary(),
+                "quality": knowledge_atom_quality.summary(),
+            },
+        )
         return IngestSemanticExtraction(
             knowledge_extract=knowledge_extract,
             source_digest=source_digest,
@@ -120,10 +140,33 @@ class IngestSemanticRunner:
     ) -> IngestSemanticRun:
         resolved_history_start = semantic_history_length(self.semantic_workflow) if history_start is None else history_start
         knowledge_atom_quality = knowledge_atom_quality or evaluate_knowledge_atoms(knowledge_atom_batch)
+        observer = IngestObserver.current()
+        observer.started(
+            "retrieval",
+            message="Retrieving related wiki context.",
+            current_item=source_digest.digest_id,
+        )
         wiki_context = self.context_provider.build(
             vault_path,
             knowledge_extract,
             knowledge_atom_batch=knowledge_atom_batch,
+        )
+        observer.finished(
+            "retrieval",
+            message=f"Retrieved {len(wiki_context.candidates)} candidate page(s).",
+            current_item=source_digest.digest_id,
+            payload={
+                "mode": wiki_context.retrieval_mode,
+                "query": wiki_context.query,
+                "candidate_count": len(wiki_context.candidates),
+                "warnings": wiki_context.warnings,
+                "stats": wiki_context.stats,
+            },
+        )
+        observer.started(
+            "plan_agent",
+            message="Planning wiki page operations.",
+            current_item=source_digest.digest_id,
         )
         page_plan = self.semantic_workflow.plan_pages(
             knowledge_extract,
@@ -132,6 +175,16 @@ class IngestSemanticRunner:
             existing_wiki_index=index_summary_payload(index_payload),
             wiki_context=wiki_context.model_dump(),
             max_tokens=max_tokens,
+        )
+        observer.finished(
+            "plan_agent",
+            message=f"Planned {len(page_plan.operations)} wiki operation(s).",
+            current_item=source_digest.digest_id,
+            payload={
+                "operation_count": len(page_plan.operations),
+                "actions": [operation.action for operation in page_plan.operations],
+                "confidence": page_plan.confidence,
+            },
         )
         if not has_executable_page_plan_operations(page_plan):
             semantic_metrics = summarize_semantic_runs(semantic_history_slice(self.semantic_workflow, resolved_history_start))
@@ -173,6 +226,11 @@ class IngestSemanticRunner:
             page_plan,
             candidate_page_context.model_dump(),
         )
+        observer.started(
+            "draft_agent",
+            message="Compiling wiki page drafts.",
+            current_item=source_digest.digest_id,
+        )
         draft_batch = self.semantic_workflow.compile_drafts(
             knowledge_extract,
             page_plan,
@@ -182,12 +240,35 @@ class IngestSemanticRunner:
             max_tokens=max_tokens,
         )
         draft_batch = materialize_draft_source_files(draft_batch, source_file)
+        observer.finished(
+            "draft_agent",
+            message=f"Compiled {len(draft_batch.drafts)} draft(s).",
+            current_item=source_digest.digest_id,
+            payload={
+                "draft_count": len(draft_batch.drafts),
+                "drafts": [
+                    {
+                        "operation_index": draft.operation_index,
+                        "write_action": draft.write_action,
+                        "page_dir": draft.page_dir,
+                        "title": draft.title,
+                    }
+                    for draft in draft_batch.drafts
+                ],
+            },
+        )
         review_policy = self.review_policy.evaluate(
             page_plan=page_plan,
             draft_batch=draft_batch,
             atom_quality=knowledge_atom_quality,
         )
         if review_policy.should_review:
+            observer.started(
+                "review_agent",
+                message="Reviewing high-risk draft batch.",
+                current_item=source_digest.digest_id,
+                payload=review_policy.as_context(),
+            )
             review = self.semantic_workflow.review_drafts(
                 knowledge_extract,
                 page_plan,
@@ -196,11 +277,23 @@ class IngestSemanticRunner:
                 ingest_compile_context=ingest_compile_context,
                 max_tokens=max_tokens,
             )
+            observer.finished(
+                "review_agent",
+                message=f"Reviewed {len(review.decisions)} draft decision(s).",
+                current_item=source_digest.digest_id,
+                payload={"review_policy": review_policy.as_context(), "batch_decision": review.batch_decision},
+            )
         else:
             review = auto_approve_ingest_draft_review(
                 page_plan=page_plan,
                 draft_batch=draft_batch,
                 policy_decision=review_policy,
+            )
+            observer.skipped(
+                "review_agent",
+                message="Skipped semantic draft review for low-risk draft batch.",
+                current_item=source_digest.digest_id,
+                payload=review_policy.as_context(),
             )
         semantic_metrics = summarize_semantic_runs(semantic_history_slice(self.semantic_workflow, resolved_history_start))
         return IngestSemanticRun(

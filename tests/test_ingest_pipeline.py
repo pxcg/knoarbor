@@ -33,6 +33,7 @@ from knoarbor.document_processing.schemas import DocumentProcessingItem, Documen
 from knoarbor.pipelines.ingest import IngestPipeline
 from knoarbor.pipelines.source import SourcePipeline
 from knoarbor.runtime import RunMonitor, run_monitor_context
+from knoarbor.runtime.run_monitor import read_run_events
 from knoarbor.semantic.knowledge_atom_quality import evaluate_knowledge_atoms
 from knoarbor.semantic.source_digest import build_source_digest_from_extract
 from knoarbor.storage.knowledge_atom_index import read_knowledge_atom_records
@@ -1085,6 +1086,7 @@ class IngestPipelineTests(unittest.TestCase):
 
             report_path = vault / (result.report_path or "")
             ledger_path = vault / (result.ledger_path or "")
+            run_events = read_run_events(vault, "ingest-report-test")
 
             self.assertTrue(report_path.exists())
             self.assertTrue(ledger_path.exists())
@@ -1113,6 +1115,24 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertIn("## Run Summary", report)
         self.assertIn("- segment_status: written=1", report)
         self.assertIn("scoped_lint_issues:", report)
+        ingest_steps = [
+            event.payload.get("ingest_step")
+            for event in run_events
+            if event.event_type in {"ingest_step_started", "ingest_step_finished", "ingest_step_skipped"}
+        ]
+        for step in [
+            "input",
+            "segment",
+            "normalize_agent",
+            "atom_agent",
+            "retrieval",
+            "plan_agent",
+            "draft_agent",
+            "review_agent",
+            "write_gate",
+            "write",
+        ]:
+            self.assertIn(step, ingest_steps)
 
     def test_ingest_writes_knowledge_atom_index(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

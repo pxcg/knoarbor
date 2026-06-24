@@ -398,11 +398,13 @@ function flowStages(flow: RunRecord["flow"]): FlowNode[] {
     { key: "queued", label: "runStageQueued", kind: "workflow" },
     { key: "input", label: "runStageInput", kind: "workflow" },
     { key: "segment", label: "runStageSegment", kind: "workflow" },
-    { key: "retrieval", label: "runStageRetrieval", kind: "workflow" },
     { key: "normalize_agent", label: "runStageNormalizeAgent", kind: "agent" },
-    { key: "relation_agent", label: "runStageRelationAgent", kind: "agent" },
+    { key: "atom_agent", label: "runStageAtomAgent", kind: "agent" },
+    { key: "retrieval", label: "runStageRetrieval", kind: "workflow" },
+    { key: "plan_agent", label: "runStagePlanAgent", kind: "agent" },
     { key: "draft_agent", label: "runStageDraftAgent", kind: "agent" },
     { key: "review_agent", label: "runStageReviewAgent", kind: "agent" },
+    { key: "write_gate", label: "runStageWriteGate", kind: "workflow" },
     { key: "write", label: "runStageWrite", kind: "workflow" },
     { key: "done", label: "runStageDone", kind: "workflow" },
   ];
@@ -412,8 +414,11 @@ function currentStageKey(run: RunRecord): string {
   if (run.status === "completed" || run.status === "cancelled") return "done";
   if (run.status === "queued" || run.stage === "queued") return "queued";
   const stage = `${run.stage || ""} ${run.current_item || ""}`;
+  if (run.flow === "ingest" && INGEST_STAGE_KEYS.has(run.stage)) return run.stage;
   if (stage.includes("source_normalize")) return "normalize_agent";
-  if (stage.includes("wiki_relation")) return "relation_agent";
+  if (stage.includes("wiki_atom_extract")) return "atom_agent";
+  if (stage.includes("wiki_page_plan")) return "plan_agent";
+  if (stage.includes("wiki_relation")) return "plan_agent";
   if (stage.includes("wiki_draft_compile")) return "draft_agent";
   if (stage.includes("ingest_draft_review")) return "review_agent";
   if (stage.includes("retrieval") || stage.includes("query")) return "retrieval";
@@ -430,10 +435,14 @@ function currentStageKey(run: RunRecord): string {
 }
 
 function eventNodeKey(event: RunEvent, flow: RunRecord["flow"]): string {
+  const ingestStep = stringValue(asRecord(event.payload).ingest_step);
+  if (flow === "ingest" && ingestStep && INGEST_STAGE_KEYS.has(ingestStep)) return ingestStep;
   const text = `${event.stage || ""} ${event.current_item || ""} ${event.message || ""} ${event.event_type || ""}`.toLowerCase();
   if (event.status === "completed") return "done";
   if (text.includes("source_normalize")) return "normalize_agent";
-  if (text.includes("wiki_relation")) return "relation_agent";
+  if (text.includes("wiki_atom_extract")) return "atom_agent";
+  if (text.includes("wiki_page_plan")) return "plan_agent";
+  if (text.includes("wiki_relation")) return "plan_agent";
   if (text.includes("wiki_draft_compile")) return "draft_agent";
   if (text.includes("ingest_draft_review")) return "review_agent";
   if (text.includes("lint_diagnose") || text.includes("quality_diagnose") || text.includes("diagnose")) return "diagnose_agent";
@@ -461,6 +470,19 @@ function eventNodeKey(event: RunEvent, flow: RunRecord["flow"]): string {
     cancel_requested: false,
   });
 }
+
+const INGEST_STAGE_KEYS = new Set([
+  "input",
+  "segment",
+  "normalize_agent",
+  "atom_agent",
+  "retrieval",
+  "plan_agent",
+  "draft_agent",
+  "review_agent",
+  "write_gate",
+  "write",
+]);
 
 function runStageMetrics(run: RunRecord): Array<{ label: string; value: string }> {
   const metrics = asRecord(run.metrics);
