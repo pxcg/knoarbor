@@ -472,6 +472,8 @@ def _markdown_heading_blocks(text: str) -> list[_TextBlock]:
         heading_stack = [(existing_level, existing_title) for existing_level, existing_title in heading_stack if existing_level < level]
         heading_stack.append((level, title))
         block_text = text[match.start() : end].strip()
+        if _heading_body_is_empty(block_text):
+            continue
         blocks.append(
             _TextBlock(
                 title=title,
@@ -480,7 +482,15 @@ def _markdown_heading_blocks(text: str) -> list[_TextBlock]:
                 metadata={"heading_level": level},
             )
         )
-    return blocks
+    return blocks or [_TextBlock(title=None, text=text)]
+
+
+def _heading_body_is_empty(block_text: str) -> bool:
+    lines = block_text.splitlines()
+    if not lines:
+        return True
+    body = "\n".join(lines[1:]).strip()
+    return not body
 
 
 def _section_metadata(section: dict[str, Any]) -> dict[str, object]:

@@ -25,6 +25,17 @@ class SourceUnitizationTests(unittest.TestCase):
         self.assertEqual(unitization.rule, "markdown_heading")
         self.assertEqual([unit.title for unit in unitization.units], ["A2A", "Agent Card", "Task"])
 
+    def test_heading_only_parent_is_structural_path_not_evidence_unit(self) -> None:
+        document = make_document(
+            source_type="markdown",
+            text="## 协作模式\n\n### 主从式协作\n\nMaster controls workers.\n\n### 对等式协作\n\nPeers coordinate.",
+        )
+
+        unitization = SourceUnitizer().unitize(document)
+
+        self.assertEqual([unit.title for unit in unitization.units], ["主从式协作", "对等式协作"])
+        self.assertEqual(unitization.units[0].structural_path, ["协作模式", "主从式协作"])
+
     def test_chat_unitization_preserves_complete_turn_groups(self) -> None:
         payload = {
             "session_id": "s1",
