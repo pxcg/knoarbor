@@ -53,6 +53,44 @@ class KnowledgeAtomClosureTests(unittest.TestCase):
         self.assertEqual([entity.name for entity in selected.entities], ["Agent Loop", "Memory"])
         self.assertEqual(len(selected.evidence), 2)
 
+    def test_plan_closure_excludes_unselected_top_level_evidence(self) -> None:
+        batch = _batch()
+        selected = close_plan_atoms(
+            batch.model_copy(
+                update={
+                    "evidence": [
+                        *batch.evidence,
+                        KnowledgeEvidenceSpan(
+                            source_digest_id="sd_agent",
+                            source_unit_index=99,
+                            excerpt="This evidence belongs to an unselected source unit.",
+                        ),
+                    ]
+                }
+            ),
+            WikiPagePlan(
+                operations=[_operation(selected_claim_ids=["claim_agent_loop"])],
+                overall_summary="Create agent loop page.",
+            ),
+        )
+
+        self.assertIsNotNone(selected)
+        assert selected is not None
+        self.assertEqual([span.source_unit_index for span in selected.evidence], [0, 1])
+
+    def test_plan_closure_keeps_inline_selected_evidence_without_top_level_batch_evidence(self) -> None:
+        selected = close_plan_atoms(
+            _batch().model_copy(update={"evidence": []}),
+            WikiPagePlan(
+                operations=[_operation(selected_claim_ids=["claim_agent_loop"])],
+                overall_summary="Create agent loop page.",
+            ),
+        )
+
+        self.assertIsNotNone(selected)
+        assert selected is not None
+        self.assertEqual([span.source_unit_index for span in selected.evidence], [0, 1])
+
 
 def _batch() -> KnowledgeAtomBatch:
     claim_evidence = KnowledgeEvidenceSpan(

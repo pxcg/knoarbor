@@ -132,7 +132,6 @@ def close_plan_atoms(
     claim_ids = _dedupe(claim_id for closure in closures for claim_id in closure.claim_ids)
     relation_ids = _dedupe(relation_id for closure in closures for relation_id in closure.relation_ids)
     entity_names = {name.casefold() for closure in closures for name in closure.entity_names}
-    evidence_keys = {key for closure in closures for key in closure.evidence_keys}
 
     selected_claims = [claim for claim in batch.claims if claim.id in claim_ids]
     selected_relations = [relation for relation in batch.relations if relation.id in relation_ids]
@@ -142,11 +141,7 @@ def close_plan_atoms(
         if entity.name.casefold() in entity_names
         or (entity.atom_id and entity.atom_id in set(claim_ids) | set(relation_ids))
     ]
-    selected_evidence = [
-        span
-        for span in batch.evidence
-        if _evidence_key(span) in evidence_keys
-    ]
+    selected_evidence = _closed_evidence_spans(batch, selected_claims, selected_relations)
     return KnowledgeAtomBatch(
         source_digest_id=batch.source_digest_id,
         entities=selected_entities,
@@ -184,13 +179,19 @@ def _closed_evidence_spans(
     claims: list[KnowledgeClaim],
     relations: list[KnowledgeRelation],
 ) -> list[KnowledgeEvidenceSpan]:
-    evidence_by_key = {_evidence_key(span): span for span in batch.evidence}
+    top_level_evidence_by_key = {_evidence_key(span): span for span in batch.evidence}
+    evidence_by_key: dict[tuple[str, int | None, str], KnowledgeEvidenceSpan] = {}
+
+    def add_selected_span(span: KnowledgeEvidenceSpan) -> None:
+        key = _evidence_key(span)
+        evidence_by_key.setdefault(key, top_level_evidence_by_key.get(key, span))
+
     for claim in claims:
         for span in claim.evidence:
-            evidence_by_key.setdefault(_evidence_key(span), span)
+            add_selected_span(span)
     for relation in relations:
         for span in relation.evidence:
-            evidence_by_key.setdefault(_evidence_key(span), span)
+            add_selected_span(span)
     return list(evidence_by_key.values())
 
 
