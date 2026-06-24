@@ -62,7 +62,6 @@ ingest:
     enabled: true
     max_chars_per_segment: 18000
     soft_chars_per_segment: 12000
-    overlap_chars: 600
     max_segments_per_source: 8
     min_segment_chars: 800
 YAML

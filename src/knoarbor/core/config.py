@@ -190,7 +190,6 @@ class IngestSegmentationConfig(BaseModel):
     enabled: bool = True
     max_chars_per_segment: int = Field(default=18000, ge=2000, le=100000)
     soft_chars_per_segment: int = Field(default=12000, ge=1000, le=100000)
-    overlap_chars: int = Field(default=1200, ge=0, le=10000)
     max_segments_per_source: int = Field(default=20, ge=1, le=200)
     min_segment_chars: int = Field(default=1000, ge=0, le=50000)
 

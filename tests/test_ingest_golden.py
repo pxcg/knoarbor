@@ -98,7 +98,6 @@ def segmentation_config() -> IngestSegmentationConfig:
         enabled=True,
         soft_chars_per_segment=1200,
         max_chars_per_segment=2200,
-        overlap_chars=80,
         max_segments_per_source=10,
         min_segment_chars=300,
     )

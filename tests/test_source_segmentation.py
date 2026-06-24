@@ -129,7 +129,6 @@ class SourceSegmentationTests(unittest.TestCase):
             enabled=True,
             soft_chars_per_segment=1200,
             max_chars_per_segment=2000,
-            overlap_chars=0,
             max_segments_per_source=2,
             min_segment_chars=1000,
         )
@@ -150,7 +149,6 @@ def test_config() -> IngestSegmentationConfig:
         enabled=True,
         soft_chars_per_segment=1000,
         max_chars_per_segment=2000,
-        overlap_chars=10,
         max_segments_per_source=10,
         min_segment_chars=10,
     )

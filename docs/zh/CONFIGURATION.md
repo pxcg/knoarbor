@@ -279,7 +279,6 @@ ingest:
     enabled: true
     max_chars_per_segment: 18000
     soft_chars_per_segment: 12000
-    overlap_chars: 1200
     max_segments_per_source: 20
     min_segment_chars: 1000
   recovery:
