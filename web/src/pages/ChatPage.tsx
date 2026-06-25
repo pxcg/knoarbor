@@ -3,20 +3,15 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import {
-  deleteChatSession,
   getPage,
-  ingestChatSession,
   ingestExcerpt,
-  listChatSessions,
   readChatSession,
   retryChatSession,
   sendChatMessageStream,
-  updateChatSession,
   type ChatCitation,
   type ChatMessageItem,
   type ChatStreamEvent,
   type PageDetail,
-  type ChatSessionSummary,
   type ModelProviderSummary,
   type VaultSelector,
 } from "../api/client";
@@ -54,22 +49,14 @@ type ChatCitationPreview = {
 };
 
 const exampleKeys = ["chatExampleAgentLoop", "chatExampleLint", "chatExampleRag", "chatExampleReadPage"];
-const CHAT_SESSION_LIST_LIMIT = 200;
 
 export function ChatPage({ context }: Props) {
   const [input, setInput] = useState("");
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [recentSessions, setRecentSessions] = useState<ChatSessionSummary[]>([]);
-  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [ingestingExcerptKey, setIngestingExcerptKey] = useState<string | null>(null);
-  const [isArchiving, setIsArchiving] = useState(false);
-  const [archivingSessionId, setArchivingSessionId] = useState<string | null>(null);
-  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
-  const [renameTitle, setRenameTitle] = useState("");
-  const [deleteConfirmSessionId, setDeleteConfirmSessionId] = useState<string | null>(null);
   const [requestStage, setRequestStage] = useState<ChatRequestStage>("idle");
   const [citationPreview, setCitationPreview] = useState<ChatCitationPreview | null>(null);
   const activeChatAbortRef = useRef<AbortController | null>(null);
@@ -97,42 +84,24 @@ export function ChatPage({ context }: Props) {
   );
 
   useEffect(() => {
-    if (!chatVaultReady) return;
-    let cancelled = false;
-    setIsLoadingSessions(true);
-    listChatSessions(context.activeVaultSelector, CHAT_SESSION_LIST_LIMIT)
-      .then((response) => {
-        if (!cancelled) setRecentSessions(response.sessions || []);
-      })
-      .catch(() => {
-        if (!cancelled) setRecentSessions([]);
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoadingSessions(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [chatVaultReady, context.activeVaultSelector]);
-
-  useEffect(() => {
     const prompt = context.pendingChatPrompt.trim();
     if (!prompt) return;
     setInput(prompt);
     context.clearPendingChatPrompt();
   }, [context.pendingChatPrompt, context.clearPendingChatPrompt]);
 
-  useEffect(() => () => clearStageTimers(), []);
-
-  async function refreshSessions() {
-    if (!chatVaultReady) return;
-    try {
-      const response = await listChatSessions(context.activeVaultSelector, CHAT_SESSION_LIST_LIMIT);
-      setRecentSessions(response.sessions || []);
-    } catch {
-      setRecentSessions([]);
+  useEffect(() => {
+    const request = context.pendingChatSessionRequest;
+    if (!request || isSending || !chatVaultReady) return;
+    context.clearPendingChatSessionRequest();
+    if (request.sessionId) {
+      void restoreSession(request.sessionId);
+      return;
     }
-  }
+    newSession();
+  }, [chatVaultReady, context.pendingChatSessionRequest, context.clearPendingChatSessionRequest, isSending]);
+
+  useEffect(() => () => clearStageTimers(), []);
 
   function newSession() {
     if (isSending) return;
@@ -152,44 +121,6 @@ export function ChatPage({ context }: Props) {
       context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
     } finally {
       setIsSending(false);
-    }
-  }
-
-  async function removeSession(nextSessionId: string) {
-    if (isSending || !chatVaultReady) return;
-    if (deleteConfirmSessionId !== nextSessionId) {
-      setDeleteConfirmSessionId(nextSessionId);
-      return;
-    }
-    try {
-      await deleteChatSession(context.activeVaultSelector, nextSessionId);
-      if (sessionId === nextSessionId) newSession();
-      setDeleteConfirmSessionId(null);
-      await refreshSessions();
-    } catch (error) {
-      context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
-    }
-  }
-
-  async function archiveSession(nextSessionId: string) {
-    if (!nextSessionId || isSending || isArchiving || !chatVaultReady) return;
-    setIsArchiving(true);
-    setArchivingSessionId(nextSessionId);
-    try {
-      const response = await ingestChatSession(context.activeVaultSelector, nextSessionId);
-      context.setNotice({
-        message: response.run_id ? `${context.t("chatIngestQueued")} ${response.run_id}` : context.t("chatIngestQueued"),
-        actionLabel: context.t("viewRun"),
-        onAction: () => context.navigate("runs"),
-      });
-      await refreshSessions();
-      await context.refreshAll();
-      context.navigate("runs");
-    } catch (error) {
-      context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
-    } finally {
-      setIsArchiving(false);
-      setArchivingSessionId(null);
     }
   }
 
@@ -228,29 +159,6 @@ export function ChatPage({ context }: Props) {
     }
   }
 
-  function startRenameSession(session: ChatSessionSummary) {
-    setDeleteConfirmSessionId(null);
-    setRenamingSessionId(session.session_id);
-    setRenameTitle(session.title);
-  }
-
-  async function saveRenameSession(nextSessionId: string) {
-    const title = renameTitle.trim();
-    if (!title || isSending || !chatVaultReady) return;
-    try {
-      const record = await updateChatSession(context.activeVaultSelector, nextSessionId, title);
-      setRenamingSessionId(null);
-      setRenameTitle("");
-      setRecentSessions((current) => current.map((item) => item.session_id === record.session_id ? { ...item, title: record.title, updated_at: record.updated_at } : item));
-      if (sessionId === record.session_id) {
-        setSessionId(record.session_id);
-      }
-      await refreshSessions();
-    } catch (error) {
-      context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
-    }
-  }
-
   async function submit(nextInput = input) {
     const content = nextInput.trim();
     if (!content || isSending || !chatVaultReady) return;
@@ -284,7 +192,6 @@ export function ChatPage({ context }: Props) {
           hiddenEvidenceCount: response.hidden_evidence_count || 0,
           citationWarnings: response.citation_warnings || [],
         }));
-      void refreshSessions();
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         context.setNotice({ message: context.t("chatStopped") });
@@ -362,7 +269,6 @@ export function ChatPage({ context }: Props) {
           citationWarnings: response.citation_warnings || [],
         },
       ]);
-      void refreshSessions();
     } catch (error) {
       setTurns(previousTurns);
       if (error instanceof DOMException && error.name === "AbortError") {
@@ -421,87 +327,9 @@ export function ChatPage({ context }: Props) {
 
   const hasConversation = turns.length > 0 || isSending;
   const latestAssistantIndex = latestAssistantTurnIndex(turns);
-
   return (
     <section className="view active chat-page">
       <div className="chat-layout">
-        <aside className="chat-session-sidebar">
-          <div className="chat-session-sidebar-header">
-            <span>
-              <strong>{context.t("chatSessions")}</strong>
-              <small>{recentSessions.length ? `${recentSessions.length} ${context.t("chatSessions").toLowerCase()}` : context.t("chatNoSessions")}</small>
-            </span>
-            <button className="icon-button chat-new-button" type="button" onClick={newSession} disabled={isSending} title={context.t("chatNewSession")} aria-label={context.t("chatNewSession")}>
-              +
-            </button>
-          </div>
-          <div className="chat-session-list" aria-busy={isLoadingSessions}>
-            {isLoadingSessions && <span className="chat-session-muted">{context.t("loading")}</span>}
-            {!isLoadingSessions && recentSessions.length === 0 && <span className="chat-session-muted">{context.t("chatNoSessions")}</span>}
-            {groupChatSessions(recentSessions, context).map((group) => (
-              <section className="chat-session-group" key={group.key}>
-                <h3>{group.label}</h3>
-                {group.sessions.map((session) => (
-                  <div className={`chat-session-row ${session.session_id === sessionId ? "active" : ""} ${renamingSessionId === session.session_id ? "renaming" : ""}`} key={session.session_id}>
-                    {renamingSessionId === session.session_id ? (
-                      <form
-                        className="chat-session-rename"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          void saveRenameSession(session.session_id);
-                        }}
-                      >
-                        <input
-                          autoFocus
-                          value={renameTitle}
-                          onChange={(event) => setRenameTitle(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Escape") {
-                              setRenamingSessionId(null);
-                              setRenameTitle("");
-                            }
-                          }}
-                          aria-label={context.t("chatRenameSession")}
-                        />
-                        <button type="submit" disabled={!renameTitle.trim()}>{context.t("save")}</button>
-                      </form>
-                    ) : (
-                      <>
-                        <button type="button" onClick={() => void restoreSession(session.session_id)} disabled={isSending} title={session.title}>
-                          <span className="chat-session-title">{session.title}</span>
-                          <SessionLifecycleBadge session={session} context={context} busy={archivingSessionId === session.session_id} />
-                        </button>
-                        <details className="chat-session-menu" onToggle={() => setDeleteConfirmSessionId(null)}>
-                          <summary aria-label={context.t("chatSessionActions")} title={context.t("chatSessionActions")}>⋯</summary>
-                          <div className="chat-session-menu-popover">
-                            <button type="button" onClick={() => startRenameSession(session)} disabled={isSending || isArchiving}>
-                              {context.t("chatRenameSession")}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void archiveSession(session.session_id)}
-                              disabled={isSending || isArchiving}
-                            >
-                              {archivingSessionId === session.session_id ? context.t("chatArchiving") : context.t("chatIngestSession")}
-                            </button>
-                            <button
-                              className="danger"
-                              type="button"
-                              onClick={() => void removeSession(session.session_id)}
-                              disabled={isSending || isArchiving}
-                            >
-                              {deleteConfirmSessionId === session.session_id ? context.t("chatConfirmDelete") : context.t("chatDeleteSession")}
-                            </button>
-                          </div>
-                        </details>
-                      </>
-                    )}
-                  </div>
-                ))}
-              </section>
-            ))}
-          </div>
-        </aside>
         <article className="chat-thread-panel">
           <div className="chat-thread">
             {!hasConversation && (
@@ -728,44 +556,6 @@ function chatStageFromStreamEvent(event: ChatStreamEvent): ChatRequestStage | nu
   if (event.stage === "completed") return "generating";
   if (event.tool) return "retrieving";
   return null;
-}
-
-function SessionLifecycleBadge({ session, context, busy = false }: { session: ChatSessionSummary; context: AppContext; busy?: boolean }) {
-  if (busy) {
-    return <small className="chat-session-badge warning">{context.t("chatArchiving")}</small>;
-  }
-  if (session.last_ingest_run_id) {
-    return <small className="chat-session-badge success">{context.t("chatSessionCompiled")}</small>;
-  }
-  if (session.ingest_candidate?.should_ingest) {
-    return <small className="chat-session-badge">{context.t("chatSessionIngestCandidate")}</small>;
-  }
-  if (session.ingest_candidate) {
-    return <small className="chat-session-badge muted">{context.t("chatSessionCandidateLow")}</small>;
-  }
-  return null;
-}
-
-function groupChatSessions(sessions: ChatSessionSummary[], context: AppContext) {
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const sevenDaysAgo = todayStart - 6 * 24 * 60 * 60 * 1000;
-  const groups: Array<{ key: string; label: string; sessions: ChatSessionSummary[] }> = [
-    { key: "today", label: context.t("chatGroupToday"), sessions: [] },
-    { key: "week", label: context.t("chatGroupLast7Days"), sessions: [] },
-    { key: "older", label: context.t("chatGroupOlder"), sessions: [] },
-  ];
-  for (const session of sessions) {
-    const time = new Date(session.updated_at || session.created_at).getTime();
-    if (!Number.isFinite(time) || time < sevenDaysAgo) {
-      groups[2].sessions.push(session);
-    } else if (time >= todayStart) {
-      groups[0].sessions.push(session);
-    } else {
-      groups[1].sessions.push(session);
-    }
-  }
-  return groups.filter((group) => group.sessions.length > 0);
 }
 
 function selectedProviderName(selected: string, defaultProvider: string | null | undefined, providers: ModelProviderSummary[]) {

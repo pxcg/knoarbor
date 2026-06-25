@@ -12,49 +12,21 @@ type Props = {
   focusedPagePath?: string | null;
 };
 
-type PageFilter =
-  | { type: "all"; value: "" }
-  | { type: "role"; value: string }
-  | { type: "kind"; value: string }
-  | { type: "facet"; value: string };
-
 export function WikiPage({ context, focusedPagePath = null }: Props) {
   const [selectedPath, setSelectedPath] = useState<string | null>(focusedPagePath);
   const [selectedDetail, setSelectedDetail] = useState<PageDetail | null>(null);
-  const [filter, setFilter] = useState<PageFilter>({ type: "all", value: "" });
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const pageKindCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const page of context.pages) {
-      const pageKind = pageKindOf(page);
-      counts.set(pageKind, (counts.get(pageKind) || 0) + 1);
-    }
-    return counts;
-  }, [context.pages]);
-
-  const sourceAuditCount = useMemo(() => context.pages.filter(isSourceDigestPage).length, [context.pages]);
-
-  const facetCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const page of context.pages) {
-      for (const facet of facetsOf(page)) {
-        if (facet === pageKindOf(page) || facet === page.directory) continue;
-        counts.set(facet, (counts.get(facet) || 0) + 1);
-      }
-    }
-    return new Map([...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12));
-  }, [context.pages]);
+  const wikiPages = useMemo(() => context.pages.filter((page) => !isSourceDigestPage(page)), [context.pages]);
 
   const filteredPages = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return context.pages.filter((page) => {
-      if (!matchesFilter(page, filter)) return false;
+    return wikiPages.filter((page) => {
       if (!query) return true;
       return `${page.title} ${page.path} ${page.summary} ${page.tags.join(" ")} ${facetsOf(page).join(" ")}`.toLowerCase().includes(query);
     });
-  }, [context.pages, filter, search]);
+  }, [search, wikiPages]);
 
   useEffect(() => {
     if (focusedPagePath) setSelectedPath(focusedPagePath);
@@ -99,44 +71,6 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
   return (
     <section className="view active">
       <div className="wiki-workspace">
-        <aside className="panel wiki-directory-panel">
-          <div className="panel-header compact">
-            <h2>{context.t("wikiDirectory")}</h2>
-          </div>
-          <div className="wiki-directory-section">
-            <button className={`wiki-directory-row ${filter.type === "all" ? "active" : ""}`} onClick={() => setFilter({ type: "all", value: "" })} type="button">
-              <span>{context.t("allPages")}</span>
-              <strong>{context.pages.length}</strong>
-            </button>
-            {sourceAuditCount > 0 && (
-              <button className={`wiki-directory-row ${filter.type === "role" && filter.value === "source_digest" ? "active" : ""}`} onClick={() => setFilter({ type: "role", value: "source_digest" })} type="button">
-                <span>{context.t("sourceAudit")}</span>
-                <strong>{sourceAuditCount}</strong>
-              </button>
-            )}
-          </div>
-          <div className="wiki-directory-section">
-            <p className="wiki-directory-label">{context.t("pageKinds")}</p>
-            {[...pageKindCounts.entries()].map(([item, count]) => (
-              <button className={`wiki-directory-row ${filter.type === "kind" && filter.value === item ? "active" : ""}`} key={item} onClick={() => setFilter({ type: "kind", value: item })} type="button">
-                <span>{labelForPageKind(item)}</span>
-                <strong>{count}</strong>
-              </button>
-            ))}
-          </div>
-          {facetCounts.size > 0 && (
-            <div className="wiki-directory-section">
-              <p className="wiki-directory-label">{context.t("facets")}</p>
-              {[...facetCounts.entries()].map(([item, count]) => (
-                <button className={`wiki-directory-row ${filter.type === "facet" && filter.value === item ? "active" : ""}`} key={item} onClick={() => setFilter({ type: "facet", value: item })} type="button">
-                  <span>{labelForFacet(item)}</span>
-                  <strong>{count}</strong>
-                </button>
-              ))}
-            </div>
-          )}
-        </aside>
-
         <article className="panel wiki-list-panel">
           <div className="panel-header compact">
             <h2>{context.t("wikiPageList")}</h2>
@@ -175,10 +109,11 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
           {loading && <LoadingBlock title={context.t("wikiPageLoading")} copy={context.t("wikiPageLoadingCopy")} />}
           {!loading && selectedDetail ? (
             <>
-              <PageMetadata detail={selectedDetail} t={context.t} />
-              <LinkSection title={context.t("backlinks")} links={selectedDetail.backlinks} direction="backlinks" onOpen={context.openWikiPage} emptyText={context.t("none")} />
-              <LinkSection title={context.t("outboundLinks")} links={selectedDetail.outbound_links} direction="outbound" onOpen={context.openWikiPage} emptyText={context.t("none")} />
-              <AsyncMarkdownPreview content={selectedDetail.content} className="wiki-markdown-preview" stripFrontmatter onOpenWikiPage={context.openWikiPage} />
+              <WikiStructuredPreview detail={selectedDetail} context={context} />
+              <div className="wiki-link-grid">
+                <LinkSection title={context.t("backlinks")} links={selectedDetail.backlinks} direction="backlinks" onOpen={context.openWikiPage} emptyText={context.t("none")} />
+                <LinkSection title={context.t("outboundLinks")} links={selectedDetail.outbound_links} direction="outbound" onOpen={context.openWikiPage} emptyText={context.t("none")} />
+              </div>
             </>
           ) : (
             !loading && <p className="panel-copy">{context.t("wikiNoSelection")}</p>
@@ -194,7 +129,6 @@ function WikiPageRow({ page, active, onClick }: { page: PageSummary; active: boo
     <button className={`page-row ${active ? "active" : ""}`} onClick={onClick} type="button">
       <span className="page-row-heading">
         <DelayedTooltip text={page.title} className="page-row-title" />
-        <span className="page-row-type">{labelForPageKind(pageKindOf(page))}</span>
       </span>
       <code>{page.path}</code>
       {page.summary && <small>{page.summary}</small>}
@@ -207,50 +141,83 @@ function askAboutPage(context: AppContext, detail: PageDetail) {
   context.openChatWithPrompt(`请阅读并解释「${title}」（${detail.path}），并回答我的后续问题。`, context.activeVaultId);
 }
 
-function PageMetadata({ detail, t }: { detail: PageDetail; t: (key: string) => string }) {
+function WikiStructuredPreview({ detail, context }: { detail: PageDetail; context: AppContext }) {
+  const sections = extractWikiSections(detail.content);
+  if (!sections.length) {
+    return <AsyncMarkdownPreview content={detail.content} className="wiki-markdown-preview" stripFrontmatter onOpenWikiPage={context.openWikiPage} />;
+  }
+  const ordered = orderWikiSections(sections);
   return (
-    <dl className="mini-detail wiki-meta">
-      <div>
-        <dt>{t("pagePath")}</dt>
-        <dd>{detail.path}</dd>
-      </div>
-      <div>
-        <dt>{t("pageKind")}</dt>
-        <dd>{labelForPageKind(pageKindOf(detail.summary))}</dd>
-      </div>
-      <div>
-        <dt>{t("pageRole")}</dt>
-        <dd>{detail.summary.role || (isSourceDigestPage(detail.summary) ? "source_digest" : "knowledge_page")}</dd>
-      </div>
-      <div>
-        <dt>{t("facets")}</dt>
-        <dd>{facetsOf(detail.summary).join(", ") || t("none")}</dd>
-      </div>
-      <div>
-        <dt>{t("source")}</dt>
-        <dd>{detail.summary.source || t("none")}</dd>
-      </div>
-      <div>
-        <dt>{t("status")}</dt>
-        <dd>{detail.summary.status || t("unknown")}</dd>
-      </div>
-      <div>
-        <dt>{t("pageSummary")}</dt>
-        <dd>{detail.summary.summary || t("noSummary")}</dd>
-      </div>
-    </dl>
+    <div className="wiki-structured-preview">
+      {ordered.map((section) => (
+        <section className={`wiki-structure-card wiki-structure-${section.key}`} key={section.key}>
+          <div className="wiki-structure-heading">
+            <span>{wikiSectionLabel(section.key, section.title, context.language)}</span>
+          </div>
+          <WikiSectionContent section={section} context={context} />
+        </section>
+      ))}
+    </div>
   );
 }
 
-function matchesFilter(page: PageSummary, filter: PageFilter) {
-  if (filter.type === "all") return true;
-  if (filter.type === "role") return filter.value === "source_digest" ? isSourceDigestPage(page) : page.role === filter.value;
-  if (filter.type === "kind") return pageKindOf(page) === filter.value;
-  return facetsOf(page).includes(filter.value);
+function WikiSectionContent({ section, context }: { section: WikiSection; context: AppContext }) {
+  if (section.key === "relations" || section.key === "evidence" || section.key === "attachments") {
+    const table = parseMarkdownTable(section.content);
+    if (table) {
+      return (
+        <div className={`wiki-structured-table-wrap wiki-${section.key}-table-wrap`}>
+          <table className={`wiki-structured-table wiki-${section.key}-table`}>
+            <thead>
+              <tr>
+                {table.headers.map((header) => <th key={header}>{plainCellText(header)}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {table.rows.map((row, rowIndex) => (
+                <tr key={`${section.key}-${rowIndex}`}>
+                  {table.headers.map((_header, cellIndex) => (
+                    <td key={cellIndex}>{plainCellText(row[cellIndex] || "")}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+  }
+  return (
+    <AsyncMarkdownPreview
+      content={section.content}
+      className="wiki-markdown-preview wiki-section-markdown"
+      onOpenWikiPage={context.openWikiPage}
+    />
+  );
 }
 
-function pageKindOf(page: PageSummary) {
-  return page.page_kind || page.page_type || page.directory || "page";
+function parseMarkdownTable(content: string): { headers: string[]; rows: string[][] } | null {
+  const lines = content.split("\n").map((line) => line.trim()).filter(Boolean);
+  const headerIndex = lines.findIndex((line, index) => line.startsWith("|") && lines[index + 1]?.startsWith("|") && /^\|?\s*:?-{3,}/.test(lines[index + 1]));
+  if (headerIndex < 0) return null;
+  const headers = splitMarkdownTableRow(lines[headerIndex]);
+  const rows = lines.slice(headerIndex + 2).filter((line) => line.startsWith("|")).map(splitMarkdownTableRow);
+  return headers.length && rows.length ? { headers, rows } : null;
+}
+
+function splitMarkdownTableRow(line: string) {
+  return line.replace(/^\|/, "").replace(/\|$/, "").split(/(?<!\\)\|/).map((cell) => cell.replace(/\\\|/g, "|").trim());
+}
+
+function plainCellText(value: string) {
+  return value
+    .replace(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g, (_match, target: string, alias: string | undefined) => alias || target)
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/^#+\s*/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function facetsOf(page: PageSummary) {
@@ -259,14 +226,6 @@ function facetsOf(page: PageSummary) {
 
 function isSourceDigestPage(page: PageSummary) {
   return page.role === "source_digest" || page.page_kind === "source_digest" || page.page_type === "source" || page.directory === "sources";
-}
-
-function labelForPageKind(value: string) {
-  return value.replace(/_/g, " ");
-}
-
-function labelForFacet(value: string) {
-  return value.replace(/_/g, " ");
 }
 
 function LinkSection({
@@ -301,4 +260,70 @@ function LinkSection({
       )}
     </section>
   );
+}
+
+type WikiSection = {
+  key: string;
+  title: string;
+  content: string;
+  index: number;
+};
+
+const WIKI_SECTION_ORDER = ["summary", "claims", "relations", "synthesis", "entities", "evidence", "attachments", "source", "sources"];
+
+function extractWikiSections(content: string): WikiSection[] {
+  const body = stripPageChrome(content);
+  const matches = Array.from(body.matchAll(/^##\s+(.+?)\s*$/gm));
+  if (!matches.length) return [];
+  return matches.map((match, index) => {
+    const title = match[1].trim();
+    const start = (match.index || 0) + match[0].length;
+    const end = matches[index + 1]?.index ?? body.length;
+    return {
+      key: normalizeSectionKey(title),
+      title,
+      content: body.slice(start, end).trim(),
+      index,
+    };
+  }).filter((section) => section.content);
+}
+
+function stripPageChrome(content: string) {
+  return content
+    .replace(/\r\n/g, "\n")
+    .replace(/^# .+?\n+---\s*\n[\s\S]*?\n---\s*\n?/, "")
+    .replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, "")
+    .replace(/^# .+?\n+/, "")
+    .trim();
+}
+
+function normalizeSectionKey(title: string) {
+  return title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function orderWikiSections(sections: WikiSection[]) {
+  return [...sections].sort((left, right) => {
+    const leftIndex = WIKI_SECTION_ORDER.indexOf(left.key);
+    const rightIndex = WIKI_SECTION_ORDER.indexOf(right.key);
+    if (leftIndex === -1 && rightIndex === -1) return left.index - right.index;
+    if (leftIndex === -1) return 1;
+    if (rightIndex === -1) return -1;
+    return leftIndex - rightIndex;
+  });
+}
+
+function wikiSectionLabel(key: string, title: string, language: AppContext["language"]) {
+  if (language !== "zh") return title;
+  const labels: Record<string, string> = {
+    summary: "摘要",
+    claims: "核心断言",
+    relations: "关系三元组",
+    synthesis: "综合说明",
+    entities: "实体",
+    evidence: "证据",
+    attachments: "附件",
+    source: "来源",
+    sources: "来源",
+  };
+  return labels[key] || title;
 }

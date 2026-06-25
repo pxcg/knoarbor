@@ -31,6 +31,7 @@ export function ConfigPage({ context, embedded = false }: Props) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<ConfigForm | null>(null);
   const [activeSection, setActiveSection] = useState<ConfigSectionId>("basic");
+  const [desktopDiagnostics, setDesktopDiagnostics] = useState<DesktopDiagnosticsView | null>(null);
 
   const formQuery = useQuery({
     queryKey: ["config-form", context.configPath],
@@ -57,6 +58,20 @@ export function ConfigPage({ context, embedded = false }: Props) {
     const error = formQuery.error || diagnosticsQuery.error;
     if (error) context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
   }, [context, diagnosticsQuery.error, formQuery.error]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const desktop = window.knoarborDesktop;
+    if (!desktop) return undefined;
+    desktop.getDiagnostics().then((diagnostics) => {
+      if (!cancelled) setDesktopDiagnostics(normalizeDesktopDiagnostics(diagnostics));
+    }).catch(() => {
+      if (!cancelled) setDesktopDiagnostics(null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function updateSettingsFromDisk() {
     await queryClient.invalidateQueries({ queryKey: ["config-form"] });
@@ -155,27 +170,18 @@ export function ConfigPage({ context, embedded = false }: Props) {
   return (
     <section className={embedded ? "settings-embedded" : "view active"}>
       <article className={embedded ? "settings-embedded-panel" : "panel"}>
-        <div className="panel-header">
-          <div>
-            <h2>{context.t("configuration")}</h2>
-            <p className="panel-copy">{context.t("configurationCopy")}</p>
+        {desktopDiagnostics?.appData && (
+          <div className="desktop-config-summary">
+            <div>
+              <span>{context.t("desktopAppDataRoot")}</span>
+              <code>{desktopDiagnostics.appData.root}</code>
+            </div>
+            <div>
+              <span>{context.t("desktopConfigPath")}</span>
+              <code>{desktopDiagnostics.appData.configPath}</code>
+            </div>
           </div>
-          <div className="button-row">
-            <button
-              className="button secondary"
-              onClick={async () => {
-                await updateSettingsFromDisk();
-                context.setNotice({ message: context.t("refreshComplete") });
-              }}
-              disabled={formQuery.isFetching || diagnosticsQuery.isFetching}
-            >
-              {context.t("refresh")}
-            </button>
-            <button className="button primary" onClick={() => structuredSave.mutate()} disabled={!form || saving}>
-              {saving ? context.t("running") : context.t("saveSettings")}
-            </button>
-          </div>
-        </div>
+        )}
 
         {formQuery.isLoading && <SettingsLoadingState t={context.t} />}
 
@@ -184,7 +190,18 @@ export function ConfigPage({ context, embedded = false }: Props) {
             <SettingsDirectory activeSection={activeSection} setActiveSection={setActiveSection} t={context.t} />
 
             <div className="settings-section-panel" role="tabpanel">
-              <SettingsSectionIntro section={activeSection} t={context.t} />
+              <SettingsSectionIntro
+                section={activeSection}
+                t={context.t}
+                saving={saving}
+                canSave={Boolean(form)}
+                onSave={() => structuredSave.mutate()}
+                onReload={async () => {
+                  await updateSettingsFromDisk();
+                  context.setNotice({ message: context.t("refreshComplete") });
+                }}
+                reloading={formQuery.isFetching || diagnosticsQuery.isFetching}
+              />
               {activeSection === "basic" && <ConfigBasicSection form={form} setForm={setForm} t={context.t} />}
               {activeSection === "inputs" && <ConfigInputsSection form={form} setForm={setForm} t={context.t} />}
               {activeSection === "preprocessing" && <ConfigPreprocessingSection form={form} setForm={setForm} t={context.t} />}
@@ -220,6 +237,26 @@ export function ConfigPage({ context, embedded = false }: Props) {
 
 type ConfigSectionId = "basic" | "inputs" | "preprocessing" | "runtime" | "models" | "diagnostics" | "advanced";
 
+type DesktopDiagnosticsView = {
+  appData?: {
+    configPath?: string;
+    root?: string;
+  };
+};
+
+function normalizeDesktopDiagnostics(value: unknown): DesktopDiagnosticsView | null {
+  if (!value || typeof value !== "object") return null;
+  const appData = "appData" in value ? (value as { appData?: unknown }).appData : undefined;
+  if (!appData || typeof appData !== "object") return {};
+  const item = appData as { configPath?: unknown; root?: unknown };
+  return {
+    appData: {
+      configPath: typeof item.configPath === "string" ? item.configPath : undefined,
+      root: typeof item.root === "string" ? item.root : undefined,
+    },
+  };
+}
+
 function modelActionKey(
   variables: unknown,
   forcedAction: "discover" | "minimal" | "structured" | "apply" | undefined,
@@ -252,8 +289,25 @@ const CONFIG_SECTION_GROUPS: Array<{ titleKey: string; items: ConfigSectionId[] 
   { titleKey: "settingsGroupAdvanced", items: ["advanced"] },
 ];
 
-function SettingsSectionIntro({ section, t }: { section: ConfigSectionId; t: (key: string) => string }) {
+function SettingsSectionIntro({
+  section,
+  t,
+  saving,
+  canSave,
+  onSave,
+  onReload,
+  reloading,
+}: {
+  section: ConfigSectionId;
+  t: (key: string) => string;
+  saving: boolean;
+  canSave: boolean;
+  onSave: () => void;
+  onReload: () => Promise<void>;
+  reloading: boolean;
+}) {
   const item = CONFIG_SECTIONS.find((candidate) => candidate.id === section) || CONFIG_SECTIONS[0];
+  const canSaveSection = section !== "diagnostics" && section !== "advanced";
   return (
     <div className="settings-section-intro">
       <div>
@@ -261,6 +315,16 @@ function SettingsSectionIntro({ section, t }: { section: ConfigSectionId; t: (ke
         <h2>{t(item.titleKey)}</h2>
         <p className="panel-copy">{t(item.copyKey)}</p>
       </div>
+      {canSaveSection && (
+        <div className="button-row">
+          <button className="button secondary" type="button" onClick={() => void onReload()} disabled={reloading}>
+            {reloading ? t("refreshing") : t("refresh")}
+          </button>
+          <button className="button primary" type="button" onClick={onSave} disabled={!canSave || saving}>
+            {saving ? t("running") : t("saveSettings")}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

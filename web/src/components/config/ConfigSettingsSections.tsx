@@ -140,10 +140,15 @@ export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
               <span>{t("projectName")}</span>
               <input value={vault.name} onChange={(event) => updateVault(index, { name: event.target.value })} placeholder={t("projectNamePlaceholder")} />
             </label>
-            <label className="field compact-field vault-path-field">
-              <span>{t("vaultPath")}</span>
-              <input value={vault.path} onChange={(event) => updateVault(index, { path: event.target.value })} placeholder="./vaults/all" />
-            </label>
+            <PathField
+              className="compact-field vault-path-field"
+              label={t("vaultPath")}
+              value={vault.path}
+              onChange={(value) => updateVault(index, { path: value })}
+              placeholder="./vaults/all"
+              selectDirectoryTitle={t("chooseVaultFolder")}
+              t={t}
+            />
             <button className="icon-button" type="button" onClick={() => removeVault(index)} aria-label={t("removeVault")} disabled={normalizedVaults(form).length <= 1}>
               ×
             </button>
@@ -271,7 +276,7 @@ export function ConfigInputsSection({ form, setForm, t }: SectionProps) {
           </label>
         </ConnectorCard>
         <ConnectorCard title={t("nonMarkdownConnector")} checked={form.mineru_enabled} onChange={(checked) => setForm({ ...form, mineru_enabled: checked })}>
-          <PathField label={t("nonMarkdownInputDir")} value={form.mineru_input_dir} onChange={(value) => setForm({ ...form, mineru_input_dir: value })} placeholder="./vaults/all/raw/documents/originals" />
+          <PathField label={t("nonMarkdownInputDir")} value={form.mineru_input_dir} onChange={(value) => setForm({ ...form, mineru_input_dir: value })} placeholder="./vaults/all/raw/documents/originals" selectDirectoryTitle={t("chooseSourceFolder")} t={t} />
           <p className="panel-copy compact-copy">{t("nonMarkdownInputCopy")}</p>
         </ConnectorCard>
         <section className="settings-subcard chat-source-card">
@@ -281,7 +286,7 @@ export function ConfigInputsSection({ form, setForm, t }: SectionProps) {
           </div>
           <div className="chat-source-list">
             {chatSources.map((source) => (
-              <ChatSourceField key={source.key} source={source} />
+              <ChatSourceField key={source.key} source={source} t={t} />
             ))}
             <div className="chat-source-row custom">
               <label className="checkbox-field compact chat-source-toggle">
@@ -321,7 +326,7 @@ type ChatSourceRow = {
   placeholder: string;
 };
 
-function ChatSourceField({ source }: { source: ChatSourceRow }) {
+function ChatSourceField({ source, t }: { source: ChatSourceRow; t: (key: string) => string }) {
   return (
     <div className="chat-source-row">
       <label className="checkbox-field compact chat-source-toggle">
@@ -333,7 +338,7 @@ function ChatSourceField({ source }: { source: ChatSourceRow }) {
           {source.title}
         </span>
       </label>
-      <PathField label="" value={source.path} onChange={source.setPath} className="chat-source-path" placeholder={source.placeholder} ariaLabel={source.title} />
+      <PathField label="" value={source.path} onChange={source.setPath} className="chat-source-path" placeholder={source.placeholder} ariaLabel={source.title} selectDirectoryTitle={source.title} t={t} />
     </div>
   );
 }
@@ -379,8 +384,10 @@ export function ConfigPreprocessingSection({ form, setForm, t }: SectionProps) {
                   <span>{t("mineruBackend")}</span>
                   <select value={form.mineru_backend} onChange={(event) => setForm({ ...form, mineru_backend: event.target.value })}>
                     <option value="pipeline">pipeline</option>
-                    <option value="vlm-auto-engine">vlm-auto-engine</option>
-                    <option value="hybrid-auto-engine">hybrid-auto-engine</option>
+                    <option value="vlm-engine">vlm-engine</option>
+                    <option value="hybrid-engine">hybrid-engine</option>
+                    <option value="vlm-http-client">vlm-http-client</option>
+                    <option value="hybrid-http-client">hybrid-http-client</option>
                   </select>
                 </label>
                 <label className="field">
@@ -510,14 +517,14 @@ export function ConfigModelProvidersSection({
           <p className="panel-copy">{t("modelProvidersCopy")}</p>
         </div>
         <div className="add-provider-control">
-          <select value={providerPreset} onChange={(event) => setProviderPreset(event.target.value)} aria-label={t("providerPreset")}>
-            {PROVIDER_PRESETS.map((preset) => (
-              <option value={preset.name} key={preset.name}>
-                {preset.name}
-              </option>
-            ))}
-            <option value="">{t("custom")}</option>
-          </select>
+          <PresetMenu
+            label={providerPreset || t("custom")}
+            options={[...PROVIDER_PRESETS.map((preset) => preset.name), ""]}
+            value={providerPreset}
+            customLabel={t("custom")}
+            ariaLabel={t("providerPreset")}
+            onChange={setProviderPreset}
+          />
           <button className="button secondary" onClick={addProvider} type="button">
             {t("addProvider")}
           </button>
@@ -770,6 +777,62 @@ function formatMaybeNumber(value: number | null | undefined, t: (key: string) =>
   return typeof value === "number" ? value.toLocaleString() : t("notAvailable");
 }
 
+function PresetMenu({
+  ariaLabel,
+  customLabel,
+  label,
+  onChange,
+  options,
+  value,
+}: {
+  ariaLabel: string;
+  customLabel: string;
+  label: string;
+  onChange: (value: string) => void;
+  options: string[];
+  value: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="custom-select-menu provider-preset-menu">
+      <button
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-label={ariaLabel}
+        className="custom-select-trigger"
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
+        <span>{label}</span>
+        <span aria-hidden="true">⌄</span>
+      </button>
+      {open && (
+        <div className="custom-select-options" role="listbox">
+          {options.map((option) => {
+            const selected = option === value;
+            const optionLabel = option || customLabel;
+            return (
+              <button
+                aria-selected={selected}
+                className={selected ? "selected" : ""}
+                key={option || "custom"}
+                onClick={() => {
+                  onChange(option);
+                  setOpen(false);
+                }}
+                role="option"
+                type="button"
+              >
+                <span>{optionLabel}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConnectorCard({ title, checked, onChange, children }: { title: string; checked: boolean; onChange: (checked: boolean) => void; children: ReactNode }) {
   return (
     <section className="settings-subcard">
@@ -789,6 +852,8 @@ function PathField({
   className = "",
   placeholder,
   ariaLabel,
+  selectDirectoryTitle,
+  t,
 }: {
   label: string;
   value: string;
@@ -796,11 +861,29 @@ function PathField({
   className?: string;
   placeholder?: string;
   ariaLabel?: string;
+  selectDirectoryTitle?: string;
+  t?: (key: string) => string;
 }) {
+  const canSelectDirectory = Boolean(window.knoarborDesktop?.selectDirectory && selectDirectoryTitle);
+  const chooseDirectory = async () => {
+    if (!window.knoarborDesktop?.selectDirectory) return;
+    const result = await window.knoarborDesktop.selectDirectory({
+      defaultPath: value || placeholder,
+      title: selectDirectoryTitle,
+    });
+    if (!result.canceled && result.path) onChange(result.path);
+  };
   return (
     <label className={`field ${className}`}>
       {label && <span>{label}</span>}
-      <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-label={ariaLabel || label} />
+      <span className="desktop-path-input">
+        <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-label={ariaLabel || label} />
+        {canSelectDirectory && (
+          <button className="button secondary path-picker-button" type="button" onClick={chooseDirectory}>
+            {t ? t("chooseFolder") : "Choose"}
+          </button>
+        )}
+      </span>
     </label>
   );
 }

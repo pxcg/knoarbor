@@ -39,6 +39,7 @@ import {
 import { AppShell } from "./components/AppShell";
 import { LoadingBlock } from "./components/LoadingBlock";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
+import { SidebarRecentSessions } from "./components/SidebarRecentSessions";
 import { WorkspaceSettingsModal } from "./components/WorkspaceSettingsModal";
 import { detectLanguage, translate } from "./i18n";
 import { queryKeys } from "./queryKeys";
@@ -116,13 +117,14 @@ export function App() {
   const [configContent, setConfigContent] = useState("");
   const [configExists, setConfigExists] = useState(false);
   const [summary, setSummary] = useState<ConfigSummary>({});
-  const [notice, setNotice] = useState<AppNotice | null>(null);
+  const [, setNotice] = useState<AppNotice | null>(null);
   const [queryResults, setQueryResults] = useState<QueryResult[]>([]);
   const [queryContextPack, setQueryContextPack] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [focusedPageId, setFocusedPageId] = useState<string | null>(null);
   const [focusedWikiPath, setFocusedWikiPath] = useState<string | null>(null);
   const [pendingChatPrompt, setPendingChatPrompt] = useState("");
+  const [pendingChatSessionRequest, setPendingChatSessionRequest] = useState<PendingChatSessionRequest | null>(null);
   const [focusedReportPath, setFocusedReportPath] = useState<string | null>(null);
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
   const [modelProbeResults, setModelProbeResultsState] = useState<Record<string, ModelProviderProbeState>>(() => readStoredModelProbeResults());
@@ -458,6 +460,37 @@ export function App() {
     }
   }, [refreshAll, t]);
 
+  useEffect(() => {
+    const desktop = window.knoarborDesktop;
+    if (!desktop) return undefined;
+    return desktop.onCommand((command) => {
+      if (command === "settings.open") {
+        setWorkspaceSettingsOpen(true);
+        return;
+      }
+      if (command === "chat.new") {
+        setPendingChatPrompt("");
+        setFocusedPageId(null);
+        setFocusedReportPath(null);
+        setFocusedWikiPath(null);
+        setActiveView("chat");
+        return;
+      }
+      if (command === "docs.open") {
+        void desktop.openApiDocs();
+        return;
+      }
+      if (command === "service.restart") {
+        setNotice({ message: t("serviceRestarting") });
+        void desktop.restartService().then(() => refreshAll());
+        return;
+      }
+      if (command === "logs.open") {
+        void desktop.openLogs();
+      }
+    });
+  }, [refreshAll, t]);
+
   const openPageInGraph = useCallback((pageId: string) => {
     setFocusedPageId(pageId);
     setActiveView("graph");
@@ -500,6 +533,23 @@ export function App() {
 
   const clearPendingChatPrompt = useCallback(() => {
     setPendingChatPrompt("");
+  }, []);
+
+  const openChatSession = useCallback((sessionId: string | null, vaultId?: string | null) => {
+    if (vaultId && vaultId !== activeVaultId) {
+      localStorage.setItem("knoarbor.activeVaultId", vaultId);
+      localStorage.setItem("knoarbor.activeVaultId.userSet", "true");
+      setSelectedVaultId(vaultId);
+    }
+    setFocusedPageId(null);
+    setFocusedReportPath(null);
+    setFocusedWikiPath(null);
+    setPendingChatSessionRequest({ sessionId, vaultId: vaultId || null, requestId: Date.now() });
+    setActiveView("chat");
+  }, [activeVaultId]);
+
+  const clearPendingChatSessionRequest = useCallback(() => {
+    setPendingChatSessionRequest(null);
   }, []);
 
   const setDoctorReportCached: Dispatch<SetStateAction<DoctorReport | null>> = useCallback((value) => {
@@ -572,6 +622,7 @@ export function App() {
       focusedPageId,
       focusedWikiPath,
       pendingChatPrompt,
+      pendingChatSessionRequest,
       healthHint,
       pages,
       queryResults,
@@ -607,6 +658,8 @@ export function App() {
       openWikiPageInVault,
       openChatWithPrompt,
       clearPendingChatPrompt,
+      openChatSession,
+      clearPendingChatSessionRequest,
       openReport,
       openSettings: () => setWorkspaceSettingsOpen(true),
       status,
@@ -631,6 +684,7 @@ export function App() {
       graph,
       focusedPageId,
       pendingChatPrompt,
+      pendingChatSessionRequest,
       focusedReportPath,
       focusedWikiPath,
       healthHint,
@@ -665,6 +719,8 @@ export function App() {
       openWikiPageInVault,
       openChatWithPrompt,
       clearPendingChatPrompt,
+      openChatSession,
+      clearPendingChatSessionRequest,
       openReport,
       setDoctorReportCached,
       setStatusCached,
@@ -681,32 +737,18 @@ export function App() {
   return (
     <AppShell
       activeView={activeView}
-      isRefreshing={isRefreshing}
       language={language}
       serviceOnline={serviceOnline}
       sidebarCollapsed={sidebarCollapsed}
       t={t}
       onChangeView={setActiveView}
       onPreloadView={preloadView}
-      onRefresh={refreshManually}
       onSetLanguage={setLanguage}
       onToggleSidebar={toggleSidebar}
       onOpenWorkspaceSettings={() => setWorkspaceSettingsOpen(true)}
-      vaultOptions={vaultOptions}
-      activeVaultId={activeVaultId}
-      onSetActiveVault={setActiveVaultId}
+      onOpenApiDocs={window.knoarborDesktop ? () => void window.knoarborDesktop?.openApiDocs() : undefined}
+      sidebarSlot={<SidebarRecentSessions context={context} />}
     >
-        {notice && activeView !== "chat" && activeView !== "settings" && (
-          <section className={`notice ${notice.error ? "error" : ""}`}>
-            <span>{notice.message}</span>
-            {notice.actionLabel && notice.onAction && (
-              <button className="button secondary small-button" type="button" onClick={notice.onAction}>
-                {notice.actionLabel}
-              </button>
-            )}
-          </section>
-        )}
-
         <RouteErrorBoundary
           key={activeView}
           fallbackTitle={t("routeLoadFailed")}
@@ -747,6 +789,7 @@ export type AppContext = {
   focusedPageId: string | null;
   focusedWikiPath: string | null;
   pendingChatPrompt: string;
+  pendingChatSessionRequest: PendingChatSessionRequest | null;
   healthHint: string;
   pages: PageSummary[];
   queryResults: QueryResult[];
@@ -782,6 +825,8 @@ export type AppContext = {
   openWikiPageInVault: (vaultId: string | null | undefined, path: string) => void;
   openChatWithPrompt: (prompt: string, vaultId?: string | null) => void;
   clearPendingChatPrompt: () => void;
+  openChatSession: (sessionId: string | null, vaultId?: string | null) => void;
+  clearPendingChatSessionRequest: () => void;
   openReport: (path: string) => void;
   openSettings: () => void;
   status: UiStatusResponse | null;
@@ -797,6 +842,12 @@ export type AppContext = {
   language: Language;
   setLanguage: (language: Language) => void;
   t: (key: string) => string;
+};
+
+export type PendingChatSessionRequest = {
+  sessionId: string | null;
+  vaultId?: string | null;
+  requestId: number;
 };
 
 export type VaultRefreshScope = {

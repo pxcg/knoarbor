@@ -276,7 +276,7 @@ models:
                     "mineru_enabled": True,
                     "mineru_endpoint": "http://127.0.0.1:18000/file_parse",
                     "mineru_input_dir": str(root / "vaults" / "all" / "raw" / "documents" / "originals"),
-                    "mineru_backend": "hybrid-auto-engine",
+                    "mineru_backend": "hybrid-engine",
                     "mineru_parse_method": "ocr",
                     "mineru_timeout_seconds": 900,
                     "mineru_patterns": ["*.pdf", "*.docx"],
@@ -301,7 +301,7 @@ models:
             saved = config_path.read_text(encoding="utf-8")
             self.assertIn("mode: ocr", saved)
             self.assertIn("timeout_seconds: 900", saved)
-            self.assertIn("backend: hybrid-auto-engine", saved)
+            self.assertIn("backend: hybrid-engine", saved)
             self.assertIn("return_middle_json: true", saved)
             self.assertIn("lang_list: ch,en", saved)
             self.assertIn("formula_enable: true", saved)
@@ -314,7 +314,7 @@ models:
             form_response = client.get("/ui/api/config/form", params={"config_path": str(config_path)})
             self.assertEqual(form_response.status_code, 200)
             payload = form_response.json()
-            self.assertEqual(payload["mineru_backend"], "hybrid-auto-engine")
+            self.assertEqual(payload["mineru_backend"], "hybrid-engine")
             self.assertEqual(payload["mineru_parse_method"], "ocr")
             self.assertEqual(payload["mineru_timeout_seconds"], 900)
             self.assertEqual(payload["mineru_patterns"], ["*.pdf", "*.docx"])
@@ -517,7 +517,7 @@ connectors: {{}}
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault_path = Path(tmp_dir) / "vaults" / "all"
             init_wiki_vault(vault_path)
-            source_path = vault_path / "sources" / "Source.md"
+            source_path = content_root(vault_path) / "sources" / "Source.md"
             concept_path = content_root(vault_path) / "Agent-Loop.md"
             source_path.write_text(
                 "# Source\n\n---\ntype: source\nsource: raw/notes/source.md\ntags: [source-digest]\n---\n\n"

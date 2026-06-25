@@ -33,6 +33,31 @@ class RunMonitorTests(unittest.TestCase):
         self.assertEqual(record.result_summary["written_pages"], 1)
         self.assertEqual([event.event_type for event in events], ["run_started", "segment_started", "run_completed"])
 
+    def test_monitor_omits_raw_content_from_event_payloads(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            monitor = RunMonitor(vault_path=vault, flow="ingest", run_id="payload-test")
+            monitor.start(message="start")
+            monitor.event(
+                "source_units_created",
+                payload={
+                    "units": [
+                        {
+                            "title": "Unit",
+                            "content": "sensitive raw content",
+                            "nested": {"content": "nested sensitive content", "content_chars": 21},
+                        }
+                    ]
+                },
+            )
+            events = read_run_events(vault, "payload-test")
+
+        payload = events[1].payload
+        dumped = json.dumps(payload, ensure_ascii=False)
+        self.assertNotIn("sensitive raw content", dumped)
+        self.assertNotIn('"content":', dumped)
+        self.assertIn("content_chars", dumped)
+
     def test_reporter_uses_frozen_event_catalog(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)

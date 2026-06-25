@@ -1,0 +1,73 @@
+export type DesktopEnvironment = {
+  isDesktopApp: true;
+  platform: NodeJS.Platform;
+  versions: {
+    chrome: string;
+    electron: string;
+    node: string;
+  };
+};
+
+export type DesktopServiceMode = "external" | "managed";
+
+export type DesktopServiceStatus =
+  | "idle"
+  | "starting"
+  | "healthy"
+  | "stopping"
+  | "stopped"
+  | "failed";
+
+export type DesktopServiceState = {
+  command?: string;
+  configPath?: string;
+  endpoint?: string;
+  lastOutput?: string[];
+  lastError?: string;
+  logPath?: string;
+  mode: DesktopServiceMode;
+  port?: number;
+  startedAt?: string;
+  status: DesktopServiceStatus;
+};
+
+export type DesktopDiagnostics = {
+  appData?: {
+    configPath?: string;
+    root?: string;
+  };
+  environment: DesktopEnvironment;
+  logs: {
+    desktopLogPath?: string;
+    serviceLogPath?: string;
+  };
+  service: DesktopServiceState;
+};
+
+export type DesktopCommand =
+  | "chat.new"
+  | "docs.open"
+  | "settings.open"
+  | "service.restart"
+  | "logs.open";
+
+export type KnoArborDesktopBridge = {
+  getDiagnostics(): Promise<DesktopDiagnostics>;
+  getEnvironment(): Promise<DesktopEnvironment>;
+  getServiceState(): Promise<DesktopServiceState>;
+  onCommand(listener: (command: DesktopCommand) => void): () => void;
+  onServiceStateChanged(listener: (state: DesktopServiceState) => void): () => void;
+  openApiDocs(): Promise<{ opened: boolean; url?: string }>;
+  openLogs(): Promise<{ opened: boolean; path?: string }>;
+  restartService(): Promise<DesktopServiceState>;
+  selectDirectory(options?: { defaultPath?: string; title?: string }): Promise<{
+    canceled: boolean;
+    path?: string;
+  }>;
+};
+
+declare global {
+  interface Window {
+    knoarborDesktop?: KnoArborDesktopBridge;
+  }
+}

@@ -13,14 +13,8 @@ type Props = {
 };
 
 const nodeColors: Record<string, string> = {
-  source: "#eef2f7",
-  entity: "#dcfce7",
-  concept: "#dbeafe",
-  query: "#fef3c7",
-  comparison: "#fae8ff",
-  claim: "#f1f5f9",
-  timeline: "#f1f5f9",
-  workflow: "#f1f5f9",
+  knowledge_page: "#dcfce7",
+  source_audit: "#eef2f7",
 };
 
 type GraphDensity = "compact" | "balanced";
@@ -45,7 +39,7 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
     if (!graph) return { nodes: [], edges: [] };
     const normalizedSearch = nodeSearch.trim().toLowerCase();
     const nodes = graph.nodes.filter((node) => {
-      if (typeFilter && nodeKindOf(node) !== typeFilter) return false;
+      if (typeFilter && nodeViewOf(node) !== typeFilter) return false;
       if (!normalizedSearch) return true;
       return `${node.title} ${node.id} ${node.summary} ${node.tags.join(" ")} ${(node.facets || []).join(" ")}`.toLowerCase().includes(normalizedSearch);
     });
@@ -55,11 +49,11 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
   }, [graph, nodeSearch, typeFilter]);
 
   const nodeById = useMemo(() => new Map((graph?.nodes || []).map((node) => [node.id, node])), [graph]);
-  const types = useMemo(() => Array.from(new Set((graph?.nodes || []).map(nodeKindOf))).sort(), [graph]);
+  const types = useMemo(() => Array.from(new Set((graph?.nodes || []).map(nodeViewOf))).sort(), [graph]);
   const typeCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const node of graph?.nodes || []) {
-      const type = nodeKindOf(node);
+      const type = nodeViewOf(node);
       counts.set(type, (counts.get(type) || 0) + 1);
     }
     return counts;
@@ -83,6 +77,7 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
           id: node.id,
           label: node.title,
           type: nodeKindOf(node),
+          view: nodeViewOf(node),
           degree: degree.get(node.id) || 0,
         },
       })),
@@ -104,7 +99,7 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
         {
           selector: "node",
           style: {
-            "background-color": (ele) => nodeColors[String(ele.data("type"))] || "#ffffff",
+            "background-color": (ele) => nodeColors[String(ele.data("view"))] || "#ffffff",
             "border-color": "#172033",
             "border-width": 1.2,
             color: "#40516a",
@@ -211,9 +206,9 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
       <div className="panel-grid graph-overview">
         <article className="panel chart-panel">
           <div className="panel-header compact">
-            <h2>{t("pageKinds")}</h2>
+            <h2>{t("virtualViews")}</h2>
           </div>
-          <BarChart data={Object.keys(graph.stats.page_kind_counts || {}).length ? graph.stats.page_kind_counts : graph.stats.directory_counts} emptyText={t("noData")} />
+          <BarChart data={viewCountsForGraph(graph, t)} emptyText={t("noData")} />
         </article>
         <article className="panel chart-panel">
           <div className="panel-header compact">
@@ -248,7 +243,7 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
                   <option value="">{t("allPages")}</option>
                   {types.map((type) => (
                     <option value={type} key={type}>
-                      {type}
+                      {labelForGraphView(type, t)}
                     </option>
                   ))}
                 </select>
@@ -262,7 +257,7 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
             {types.map((type) => (
               <span className={typeFilter === type ? "active" : ""} key={type}>
                 <i style={{ background: nodeColors[type] || "#ffffff" }} />
-                {type} · {typeCounts.get(type) || 0}
+                {labelForGraphView(type, t)} · {typeCounts.get(type) || 0}
               </span>
             ))}
           </div>
@@ -290,7 +285,7 @@ function NodeDetail({ node, t, onOpenPage }: { node: GraphNode | null; t: (key: 
     <div className="node-detail">
       <h3>{node.title}</h3>
       <div className="result-meta">
-        {node.id} · {nodeKindOf(node)}
+        {node.id} · {labelForGraphView(nodeViewOf(node), t)}
       </div>
       <p>{node.summary || t("noSummary")}</p>
       <div className="tag-list">
@@ -322,6 +317,26 @@ function NodeDetail({ node, t, onOpenPage }: { node: GraphNode | null; t: (key: 
 
 function nodeKindOf(node: GraphNode) {
   return node.page_kind || node.type || "page";
+}
+
+function nodeViewOf(node: GraphNode) {
+  const kind = nodeKindOf(node);
+  return node.role === "source_digest" || kind === "source_digest" || node.type === "source" || node.id.startsWith("sources/") ? "source_audit" : "knowledge_page";
+}
+
+function labelForGraphView(value: string, t: (key: string) => string) {
+  if (value === "source_audit") return t("sourceAudit");
+  if (value === "knowledge_page") return t("wikiPages");
+  return value.replace(/_/g, " ");
+}
+
+function viewCountsForGraph(graph: GraphResponse, t: (key: string) => string) {
+  const counts: Record<string, number> = {};
+  for (const node of graph.nodes) {
+    const label = labelForGraphView(nodeViewOf(node), t);
+    counts[label] = (counts[label] || 0) + 1;
+  }
+  return counts;
 }
 
 function buildLayout(density: GraphDensity) {

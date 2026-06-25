@@ -1,0 +1,39 @@
+{
+  "name": "@knoarbor/desktop",
+  "private": true,
+  "version": "2.0.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "out/main/index.js",
+  "build": {
+    "appId": "ai.knoarbor.desktop",
+    "productName": "KnoArbor",
+    "mac": {
+      "icon": "resources/icons/icon.icns"
+    },
+    "win": {
+      "icon": "resources/icons/icon.ico"
+    },
+    "linux": {
+      "icon": "resources/icons/icon.png"
+    }
+  },
+  "scripts": {
+    "build": "npm run prepare:web && electron-vite build && tsc -p tsconfig.json --noEmit",
+    "dev": "npm run prepare:web && electron-vite dev",
+    "prepare:web": "node scripts/prepare-web.mjs",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@electron-toolkit/utils": "^4.0.0",
+    "electron-log": "^5.4.3"
+  },
+  "devDependencies": {
+    "@electron-toolkit/preload": "^3.0.2",
+    "@types/node": "^24.0.0",
+    "electron": "42.4.0",
+    "electron-vite": "^5.0.0",
+    "typescript": "^5.6.3"
+  }
+}
