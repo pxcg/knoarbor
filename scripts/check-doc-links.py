@@ -16,12 +16,16 @@ SKIP_DIRS = {
     ".venv",
     "build",
     "dist",
+    "notebooks",
     "node_modules",
+    "output",
+    "tmp",
     "vaults",
     "web",
     "wiki",
 }
 LINK_RE = re.compile(r"!?\[[^\]]*]\(([^)\n]+)\)")
+CODE_SPAN_RE = re.compile(r"`[^`]*`")
 
 
 def iter_markdown_files() -> list[Path]:
@@ -60,7 +64,7 @@ def main() -> int:
     missing: list[str] = []
     files = iter_markdown_files()
     for source in files:
-        text = source.read_text(encoding="utf-8")
+        text = CODE_SPAN_RE.sub("", source.read_text(encoding="utf-8"))
         for match in LINK_RE.finditer(text):
             target = normalize_target(match.group(1))
             if target is None:

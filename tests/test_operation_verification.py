@@ -41,8 +41,8 @@ class OperationVerificationTest(unittest.TestCase):
     def test_fails_update_source_field_when_source_section_does_not_match(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "sources").mkdir()
-            (vault / "sources" / "Agent.md").write_text(
+            (vault / "pages" / "sources").mkdir(parents=True)
+            (vault / "pages" / "sources" / "Agent.md").write_text(
                 "---\ntype: source\nsource: raw/notes/agent.md\n---\n"
                 "# Agent\n\n## Source\n\n- raw/notes/other.md\n",
                 encoding="utf-8",

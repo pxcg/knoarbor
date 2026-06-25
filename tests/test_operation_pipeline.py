@@ -157,8 +157,8 @@ class WikiOperationPipelineTests(unittest.TestCase):
     def test_update_source_field_rejects_serialized_list_source_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "sources").mkdir()
-            page = vault / "sources" / "Agent.md"
+            (vault / "pages" / "sources").mkdir(parents=True)
+            page = vault / "pages" / "sources" / "Agent.md"
             page.write_text(
                 "---\ntype: source\nstatus: draft\nsource: raw/notes/agent.md\n---\n"
                 "# Agent\n\n## Summary\n\nAgent notes.\n\n## Source\n\n- raw/notes/agent.md\n",
@@ -189,8 +189,8 @@ class WikiOperationPipelineTests(unittest.TestCase):
     def test_redact_sensitive_text_redacts_generated_page(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "sources").mkdir()
-            page = vault / "sources" / "Agent.md"
+            (vault / "pages" / "sources").mkdir(parents=True)
+            page = vault / "pages" / "sources" / "Agent.md"
             page.write_text(
                 "---\ntype: source\nstatus: draft\nsource: raw/notes/agent.md\n---\n"
                 "# Agent\n\n## Summary\n\n"

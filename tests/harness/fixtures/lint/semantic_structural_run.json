@@ -1,144 +1,9 @@
 {
-  "report": "# Lint Run Report\n\n- run_id: golden-lint-run\n- created_at: <created_at>\n- mode: semantic_structural\n- profile: standard\n- scope_id: golden:lint\n- deterministic_issues: 8\n- deterministic_fixes: 9\n- recommended_mode: semantic_structural\n- policy_triggered: True\n- semantic_candidates: 1\n- review_decisions: 1\n- queued_actions: 0\n- deferred_retries: 0\n- applied_operations: 1\n- written_pages: 0\n- operation_success_rate: 1.00\n- verifications: 1 verified / 0 failed / 0 skipped\n- follow_up_required: False\n- rescan_issues: 13\n- issue_delta: 5\n- trend_issue_delta_from_previous: None\n- graph_components: 1 / largest 1\n- quality_reviews: 0 pages / avg score n/a\n- elapsed_seconds: <elapsed>\n- semantic_calls: 0\n- total_tokens: 0\n- tokens_per_second: <tokens_per_second>\n\n## Semantic Token Usage\n\n- semantic_calls: 0\n- prompt_tokens: 0\n- prompt_cached_tokens: 0\n- prompt_cache_rate: n/a\n- prompt_stable_chars: 0\n- prompt_dynamic_chars: 0\n- dynamic_to_stable_ratio: n/a\n- completion_tokens: 0\n- total_tokens: 0\n- semantic_elapsed_seconds: 0.00\n- tokens_per_second: <tokens_per_second>\n\n## Issue Summary\n\n- before_rescan: 8\n- after_rescan: 13\n- issue_delta: 5\n- repeated_issue_codes: broken_wikilink=1, missing_required_section=5, orphan_page=1, weak_link_graph=1\n\n## Trend Summary\n\n- previous_runs_considered: 0\n- previous_issue_count: None\n- current_issue_count: 8\n- issue_delta_from_previous: None\n- persistent_issue_codes: none\n\n## Graph Health\n\n- node_count: 1\n- component_count: 1\n- largest_component_size: 1\n- isolated_page_count: 1\n- small_component_count: 0\n- hub_pages: none\n\n## Deterministic Issues\n\n- [info] `missing_required_section` in `concepts/Agent-Loop.md`: Page is missing required concepts section: Claims.\n- [info] `missing_required_section` in `concepts/Agent-Loop.md`: Page is missing required concepts section: Entities.\n- [info] `missing_required_section` in `concepts/Agent-Loop.md`: Page is missing required concepts section: Relations.\n- [info] `missing_required_section` in `concepts/Agent-Loop.md`: Page is missing required concepts section: Evidence.\n- [info] `missing_required_section` in `concepts/Agent-Loop.md`: Page is missing required concepts section: Synthesis.\n- [error] `broken_wikilink` in `concepts/Agent-Loop.md`: Wiki link target does not exist.\n- [info] `orphan_page` in `concepts/Agent-Loop.md`: No other wiki page links to this page.\n- [info] `weak_link_graph` in `concepts/Agent-Loop.md`: Generated knowledge page has no resolved incoming or outgoing wiki links.\n\n## Semantic Candidates\n\n- `provenance:concepts/Agent-Loop.md:knowledge_missing_source_digest_link:0` deterministic_wiki_operation attach_source_digest -> concepts/Agent-Loop.md\n\n## Quality Reviews\n\n- reviewed_pages: 0\n- average_overall_score: n/a\n\n## Review Decisions\n\n- [approve] operation 0 supported_by_wiki_operation risk=low: The source digest target is explicit and exists.\n\n## Queued Actions\n\n- No queued report-only or refresh-request actions.\n\n## Execution\n\n- success_rate: 1.00\n- failed_verifications: 0\n- operation `attach_source_digest` on `concepts/Agent-Loop.md`: applied\n\n## Page Changes\n\n- `concepts/Agent-Loop.md` action=attach_source_digest sections=none\n\n```diff\n--- concepts/Agent-Loop.md\n+++ concepts/Agent-Loop.md\n@@ -23,7 +23,7 @@\n ## Related Pages\n \n - [[Missing Page]]\n-\n+- [[sources/Agent-Loop-Source|Agent Loop Source]]\n ## Tags\n \n - agent\n```\n\n\n## Post-fix Verification\n\n- [verified] `attach_source_digest` on `concepts/Agent-Loop.md`: Expected related pages are present and canonical list items are unique.\n\n## Rescan\n\n- [info] `missing_required_section` in `sources/Agent-Loop-Source.md`: Page is missing required sources section: Source Identity.\n- [info] `missing_required_section` in `sources/Agent-Loop-Source.md`: Page is missing required sources section: Audit Summary.\n- [info] `missing_required_section` in `sources/Agent-Loop-Source.md`: Page is missing required sources section: Source Units.\n- [info] `missing_required_section` in `sources/Agent-Loop-Source.md`: Page is missing required sources section: Contribution Map.\n- [info] `missing_required_section` in `sources/Agent-Loop-Source.md`: Page is missing required sources section: Unresolved / Rejected.\n- [info] `missing_required_section` in `sources/Agent-Loop-Source.md`: Page is missing required sources section: Raw Source.\n- [info] `missing_required_section` in `concepts/Agent-Loop.md`: Page is missing required concepts section: Claims.\n- [info] `missing_required_section` in `concepts/Agent-Loop.md`: Page is missing required concepts section: Entities.\n- [info] `missing_required_section` in `concepts/Agent-Loop.md`: Page is missing required concepts section: Relations.\n- [info] `missing_required_section` in `concepts/Agent-Loop.md`: Page is missing required concepts section: Evidence.\n- [info] `missing_required_section` in `concepts/Agent-Loop.md`: Page is missing required concepts section: Synthesis.\n- [error] `broken_wikilink` in `concepts/Agent-Loop.md`: Wiki link target does not exist.\n- [info] `orphan_page` in `concepts/Agent-Loop.md`: No other wiki page links to this page.\n",
+  "report": "# Lint Run Report\n\n- run_id: golden-lint-run\n- created_at: <created_at>\n- mode: semantic_structural\n- profile: standard\n- scope_id: golden:lint\n- deterministic_issues: 12\n- deterministic_fixes: 13\n- recommended_mode: deterministic\n- policy_triggered: False\n- semantic_candidates: 0\n- review_decisions: 0\n- queued_actions: 0\n- deferred_retries: 0\n- applied_operations: 0\n- written_pages: 0\n- operation_success_rate: n/a\n- verifications: 0 verified / 0 failed / 0 skipped\n- follow_up_required: False\n- rescan_issues: not_run\n- issue_delta: None\n- trend_issue_delta_from_previous: None\n- graph_components: 1 / largest 2\n- quality_reviews: 0 pages / avg score n/a\n- elapsed_seconds: <elapsed>\n- semantic_calls: 0\n- total_tokens: 0\n- tokens_per_second: <tokens_per_second>\n\n## Semantic Token Usage\n\n- semantic_calls: 0\n- prompt_tokens: 0\n- prompt_cached_tokens: 0\n- prompt_cache_rate: n/a\n- prompt_stable_chars: 0\n- prompt_dynamic_chars: 0\n- dynamic_to_stable_ratio: n/a\n- completion_tokens: 0\n- total_tokens: 0\n- semantic_elapsed_seconds: 0.00\n- tokens_per_second: <tokens_per_second>\n\n## Issue Summary\n\n- before_rescan: 12\n- after_rescan: None\n- issue_delta: None\n- repeated_issue_codes: broken_wikilink=1, missing_required_section=11\n\n## Trend Summary\n\n- previous_runs_considered: 0\n- previous_issue_count: None\n- current_issue_count: 12\n- issue_delta_from_previous: None\n- persistent_issue_codes: none\n\n## Graph Health\n\n- node_count: 2\n- component_count: 1\n- largest_component_size: 2\n- isolated_page_count: 0\n- small_component_count: 1\n- hub_pages: concepts/Agent-Loop.md(1), sources/Agent-Loop-Source.md(1)\n\n## Deterministic Issues\n\n- [info] `missing_required_section` in `sources/Agent-Loop-Source.md`: Page is missing required sources section: Source Identity.\n- [info] `missing_required_section` in `sources/Agent-Loop-Source.md`: Page is missing required sources section: Audit Summary.\n- [info] `missing_required_section` in `sources/Agent-Loop-Source.md`: Page is missing required sources section: Source Units.\n- [info] `missing_required_section` in `sources/Agent-Loop-Source.md`: Page is missing required sources section: Contribution Map.\n- [info] `missing_required_section` in `sources/Agent-Loop-Source.md`: Page is missing required sources section: Unresolved / Rejected.\n- [info] `missing_required_section` in `sources/Agent-Loop-Source.md`: Page is missing required sources section: Raw Source.\n- [info] `missing_required_section` in `concepts/Agent-Loop.md`: Page is missing required concepts section: Claims.\n- [info] `missing_required_section` in `concepts/Agent-Loop.md`: Page is missing required concepts section: Entities.\n- [info] `missing_required_section` in `concepts/Agent-Loop.md`: Page is missing required concepts section: Relations.\n- [info] `missing_required_section` in `concepts/Agent-Loop.md`: Page is missing required concepts section: Evidence.\n- [info] `missing_required_section` in `concepts/Agent-Loop.md`: Page is missing required concepts section: Synthesis.\n- [error] `broken_wikilink` in `concepts/Agent-Loop.md`: Wiki link target does not exist.\n\n## Semantic Candidates\n\n- No semantic candidates.\n\n## Quality Reviews\n\n- reviewed_pages: 0\n- average_overall_score: n/a\n\n## Review Decisions\n\n- No review decisions.\n\n## Queued Actions\n\n- No queued report-only or refresh-request actions.\n\n## Execution\n\n- No reviewed changes applied.\n- success_rate: n/a\n- failed_verifications: 0\n",
   "result": {
-    "applied_operations": [
-      {
-        "action": "attach_source_digest",
-        "details": {
-          "added_links": [
-            "[[sources/Agent-Loop-Source|Agent Loop Source]]"
-          ],
-          "diff": "--- concepts/Agent-Loop.md\n+++ concepts/Agent-Loop.md\n@@ -23,7 +23,7 @@\n ## Related Pages\n \n - [[Missing Page]]\n-\n+- [[sources/Agent-Loop-Source|Agent Loop Source]]\n ## Tags\n \n - agent",
-          "diff_truncated": false,
-          "related_pages": [
-            "sources/Agent-Loop-Source.md"
-          ]
-        },
-        "operation_id": "provenance:concepts/Agent-Loop.md:knowledge_missing_source_digest_link:0",
-        "output_page": "concepts/Agent-Loop.md",
-        "status": "applied",
-        "target_page": "concepts/Agent-Loop.md"
-      }
-    ],
+    "applied_operations": [],
     "deferred_retries": [],
     "deterministic_issues": [
-      {
-        "code": "missing_required_section",
-        "details": {
-          "directory": "concepts",
-          "page_type": "concept",
-          "section": "Claims"
-        },
-        "message": "Page is missing required concepts section: Claims.",
-        "path": "concepts/Agent-Loop.md",
-        "severity": "info"
-      },
-      {
-        "code": "missing_required_section",
-        "details": {
-          "directory": "concepts",
-          "page_type": "concept",
-          "section": "Entities"
-        },
-        "message": "Page is missing required concepts section: Entities.",
-        "path": "concepts/Agent-Loop.md",
-        "severity": "info"
-      },
-      {
-        "code": "missing_required_section",
-        "details": {
-          "directory": "concepts",
-          "page_type": "concept",
-          "section": "Relations"
-        },
-        "message": "Page is missing required concepts section: Relations.",
-        "path": "concepts/Agent-Loop.md",
-        "severity": "info"
-      },
-      {
-        "code": "missing_required_section",
-        "details": {
-          "directory": "concepts",
-          "page_type": "concept",
-          "section": "Evidence"
-        },
-        "message": "Page is missing required concepts section: Evidence.",
-        "path": "concepts/Agent-Loop.md",
-        "severity": "info"
-      },
-      {
-        "code": "missing_required_section",
-        "details": {
-          "directory": "concepts",
-          "page_type": "concept",
-          "section": "Synthesis"
-        },
-        "message": "Page is missing required concepts section: Synthesis.",
-        "path": "concepts/Agent-Loop.md",
-        "severity": "info"
-      },
-      {
-        "code": "broken_wikilink",
-        "details": {
-          "target": "Missing Page"
-        },
-        "message": "Wiki link target does not exist.",
-        "path": "concepts/Agent-Loop.md",
-        "severity": "error"
-      },
-      {
-        "code": "orphan_page",
-        "details": {},
-        "message": "No other wiki page links to this page.",
-        "path": "concepts/Agent-Loop.md",
-        "severity": "info"
-      },
-      {
-        "code": "weak_link_graph",
-        "details": {
-          "incoming_count": 0,
-          "outgoing_count": 0
-        },
-        "message": "Generated knowledge page has no resolved incoming or outgoing wiki links.",
-        "path": "concepts/Agent-Loop.md",
-        "severity": "info"
-      }
-    ],
-    "maintenance_review": {
-      "decisions": [
-        {
-          "completeness": "complete",
-          "confidence": 0.95,
-          "constraints": [
-            "Do not create a new page."
-          ],
-          "correctness": "correct",
-          "decision": "approve",
-          "executor_fit": "supported_by_wiki_operation",
-          "necessity": "necessary",
-          "operation_index": 0,
-          "reason": "The source digest target is explicit and exists.",
-          "required_followups": [],
-          "risk_level": "low"
-        }
-      ],
-      "schema_version": "lint_maintenance_review.v1",
-      "summary": "Approved deterministic wiki operation.",
-      "warnings": []
-    },
-    "mode": "semantic_structural",
-    "policy_decision": {
-      "deferred_issue_count": 0,
-      "mode": "semantic_structural",
-      "recommended_mode": "semantic_structural",
-      "trigger_reasons": [
-        "weak_link_graph in concepts/Agent-Loop.md"
-      ],
-      "triggered": true
-    },
-    "profile": "standard",
-    "queued_actions": [],
-    "rescan_issues": [
       {
         "code": "missing_required_section",
         "details": {
@@ -268,67 +133,33 @@
         "message": "Wiki link target does not exist.",
         "path": "concepts/Agent-Loop.md",
         "severity": "error"
-      },
-      {
-        "code": "orphan_page",
-        "details": {},
-        "message": "No other wiki page links to this page.",
-        "path": "concepts/Agent-Loop.md",
-        "severity": "info"
       }
     ],
-    "semantic_candidates": {
-      "candidates": [
-        {
-          "candidate_id": "provenance:concepts/Agent-Loop.md:knowledge_missing_source_digest_link:0",
-          "confidence": 0.95,
-          "evidence": [
-            {
-              "kind": "scan_issue",
-              "quote": "Generated knowledge page does not link back to its matching source digest.",
-              "ref": "concepts/Agent-Loop.md"
-            }
-          ],
-          "executor_hint": "deterministic_wiki_operation",
-          "expected_effect": "Connect the concept page back to its source digest.",
-          "issue_type": "knowledge_missing_source_digest_link",
-          "recommended_action": {
-            "action": "attach_source_digest",
-            "params": {
-              "related_pages": [
-                "sources/Agent-Loop-Source.md"
-              ]
-            }
-          },
-          "related_pages": [
-            "sources/Agent-Loop-Source.md"
-          ],
-          "review_notes": "The source digest exists in the fixture vault.",
-          "risk_hint": "low",
-          "severity": "medium",
-          "source": "provenance",
-          "target_page": "concepts/Agent-Loop.md"
-        }
-      ],
-      "page_reviews": [],
-      "schema_version": "maintenance_candidates.v1",
-      "summary": "Attach one missing source digest link.",
+    "maintenance_review": {
+      "decisions": [],
+      "schema_version": "lint_maintenance_review.v1",
+      "summary": "No structural lint changes to review.",
       "warnings": []
     },
-    "verifications": [
-      {
-        "action": "attach_source_digest",
-        "evidence": {
-          "expected_pages": [
-            "sources/Agent-Loop-Source.md"
-          ]
-        },
-        "operation_id": "provenance:concepts/Agent-Loop.md:knowledge_missing_source_digest_link:0",
-        "reason": "Expected related pages are present and canonical list items are unique.",
-        "status": "verified",
-        "target_page": "concepts/Agent-Loop.md"
-      }
-    ],
+    "mode": "semantic_structural",
+    "policy_decision": {
+      "deferred_issue_count": 1,
+      "mode": "semantic_structural",
+      "recommended_mode": "deterministic",
+      "trigger_reasons": [],
+      "triggered": false
+    },
+    "profile": "standard",
+    "queued_actions": [],
+    "rescan_issues": null,
+    "semantic_candidates": {
+      "candidates": [],
+      "page_reviews": [],
+      "schema_version": "maintenance_candidates.v1",
+      "summary": "No eligible structural lint issues found.",
+      "warnings": []
+    },
+    "verifications": [],
     "warnings": [],
     "written_pages": []
   }

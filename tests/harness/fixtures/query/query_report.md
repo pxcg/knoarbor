@@ -6,7 +6,7 @@
 - mode: balanced
 - retrieval_mode: machine_graph_led_bm25_balanced
 - returned_count: 3
-- context_pack_chars: 3636
+- context_pack_chars: 3659
 - context_pack_truncated: False
 
 ## Results
@@ -17,9 +17,9 @@
 - type: concept
 - match_kind: related
 - relevance: high
-- score: 56.394
+- score: 81.594
 - matched_fields: body, graph_index, graph_recall, graph_related, headings, key_points, path, related_graph, summary, tags, title
-- reason: Matched body, graph_index, graph_recall, graph_related, headings, key_points, path, related_graph, summary, tags, title; graph relevance boost 39.36 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:outbound_link, related:shared_source, relation:Agent Loop-differs from-Workflow.
+- reason: Matched body, graph_index, graph_recall, graph_related, headings, key_points, path, related_graph, summary, tags, title; graph relevance boost 64.56 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:outbound_link, related:shared_source, relation:Agent Loop-differs from-Workflow.
 
 Summary:
 
@@ -34,9 +34,9 @@ Excerpts:
 - type: source
 - match_kind: related
 - relevance: high
-- score: 36.96
+- score: 59.36
 - matched_fields: body, graph_index, graph_recall, graph_related, headings, path, related_graph, summary, title
-- reason: Matched body, graph_index, graph_recall, graph_related, headings, path, related_graph, summary, title; graph relevance boost 27.0 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:shared_source, relation:Agent Loop-differs from-Workflow.
+- reason: Matched body, graph_index, graph_recall, graph_related, headings, path, related_graph, summary, title; graph relevance boost 49.4 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:outbound_link, related:shared_source, relation:Agent Loop-differs from-Workflow.
 
 Summary:
 
@@ -81,17 +81,17 @@ Excerpts:
 - atom_trace_count: 0
 - atom_trace_counts: {}
 - candidate_count: 3
-- context_pack_chars: 3636
+- context_pack_chars: 3659
 - context_pack_truncated: False
 - direct_match_count: 0
-- direct_page_count: 4
+- direct_page_count: 3
 - expanded_scope_dirs: ['concepts', 'entities', 'sources']
 - gap_count: 0
 - gap_suggestion_count: 0
-- graph_page_count: 4
+- graph_page_count: 3
 - initial_scope_dirs: ['concepts', 'entities', 'sources']
 - origin_counts: {'direct': 0, 'related': 3}
-- page_count: 4
+- page_count: 3
 - query_terms: ['agent', 'loop', 'workflow']
 - rejected_candidates: [{'path': 'entities/OpenClaw.md', 'title': 'OpenClaw', 'reason': 'redundant_facet', 'score': 30.737, 'role_hint': 'further_reading'}]
 - related_expansion_count: 3
@@ -102,7 +102,7 @@ Excerpts:
 - role_counts: {'primary': 1, 'supporting': 1, 'source': 1}
 - schema_version: query_trace.v1
 - scoring_model: graph_recall_then_field_weighted_bm25
-- top_matches: [{'path': 'concepts/Agent-Loop.md', 'score': 56.394, 'relevance': 'high', 'matched_fields': ['body', 'graph_index', 'graph_recall', 'graph_related', 'headings', 'key_points', 'path', 'related_graph', 'summary', 'tags', 'title'], 'atom_trace_count': 0, 'reason': 'Matched body, graph_index, graph_recall, graph_related, headings, key_points, path, related_graph, summary, tags, title; graph relevance boost 39.36 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:outbound_link, related:shared_source, relation:Agent Loop-differs from-Workflow.'}, {'path': 'sources/Agent-Loop-Source.md', 'score': 36.96, 'relevance': 'high', 'matched_fields': ['body', 'graph_index', 'graph_recall', 'graph_related', 'headings', 'path', 'related_graph', 'summary', 'title'], 'atom_trace_count': 0, 'reason': 'Matched body, graph_index, graph_recall, graph_related, headings, path, related_graph, summary, title; graph relevance boost 27.0 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:shared_source, relation:Agent Loop-differs from-Workflow.'}, {'path': 'entities/OpenClaw.md', 'score': 30.737, 'relevance': 'high', 'matched_fields': ['body', 'graph_index', 'graph_recall', 'graph_related', 'related_graph', 'summary', 'tags'], 'atom_trace_count': 0, 'reason': 'Matched body, graph_index, graph_recall, graph_related, related_graph, summary, tags; graph relevance boost 26.3 via node:Agent Loop, page_identity:entity, related:backlink, related:outbound_link, relation:Agent Loop-differs from-Workflow.'}]
+- top_matches: [{'path': 'concepts/Agent-Loop.md', 'score': 81.594, 'relevance': 'high', 'matched_fields': ['body', 'graph_index', 'graph_recall', 'graph_related', 'headings', 'key_points', 'path', 'related_graph', 'summary', 'tags', 'title'], 'atom_trace_count': 0, 'reason': 'Matched body, graph_index, graph_recall, graph_related, headings, key_points, path, related_graph, summary, tags, title; graph relevance boost 64.56 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:outbound_link, related:shared_source, relation:Agent Loop-differs from-Workflow.'}, {'path': 'sources/Agent-Loop-Source.md', 'score': 59.36, 'relevance': 'high', 'matched_fields': ['body', 'graph_index', 'graph_recall', 'graph_related', 'headings', 'path', 'related_graph', 'summary', 'title'], 'atom_trace_count': 0, 'reason': 'Matched body, graph_index, graph_recall, graph_related, headings, path, related_graph, summary, title; graph relevance boost 49.4 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:outbound_link, related:shared_source, relation:Agent Loop-differs from-Workflow.'}, {'path': 'entities/OpenClaw.md', 'score': 30.737, 'relevance': 'high', 'matched_fields': ['body', 'graph_index', 'graph_recall', 'graph_related', 'related_graph', 'summary', 'tags'], 'atom_trace_count': 0, 'reason': 'Matched body, graph_index, graph_recall, graph_related, related_graph, summary, tags; graph relevance boost 26.3 via node:Agent Loop, page_identity:entity, related:backlink, related:outbound_link, relation:Agent Loop-differs from-Workflow.'}]
 
 ## Context Pack
 
@@ -117,7 +117,7 @@ Answer guidance:
 - Cite page paths when making claims, especially for specific facts or recommendations.
 - Primary page candidate: concepts/Agent-Loop.md.
 
-1. Agent Loop (concepts/Agent-Loop.md, relevance: high, score: 56.394)
+1. Agent Loop (concepts/Agent-Loop.md, relevance: high, score: 81.594)
 Answer role: primary
 Match origin: related
 Summary: Agent loop is a control pattern where a model observes context, reasons, acts with tools, and uses feedback.
@@ -160,7 +160,7 @@ Agent loop systems repeat observation, reasoning, action, and feedback. A workfl
 - [[entities/OpenClaw|OpenClaw]]
 - [[sources/Agent-Loop-Source|Agent Loop Source]]
 Source: raw/notes/agent-loop.md
-Why matched: Matched body, graph_index, graph_recall, graph_related, headings, key_points, path, related_graph, summary, tags, title; graph relevance boost 39.36 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:outbound_link, related:shared_source, relation:Agent Loop-differs from-Workflow.
+Why matched: Matched body, graph_index, graph_recall, graph_related, headings, key_points, path, related_graph, summary, tags, title; graph relevance boost 64.56 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:outbound_link, related:shared_source, relation:Agent Loop-differs from-Workflow.
 
 2. OpenClaw (entities/OpenClaw.md, relevance: high, score: 30.737)
 Answer role: supporting
@@ -181,12 +181,12 @@ OpenClaw is an engineering agent system that combines structured workflows with 
 - [[Agent Loop]]
 Why matched: Matched body, graph_index, graph_recall, graph_related, related_graph, summary, tags; graph relevance boost 26.3 via node:Agent Loop, page_identity:entity, related:backlink, related:outbound_link, relation:Agent Loop-differs from-Workflow.
 
-3. Agent Loop Source (sources/Agent-Loop-Source.md, relevance: high, score: 36.96)
+3. Agent Loop Source (sources/Agent-Loop-Source.md, relevance: high, score: 59.36)
 Answer role: source
 Match origin: related
 Summary: Source digest for agent loop and workflow comparison notes.
 Relevant excerpts:
 - sources/Agent-Loop-Source.md#Summary: Source digest for agent loop and workflow comparison notes.
 Source: raw/notes/agent-loop.md
-Why matched: Matched body, graph_index, graph_recall, graph_related, headings, path, related_graph, summary, title; graph relevance boost 27.0 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:shared_source, relation:Agent Loop-differs from-Workflow.
+Why matched: Matched body, graph_index, graph_recall, graph_related, headings, path, related_graph, summary, title; graph relevance boost 49.4 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:outbound_link, related:shared_source, relation:Agent Loop-differs from-Workflow.
 ```

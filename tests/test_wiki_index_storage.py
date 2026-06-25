@@ -15,8 +15,8 @@ class WikiIndexStorageTests(unittest.TestCase):
     def test_update_index_catalogs_generated_pages(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "concepts").mkdir()
-            page = vault / "concepts" / "Agent.md"
+            (vault / "pages" / "concepts").mkdir(parents=True)
+            page = vault / "pages" / "concepts" / "Agent.md"
             page.write_text(
                 "---\ntype: concept\nstatus: draft\ntags: agent, loop\n---\n"
                 "# Agent\n\n## Summary\n\nAgent loop notes.\n",
@@ -38,10 +38,10 @@ class WikiIndexStorageTests(unittest.TestCase):
     def test_machine_index_records_links_and_sources(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "concepts").mkdir()
-            (vault / "sources").mkdir()
-            (vault / "sources" / "Source.md").write_text("# Source\n", encoding="utf-8")
-            (vault / "concepts" / "Agent.md").write_text(
+            (vault / "pages" / "concepts").mkdir(parents=True)
+            (vault / "pages" / "sources").mkdir(parents=True)
+            (vault / "pages" / "sources" / "Source.md").write_text("# Source\n", encoding="utf-8")
+            (vault / "pages" / "concepts" / "Agent.md").write_text(
                 "---\ntype: concept\nsource: raw/notes/agent.md\n---\n"
                 "# Agent\n\n## Summary\n\nLinks to [[sources/Source|source]].\n",
                 encoding="utf-8",
@@ -92,13 +92,13 @@ class WikiIndexStorageTests(unittest.TestCase):
     def test_machine_index_emits_page_identity_fields_for_legacy_and_unified_pages(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "concepts").mkdir()
-            (vault / "concepts" / "Agent-Loop.md").write_text(
+            (vault / "pages" / "concepts").mkdir(parents=True)
+            (vault / "pages" / "concepts" / "Agent-Loop.md").write_text(
                 "---\ntype: concept\ntags: agent, workflow\n---\n"
                 "# Agent Loop\n\n## Summary\n\nLegacy typed page.\n\n## Claims\n\n- Agent loops coordinate tools.\n",
                 encoding="utf-8",
             )
-            (vault / "OpenClaw.md").write_text(
+            (vault / "pages" / "OpenClaw.md").write_text(
                 "---\npage_kind: entity\nfacets: agent_platform, workflow-pattern\nlegacy_paths: entities/OpenClaw.md\n---\n"
                 "# OpenClaw\n\n## Summary\n\nCanonical unified page.\n",
                 encoding="utf-8",
@@ -124,9 +124,9 @@ class WikiIndexStorageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
             pages = vault / "pages"
-            sources = vault / "sources"
-            sources.mkdir(parents=True)
+            sources = vault / "pages" / "sources"
             pages.mkdir(parents=True)
+            sources.mkdir(parents=True)
             (pages / "Agent-Loop.md").write_text(
                 "---\ntype: page\npage_kind: concept\nfacets: [agent-loop]\n---\n"
                 "# Agent Loop\n\n## Summary\n\nAgent loop coordinates model and tool execution.\n",
