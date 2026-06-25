@@ -316,11 +316,9 @@ class SemanticContractTests(unittest.TestCase):
                         "canonical_path": "Agent-Loop.md",
                         "legacy_paths": ["concepts/Agent-Loop.md"],
                         "question": "Agent Loop",
-                        "answer": "Agent Loop coordinates tool use.",
                         "summary": "Agent Loop is a control pattern.",
+                        "synthesis": "Agent Loop coordinates tool use.",
                         "claims": ["C1. [[Agent Loop]] coordinates tool use."],
-                        "key_points": ["Legacy hint only."],
-                        "tags": ["agent", "loop"],
                         "source_digest_ids": [" sd_agent ", "sd_agent"],
                         "atom_ids": ["claim_agent_loop_cycle", " claim_agent_loop_cycle "],
                         "patches": [],
@@ -337,9 +335,7 @@ class SemanticContractTests(unittest.TestCase):
         self.assertEqual(draft.canonical_path, "Agent-Loop.md")
         self.assertEqual(draft.legacy_paths, ["concepts/Agent-Loop.md"])
         self.assertEqual(draft.atom_ids, ["claim_agent_loop_cycle"])
-        self.assertEqual(draft.definition, "Agent Loop is a control pattern.")
         self.assertEqual(draft.claims, ["C1. [[Agent Loop]] coordinates tool use."])
-        self.assertEqual(draft.key_points, ["Legacy hint only."])
         self.assertEqual(draft.synthesis, "Agent Loop coordinates tool use.")
 
     def test_wiki_draft_batch_normalizes_null_identity_hints(self) -> None:
@@ -356,10 +352,8 @@ class SemanticContractTests(unittest.TestCase):
                         "page_kind": None,
                         "subject_kind": None,
                         "question": "RAG 评估应该关注什么？",
-                        "answer": "RAG 评估需要同时覆盖检索质量与生成质量。",
                         "summary": "RAG 评估同时关注检索和生成。",
-                        "key_points": ["检索召回和答案忠实度需要分开衡量。"],
-                        "tags": ["rag", "evaluation"],
+                        "synthesis": "RAG 评估需要同时覆盖检索质量与生成质量。",
                         "patches": [],
                         "confidence": 0.87,
                     }
@@ -385,10 +379,8 @@ class SemanticContractTests(unittest.TestCase):
                         "title": "Agent Loop",
                         "page_dir": "concepts",
                         "question": "Agent Loop 是什么？",
-                        "answer": "Agent Loop 是感知、决策、行动和反馈的循环。",
                         "summary": "Agent Loop 是智能体执行任务的基本控制循环。",
-                        "key_points": ["循环包含反馈步骤。"],
-                        "tags": ["agent", "control"],
+                        "synthesis": "Agent Loop 是感知、决策、行动和反馈的循环。",
                         "patches": [],
                         "confidence": 0.88,
                         "model_provider": "deepseek",
@@ -402,10 +394,8 @@ class SemanticContractTests(unittest.TestCase):
                         "title": "OpenClaw",
                         "page_dir": "entities",
                         "question": "OpenClaw 如何使用 Agent Loop？",
-                        "answer": "OpenClaw 使用消息总线和工具调用循环组织工程任务。",
                         "summary": "补充 OpenClaw 与 Agent Loop 的关系。",
-                        "key_points": [],
-                        "tags": ["openclaw"],
+                        "synthesis": "OpenClaw 使用消息总线和工具调用循环组织工程任务。",
                         "patches": [
                             {
                                 "operation": "merge_list",

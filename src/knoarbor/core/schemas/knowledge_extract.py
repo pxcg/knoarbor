@@ -90,5 +90,6 @@ class KnowledgeExtract(BaseModel):
     source: KnowledgeSource
     content_units: list[ContentUnit] = Field(default_factory=list)
     compile_context: CompileContext = Field(default_factory=CompileContext)
+    attachments: list[dict[str, Any]] = Field(default_factory=list)
     confidence: float = Field(default=0.8, ge=0, le=1)
     warnings: list[str] = Field(default_factory=list)

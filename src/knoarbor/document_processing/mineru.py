@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 from pathlib import Path
 import uuid
 from urllib import error, request
 
+from knoarbor.core.attachments import (
+    dedupe_attachments,
+    discover_markdown_image_attachments,
+    normalize_attachment,
+    write_attachment_sidecar,
+)
 from knoarbor.core.config import MinerUDocumentProcessingConfig
 from knoarbor.core.errors import DocumentPreprocessorUnavailable, ExternalServiceError, SourceNotFound
 from knoarbor.document_processing.schemas import DocumentProcessingItem
@@ -51,6 +59,8 @@ class MinerUDocumentProcessor:
                         )
                     )
                     continue
+                attachments = _discover_output_attachments(path, output_path, output_dir, response)
+                write_attachment_sidecar(output_path, attachments, source=self.name)
                 items.append(
                     DocumentProcessingItem(
                         adapter=self.name,
@@ -58,6 +68,7 @@ class MinerUDocumentProcessor:
                         output_path=str(output_path),
                         status="processed",
                         reason=f"Processed by MinerU HTTP service with status {response.status_code}.",
+                        attachments=attachments,
                     )
                 )
             except Exception as exc:
@@ -88,12 +99,16 @@ class MinerUDocumentProcessor:
                 "MinerU completed but no Markdown output was found. Configure "
                 "response_markdown_field/response_path_field or ensure the service writes <stem>.md."
             )
+        _materialize_payload_images(output_path, response)
+        attachments = _discover_output_attachments(path, output_path, output_dir, response)
+        write_attachment_sidecar(output_path, attachments, source=self.name)
         return DocumentProcessingItem(
             adapter=self.name,
             input_path=str(path),
             output_path=str(output_path),
             status="processed",
             reason=f"Processed by MinerU HTTP service with status {response.status_code}.",
+            attachments=attachments,
         )
 
     def _post(self, config: MinerUDocumentProcessingConfig, path: Path, output_dir: Path) -> MinerUResponse:
@@ -253,3 +268,162 @@ def _write_markdown(path: Path, markdown: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(markdown, encoding="utf-8")
     return path.resolve()
+
+
+def _discover_output_attachments(
+    input_path: Path,
+    markdown_path: Path,
+    output_dir: Path,
+    response: MinerUResponse,
+) -> list[dict[str, object]]:
+    _materialize_payload_images(markdown_path, response)
+    attachments: list[dict[str, object]] = []
+    attachments.extend(_payload_image_attachments(markdown_path, response))
+    attachments.extend(discover_markdown_image_attachments(markdown_path))
+    attachments.extend(_output_directory_image_attachments(input_path, markdown_path, output_dir))
+    return dedupe_attachments(attachments)
+
+
+def _output_directory_image_attachments(input_path: Path, markdown_path: Path, output_dir: Path) -> list[dict[str, object]]:
+    candidate_dirs = [
+        markdown_path.parent / "images",
+        markdown_path.parent / input_path.stem / "images",
+        output_dir / input_path.stem / "images",
+        output_dir / input_path.stem / "auto" / "images",
+        output_dir / input_path.stem / "hybrid_auto" / "images",
+        output_dir / input_path.stem / "hybrid-engine" / "images",
+        output_dir / input_path.stem / "vlm-engine" / "images",
+    ]
+    attachments: list[dict[str, object]] = []
+    for directory in candidate_dirs:
+        if not directory.exists() or not directory.is_dir():
+            continue
+        for image_path in sorted(path for path in directory.rglob("*") if path.is_file()):
+            attachments.append(
+                normalize_attachment(
+                    image_path,
+                    base_dir=markdown_path.parent,
+                    name=image_path.name,
+                    source="mineru_output_dir",
+                )
+            )
+    return attachments
+
+
+def _materialize_payload_images(markdown_path: Path, response: MinerUResponse) -> None:
+    payload = _json_payload(response)
+    if payload is None:
+        return
+    results = payload.get("results")
+    if not isinstance(results, dict):
+        return
+    for result in results.values():
+        if not isinstance(result, dict):
+            continue
+        images = result.get("images")
+        if not isinstance(images, dict):
+            continue
+        for name, value in images.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                continue
+            suffix = Path(name).suffix.lower()
+            if suffix not in {".apng", ".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"}:
+                continue
+            image_bytes = _decode_image_payload(value)
+            if not image_bytes:
+                continue
+            image_path = (markdown_path.parent / "images" / name).resolve()
+            image_path.parent.mkdir(parents=True, exist_ok=True)
+            image_path.write_bytes(image_bytes)
+
+
+def _decode_image_payload(value: str) -> bytes | None:
+    data = value.strip()
+    if data.startswith("data:"):
+        _, _, data = data.partition(",")
+    try:
+        return base64.b64decode(data, validate=True)
+    except (binascii.Error, ValueError):
+        return None
+
+
+def _payload_image_attachments(markdown_path: Path, response: MinerUResponse) -> list[dict[str, object]]:
+    payload = _json_payload(response)
+    if payload is None:
+        return []
+    attachments: list[dict[str, object]] = []
+    for item in _iter_payload_image_items(payload):
+        path_value = _payload_path_value(item)
+        if not path_value:
+            continue
+        image_path = Path(path_value).expanduser()
+        if not image_path.is_absolute():
+            image_path = markdown_path.parent / image_path
+        if not image_path.exists() or not image_path.is_file():
+            continue
+        attachments.append(
+            normalize_attachment(
+                image_path,
+                base_dir=markdown_path.parent,
+                name=str(item.get("name") or image_path.name),
+                description=_payload_image_description(item),
+                source="mineru_response",
+                metadata={key: value for key, value in item.items() if key not in {"path", "image_path", "img_path", "url", "src"}},
+            )
+        )
+    return attachments
+
+
+def _payload_image_description(item: dict[str, object]) -> str:
+    for key in ("caption", "description", "alt", "image_caption"):
+        value = item.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        if isinstance(value, list):
+            parts = [part.strip() for part in value if isinstance(part, str) and part.strip()]
+            if parts:
+                return " ".join(parts)
+    content = item.get("content")
+    if isinstance(content, str) and content.strip():
+        subtype = str(item.get("sub_type") or "").strip()
+        if subtype:
+            return f"{subtype} extraction is available in attachment metadata."
+        return "Image extraction is available in attachment metadata."
+    return ""
+
+
+def _iter_payload_image_items(value: object) -> list[dict[str, object]]:
+    items: list[dict[str, object]] = []
+    if isinstance(value, dict):
+        if _payload_path_value(value):
+            items.append(value)
+        for child in value.values():
+            items.extend(_iter_payload_image_items(child))
+    elif isinstance(value, list):
+        for child in value:
+            items.extend(_iter_payload_image_items(child))
+    elif isinstance(value, str):
+        nested = _json_string_payload(value)
+        if nested is not None:
+            items.extend(_iter_payload_image_items(nested))
+    return items
+
+
+def _json_string_payload(value: str) -> object | None:
+    text = value.strip()
+    if not text or text[0] not in "[{":
+        return None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None
+
+
+def _payload_path_value(item: dict[str, object]) -> str | None:
+    for key in ("image_path", "img_path", "path", "url", "src"):
+        value = item.get(key)
+        if isinstance(value, str) and value.strip():
+            suffix = Path(value.split("#", 1)[0].split("?", 1)[0]).suffix.lower()
+            if suffix in {".apng", ".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"}:
+                return value.strip()
+    return None

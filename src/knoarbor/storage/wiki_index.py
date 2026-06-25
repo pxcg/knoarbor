@@ -579,22 +579,28 @@ def _extract_headings(content: str) -> list[str]:
 
 def _iter_indexable_page_paths(root: Path) -> list[Path]:
     paths: list[Path] = []
+    seen: set[Path] = set()
     vault = root.parent if root.name == "pages" else root
     source_root = source_digest_root(vault)
-    for md_path in sorted(root.glob("*.md")):
+    def add_path(md_path: Path) -> None:
         if not is_index_excluded_file(md_path.name):
+            resolved = md_path.resolve()
+            if resolved in seen:
+                return
+            seen.add(resolved)
             paths.append(md_path)
+
+    for md_path in sorted(root.glob("*.md")):
+        add_path(md_path)
     if source_root.exists():
         for md_path in sorted(source_root.glob("*.md")):
-            if not is_index_excluded_file(md_path.name):
-                paths.append(md_path)
+            add_path(md_path)
     for page_type in INDEX_PAGE_DIRS:
         page_dir = root / page_type
         if not page_dir.exists():
             continue
         for md_path in sorted(page_dir.glob("*.md")):
-            if not is_index_excluded_file(md_path.name):
-                paths.append(md_path)
+            add_path(md_path)
     return paths
 
 

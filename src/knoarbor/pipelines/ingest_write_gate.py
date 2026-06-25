@@ -46,6 +46,12 @@ class IngestWriteGate:
                 semantic_result.wiki_page_plan,
             )
         )
+        plan_claim_ids = [
+            claim_id
+            for operation in semantic_result.wiki_page_plan.operations
+            if operation.action != "skip"
+            for claim_id in operation.selected_claim_ids
+        ]
         materialized_paths = {page.path for page in candidate_page_context.pages if page.exists}
         issues: list[IngestWriteGateIssue] = []
         atom_batch = semantic_result.knowledge_atom_batch
@@ -80,7 +86,7 @@ class IngestWriteGate:
                     )
                 )
 
-            closure = close_operation_atoms(atom_batch, operation)
+            closure = close_operation_atoms(atom_batch, operation, available_claim_ids=plan_claim_ids)
             requires_atom_trace = operation.page_dir != "sources" and draft.page_dir != "sources"
             if requires_atom_trace:
                 for closure_issue in closure.issues:
@@ -298,15 +304,7 @@ def _nonempty_items(items: list[str]) -> list[str]:
 
 
 def _claim_ids(claims: list[str]) -> set[str]:
-    ids: set[str] = set()
-    for index, claim in enumerate(_nonempty_items(claims), start=1):
-        text = claim.strip()
-        prefix = text.split(":", 1)[0].split(".", 1)[0].split("：", 1)[0].strip()
-        if prefix.upper().startswith("C") and prefix[1:].isdigit():
-            ids.add(f"C{int(prefix[1:])}")
-        else:
-            ids.add(f"C{index}")
-    return ids
+    return {f"C{index}" for index, _claim in enumerate(_nonempty_items(claims), start=1)}
 
 
 def _evidence_claims(evidence: list[str], page_dir: str) -> tuple[set[str], list[tuple[str, str]]]:

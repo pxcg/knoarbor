@@ -49,7 +49,6 @@ class PageProjectionTests(unittest.TestCase):
                     title="Memory Source",
                     page_dir="sources",
                     question="Memory Source",
-                    answer="Source audit.",
                     summary="Model summary.",
                     evidence=["bad model row"],
                     synthesis="Source audit.",

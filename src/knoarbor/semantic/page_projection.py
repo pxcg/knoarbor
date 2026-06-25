@@ -96,8 +96,9 @@ def _project_source_digest_draft(draft: WikiDraftBatchItem, source_digest: Sourc
     update: dict[str, object] = {
         "source_digest_ids": _merge_strings(draft.source_digest_ids, [source_digest.digest_id]),
         "evidence": evidence,
+        "attachments": [attachment.model_dump() for attachment in source_digest.attachments],
         "claims": claims,
-        "key_points": [f"{item.item_id}: {item.reason}" for item in source_digest.unresolved_items],
+        "unresolved_items": [f"{item.item_id}: {item.reason}" for item in source_digest.unresolved_items],
     }
     if source_digest.summary.strip():
         update["summary"] = source_digest.summary.strip()

@@ -83,6 +83,21 @@ class SourceUnitizationTests(unittest.TestCase):
         self.assertIn("model_warning", extract.warnings)
         self.assertEqual(extract.content_units[0].metadata["source_unitization_rule"], "markdown_heading")
 
+    def test_public_summary_omits_unit_content(self) -> None:
+        unitization = SourceUnitizer().unitize(
+            make_document(
+                source_type="markdown",
+                text="# API\n\nsecret-token-should-not-be-logged\n\n## Params\n\nVisible title only.",
+            )
+        )
+
+        summary = unitization.public_summary()
+        dumped = json.dumps(summary, ensure_ascii=False)
+
+        self.assertIn("content_chars", dumped)
+        self.assertNotIn("content\":", dumped)
+        self.assertNotIn("secret-token-should-not-be-logged", dumped)
+
     def test_parsed_document_sections_become_source_units(self) -> None:
         document = SourceDocument(
             source_id="doc-1",

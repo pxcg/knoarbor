@@ -37,6 +37,20 @@ class KnowledgeAtomClosureTests(unittest.TestCase):
         self.assertEqual(closure.relation_ids, ["rel_agent_loop_depends_on_memory"])
         self.assertEqual([issue.code for issue in closure.issues], ["relation_selected_without_source_claim"])
 
+    def test_explicit_relation_can_reference_claim_selected_elsewhere_in_plan(self) -> None:
+        closure = close_operation_atoms(
+            _batch(),
+            _operation(selected_claim_ids=["claim_agent_loop"], selected_relation_ids=["rel_agent_loop_mentions_unselected"]),
+            available_claim_ids=["claim_agent_loop", "claim_unselected"],
+        )
+
+        self.assertEqual(closure.claim_ids, ["claim_agent_loop"])
+        self.assertEqual(
+            closure.relation_ids,
+            ["rel_agent_loop_depends_on_memory", "rel_agent_loop_mentions_unselected"],
+        )
+        self.assertEqual(closure.issues, [])
+
     def test_plan_closure_returns_selected_batch_for_compile_agents(self) -> None:
         selected = close_plan_atoms(
             _batch(),

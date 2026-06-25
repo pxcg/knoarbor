@@ -42,11 +42,17 @@ def build_page_assembly_payload(
     relations_by_id = {relation.id: relation for relation in knowledge_atom_batch.relations}
     operations: list[dict[str, object]] = []
     warnings: list[str] = []
+    plan_claim_ids = [
+        claim_id
+        for operation in wiki_page_plan.operations
+        if operation.action != "skip"
+        for claim_id in operation.selected_claim_ids
+    ]
 
     for index, operation in enumerate(wiki_page_plan.operations):
         if operation.action == "skip":
             continue
-        closure = close_operation_atoms(knowledge_atom_batch, operation)
+        closure = close_operation_atoms(knowledge_atom_batch, operation, available_claim_ids=plan_claim_ids)
         op_warnings = [issue.code for issue in closure.issues]
         warnings.extend(f"operation:{index}:{issue.code}:{issue.atom_id or ''}" for issue in closure.issues)
         claim_number_by_id: dict[str, str] = {}

@@ -133,6 +133,18 @@ require a configured MinerU-compatible preprocessing service. KnoArbor does not
 redistribute MinerU or model weights; users who enable that adapter install and
 run MinerU separately.
 
+For a local MinerU source checkout, the compatible API can be started with:
+
+```bash
+cd /path/to/MinerU
+.venv/bin/mineru-api --host 127.0.0.1 --port 18000
+```
+
+Configure `document_processing.mineru.endpoint` as
+`http://127.0.0.1:18000/file_parse`. If MinerU writes image assets, KnoArbor
+records them as Markdown-sidecar attachments and exposes them in the source
+digest audit page.
+
 Chat source defaults such as `~/.codex/sessions`, `~/.claude/projects`, and
 `~/.hermes/sessions` expand to the current user's home directory. On Windows,
 the equivalent resolved paths are under `%USERPROFILE%`, for example

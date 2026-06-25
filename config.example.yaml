@@ -124,7 +124,7 @@ document_processing:
       return_middle_json: false
       return_model_output: false
       return_content_list: false
-      return_images: false
+      return_images: true
       response_format_zip: false
 
 connectors:

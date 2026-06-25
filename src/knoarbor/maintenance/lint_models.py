@@ -14,6 +14,9 @@ class LintPage:
     content: str
     metadata: dict[str, str]
     links: list[str]
+    entities: list[str] = field(default_factory=list)
+    relation_nodes: list[str] = field(default_factory=list)
+    sources: list[str] = field(default_factory=list)
     canonical_path: str = ""
     legacy_paths: list[str] = field(default_factory=list)
     page_kind: str = "unknown"

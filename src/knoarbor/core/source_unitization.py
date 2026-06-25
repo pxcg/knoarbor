@@ -68,6 +68,32 @@ class SourceUnitizationResult(BaseModel):
             "units": [unit.model_dump() for unit in self.units],
         }
 
+    def public_summary(self) -> dict[str, object]:
+        return {
+            "source_id": self.source_id,
+            "source_type": self.source_type,
+            "rule": self.rule,
+            "fallback_rule": self.fallback_rule,
+            "unit_count": len(self.units),
+            "unit_titles": [unit.title for unit in self.units],
+            "warnings": list(self.warnings),
+            "units": [
+                {
+                    "index": unit.index,
+                    "unit_type": unit.unit_type,
+                    "role": unit.role,
+                    "title": unit.title,
+                    "content_chars": len(unit.content),
+                    "source_range": unit.source_range.model_dump(),
+                    "structural_path": list(unit.structural_path),
+                    "raw_indexes": list(unit.raw_indexes),
+                    "rule": unit.rule,
+                    "metadata": dict(unit.metadata),
+                }
+                for unit in self.units
+            ],
+        }
+
 
 @dataclass(frozen=True)
 class _TextBlock:
@@ -339,6 +365,7 @@ def apply_source_units_to_extract(document: SourceDocument, extract: KnowledgeEx
                     "latest_unit_indexes": latest_indexes,
                 }
             ),
+            "attachments": list(document.content.attachments),
             "warnings": warnings,
         }
     )

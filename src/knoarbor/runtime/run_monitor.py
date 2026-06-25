@@ -158,7 +158,7 @@ class RunMonitor:
                 current_item=record.current_item,
                 progress=record.progress,
                 metrics=metrics or {},
-                payload=payload or {},
+                payload=_event_safe_payload(payload or {}),
             )
             self.run_dir.mkdir(parents=True, exist_ok=True)
             with self.events_path.open("a", encoding="utf-8") as handle:
@@ -189,7 +189,7 @@ class RunMonitor:
                 current_item=record.current_item,
                 progress=record.progress,
                 metrics={},
-                payload=payload or {},
+                payload=_event_safe_payload(payload or {}),
             )
             self.run_dir.mkdir(parents=True, exist_ok=True)
             with self.events_path.open("a", encoding="utf-8") as handle:
@@ -529,6 +529,18 @@ def _compact_mapping(value: dict[str, Any] | None, *, max_items: int = 8) -> str
             break
         parts.append(f"{key}={_compact_value(item)}")
     return ",".join(parts)
+
+
+def _event_safe_payload(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            str(key): _event_safe_payload(item)
+            for key, item in value.items()
+            if str(key) != "content"
+        }
+    if isinstance(value, list):
+        return [_event_safe_payload(item) for item in value]
+    return value
 
 
 def _compact_value(value: Any) -> str:

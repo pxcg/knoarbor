@@ -16,6 +16,7 @@ def _prepare_checkpoint_plan(
     item: SourcePipelineItem,
     vault_path: Path,
     state: dict[str, object],
+    force_reprocess: bool = False,
 ) -> dict[str, object]:
     source_path = Path(item.raw.raw_path)
     fingerprint = item.document.fingerprint
@@ -31,7 +32,7 @@ def _prepare_checkpoint_plan(
             connector_version=fingerprint.connector_version,
             parser_version=fingerprint.parser_version,
         )
-        return {
+        payload = {
             "checkpoint_type": "session",
             "source_id": item.document.source_id,
             "source_file": plan.source_file,
@@ -46,6 +47,16 @@ def _prepare_checkpoint_plan(
             "connector_version": plan.connector_version,
             "parser_version": plan.parser_version,
         }
+        if force_reprocess:
+            payload.update(
+                {
+                    "should_process": True,
+                    "mode": "force",
+                    "reason": "Force reprocess requested; checkpoint was ignored for this run.",
+                    "from_raw_index": 0,
+                }
+            )
+        return payload
     plan = checkpoint_store.prepare_source_file(
         vault_path,
         state,
@@ -54,7 +65,7 @@ def _prepare_checkpoint_plan(
         connector_version=fingerprint.connector_version,
         parser_version=fingerprint.parser_version,
     )
-    return {
+    payload = {
         "checkpoint_type": "source",
         "source_id": plan.source_id,
         "source_file": plan.source_file,
@@ -66,6 +77,15 @@ def _prepare_checkpoint_plan(
         "connector_version": plan.connector_version,
         "parser_version": plan.parser_version,
     }
+    if force_reprocess:
+        payload.update(
+            {
+                "should_process": True,
+                "mode": "force",
+                "reason": "Force reprocess requested; checkpoint was ignored for this run.",
+            }
+        )
+    return payload
 
 
 def _uses_session_checkpoint(connector_name: str, document: SourceDocument) -> bool:

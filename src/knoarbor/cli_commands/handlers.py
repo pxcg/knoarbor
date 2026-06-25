@@ -793,6 +793,7 @@ def run_ingest(args: argparse.Namespace) -> int:
             write=args.write,
             write_report=args.write_report,
             append_ledger=args.append_ledger,
+            force_reprocess=args.force_reprocess,
         )
         started = RunManager().start_ingest(request, IngestService().run)
         stream = sys.stderr if args.json else sys.stdout
@@ -809,6 +810,7 @@ def run_ingest(args: argparse.Namespace) -> int:
         max_tokens=args.max_tokens or config.models.default_max_tokens,
         write_report=args.write_report,
         append_ledger=args.append_ledger,
+        force_reprocess=args.force_reprocess,
     )
     if args.json:
         print_json(result.model_dump())
@@ -843,6 +845,7 @@ def _run_ingest_recovery_from_args(args: argparse.Namespace, config, run_id: str
         write=args.write,
         write_report=args.write_report,
         append_ledger=args.append_ledger,
+        force_reprocess=args.force_reprocess,
     )
     started = RunManager().start_ingest_recovery(
         str(vault_path),
@@ -917,6 +920,7 @@ def run_ingest_file(args: argparse.Namespace) -> int:
         write=args.write,
         write_report=args.write_report,
         append_ledger=args.append_ledger,
+        force_reprocess=args.force_reprocess,
     )
     if _should_follow(args):
         started = RunManager().start_ingest_file(request, IngestService().run_file)
@@ -960,6 +964,7 @@ def run_ingest_folder(args: argparse.Namespace) -> int:
     vault_path = resolve_vault_path(args, config)
     request = IngestFolderRunRequest(
         input_path=args.input,
+        connector_names=args.connectors,
         config_path=args.config,
         vault_path=str(vault_path),
         vault_id=args.vault_id,
@@ -968,6 +973,7 @@ def run_ingest_folder(args: argparse.Namespace) -> int:
         write=args.write,
         write_report=args.write_report,
         append_ledger=args.append_ledger,
+        force_reprocess=args.force_reprocess,
     )
     if _should_follow(args):
         started = RunManager().start_ingest_folder(request, IngestService().run_folder)

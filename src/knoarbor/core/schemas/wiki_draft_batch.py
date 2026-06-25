@@ -23,16 +23,14 @@ class WikiDraftBatchItem(BaseModel):
     subject_kind: str = ""
     facets: list[str] = Field(default_factory=list)
     question: str = Field(..., min_length=1)
-    answer: str = Field(..., min_length=1)
     summary: str = Field(..., min_length=1)
-    definition: str = ""
     claims: list[str] = Field(default_factory=list)
     entities: list[str] = Field(default_factory=list)
     relations: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
-    synthesis: str = ""
-    key_points: list[str] = Field(default_factory=list)
-    tags: list[str] = Field(default_factory=list)
+    attachments: list[dict[str, Any]] = Field(default_factory=list)
+    synthesis: str = Field(..., min_length=1)
+    unresolved_items: list[str] = Field(default_factory=list)
     source_digest_ids: list[str] = Field(default_factory=list)
     atom_ids: list[str] = Field(default_factory=list)
     patches: list[WikiPatchInput] = Field(default_factory=list)
@@ -70,22 +68,12 @@ class WikiDraftBatchItem(BaseModel):
         return ids
 
     @model_validator(mode="after")
-    def fill_evidence_page_fields(self) -> WikiDraftBatchItem:
-        if not self.definition.strip():
-            self.definition = self.summary
-        if not self.synthesis.strip():
-            self.synthesis = self.answer
-        return self
-
-    @model_validator(mode="after")
     def validate_write_action(self) -> WikiDraftBatchItem:
         if self.write_action == "create" and self.target_page:
             raise ValueError("create draft must not set target_page")
         if self.write_action in {"update", "merge"}:
             if not self.target_page:
                 raise ValueError(f"{self.write_action} draft requires target_page")
-            if not self.patches:
-                raise ValueError(f"{self.write_action} draft requires patches")
         return self
 
 

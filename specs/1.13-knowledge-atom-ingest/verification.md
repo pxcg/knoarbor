@@ -15,6 +15,13 @@
   indexes.
 - Parsed document tests verify headings, page spans, table blocks, and figure
   caption blocks when those structures are available.
+- Rich-document attachment tests verify MinerU native response images are
+  materialized from response payloads and recorded in sidecar metadata.
+- Attachment rendering tests verify source digest/wiki Markdown exposes only
+  topic, description, and path.
+- Attachment rendering tests verify raw image extraction content, bbox, MIME
+  type, hashes, and base64 payloads are not inlined into the default Markdown
+  body.
 - Unitization report tests verify unit count, unitization rule, fallback rule,
   and warnings.
 - Source digest tests verify deterministic source units are listed and available
@@ -24,15 +31,16 @@
 - Draft and review payloads omit full raw source bodies after atom extraction.
 - Draft compilation receives only page-plan selected atoms plus dependency
   closure.
-- Future graph-first ingest retrieval tests should verify that entity, relation,
-  and source-lineage candidates are generated before text/BM25 supplemental
-  candidates.
-- Future page assembly tests should verify that identity, entities, relations,
-  evidence, source digest ids, and atom ids are deterministic.
-- Future write-gate tests should verify that unsafe writes are rejected before
-  semantic review or persistence.
-- Future conditional-review tests should verify that low-risk creates can skip
-  semantic review and high-risk updates still invoke it.
+- Graph-first ingest retrieval tests verify that entity, relation, and
+  source-lineage candidates are generated before text/BM25 supplemental
+  ranking.
+- Page assembly tests verify that identity, entities, relations, evidence,
+  source digest ids, and atom ids are deterministic.
+- Write-gate tests verify that unsafe writes are rejected before persistence.
+- Conditional-review tests verify that low-risk creates can skip semantic
+  review and high-risk updates still invoke it.
+- Ingest report tests verify that deterministic write-gate decisions and
+  semantic review decisions are rendered as separate sections.
 
 Current verification commands:
 
@@ -46,14 +54,21 @@ uv run python -m unittest \
   tests.test_semantic_golden \
   tests.test_source_digest \
   tests.test_source_unitization \
+  tests.test_document_processing \
+  tests.test_wiki_render \
   tests.test_knowledge_atoms \
-  tests.test_knowledge_atom_quality
+  tests.test_knowledge_atom_quality \
+  tests.test_ingest_report
 
 uv run ruff check \
   src/knoarbor/core/schemas/knowledge_atoms.py \
   src/knoarbor/core/schemas/source_digest.py \
+  src/knoarbor/core/attachments.py \
+  src/knoarbor/document_processing/mineru.py \
   src/knoarbor/semantic/source_digest.py \
   src/knoarbor/semantic/contracts.py \
+  src/knoarbor/semantic/wiki_render.py \
+  src/knoarbor/semantic/source_digest_drafts.py \
   src/knoarbor/semantic/ingest_workflow.py \
   src/knoarbor/pipelines/ingest.py \
   src/knoarbor/audit/ingest_report.py \
@@ -63,9 +78,12 @@ uv run ruff check \
   tests/test_semantic_golden.py \
   tests/test_knowledge_atoms.py \
   tests/test_knowledge_atom_quality.py \
+  tests/test_document_processing.py \
+  tests/test_wiki_render.py \
   tests/test_source_digest.py \
   tests/test_source_unitization.py \
-  tests/test_ingest_pipeline.py
+  tests/test_ingest_pipeline.py \
+  tests/test_ingest_report.py
 ```
 
 ## Manual

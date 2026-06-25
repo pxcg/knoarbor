@@ -42,6 +42,10 @@ tests, and release notes.
 | 1.12.x | [Answer Set Selection](1.12-answer-set-selection/requirements.md) | Page-level primary/supporting/source selection, rejected candidates, and evidence-set quality. |
 | 1.13.x | [Knowledge Atom Ingest](1.13-knowledge-atom-ingest/requirements.md) | Source unitization, evidence-backed entities, claims, and relations between source digest and page drafting. |
 | 1.14.x | [Unified Page Namespace](1.14-unified-page-namespace/requirements.md) | Move page type semantics from physical directories to page identity metadata, atom indexes, and virtual facets. |
+| 1.15.x | [Desktop App](1.15-desktop-app/requirements.md) | Electron desktop surface, managed Python service lifecycle, packaged web console, intranet updates, and desktop app-data boundaries. |
+
+Desktop App product shape:
+[Chat-first desktop product shape](1.15-desktop-app/product-shape.md).
 
 ## Spec Lifecycle
 

@@ -50,6 +50,7 @@ class IngestRunRequest(BaseModel):
     write: bool = False
     write_report: bool = True
     append_ledger: bool = True
+    force_reprocess: bool = False
     recovery_of_run_id: str | None = None
 
 
@@ -104,6 +105,7 @@ class IngestFileRunRequest(BaseModel):
     write: bool = False
     write_report: bool = True
     append_ledger: bool = True
+    force_reprocess: bool = False
     recovery_of_run_id: str | None = None
 
 
@@ -111,6 +113,7 @@ class IngestFolderRunRequest(BaseModel):
     input_kind: Literal["folder"] = "folder"
     input_path: str
     recursive: bool = True
+    connector_names: list[str] | None = Field(default=None, min_length=1)
     config_path: str | None = None
     vault_path: str | None = None
     vault_id: str | None = None
@@ -119,6 +122,7 @@ class IngestFolderRunRequest(BaseModel):
     write: bool = False
     write_report: bool = True
     append_ledger: bool = True
+    force_reprocess: bool = False
     recovery_of_run_id: str | None = None
 
 
@@ -155,6 +159,7 @@ class UnifiedIngestRequest(BaseModel):
     write: bool = False
     write_report: bool = True
     append_ledger: bool = True
+    force_reprocess: bool = False
     recovery_of_run_id: str | None = None
     recovery_vault_path: str | None = None
     auto_scoped_lint: bool | None = None
@@ -200,6 +205,7 @@ class UnifiedIngestRequest(BaseModel):
             write=self.write,
             write_report=self.write_report,
             append_ledger=self.append_ledger,
+            force_reprocess=self.force_reprocess,
             recovery_of_run_id=self.recovery_of_run_id,
         )
 
@@ -256,6 +262,7 @@ class UnifiedIngestRequest(BaseModel):
             write=self.write,
             write_report=self.write_report,
             append_ledger=self.append_ledger,
+            force_reprocess=self.force_reprocess,
             recovery_of_run_id=self.recovery_of_run_id,
         )
 
@@ -265,6 +272,7 @@ class UnifiedIngestRequest(BaseModel):
         return IngestFolderRunRequest(
             input_path=self.input_path,
             recursive=self.recursive,
+            connector_names=self.connector_names,
             config_path=self.config_path,
             vault_path=self.vault_path,
             vault_id=self.vault_id,
@@ -273,6 +281,7 @@ class UnifiedIngestRequest(BaseModel):
             write=self.write,
             write_report=self.write_report,
             append_ledger=self.append_ledger,
+            force_reprocess=self.force_reprocess,
             recovery_of_run_id=self.recovery_of_run_id,
         )
 

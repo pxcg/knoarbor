@@ -100,17 +100,11 @@ class ProvenanceRefreshExecutor:
             page_dir="sources",
             question=f"Source digest for {source}",
             summary=f"Source digest for `{source}` created during lint provenance refresh.",
-            answer=(
+            synthesis=(
                 "This page records provenance for a raw source used by generated wiki pages. "
                 "It is intentionally source-focused and does not add claims beyond the raw source path "
                 "and the pages linked from this refresh operation."
             ),
-            key_points=[
-                f"Raw source: `{source}`",
-                "Created by lint refresh to restore the raw source -> source digest -> wiki page chain.",
-                f"Linked wiki pages: {', '.join(target_pages)}",
-            ],
-            tags=["source-digest", "provenance", "lint-refresh"],
             confidence=0.8,
             model_provider="knoarbor",
             model_name="deterministic-provenance-refresh",

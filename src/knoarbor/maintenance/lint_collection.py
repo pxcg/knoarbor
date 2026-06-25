@@ -5,7 +5,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-from knoarbor.core.markdown import extract_heading, parse_frontmatter
+from knoarbor.core.markdown import extract_heading, extract_list_items, extract_section, parse_frontmatter
 from knoarbor.core.schemas.page_identity import PageIdentity, normalize_facet
 from knoarbor.core.schemas.wiki_lint import WikiLintIssue
 from knoarbor.core.wiki_schema import FRONTMATTER_TYPES, INDEX_PAGE_DIRS, UNIFIED_KNOWLEDGE_PAGE_DIR, is_index_excluded_file
@@ -41,6 +41,9 @@ def collect_pages(vault_path: Path) -> list[LintPage]:
                 content=content,
                 metadata=metadata,
                 links=extract_wiki_links(content),
+                entities=extract_entities(content),
+                relation_nodes=extract_relation_nodes(content),
+                sources=extract_page_sources(content, metadata),
                 canonical_path=identity.canonical_path,
                 legacy_paths=identity.legacy_paths,
                 page_kind=identity.page_kind,
@@ -219,8 +222,9 @@ def expand_related_scope(
     pages_by_title: dict[str, list[LintPage]],
 ) -> set[str]:
     expanded = set(selected)
+    adjacency = provenance_adjacency(pages, pages_by_relative, pages_by_stem, pages_by_title)
     for page in pages:
-        resolved_links = resolved_paths_from_links(page.links, pages_by_relative, pages_by_stem, pages_by_title)
+        resolved_links = resolved_paths_from_links(page.links, pages_by_relative, pages_by_stem, pages_by_title) | adjacency.get(page.relative_path, set())
         if page.relative_path in selected:
             expanded.update(resolved_links)
         if selected.intersection(resolved_links):
@@ -238,6 +242,47 @@ def extract_wiki_links(content: str) -> list[str]:
             continue
         links.append(target)
     return links
+
+
+def extract_entities(content: str) -> list[str]:
+    entities: list[str] = []
+    for line in extract_section(content, "Entities").splitlines():
+        text = line.strip()
+        if not text.startswith("- "):
+            continue
+        value = _clean_relation_node(text[2:])
+        if value and value not in entities:
+            entities.append(value)
+    return entities
+
+
+def extract_relation_nodes(content: str) -> list[str]:
+    nodes: list[str] = []
+    for cells in _markdown_table_rows(extract_section(content, "Relations")):
+        if len(cells) < 3:
+            continue
+        subject, _predicate, obj = cells[:3]
+        if subject.lower() == "subject":
+            continue
+        for value in (_clean_relation_node(subject), _clean_relation_node(obj)):
+            if value and value not in nodes:
+                nodes.append(value)
+    return nodes
+
+
+def extract_page_sources(content: str, metadata: dict[str, object]) -> list[str]:
+    sources: list[str] = []
+    for source in [
+        *_metadata_sources(metadata.get("source")),
+        *_source_identity_values(content),
+        *_evidence_sources(content),
+        *extract_list_items(extract_section(content, "Source")),
+        *extract_list_items(extract_section(content, "Raw Source")),
+    ]:
+        text = _normalize_source_value(source)
+        if text and text not in sources:
+            sources.append(text)
+    return sources
 
 
 def extract_headings(content: str) -> list[str]:
@@ -301,23 +346,85 @@ def resolved_paths_from_links(
     return paths
 
 
+def semantic_adjacency(
+    pages: list[LintPage],
+    pages_by_relative: dict[str, LintPage],
+    pages_by_stem: dict[str, list[LintPage]],
+    pages_by_title: dict[str, list[LintPage]],
+) -> dict[str, set[str]]:
+    return _page_adjacency(
+        pages,
+        pages_by_relative,
+        pages_by_stem,
+        pages_by_title,
+        include_shared_semantic_nodes=True,
+    )
+
+
+def provenance_adjacency(
+    pages: list[LintPage],
+    pages_by_relative: dict[str, LintPage],
+    pages_by_stem: dict[str, list[LintPage]],
+    pages_by_title: dict[str, list[LintPage]],
+) -> dict[str, set[str]]:
+    return _page_adjacency(
+        pages,
+        pages_by_relative,
+        pages_by_stem,
+        pages_by_title,
+        include_shared_semantic_nodes=False,
+    )
+
+
+def _page_adjacency(
+    pages: list[LintPage],
+    pages_by_relative: dict[str, LintPage],
+    pages_by_stem: dict[str, list[LintPage]],
+    pages_by_title: dict[str, list[LintPage]],
+    *,
+    include_shared_semantic_nodes: bool,
+) -> dict[str, set[str]]:
+    adjacency: dict[str, set[str]] = {page.relative_path: set() for page in pages if page.is_knowledge_page or page.is_source_digest}
+    for page in pages:
+        if page.relative_path not in adjacency:
+            continue
+        for target_path in resolved_paths_from_links(page.links, pages_by_relative, pages_by_stem, pages_by_title):
+            _connect(adjacency, page.relative_path, target_path)
+
+    source_groups: dict[str, list[str]] = defaultdict(list)
+    semantic_groups: dict[str, list[str]] = defaultdict(list)
+    for page in pages:
+        if page.relative_path not in adjacency:
+            continue
+        for source in page.sources:
+            if source.startswith(("raw/", "sd_")) or source.startswith("/"):
+                source_groups[source].append(page.relative_path)
+        if include_shared_semantic_nodes:
+            for node in [*page.entities, *page.relation_nodes]:
+                key = normalize_title(node)
+                if key:
+                    semantic_groups[key].append(page.relative_path)
+
+    for paths in [*source_groups.values(), *semantic_groups.values()]:
+        unique_paths = sorted(set(paths))
+        if len(unique_paths) < 2:
+            continue
+        for index, source_path in enumerate(unique_paths):
+            for target_path in unique_paths[index + 1 :]:
+                _connect(adjacency, source_path, target_path)
+    return adjacency
+
+
 def graph_health_stats(pages: list[LintPage]) -> dict[str, object]:
     pages_by_relative, pages_by_stem, pages_by_title = page_lookup_maps(pages)
     knowledge_paths = {page.relative_path for page in pages if page.is_knowledge_page or page.is_source_digest}
-    adjacency: dict[str, set[str]] = {path: set() for path in knowledge_paths}
+    adjacency = semantic_adjacency(pages, pages_by_relative, pages_by_stem, pages_by_title)
     degrees: Counter[str] = Counter()
-
-    for page in pages:
-        if page.relative_path not in knowledge_paths:
-            continue
-        resolved_paths = resolved_paths_from_links(page.links, pages_by_relative, pages_by_stem, pages_by_title)
-        for target_path in resolved_paths:
-            if target_path not in knowledge_paths or target_path == page.relative_path:
-                continue
-            adjacency[page.relative_path].add(target_path)
-            adjacency[target_path].add(page.relative_path)
-            degrees[page.relative_path] += 1
-            degrees[target_path] += 1
+    for source_path, targets in adjacency.items():
+        for target_path in targets:
+            if source_path < target_path:
+                degrees[source_path] += 1
+                degrees[target_path] += 1
 
     seen: set[str] = set()
     components: list[list[str]] = []
@@ -358,3 +465,80 @@ def graph_health_stats(pages: list[LintPage]) -> dict[str, object]:
 def normalize_title(title: str) -> str:
     value = re.sub(r"[\u2010-\u2015\u2212]", "-", title)
     return re.sub(r"\s+", " ", value).strip().lower()
+
+
+def _connect(adjacency: dict[str, set[str]], source_path: str, target_path: str) -> None:
+    if source_path == target_path:
+        return
+    if source_path not in adjacency or target_path not in adjacency:
+        return
+    adjacency[source_path].add(target_path)
+    adjacency[target_path].add(source_path)
+
+
+def _metadata_sources(value: object) -> list[str]:
+    if isinstance(value, str):
+        text = value.strip()
+        return [text] if text else []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return []
+
+
+def _evidence_sources(content: str) -> list[str]:
+    sources: list[str] = []
+    for cells in _markdown_table_rows(extract_section(content, "Evidence")):
+        if len(cells) < 2:
+            continue
+        claim, source = cells[:2]
+        if claim.lower() == "claim":
+            continue
+        source = source.strip()
+        if source and source not in sources:
+            sources.append(source)
+    return sources
+
+
+def _source_identity_values(content: str) -> list[str]:
+    values: list[str] = []
+    for item in extract_list_items(extract_section(content, "Source Identity")):
+        text = item.strip().strip("`")
+        lowered = text.lower()
+        if lowered.startswith("raw source:"):
+            values.append(text.split(":", 1)[1].strip().strip("`"))
+        elif lowered.startswith("source digest ids:"):
+            raw_values = text.split(":", 1)[1]
+            values.extend(part.strip().strip("`") for part in re.split(r"[,，]", raw_values) if part.strip())
+    return values
+
+
+def _normalize_source_value(value: str) -> str:
+    text = value.strip().strip("`")
+    lowered = text.lower()
+    if lowered.startswith("raw source:"):
+        return text.split(":", 1)[1].strip().strip("`")
+    if lowered.startswith(("content hash:", "atom ids:", "source digest ids:")):
+        return ""
+    return text
+
+
+def _markdown_table_rows(section: str) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for line in section.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|") or not stripped.endswith("|"):
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if cells and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells):
+            continue
+        rows.append(cells)
+    return rows
+
+
+def _clean_relation_node(value: str) -> str:
+    text = re.sub(r"\*\*", "", value).strip()
+    if text.startswith("[[") and text.endswith("]]"):
+        text = text[2:-2]
+    if "|" in text:
+        text = text.split("|", 1)[-1]
+    return text.strip()

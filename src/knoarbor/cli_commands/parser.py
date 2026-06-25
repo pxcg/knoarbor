@@ -251,6 +251,11 @@ def build_parser() -> argparse.ArgumentParser:
     ingest_parser.add_argument("--write-report", action=argparse.BooleanOptionalAction, default=True)
     ingest_parser.add_argument("--append-ledger", action=argparse.BooleanOptionalAction, default=True)
     ingest_parser.add_argument(
+        "--force-reprocess",
+        action="store_true",
+        help="Ignore source checkpoints for this ingest run without deleting checkpoint state.",
+    )
+    ingest_parser.add_argument(
         "--follow",
         action=argparse.BooleanOptionalAction,
         default=None,

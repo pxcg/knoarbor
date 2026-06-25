@@ -31,6 +31,78 @@ class FakeNativeMinerUProcessor(MinerUDocumentProcessor):
         )
 
 
+class FakeMinerUImageProcessor(MinerUDocumentProcessor):
+    def _post(self, config: MinerUDocumentProcessingConfig, path: Path, output_dir: Path) -> MinerUResponse:
+        image_dir = output_dir / "paper" / "images"
+        image_dir.mkdir(parents=True)
+        (image_dir / "figure-1.png").write_bytes(b"png")
+        return MinerUResponse(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            body=b'{"markdown":"# Parsed\\n\\n![architecture](paper/images/figure-1.png)"}',
+        )
+
+
+class FakeNativeMinerUResponseImageProcessor(MinerUDocumentProcessor):
+    def _post(self, config: MinerUDocumentProcessingConfig, path: Path, output_dir: Path) -> MinerUResponse:
+        return MinerUResponse(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            body=(
+                b"{"
+                b'"results":{'
+                b'"paper":{'
+                b'"md_content":"# Parsed\\n\\n![](images/figure-1.png)",'
+                b'"images":{"figure-1.png":"data:image/png;base64,iVBORw0KGgo="},'
+                b'"content_list":"[{'
+                b'\\"type\\":\\"image\\",'
+                b'\\"img_path\\":\\"images/figure-1.png\\",'
+                b'\\"image_caption\\":[\\"Agent loop diagram\\"],'
+                b'\\"content\\":\\"diagram content\\",'
+                b'\\"page_idx\\":0'
+                b'}]"'
+                b"}"
+                b"}"
+                b"}"
+            ),
+        )
+
+
+class FakeNativeMinerUContentOnlyImageProcessor(MinerUDocumentProcessor):
+    def _post(self, config: MinerUDocumentProcessingConfig, path: Path, output_dir: Path) -> MinerUResponse:
+        return MinerUResponse(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            body=(
+                b"{"
+                b'"results":{'
+                b'"paper":{'
+                b'"md_content":"# Parsed\\n\\n![](images/figure-1.png)",'
+                b'"images":{"figure-1.png":"data:image/png;base64,iVBORw0KGgo="},'
+                b'"content_list":"[{'
+                b'\\"type\\":\\"image\\",'
+                b'\\"img_path\\":\\"images/figure-1.png\\",'
+                b'\\"content\\":\\"```mermaid\\\\ngraph LR\\\\n  A --> B\\\\n```\\",'
+                b'\\"sub_type\\":\\"flowchart\\",'
+                b'\\"page_idx\\":0'
+                b'}]"'
+                b"}"
+                b"}"
+                b"}"
+            ),
+        )
+
+
+class CountingMinerUProcessor(FakeMinerUProcessor):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls: list[Path] = []
+
+    def _post(self, config: MinerUDocumentProcessingConfig, path: Path, output_dir: Path) -> MinerUResponse:
+        self.calls.append(path)
+        return super()._post(config, path, output_dir)
+
+
 class DocumentProcessingTests(unittest.TestCase):
     def test_pipeline_noops_when_mineru_is_disabled(self) -> None:
         config = KnoArborConfig.model_validate({"vault": {"path": "./vaults/all"}})
@@ -92,6 +164,158 @@ class DocumentProcessingTests(unittest.TestCase):
             self.assertEqual(result.stats["processed_count"], 1)
             self.assertEqual(prepared, (output_dir / "paper.md").resolve())
             self.assertIn("# Native MinerU", prepared.read_text(encoding="utf-8"))
+
+    def test_mineru_processor_records_image_attachments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            path = root / "paper.pdf"
+            output_dir = root / "markdown"
+            path.write_bytes(b"%PDF")
+            config = KnoArborConfig.model_validate(
+                {
+                    "vault": {"path": str(root / "vaults" / "all")},
+                    "document_processing": {
+                        "mineru": {
+                            "enabled": True,
+                            "endpoint": "http://localhost:9999/file_parse",
+                            "output_dir": str(output_dir),
+                        }
+                    },
+                }
+            )
+
+            prepared, result = DocumentProcessingPipeline(mineru=FakeMinerUImageProcessor()).prepare_input_file(config, path)
+
+            self.assertEqual(result.stats["processed_count"], 1)
+            self.assertEqual(prepared, (output_dir / "paper.md").resolve())
+            self.assertEqual(len(result.items[0].attachments), 1)
+            self.assertEqual(result.items[0].attachments[0]["relative_path"], "paper/images/figure-1.png")
+            sidecar = output_dir / "paper.attachments.json"
+            self.assertTrue(sidecar.exists())
+            self.assertIn("figure-1.png", sidecar.read_text(encoding="utf-8"))
+
+    def test_mineru_processor_materializes_native_response_images(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            path = root / "paper.pdf"
+            output_dir = root / "markdown"
+            path.write_bytes(b"%PDF")
+            config = KnoArborConfig.model_validate(
+                {
+                    "vault": {"path": str(root / "vaults" / "all")},
+                    "document_processing": {
+                        "mineru": {
+                            "enabled": True,
+                            "endpoint": "http://localhost:9999/file_parse",
+                            "output_dir": str(output_dir),
+                        }
+                    },
+                }
+            )
+
+            prepared, result = DocumentProcessingPipeline(mineru=FakeNativeMinerUResponseImageProcessor()).prepare_input_file(config, path)
+
+            image_path = output_dir / "images" / "figure-1.png"
+            self.assertEqual(result.stats["processed_count"], 1)
+            self.assertEqual(prepared, (output_dir / "paper.md").resolve())
+            self.assertTrue(image_path.exists())
+            self.assertEqual(len(result.items[0].attachments), 1)
+            self.assertEqual(result.items[0].attachments[0]["relative_path"], "images/figure-1.png")
+            self.assertIn("Agent loop diagram", str(result.items[0].attachments[0]["description"]))
+            self.assertEqual(result.items[0].attachments[0]["metadata"]["page_idx"], 0)
+
+    def test_mineru_image_description_does_not_inline_raw_extraction(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            path = root / "paper.pdf"
+            output_dir = root / "markdown"
+            path.write_bytes(b"%PDF")
+            config = KnoArborConfig.model_validate(
+                {
+                    "vault": {"path": str(root / "vaults" / "all")},
+                    "document_processing": {
+                        "mineru": {
+                            "enabled": True,
+                            "endpoint": "http://localhost:9999/file_parse",
+                            "output_dir": str(output_dir),
+                        }
+                    },
+                }
+            )
+
+            _, result = DocumentProcessingPipeline(mineru=FakeNativeMinerUContentOnlyImageProcessor()).prepare_input_file(config, path)
+
+            attachment = result.items[0].attachments[0]
+            self.assertEqual(attachment["description"], "flowchart extraction is available in attachment metadata.")
+            self.assertNotIn("mermaid", str(attachment["description"]))
+            self.assertIn("mermaid", str(attachment["metadata"]["content"]))
+
+    def test_prepare_input_folder_markdown_only_ignores_obsidian_assets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            notes = root / "Notes"
+            assets = notes / "assets"
+            obsidian = notes / ".obsidian"
+            assets.mkdir(parents=True)
+            obsidian.mkdir()
+            (notes / "Agent.md").write_text("# Agent\n\nBody.", encoding="utf-8")
+            (assets / "diagram.png").write_bytes(b"png")
+            (notes / "paper.pdf").write_bytes(b"%PDF")
+            (obsidian / "workspace.json").write_text("{}", encoding="utf-8")
+            processor = CountingMinerUProcessor()
+            config = KnoArborConfig.model_validate(
+                {
+                    "vault": {"path": str(root / "vaults" / "all")},
+                    "document_processing": {
+                        "mineru": {
+                            "enabled": True,
+                            "endpoint": "http://localhost:9999/file_parse",
+                            "output_dir": str(root / "processed"),
+                        }
+                    },
+                }
+            )
+
+            markdown_paths, result = DocumentProcessingPipeline(mineru=processor).prepare_input_folder(
+                config,
+                notes,
+                markdown_only=True,
+            )
+
+        self.assertEqual(markdown_paths, [(notes / "Agent.md").resolve()])
+        self.assertEqual(result.stats["item_count"], 0)
+        self.assertEqual(processor.calls, [])
+
+    def test_prepare_input_folder_only_preprocesses_configured_rich_patterns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            folder = root / "docs"
+            folder.mkdir()
+            (folder / "note.md").write_text("# Note\n\nBody.", encoding="utf-8")
+            (folder / "paper.pdf").write_bytes(b"%PDF")
+            (folder / "figure.png").write_bytes(b"png")
+            (folder / "archive.zip").write_bytes(b"zip")
+            processor = CountingMinerUProcessor()
+            config = KnoArborConfig.model_validate(
+                {
+                    "vault": {"path": str(root / "vaults" / "all")},
+                    "document_processing": {
+                        "mineru": {
+                            "enabled": True,
+                            "endpoint": "http://localhost:9999/file_parse",
+                            "output_dir": str(root / "processed"),
+                            "patterns": ["*.pdf"],
+                        }
+                    },
+                }
+            )
+
+            markdown_paths, result = DocumentProcessingPipeline(mineru=processor).prepare_input_folder(config, folder)
+
+        self.assertEqual([path.name for path in processor.calls], ["paper.pdf"])
+        self.assertIn((folder / "note.md").resolve(), markdown_paths)
+        self.assertIn((root / "processed" / "paper.md").resolve(), markdown_paths)
+        self.assertEqual(result.stats["processed_count"], 1)
 
     def test_mineru_defaults_match_native_file_parse_contract(self) -> None:
         config = MinerUDocumentProcessingConfig()

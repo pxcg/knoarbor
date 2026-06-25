@@ -122,7 +122,6 @@ def _create_draft() -> WikiDraftBatchItem:
         title="Agent Loop",
         page_dir="concepts",
         question="Agent Loop",
-        answer="Agent Loop repeats observe, decide, act, and feedback.",
         summary="Agent Loop is an execution control pattern.",
         claims=["C1: [[Agent Loop]] repeats observe, decide, act, and feedback."],
         entities=["[[Agent Loop]]"],

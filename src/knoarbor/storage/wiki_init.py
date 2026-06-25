@@ -35,8 +35,8 @@ def init_wiki_vault(vault_path: Path, *, force: bool = False) -> WikiInitResult:
         _ensure_directory(vault_path, relative, created, existing)
 
     _ensure_directory(vault_path, CONTENT_ROOT_DIR, created, existing)
-    _ensure_directory(vault_path, SOURCE_DIGEST_ROOT_DIR, created, existing)
     pages_root = vault_path / CONTENT_ROOT_DIR
+    _ensure_directory(pages_root, SOURCE_DIGEST_ROOT_DIR, created, existing, display_prefix=CONTENT_ROOT_DIR)
     _write_file(
         pages_root,
         "SCHEMA.md",
@@ -75,7 +75,7 @@ def migrate_wiki_pages_layout(vault_path: Path) -> WikiLayoutMigrationResult:
     skipped: list[str] = []
     pages_root.mkdir(parents=True, exist_ok=True)
 
-    for relative in (*LEGACY_KNOWLEDGE_PAGE_DIRS, "log.md", "SCHEMA.md"):
+    for relative in (*LEGACY_KNOWLEDGE_PAGE_DIRS, SOURCE_DIGEST_ROOT_DIR, "log.md", "SCHEMA.md"):
         source = vault_path / relative
         if not source.exists():
             skipped.append(relative)

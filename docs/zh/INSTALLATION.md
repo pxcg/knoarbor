@@ -128,6 +128,17 @@ Markdown 文件会直接进入知识编译。PDF、DOCX、PPTX 等富文档需�
 MinerU 兼容预处理服务。KnoArbor 不分发 MinerU 或模型权重；启用该适配器时，
 用户需要自行安装并运行 MinerU。
 
+如果使用本地 MinerU 源码仓库，可以这样启动兼容 API：
+
+```bash
+cd /path/to/MinerU
+.venv/bin/mineru-api --host 127.0.0.1 --port 18000
+```
+
+然后将 `document_processing.mineru.endpoint` 配置为
+`http://127.0.0.1:18000/file_parse`。如果 MinerU 写出了图片资源，KnoArbor 会
+把它们记录为 Markdown sidecar 附件，并在 source digest 审计页中展示。
+
 聊天来源默认路径如 `~/.codex/sessions`、`~/.claude/projects` 和
 `~/.hermes/sessions` 会展开到当前用户主目录。Windows 下对应路径通常位于
 `%USERPROFILE%`，例如 `C:\Users\Alice\.codex\sessions`。

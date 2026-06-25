@@ -58,7 +58,7 @@ from knoarbor.pipelines.ingest_observer import IngestObserver
 from knoarbor.pipelines.lint import WikiLintPipeline
 from knoarbor.pipelines.source import SourcePipeline, SourcePipelineFailure, SourcePipelineItem
 from knoarbor.pipelines.source_segmentation import SourceSegmentBatch, SourceSegmenter
-from knoarbor.core.source_unitization import attach_source_unitization
+from knoarbor.core.source_unitization import attach_source_unitization, source_unitization_from_document
 from knoarbor.pipelines.write import WikiWritePipeline
 from knoarbor.runtime import current_run_monitor, vault_write_lock
 from knoarbor.storage.source_metrics import connector_source_metric_key, update_source_counts
@@ -113,6 +113,7 @@ class IngestSourceExecutor:
         auto_apply_safe_lint_fixes: bool,
         scoped_lint_include_related: bool,
         segmentation_config: IngestSegmentationConfig,
+        force_reprocess: bool = False,
     ) -> IngestSourceResult:
         monitor = current_run_monitor()
         started = time.perf_counter()
@@ -132,6 +133,7 @@ class IngestSourceExecutor:
             item=item,
             vault_path=vault_path,
             state=state,
+            force_reprocess=force_reprocess,
         )
         if _is_ignored(ignore, vault_path, Path(item.raw.raw_path), checkpoint_plan["source_file"]):
             if monitor:
@@ -310,11 +312,12 @@ class IngestSourceExecutor:
         unitized_document = attach_source_unitization(redacted.document)
         result.redaction = _redaction_payload(redacted.enabled, redacted.counts)
         unitization_payload = unitized_document.metadata.get("source_unitization", {})
+        unitization_event_payload = _source_unitization_event_payload(unitized_document)
         IngestObserver.current().finished(
             "source_unitization",
             message=f"Created {unitization_payload.get('unit_count', 0)} source unit(s).",
             current_item=result.source_id,
-            payload=unitization_payload if isinstance(unitization_payload, dict) else {},
+            payload=unitization_event_payload,
         )
         monitor = current_run_monitor()
         if monitor:
@@ -323,7 +326,7 @@ class IngestSourceExecutor:
                 stage="source_unitization",
                 current_item=result.source_id,
                 message=f"Created {unitization_payload.get('unit_count', 0) if isinstance(unitization_payload, dict) else 0} source unit(s).",
-                payload=unitization_payload if isinstance(unitization_payload, dict) else {},
+                payload=unitization_event_payload,
             )
             monitor.raise_if_cancelled()
         history_start = semantic_history_length(self.semantic_workflow)
@@ -487,11 +490,12 @@ class IngestSourceExecutor:
                 unitized_document = attach_source_unitization(redacted.document)
                 segment_result.redaction = _redaction_payload(redacted.enabled, redacted.counts)
                 unitization_payload = unitized_document.metadata.get("source_unitization", {})
+                unitization_event_payload = _source_unitization_event_payload(unitized_document)
                 observer.finished(
                     "source_unitization",
                     message=f"Created {unitization_payload.get('unit_count', 0) if isinstance(unitization_payload, dict) else 0} source unit(s).",
                     current_item=segment.title,
-                    payload=unitization_payload if isinstance(unitization_payload, dict) else {},
+                    payload=unitization_event_payload,
                 )
                 if monitor:
                     monitor.event(
@@ -499,7 +503,7 @@ class IngestSourceExecutor:
                         stage="source_unitization",
                         current_item=segment.title,
                         message=f"Created {unitization_payload.get('unit_count', 0) if isinstance(unitization_payload, dict) else 0} source unit(s).",
-                        payload=unitization_payload if isinstance(unitization_payload, dict) else {},
+                        payload=unitization_event_payload,
                     )
                     monitor.raise_if_cancelled()
                 extraction = self.semantic_runner.extract_source(
@@ -781,6 +785,7 @@ class IngestPipeline:
         write_report: bool = True,
         append_ledger: bool = True,
         document_processing_result: DocumentProcessingResult | None = None,
+        force_reprocess: bool = False,
     ) -> IngestPipelineResult:
         monitor = current_run_monitor()
         started_at = _now_text()
@@ -847,6 +852,7 @@ class IngestPipeline:
                     config=config,
                     write=write,
                     max_tokens=max_tokens,
+                    force_reprocess=force_reprocess,
                 )
             )
         lifecycle_candidates = source_lifecycle_candidates(vault_path, state, discovered_source_files)
@@ -914,6 +920,7 @@ class IngestPipeline:
         config: KnoArborConfig,
         write: bool,
         max_tokens: int | None,
+        force_reprocess: bool,
     ) -> list[IngestSourceResult]:
         monitor = current_run_monitor()
         effective_concurrency = _effective_source_concurrency(config, write)
@@ -944,6 +951,7 @@ class IngestPipeline:
                     auto_apply_safe_lint_fixes=config.ingest.auto_apply_safe_lint_fixes,
                     scoped_lint_include_related=config.lint.scoped_include_related,
                     segmentation_config=config.ingest.segmentation,
+                    force_reprocess=force_reprocess,
                 )
                 for item in items
             ]
@@ -966,6 +974,7 @@ class IngestPipeline:
                     auto_apply_safe_lint_fixes=config.ingest.auto_apply_safe_lint_fixes,
                     scoped_lint_include_related=config.lint.scoped_include_related,
                     segmentation_config=config.ingest.segmentation,
+                    force_reprocess=force_reprocess,
                 ): item_index
                 for item_index, item in enumerate(items)
             }
@@ -1193,6 +1202,13 @@ def _copy_source_error(target: IngestSourceResult, source: IngestSourceResult, *
     target.error_hint = source.error_hint
     target.error_type = source.error_type
     target.error_message = source.error_message
+
+
+def _source_unitization_event_payload(document: SourceDocument) -> dict[str, object]:
+    try:
+        return source_unitization_from_document(document).public_summary()
+    except Exception:
+        return {}
 
 
 def _write_gate_error_message(gate_payload: dict[str, object]) -> str:

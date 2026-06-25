@@ -4,7 +4,7 @@ import re
 from datetime import datetime
 
 from knoarbor.core.errors import PolicyRejection
-from knoarbor.core.markdown import append_to_section, extract_list_items, extract_section, render_list_section, replace_section, update_frontmatter_value, validate_body_markdown
+from knoarbor.core.markdown import append_to_section, extract_list_items, extract_section, parse_frontmatter, render_list_section, replace_section, update_frontmatter_value, validate_body_markdown
 from knoarbor.core.schemas.wiki_write import WikiDraft, WikiPatchInput
 from knoarbor.core.wiki_lists import merge_unique_items
 
@@ -87,8 +87,9 @@ content_hash: {digest}
 def _render_source_digest_markdown(draft: WikiDraft, source_file: str, digest: str, created: str, updated: str) -> str:
     summary = validate_body_markdown(draft.summary, "summary")
     source_units = _render_source_units(draft.evidence, source_file)
+    attachments = _render_attachments(draft.attachments)
     contribution_map = _render_contribution_map(draft)
-    unresolved = _render_source_unresolved(draft.key_points)
+    unresolved = _render_source_unresolved(draft.unresolved_items)
     raw_source = _render_raw_source(source_file, digest)
     digest_ids = ", ".join(draft.source_digest_ids) if draft.source_digest_ids else "not assigned"
     atom_ids = ", ".join(draft.atom_ids) if draft.atom_ids else "none"
@@ -115,6 +116,10 @@ content_hash: {digest}
 ## Source Units
 
 {source_units}
+
+## Attachments
+
+{attachments}
 
 ## Contribution Map
 
@@ -146,6 +151,27 @@ def _render_source_units(items: list[str], source_file: str) -> str:
         rows.append(
             f"| {_escape_table_cell(unit)} | {_escape_table_cell(source)} | {_escape_table_cell(source_range)} | "
             f"{_escape_table_cell(basis)} | {_escape_table_cell(confidence)} |"
+        )
+    return "\n".join(rows)
+
+
+def _render_attachments(items: list[dict[str, object]]) -> str:
+    values = [item for item in items if isinstance(item, dict)]
+    if not values:
+        return "- No source attachments recorded."
+    rows = ["| Topic | Description | Path |", "|---|---|---|"]
+    for item in values:
+        path = str(item.get("relative_path") or item.get("path") or "").strip()
+        rows.append(
+            "| "
+            + " | ".join(
+                [
+                    _escape_table_cell(str(item.get("topic") or item.get("name") or path or "attachment")),
+                    _escape_table_cell(str(item.get("description") or "")),
+                    _escape_table_cell(path),
+                ]
+            )
+            + " |"
         )
     return "\n".join(rows)
 
@@ -244,6 +270,12 @@ def apply_patched_markdown(
     auto_related_links: bool = True,
 ) -> str:
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    created = parse_frontmatter(existing_content).get("created") or now
+    if draft.page_dir == "sources":
+        if not source_file:
+            raise PolicyRejection("source_file is required when updating a source digest")
+        return _render_source_digest_markdown(draft, source_file, digest, created, now)
+
     merged = update_frontmatter_value(existing_content, "updated", now)
     merged = update_frontmatter_value(merged, "content_hash", digest)
 

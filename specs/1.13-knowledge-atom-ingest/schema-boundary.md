@@ -157,6 +157,7 @@ Recommended source digest sections:
 - `Source Units`
 - `Contribution Map`
 - `Unresolved / Rejected`
+- `Attachments`
 - `Raw Source`
 
 Source digest rules:
@@ -173,6 +174,31 @@ Source digest rules:
 - It should support audit and source-level query.
 - It should not be selected as the primary answer object for ordinary subject
   questions.
+- `Attachments` should be compact in readable Markdown. It stores only
+  `topic`, `description`, and `path`. Full attachment audit data belongs to the
+  attachment sidecar and machine metadata.
+- MinerU image extraction output, OCR text, Mermaid, page coordinates, MIME
+  type, hashes, and base64 data must not be inlined into the default source
+  digest Markdown body.
+
+Attachment sidecar minimum fields:
+
+- `attachment_type`
+- `name`
+- `description`
+- `relative_path` or `path`
+- `mime_type`
+- `content_hash`
+- `metadata`
+
+Attachment metadata may include:
+
+- `page_idx`
+- `bbox`
+- `sub_type`
+- `image_caption`
+- raw extracted `content`
+- parser/model-specific output needed for audit.
 
 ### Evidence Schema
 

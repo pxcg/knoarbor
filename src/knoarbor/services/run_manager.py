@@ -103,6 +103,7 @@ class RunManager:
             recovery_request = IngestFolderRunRequest(
                 input_path=str(metadata["input_path"]),
                 recursive=bool(metadata.get("recursive", True)),
+                connector_names=_metadata_str_list(metadata.get("connector_names")),
                 config_path=config_path,
                 vault_path=str(vault_path),
                 provider=provider,

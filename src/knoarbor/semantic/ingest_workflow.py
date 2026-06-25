@@ -332,6 +332,7 @@ def _source_digest_plan_payload(source_digest: SourceDigest) -> dict[str, Any]:
             for unit in source_digest.units
         ],
         "contribution_map": [item.model_dump() for item in source_digest.contribution_map],
+        "attachments": [item.model_dump() for item in source_digest.attachments],
         "unresolved_items": [item.model_dump() for item in source_digest.unresolved_items],
         "confidence": source_digest.confidence,
         "warnings": list(source_digest.warnings),

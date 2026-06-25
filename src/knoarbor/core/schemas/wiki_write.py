@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 WikiWriteAction = Literal["create", "update", "merge"]
@@ -52,16 +52,14 @@ class WikiDraftInput(BaseModel):
     role: str = ""
     facets: list[str] = Field(default_factory=list)
     question: str = Field(..., min_length=1)
-    answer: str = Field(..., min_length=1)
     summary: str = Field(..., min_length=1)
-    definition: str = ""
     claims: list[str] = Field(default_factory=list)
     entities: list[str] = Field(default_factory=list)
     relations: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
-    synthesis: str = ""
-    key_points: list[str] = Field(default_factory=list)
-    tags: list[str] = Field(default_factory=list)
+    attachments: list[dict[str, Any]] = Field(default_factory=list)
+    synthesis: str = Field(..., min_length=1)
+    unresolved_items: list[str] = Field(default_factory=list)
     confidence: float = Field(default=0.8, ge=0, le=1)
     model_provider: str = "external"
     model_name: str = "semantic-workflow"
@@ -69,7 +67,7 @@ class WikiDraftInput(BaseModel):
     source_digest_ids: list[str] = Field(default_factory=list)
     atom_ids: list[str] = Field(default_factory=list)
 
-    @field_validator("title", "page_dir", "question", "answer", "summary", "model_provider", "model_name")
+    @field_validator("title", "page_dir", "question", "summary", "synthesis", "model_provider", "model_name")
     @classmethod
     def strip_required_text(cls, value: str) -> str:
         text = value.strip()
@@ -111,12 +109,6 @@ class WikiDraftInput(BaseModel):
                 seen.add(text)
         return normalized
 
-    @model_validator(mode="after")
-    def normalize_transport_fields(self) -> WikiDraftInput:
-        if not self.synthesis.strip():
-            self.synthesis = self.answer
-        return self
-
 
 class WikiDraftBatchWriteItem(BaseModel):
     wiki_draft: WikiDraftInput
@@ -153,16 +145,14 @@ class WikiDraft(BaseModel):
     role: str = "knowledge_page"
     facets: list[str] = Field(default_factory=list)
     question: str
-    answer: str
     summary: str
-    definition: str = ""
     claims: list[str] = Field(default_factory=list)
     entities: list[str] = Field(default_factory=list)
     relations: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
-    synthesis: str = ""
-    key_points: list[str] = Field(default_factory=list)
-    tags: list[str] = Field(default_factory=list)
+    attachments: list[dict[str, Any]] = Field(default_factory=list)
+    synthesis: str
+    unresolved_items: list[str] = Field(default_factory=list)
     confidence: float = Field(ge=0, le=1)
     model_provider: str
     model_name: str

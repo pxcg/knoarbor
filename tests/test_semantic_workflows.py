@@ -30,10 +30,8 @@ class FakeDraftCompileRunner:
                     title="Agent Loop",
                     page_dir="concepts",
                     question="Agent Loop",
-                    answer="Agent loop alternates reasoning, action, and observation.",
+                    synthesis="Agent loop alternates reasoning, action, and observation.",
                     summary="Agent loop is a control pattern.",
-                    key_points=["Reason, act, observe."],
-                    tags=["agent"],
                     model_provider="prompt-example",
                     model_name="prompt-example-model",
                 )

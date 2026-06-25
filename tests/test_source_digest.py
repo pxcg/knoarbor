@@ -50,6 +50,28 @@ class SourceDigestSchemaTest(unittest.TestCase):
         self.assertEqual(digest.unresolved_items[0].reason, "Low confidence source unit.")
         self.assertEqual(digest.unresolved_items[0].evidence_unit_ids, ["U1"])
 
+    def test_digest_preserves_source_attachments(self) -> None:
+        extract = KnowledgeExtract.model_validate(source_normalize_output()["output"])
+        extract.attachments.append(
+            {
+                "attachment_type": "image",
+                "name": "figure-1.png",
+                "description": "System architecture figure.",
+                "relative_path": "images/figure-1.png",
+                "mime_type": "image/png",
+                "content_hash": "abc123",
+                "source": "mineru",
+                "metadata": {"image_caption": ["Agent loop diagram"], "sub_type": "flowchart"},
+            }
+        )
+
+        digest = build_source_digest_from_extract(extract)
+
+        self.assertEqual(digest.summary_counts()["attachments"], 1)
+        self.assertEqual(digest.attachments[0].name, "figure-1.png")
+        self.assertEqual(digest.attachments[0].topic, "Agent loop diagram")
+        self.assertEqual(digest.attachments[0].relative_path, "images/figure-1.png")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -315,8 +315,8 @@ class WikiLintPipelineTests(unittest.TestCase):
     def test_scan_reports_sensitive_generated_page_content(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "sources").mkdir()
-            (vault / "sources" / "Agent.md").write_text(
+            (vault / "pages" / "sources").mkdir(parents=True)
+            (vault / "pages" / "sources" / "Agent.md").write_text(
                 "---\ntype: source\nstatus: draft\nsource: raw/notes/agent.md\n---\n"
                 "# Agent\n\n## Summary\n\nToken sk-abcdefghijklmnop1234567890 and app cli_aa9f1cd454399bc8.\n\n## Source\n\n- raw/notes/agent.md\n",
                 encoding="utf-8",
@@ -479,11 +479,97 @@ class WikiLintPipelineTests(unittest.TestCase):
 
         codes = {issue.code for issue in response.issues}
         self.assertIn("path_alias_conflict", codes)
-        self.assertIn("weak_link_graph", codes)
+        self.assertNotIn("weak_link_graph", codes)
         self.assertIn("overdense_link_graph", codes)
         graph_health = response.stats["graph_health"]
-        self.assertGreaterEqual(graph_health["component_count"], 2)
-        self.assertGreaterEqual(graph_health["isolated_page_count"], 1)
+        self.assertGreaterEqual(graph_health["component_count"], 1)
+        self.assertEqual(graph_health["isolated_page_count"], 0)
+
+    def test_lint_uses_structured_relations_and_evidence_for_graph_connectivity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            pages = vault / "pages"
+            (pages / "sources").mkdir(parents=True)
+            (vault / "raw" / "notes").mkdir(parents=True)
+            (vault / "raw" / "notes" / "a2a.md").write_text("# A2A\n\nA2A notes.\n", encoding="utf-8")
+            common_frontmatter = (
+                "---\n"
+                "created: 2026-06-25\n"
+                "updated: 2026-06-25\n"
+                "status: draft\n"
+                "source: raw/notes/a2a.md\n"
+                "content_hash: a2a\n"
+            )
+            (pages / "A2A-(Agent-to-Agent)-Protocol.md").write_text(
+                common_frontmatter
+                + "type: page\npage_kind: concept\n---\n"
+                "# A2A (Agent-to-Agent) Protocol\n\n"
+                "## Summary\n\nA2A standardizes agent-to-agent collaboration.\n\n"
+                "## Claims\n\n- C1: **A2A** defines cross-agent task and message exchange.\n\n"
+                "## Entities\n\n- A2A\n- Agent Card\n\n"
+                "## Relations\n\n| Subject | Predicate | Object | Claim |\n|---|---|---|---|\n| A2A | defines | Agent Card | C1 |\n\n"
+                "## Evidence\n\n| Claim | Source | Range | Basis | Confidence |\n|---|---|---|---|---|\n| C1 | raw/notes/a2a.md | unit:0 | A2A notes. | high |\n\n"
+                "## Synthesis\n\nA2A is a protocol boundary for multi-agent systems.\n",
+                encoding="utf-8",
+            )
+            (pages / "sources" / "A2A-Source.md").write_text(
+                common_frontmatter
+                + "type: source\npage_kind: source_digest\n---\n"
+                "# A2A Source\n\n"
+                "## Source Identity\n\n- raw_source: raw/notes/a2a.md\n\n"
+                "## Audit Summary\n\nThis source supports A2A claims.\n\n"
+                "## Source Units\n\n| Unit | Title | Range | Summary |\n|---|---|---|---|\n| U1 | A2A | unit:0 | A2A notes. |\n\n"
+                "## Contribution Map\n\n| Page | Claims | Units |\n|---|---|---|\n| A2A-(Agent-to-Agent)-Protocol.md | C1 | U1 |\n\n"
+                "## Unresolved / Rejected\n\n- None.\n\n"
+                "## Raw Source\n\n- raw/notes/a2a.md\n",
+                encoding="utf-8",
+            )
+
+            response = WikiLintPipeline().lint(WikiLintRequest(vault_path=str(vault), write_report=False))
+
+        issues_by_code = {issue.code for issue in response.issues}
+        self.assertNotIn("orphan_page", issues_by_code)
+        self.assertNotIn("weak_link_graph", issues_by_code)
+        self.assertNotIn("source_without_knowledge_links", issues_by_code)
+        self.assertEqual(response.stats["graph_health"]["isolated_page_count"], 0)
+
+    def test_scope_related_does_not_expand_by_shared_entity_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            pages = vault / "pages"
+            pages.mkdir(parents=True)
+            base_frontmatter = "---\ncreated: 2026-06-25\nupdated: 2026-06-25\nstatus: draft\n"
+            for name, source, claim in [
+                ("Agent-Loop.md", "raw/notes/agent-loop.md", "Agent Loop controls tool execution."),
+                ("Agent-Memory.md", "raw/notes/agent-memory.md", "Agent memory stores reusable session context."),
+            ]:
+                (pages / name).write_text(
+                    base_frontmatter
+                    + f"source: {source}\n"
+                    + f"content_hash: {name}\n"
+                    + "type: page\npage_kind: concept\n---\n"
+                    + f"# {name.removesuffix('.md')}\n\n"
+                    + f"## Summary\n\n{claim}\n\n"
+                    + f"## Claims\n\n- C1: **Agent** related claim. {claim}\n\n"
+                    + "## Entities\n\n- Agent\n\n"
+                    + "## Relations\n\n| Subject | Predicate | Object | Claim |\n|---|---|---|---|\n| Agent | relates_to | Runtime | C1 |\n\n"
+                    + f"## Evidence\n\n| Claim | Source | Range | Basis | Confidence |\n|---|---|---|---|---|\n| C1 | {source} | unit:0 | {claim} | high |\n\n"
+                    + f"## Synthesis\n\n{claim}\n",
+                    encoding="utf-8",
+                )
+
+            response = WikiLintPipeline().lint(
+                WikiLintRequest(
+                    vault_path=str(vault),
+                    write_report=False,
+                    scope_pages=["Agent-Loop.md"],
+                    include_related=True,
+                )
+            )
+
+        self.assertTrue(response.stats["scoped"])
+        self.assertEqual(response.stats["scope_pages"], ["Agent-Loop.md"])
+        self.assertEqual(response.stats["scope_page_count"], 1)
 
     def test_run_maintenance_uses_explicit_scope(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -639,7 +725,13 @@ class WikiLintPipelineTests(unittest.TestCase):
             )
             (vault / "sources" / "RAG.md").write_text(
                 "---\ncreated: 2026-05-01\nupdated: 2026-05-01\ntype: source\nstatus: draft\nsource: raw/notes/rag.md\ncontent_hash: source-rag\n---\n"
-                "# RAG Source\n\n## Summary\n\nRAG source digest.\n\n## Source\n\n- raw/notes/rag.md\n",
+                "# RAG Source\n\n"
+                "## Source Identity\n\n- raw_source: raw/notes/rag.md\n\n"
+                "## Audit Summary\n\nRAG source digest.\n\n"
+                "## Source Units\n\n| Unit | Title | Range | Summary |\n|---|---|---|---|\n| U1 | RAG | unit:0 | RAG source. |\n\n"
+                "## Contribution Map\n\n| Page | Claims | Units |\n|---|---|---|\n| concepts/RAG.md | C1 | U1 |\n\n"
+                "## Unresolved / Rejected\n\n- None.\n\n"
+                "## Raw Source\n\n- raw/notes/rag.md\n",
                 encoding="utf-8",
             )
 
@@ -1389,10 +1481,8 @@ class DraftWriteLintSemanticWorkflow(FakeLintSemanticWorkflow):
                         "title": "Agent",
                         "page_dir": "concepts",
                         "question": "Improve summary",
-                        "answer": "Improved answer.",
                         "summary": "Improved summary.",
-                        "key_points": ["Improved summary."],
-                        "tags": ["agent"],
+                        "synthesis": "Improved answer.",
                         "patches": [
                             {
                                 "operation": "replace_section",
@@ -1575,10 +1665,8 @@ class WorkflowStepsDraftWriteLintSemanticWorkflow(FakeLintSemanticWorkflow):
                         "title": "Deploy",
                         "page_dir": "workflows",
                         "question": "Rewrite workflow steps",
-                        "answer": "Replace placeholder steps with ordered steps.",
                         "summary": "Workflow steps rewritten.",
-                        "key_points": ["Validate configuration.", "Run tests.", "Build and deploy."],
-                        "tags": ["workflow"],
+                        "synthesis": "Replace placeholder steps with ordered steps.",
                         "patches": [
                             {
                                 "operation": "replace_section",

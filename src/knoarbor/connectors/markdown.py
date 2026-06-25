@@ -4,6 +4,7 @@ import hashlib
 from pathlib import Path
 
 from knoarbor.connectors.base import ConnectorConfig
+from knoarbor.core.attachments import dedupe_attachments, discover_markdown_image_attachments, read_attachment_sidecar
 from knoarbor.core.errors import ConnectorConfigError, SourceNotFound
 from knoarbor.core.path_utils import path_from_file_uri
 from knoarbor.core.schemas.sources import (
@@ -71,6 +72,7 @@ class MarkdownConnector:
         path = Path(raw.raw_path).expanduser().resolve()
         text = path.read_text(encoding="utf-8")
         uri = str(raw.metadata.get("uri") or path.as_uri())
+        attachments = dedupe_attachments([*read_attachment_sidecar(path), *discover_markdown_image_attachments(path, text)])
         return SourceDocument(
             source_id=raw.source_id,
             source_type="markdown",
@@ -80,10 +82,11 @@ class MarkdownConnector:
                 raw_path=raw.raw_path,
                 updated_at=raw.updated_at,
             ),
-            content=SourceContent(format="markdown", text=text),
+            content=SourceContent(format="markdown", text=text, attachments=attachments),
             metadata={
                 "title": _extract_markdown_title(text) or raw.metadata.get("display_name") or path.name,
                 "display_name": raw.metadata.get("display_name") or path.name,
+                "attachment_count": len(attachments),
             },
             fingerprint=SourceFingerprint(
                 content_hash=raw.content_hash,

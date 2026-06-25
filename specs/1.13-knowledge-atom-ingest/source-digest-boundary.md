@@ -242,10 +242,46 @@ contributions, 0 rejected contributions, and one raw source pointer.
 - Some OpenClaw implementation details were left unresolved because the source
   did not provide enough direct evidence.
 
+## Attachments
+
+| Topic | Description | Path |
+|---|---|---|
+| Agent Loop flowchart | Diagram showing a user task entering an agent loop, tool calls, and memory feedback. | images/agent-loop-flowchart.jpg |
+
 ## Raw Source
 
 - raw/notes/Agent.md
 ```
+
+## Attachment Boundary
+
+Attachments are provenance material attached to a source digest. They are not
+ordinary knowledge claims and should not expand the source digest into a parser
+log.
+
+Readable source digest pages keep only:
+
+- `topic`: what the attachment is about;
+- `description`: a short human-readable summary;
+- `path`: the relative path to the retained file.
+
+Attachment sidecars keep the audit details:
+
+- page index;
+- bounding box or source region;
+- MIME type;
+- content hash;
+- MinerU/VLM/OCR raw extraction content;
+- extracted image structure, table structure, or model output.
+
+For images parsed by MinerU VLM or hybrid backends, the raw image file is kept
+under the generated Markdown output, while the VLM/OCR extraction is stored in
+`*.attachments.json`. The source digest page should not inline raw Mermaid,
+large OCR text, base64 data, or full content-list JSON. The semantic ingest
+pipeline may read the attachment metadata to understand the source, but image
+content does not create claims by default. Image-backed claims are allowed only
+when the image is the primary evidence and the evidence row explicitly points to
+the image path, page, and region.
 
 ## Ingest Design Implications
 
@@ -258,6 +294,8 @@ contributions, 0 rejected contributions, and one raw source pointer.
   pointers. The audit summary is generated from processing facts rather than
   semantic source prose. It should not use the ordinary knowledge-page
   `Claims`/`Entities`/`Relations`/`Evidence`/`Synthesis` section set.
+- Attachment rendering must be compact. Full parser output belongs to sidecar
+  metadata and frontend/debug surfaces, not the default Markdown body.
 - Knowledge pages may reference source digests in their `Sources` or evidence
   mappings.
 - Reports should show which source digests contributed to written pages.

@@ -29,6 +29,7 @@ def _source_digest_draft_from_operation(
     question = operation.knowledge_object or source_digest.source_focus or title
     source_file = source_digest.raw_source or source_digest.source.source_path or source_digest.source.source_id
     evidence = _source_digest_evidence_rows(source_digest)
+    attachments = [attachment.model_dump() for attachment in source_digest.attachments]
     claims = _source_digest_contribution_rows(source_digest)
     unresolved = [f"{item.item_id}: {item.reason}" for item in source_digest.unresolved_items]
     patches = (
@@ -37,6 +38,7 @@ def _source_digest_draft_from_operation(
             source_file=source_file or "",
             summary=summary,
             evidence=evidence,
+            attachments=attachments,
             claims=claims,
             unresolved=unresolved,
         )
@@ -56,11 +58,12 @@ def _source_digest_draft_from_operation(
         subject_kind=operation.subject_kind or "source",
         facets=list(operation.facets),
         question=question,
-        answer=summary,
         summary=summary,
+        synthesis=summary,
         claims=claims,
         evidence=evidence,
-        key_points=unresolved,
+        attachments=attachments,
+        unresolved_items=unresolved,
         source_digest_ids=_merge_strings(list(operation.source_digest_ids), [source_digest.digest_id]),
         confidence=source_digest.confidence,
         model_provider="knoarbor",
@@ -105,12 +108,14 @@ def _source_digest_update_patches(
     source_file: str,
     summary: str,
     evidence: list[str],
+    attachments: list[dict[str, object]],
     claims: list[str],
     unresolved: list[str],
 ) -> list[WikiPatchInput]:
     return [
         WikiPatchInput(operation="replace_section", section="Audit Summary", content=summary),
         WikiPatchInput(operation="replace_section", section="Source Units", content=_source_units_table(evidence, source_file)),
+        WikiPatchInput(operation="replace_section", section="Attachments", content=_attachments_table(attachments)),
         WikiPatchInput(operation="replace_section", section="Contribution Map", content=_contribution_table(claims)),
         WikiPatchInput(operation="replace_section", section="Unresolved / Rejected", content=_unresolved_list(unresolved)),
         WikiPatchInput(
@@ -132,6 +137,26 @@ def _source_units_table(items: list[str], fallback_source: str) -> str:
     return "\n".join(rows)
 
 
+def _attachments_table(items: list[dict[str, object]]) -> str:
+    if not items:
+        return "- No source attachments recorded."
+    rows = ["| Topic | Description | Path |", "|---|---|---|"]
+    for item in items:
+        path = str(item.get("relative_path") or item.get("path") or "").strip()
+        rows.append(
+            "| "
+            + " | ".join(
+                [
+                    _table_cell(str(item.get("topic") or item.get("name") or path or "attachment")),
+                    _table_cell(str(item.get("description") or "")),
+                    _table_cell(path),
+                ]
+            )
+            + " |"
+        )
+    return "\n".join(rows)
+
+
 def _contribution_table(items: list[str]) -> str:
     if not items:
         return "- No accepted contribution map was generated."
@@ -144,6 +169,10 @@ def _contribution_table(items: list[str]) -> str:
 
 def _unresolved_list(items: list[str]) -> str:
     return "\n".join(f"- {item}" for item in items) if items else "- No unresolved or rejected material recorded."
+
+
+def _table_cell(value: str) -> str:
+    return " ".join(value.replace("|", "/").split())
 
 
 def _merge_strings(left: list[str], right: list[str]) -> list[str]:

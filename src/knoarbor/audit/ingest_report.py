@@ -191,6 +191,46 @@ def render_ingest_report(record: dict[str, object]) -> str:
                 )
         else:
             lines.append("- None.")
+        gate_issues = as_list(write_gate.get("issues"))
+        if write_gate:
+            lines.extend(["", "Write gate:"])
+            lines.append(f"- passed: {write_gate.get('passed')}")
+            approved_gate_operations = as_list(write_gate.get("approved_operation_indexes"))
+            lines.append(f"- approved_operation_indexes: {format_list(approved_gate_operations) if approved_gate_operations else 'none'}")
+            if gate_issues:
+                lines.append("- issues:")
+                for issue in gate_issues:
+                    issue = as_dict(issue)
+                    lines.append(
+                        f"  - operation {issue.get('operation_index')}: "
+                        f"`{issue.get('code')}` {issue.get('message')}"
+                    )
+            else:
+                lines.append("- issues: none")
+        review_policy = as_dict(context.get("review_policy"))
+        review_decisions = as_list(source.get("review_decisions"))
+        if review_policy or review_decisions:
+            lines.extend(["", "Semantic review:"])
+            if review_policy:
+                lines.append(f"- should_review: {review_policy.get('should_review')}")
+                triggers = as_list(review_policy.get("triggers"))
+                reasons = as_list(review_policy.get("reasons"))
+                lines.append(f"- triggers: {format_list(triggers) if triggers else 'none'}")
+                if reasons:
+                    lines.append("- reasons:")
+                    lines.extend(f"  - {reason}" for reason in reasons)
+            if review_decisions:
+                lines.append("- decisions:")
+                for decision in review_decisions:
+                    decision = as_dict(decision)
+                    lines.append(
+                        f"  - operation {decision.get('operation_index')}: "
+                        f"{decision.get('decision')} / {decision.get('write_safety')} / "
+                        f"risk={decision.get('risk_level')} / score={fmt_number(decision.get('quality_score'))}: "
+                        f"{decision.get('reason')}"
+                    )
+            else:
+                lines.append("- decisions: none")
         draft_atom_traces = as_list(source.get("draft_atom_traces"))
         if draft_atom_traces:
             lines.extend(["", "Draft atom traces:"])

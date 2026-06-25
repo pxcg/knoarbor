@@ -17,15 +17,12 @@ class WikiRenderTests(unittest.TestCase):
             page_dir="concepts",
             page_type="concept",
             question="Agent loop",
-            answer="Agent loop repeats observe, decide, act, and feedback.",
             summary="Agent loop is a control pattern.",
             claims=["C1: [[Agent Loop]] repeats observe, decide, act, and feedback."],
             entities=["[[Agent Loop]]"],
             relations=["[[Agent Loop]] | repeats | [[Control Cycle]] | C1"],
             evidence=["C1 | raw/notes/agent.md | section:Agent Loop | source states the loop steps | high"],
             synthesis="Agent loop repeats observe, decide, act, and feedback.",
-            key_points=["Observe, decide, act."],
-            tags=["agent", "loop"],
             confidence=0.8,
             model_provider="test",
             model_name="unit",
@@ -49,11 +46,9 @@ class WikiRenderTests(unittest.TestCase):
             page_dir="concepts",
             page_type="concept",
             question="Agent loop",
-            answer="Agent loop repeats observe, decide, act, and feedback.",
+            synthesis="Agent loop repeats observe, decide, act, and feedback.",
             summary="Agent loop is a control pattern.",
             claims=["C1: Agent loop repeats observe, decide, act, and feedback."],
-            key_points=["Observe, decide, act."],
-            tags=["agent", "loop"],
             confidence=0.8,
             model_provider="test",
             model_name="unit",
@@ -62,18 +57,49 @@ class WikiRenderTests(unittest.TestCase):
         with self.assertRaisesRegex(Exception, "require explicit evidence"):
             render_markdown(draft, [], "raw/notes/agent.md", "abc123")
 
+    def test_render_source_digest_includes_attachments(self) -> None:
+        draft = WikiDraft(
+            title="Parsed Paper Source",
+            page_dir="sources",
+            page_type="source",
+            page_kind="source_digest",
+            role="source_digest",
+            question="Parsed Paper",
+            synthesis="Audit record.",
+            summary="Audit record.",
+            evidence=["U1 | raw/documents/paper.pdf | unit:0 | parsed source | high"],
+            attachments=[
+                {
+                    "attachment_type": "image",
+                    "name": "figure-1.png",
+                    "topic": "Agent architecture",
+                    "description": "Architecture figure.",
+                    "relative_path": "images/figure-1.png",
+                    "content_hash": "abcdef1234567890",
+                }
+            ],
+            confidence=0.8,
+            model_provider="test",
+            model_name="unit",
+            source_digest_ids=["sd_test"],
+        )
+
+        content = render_markdown(draft, [], "raw/documents/paper.pdf", "abc123")
+
+        self.assertIn("## Attachments", content)
+        self.assertIn("| Agent architecture | Architecture figure. | images/figure-1.png |", content)
+        self.assertNotIn("abcdef123456", content)
+
     def test_render_markdown_rejects_outer_body_headings(self) -> None:
         draft = WikiDraft(
             title="LLM Wiki",
             page_dir="concepts",
             page_type="concept",
             question="# Source Focus",
-            answer="# Overview\n\n## Details",
+            synthesis="# Overview\n\n## Details",
             summary="## Summary Heading",
             claims=["C1: Invalid headings should be rejected."],
             evidence=["C1 | raw/notes/wiki.md | section:Wiki | source support | high"],
-            key_points=["Point"],
-            tags=["wiki"],
             confidence=0.8,
             model_provider="test",
             model_name="unit",
@@ -88,12 +114,10 @@ class WikiRenderTests(unittest.TestCase):
             page_dir="concepts",
             page_type="concept",
             question="Agent loop",
-            answer="Updated answer.",
+            synthesis="Updated answer.",
             summary="Updated summary.",
             claims=["C1: Updated answer."],
             evidence=["C1 | raw/notes/agent.md | section:Agent | source support | high"],
-            key_points=[],
-            tags=[],
             confidence=0.9,
             model_provider="test",
             model_name="unit",

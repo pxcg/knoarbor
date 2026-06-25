@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -57,6 +57,29 @@ class SourceDigestUnresolvedItem(BaseModel):
         return text
 
 
+class SourceDigestAttachment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    attachment_type: Literal["image", "file", "table", "other"] = "file"
+    name: str = Field(..., min_length=1)
+    topic: str = ""
+    description: str = ""
+    path: str | None = None
+    relative_path: str | None = None
+    mime_type: str | None = None
+    content_hash: str | None = None
+    source: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("source digest attachment name cannot be empty")
+        return text
+
+
 class SourceDigest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -69,6 +92,7 @@ class SourceDigest(BaseModel):
     summary: str = ""
     units: list[SourceDigestUnit] = Field(default_factory=list)
     evidence_spans: list[KnowledgeEvidenceSpan] = Field(default_factory=list)
+    attachments: list[SourceDigestAttachment] = Field(default_factory=list)
     contribution_map: list[SourceDigestContribution] = Field(default_factory=list)
     unresolved_items: list[SourceDigestUnresolvedItem] = Field(default_factory=list)
     confidence: float = Field(default=0.8, ge=0, le=1)
@@ -115,6 +139,7 @@ class SourceDigest(BaseModel):
         return {
             "units": len(self.units),
             "evidence_spans": len(self.evidence_spans),
+            "attachments": len(self.attachments),
             "contributions": len(self.contribution_map),
             "unresolved": len(self.unresolved_items),
         }

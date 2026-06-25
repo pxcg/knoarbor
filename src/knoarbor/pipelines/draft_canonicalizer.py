@@ -49,12 +49,10 @@ class DraftCanonicalizer:
 
         summary = normalize_embedded_body_markdown(draft.summary, "summary")
         question = normalize_embedded_body_markdown(draft.question, "source context")
-        answer = normalize_embedded_body_markdown(draft.answer, "answer")
         synthesis = normalize_embedded_body_markdown(draft.synthesis, "synthesis")
-        if (summary, question, answer, synthesis) != (
+        if (summary, question, synthesis) != (
             draft.summary,
             draft.question,
-            draft.answer,
             draft.synthesis,
         ):
             changes.append("normalized_body_headings")
@@ -80,16 +78,13 @@ class DraftCanonicalizer:
             role=page_role,
             facets=facets,
             question=question,
-            answer=answer,
             summary=summary,
-            definition="",
             claims=claims,
             entities=entities,
             relations=relations,
             evidence=evidence,
             synthesis=synthesis,
-            key_points=[],
-            tags=[],
+            unresolved_items=list(draft.unresolved_items),
             confidence=draft.confidence,
             model_provider=draft.model_provider,
             model_name=draft.model_name,
@@ -111,7 +106,6 @@ class DraftCanonicalizer:
             raise PolicyRejection(f"source_file is a placeholder, not provenance: {source_file}")
         validate_body_markdown(draft.summary, "summary")
         validate_body_markdown(draft.question, "source context")
-        validate_body_markdown(draft.answer, "answer")
         validate_body_markdown(draft.synthesis, "synthesis")
         for claim in draft.claims:
             validate_body_markdown(claim, "claim")
@@ -131,9 +125,7 @@ class DraftCanonicalizer:
     def _canonicalize_patches(self, patches: list[WikiPatchInput], changes: list[str]) -> list[WikiPatchInput]:
         canonical: list[WikiPatchInput] = []
         for patch in patches:
-            section = "Synthesis" if patch.section.strip().lower() == "answer" else patch.section
-            if section != patch.section:
-                changes.append("normalized_patch_section")
+            section = patch.section
             content = patch.content
             heading = patch.heading
             if content:

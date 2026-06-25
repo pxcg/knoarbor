@@ -38,6 +38,8 @@ class KnowledgeAtomClosure:
 def close_operation_atoms(
     batch: KnowledgeAtomBatch,
     operation: WikiPageOperation,
+    *,
+    available_claim_ids: Iterable[str] | None = None,
 ) -> KnowledgeAtomClosure:
     """Derive the deterministic atom closure for one page-plan operation.
 
@@ -49,6 +51,7 @@ def close_operation_atoms(
     claims_by_id = {claim.id: claim for claim in batch.claims}
     relations_by_id = {relation.id: relation for relation in batch.relations}
     selected_claim_ids = _dedupe(operation.selected_claim_ids)
+    available_claim_id_set = set(_dedupe(available_claim_ids or selected_claim_ids))
     explicit_relation_ids = _dedupe(operation.selected_relation_ids)
     issues: list[KnowledgeAtomClosureIssue] = []
 
@@ -79,18 +82,20 @@ def close_operation_atoms(
             )
             continue
         missing_claims = sorted(set(relation.source_claim_ids).difference(selected_claim_ids))
+        unavailable_claims = sorted(set(relation.source_claim_ids).difference(available_claim_id_set))
         if missing_claims:
-            issues.append(
-                KnowledgeAtomClosureIssue(
-                    code="relation_selected_without_source_claim",
-                    atom_id=relation_id,
-                    message=(
-                        f"Selected relation atom {relation_id} references claim atom ids "
-                        f"not selected by the same operation: {', '.join(missing_claims)}."
-                    ),
+            if unavailable_claims:
+                issues.append(
+                    KnowledgeAtomClosureIssue(
+                        code="relation_selected_without_source_claim",
+                        atom_id=relation_id,
+                        message=(
+                            f"Selected relation atom {relation_id} references claim atom ids "
+                            f"not selected by the same page plan: {', '.join(unavailable_claims)}."
+                        ),
+                    )
                 )
-            )
-            continue
+                continue
         selected_relation_ids.append(relation_id)
 
     selected_claims = [claims_by_id[claim_id] for claim_id in selected_claim_ids if claim_id in claims_by_id]
@@ -125,8 +130,14 @@ def close_plan_atoms(
 
     if batch is None:
         return None
+    plan_claim_ids = _dedupe(
+        claim_id
+        for operation in page_plan.operations
+        if operation.action != "skip"
+        for claim_id in operation.selected_claim_ids
+    )
     closures = [
-        close_operation_atoms(batch, operation)
+        close_operation_atoms(batch, operation, available_claim_ids=plan_claim_ids)
         for operation in page_plan.operations
         if operation.action != "skip"
     ]

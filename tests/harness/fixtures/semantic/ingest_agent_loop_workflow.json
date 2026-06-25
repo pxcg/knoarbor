@@ -136,6 +136,7 @@
     "source_digest_id": "sd_test_agent"
   },
   "knowledge_extract": {
+    "attachments": [],
     "compile_context": {
       "latest_unit_indexes": [
         0
@@ -170,6 +171,7 @@
     "warnings": []
   },
   "source_digest": {
+    "attachments": [],
     "confidence": 0.9,
     "content_hash": "d5f063c8ad88ba402fe9b34c35e235479d9a6fb1",
     "contribution_map": [],
@@ -223,17 +225,16 @@
     "batch_summary": "One concept draft.",
     "drafts": [
       {
-        "answer": "Agent Loop is an observe, decide, act, feedback cycle.",
         "atom_ids": [
           "claim_agent_loop_control_pattern",
           "rel_agent_loop_mentions_control"
         ],
+        "attachments": [],
         "canonical_path": "Agent-Loop.md",
         "claims": [
           "C1. [[Agent Loop]] is an observe, decide, act, feedback cycle and a reusable control pattern for agents."
         ],
         "confidence": 0.9,
-        "definition": "Agent Loop is a basic control cycle for agents.",
         "entities": [
           "[[Agent Loop]]",
           "[[Agent Control]]"
@@ -244,9 +245,6 @@
         "facets": [
           "agent_loop",
           "agent_architecture"
-        ],
-        "key_points": [
-          "It includes feedback."
         ],
         "legacy_paths": [
           "concepts/Agent-Loop.md"
@@ -268,12 +266,9 @@
         "subject_kind": "control_pattern",
         "summary": "Agent Loop is a basic control cycle for agents.",
         "synthesis": "Agent Loop is an observe, decide, act, feedback cycle.",
-        "tags": [
-          "agent",
-          "control"
-        ],
         "target_page": null,
         "title": "Agent Loop",
+        "unresolved_items": [],
         "write_action": "create"
       }
     ],

@@ -27,6 +27,7 @@ from knoarbor.maintenance.lint_collection import (
     page_lookup_maps,
     resolve_link,
     resolved_paths_from_links,
+    semantic_adjacency,
 )
 from knoarbor.maintenance.lint_models import LintPage
 from knoarbor.maintenance.lint_rules import (
@@ -206,6 +207,7 @@ def _lint_links(pages: list[LintPage]) -> list[WikiLintIssue]:
     pages_by_relative, pages_by_stem, pages_by_title = page_lookup_maps(pages)
     incoming_links: dict[str, set[str]] = defaultdict(set)
     issues: list[WikiLintIssue] = []
+    adjacency = semantic_adjacency(pages, pages_by_relative, pages_by_stem, pages_by_title)
 
     for page in pages:
         for raw_link in page.links:
@@ -223,7 +225,7 @@ def _lint_links(pages: list[LintPage]) -> list[WikiLintIssue]:
     for page in pages:
         if page.directory == "maintenance":
             continue
-        if page.relative_path not in incoming_links:
+        if page.relative_path not in incoming_links and not adjacency.get(page.relative_path):
             issues.append(_issue("orphan_page", "info", page.relative_path, "No other wiki page links to this page."))
 
     return issues
@@ -231,28 +233,16 @@ def _lint_links(pages: list[LintPage]) -> list[WikiLintIssue]:
 
 def _lint_graph_shape(pages: list[LintPage]) -> list[WikiLintIssue]:
     pages_by_relative, pages_by_stem, pages_by_title = page_lookup_maps(pages)
-    incoming: dict[str, set[str]] = defaultdict(set)
-    outgoing: dict[str, set[str]] = defaultdict(set)
+    adjacency = semantic_adjacency(pages, pages_by_relative, pages_by_stem, pages_by_title)
     issues: list[WikiLintIssue] = []
 
     for page in pages:
-        for raw_link in page.links:
-            target = normalize_link_target(raw_link)
-            resolved = resolve_link(target, pages_by_relative, pages_by_stem, pages_by_title)
-            if len(resolved) != 1:
-                continue
-            target_path = resolved[0].relative_path
-            if target_path == page.relative_path:
-                continue
-            outgoing[page.relative_path].add(target_path)
-            incoming[target_path].add(page.relative_path)
-
-    for page in pages:
-        if (page.is_knowledge_page or page.directory in WEAK_GRAPH_DIRS) and not incoming.get(page.relative_path) and not outgoing.get(page.relative_path):
+        page_edges = adjacency.get(page.relative_path, set())
+        if (page.is_knowledge_page or page.directory in WEAK_GRAPH_DIRS) and not page_edges:
             issues.append(_issue("weak_link_graph", "info", page.relative_path, "Generated knowledge page has no resolved incoming or outgoing wiki links.", {"incoming_count": 0, "outgoing_count": 0}))
 
         related_count = len(extract_wiki_links(extract_section(page.content, "Related Pages")))
-        outgoing_count = len(outgoing.get(page.relative_path, set()))
+        outgoing_count = len(page_edges)
         if related_count > OVERDENSE_RELATED_THRESHOLD or outgoing_count > OVERDENSE_LINK_THRESHOLD:
             issues.append(_issue("overdense_link_graph", "info", page.relative_path, "Page has a dense link graph that may need relationship pruning or section organization.", {"related_count": related_count, "resolved_outgoing_count": outgoing_count, "related_threshold": OVERDENSE_RELATED_THRESHOLD, "outgoing_threshold": OVERDENSE_LINK_THRESHOLD}))
     return issues
@@ -266,17 +256,18 @@ def _lint_source_pages(vault_path: Path, pages: list[LintPage]) -> list[WikiLint
     for page in pages:
         if not page.is_source_digest:
             continue
-        for source in _page_sources(page):
+        for source in page.sources:
             source_digest_by_source[source] = page
     knowledge_pages_by_source: dict[str, list[LintPage]] = defaultdict(list)
     for page in pages:
-        for source in _page_sources(page):
-            if page.is_knowledge_page and source.startswith("raw/"):
+        for source in page.sources:
+            if page.is_knowledge_page and _is_provenance_source_key(source):
                 knowledge_pages_by_source[source].append(page)
 
     for page in pages:
-        sources = _page_sources(page)
+        sources = page.sources
         raw_sources = [source for source in sources if source.startswith("raw/")]
+        provenance_sources = [source for source in sources if _is_provenance_source_key(source)]
         if page.metadata.get("source") and has_section(page.content, "Source"):
             section_sources = extract_list_items(extract_section(page.content, "Source"))
             for source in _metadata_sources(page.metadata.get("source")):
@@ -287,14 +278,14 @@ def _lint_source_pages(vault_path: Path, pages: list[LintPage]) -> list[WikiLint
             for source in raw_sources:
                 if not (vault_path / source).exists():
                     issues.append(_issue("missing_raw_source", "warning", page.relative_path, "Source digest points to a missing raw file.", {"source": source}))
-            expected_knowledge_pages = [item for source in raw_sources for item in knowledge_pages_by_source.get(source, [])]
+            expected_knowledge_pages = [item for source in provenance_sources for item in knowledge_pages_by_source.get(source, [])]
             if not expected_knowledge_pages:
                 related_paths = resolved_paths_from_links(page.links, pages_by_relative, pages_by_stem, pages_by_title)
                 if not related_paths.intersection(knowledge_page_paths):
                     issues.append(_issue("source_without_knowledge_links", "info", page.relative_path, "Source digest does not link to any generated knowledge page."))
             continue
 
-        for source in raw_sources:
+        for source in provenance_sources:
             if not page.is_knowledge_page:
                 continue
             source_digest = source_digest_by_source.get(source)
@@ -304,6 +295,10 @@ def _lint_source_pages(vault_path: Path, pages: list[LintPage]) -> list[WikiLint
     return issues
 
 
+def _is_provenance_source_key(source: str) -> bool:
+    return source.startswith(("raw/", "sd_")) or source.startswith("/")
+
+
 def _metadata_sources(value: object) -> list[str]:
     if isinstance(value, str):
         text = value.strip()
@@ -311,37 +306,6 @@ def _metadata_sources(value: object) -> list[str]:
     if isinstance(value, list):
         return [str(item).strip() for item in value if str(item).strip()]
     return []
-
-
-def _page_sources(page: LintPage) -> list[str]:
-    sources: list[str] = []
-    for source in [
-        *_metadata_sources(page.metadata.get("source")),
-        *_evidence_sources(page.content),
-        *extract_list_items(extract_section(page.content, "Source")),
-        *extract_list_items(extract_section(page.content, "Raw Source")),
-    ]:
-        text = source.strip().strip("`")
-        if text.lower().startswith("raw source:"):
-            text = text.split(":", 1)[1].strip().strip("`")
-        if text and text not in sources:
-            sources.append(text)
-    return sources
-
-
-def _evidence_sources(content: str) -> list[str]:
-    sources: list[str] = []
-    for line in extract_section(content, "Evidence").splitlines():
-        text = line.strip()
-        if not text.startswith("|") or text.startswith("|---") or "Source" in text and "Claim" in text:
-            continue
-        cells = [cell.strip() for cell in text.strip("|").split("|")]
-        if len(cells) < 2:
-            continue
-        source = cells[1]
-        if source and source not in sources:
-            sources.append(source)
-    return sources
 
 
 def _lint_sensitive_content(pages: list[LintPage], config: PrivacyConfig) -> list[WikiLintIssue]:

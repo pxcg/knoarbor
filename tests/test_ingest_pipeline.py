@@ -301,15 +301,12 @@ class SourceOnlySemanticWorkflow(FakeIngestSemanticWorkflow):
                     title="Long Source Digest",
                     page_dir="sources",
                     question="Long source",
-                    answer=f"Segment evidence: {knowledge_extract.compile_context.primary_content[:30]}",
                     summary="Long source digest.",
                     claims=["C1: Source segments describe long source provenance."],
                     entities=["[[Long Source]]"],
                     relations=["[[Long Source]] | has_digest | [[Long Source Digest]] | C1"],
                     evidence=["C1 | source-level | full-source | source digest aggregates segmented input | high"],
                     synthesis="The source digest aggregates segmented source provenance into one audit page.",
-                    key_points=["Source provenance."],
-                    tags=["source"],
                     source_digest_ids=[kwargs["knowledge_atom_batch"].source_digest_id],
                     model_provider="test",
                     model_name="fake",
@@ -369,15 +366,12 @@ class SourceAndConceptSemanticWorkflow(FakeIngestSemanticWorkflow):
                     title="Agent Source Digest",
                     page_dir="sources",
                     question="Agent loop source",
-                    answer="Source digest for agent loop control.",
                     summary="Source digest for agent loop control.",
                     claims=["C1: Source digest documents agent loop control."],
                     entities=["[[Agent Loop]]"],
                     relations=["[[Agent Source]] | includes | [[Agent Loop]] | C1"],
                     evidence=["C1 | raw/source | source-level | source digest support | medium"],
                     synthesis="Source digest for agent loop control.",
-                    key_points=["Source provenance."],
-                    tags=["source", "agent"],
                     source_digest_ids=[kwargs["knowledge_atom_batch"].source_digest_id],
                     model_provider="test",
                     model_name="fake",
@@ -388,15 +382,12 @@ class SourceAndConceptSemanticWorkflow(FakeIngestSemanticWorkflow):
                     title="Agent Loop Control",
                     page_dir="concepts",
                     question="Agent loop source",
-                    answer="Agent loop control repeats observe, decide, act, and feedback.",
                     summary="Agent loop control is a repeated control pattern.",
                     claims=["C1: [[Agent Loop]] control repeats observe, decide, act, and feedback."],
                     entities=["[[Agent Loop]]"],
                     relations=["[[Agent Loop]] | repeats | [[Control Cycle]] | C1"],
                     evidence=["C1 | sd_test | unit:0 | source states the loop cycle | high"],
                     synthesis="Agent loop control repeats observe, decide, act, and feedback.",
-                    key_points=["Observe, decide, act."],
-                    tags=["agent", "loop"],
                     source_digest_ids=[kwargs["knowledge_atom_batch"].source_digest_id],
                     atom_ids=["claim_agent_loop", "rel_agent_loop_control_cycle"],
                     model_provider="test",
@@ -483,15 +474,12 @@ class ScenarioSemanticWorkflow(FakeIngestSemanticWorkflow):
                     title=f"{self.page_dir.title()} Page",
                     page_dir=self.page_dir,
                     question="Scenario question",
-                    answer=f"Scenario answer for {self.page_dir}.",
                     summary=f"Scenario summary for {self.page_dir}.",
                     claims=[f"C1: [[{self.page_dir.title()} Page]] has durable scenario evidence."],
                     entities=[f"[[{self.page_dir.title()} Page]]"],
                     relations=[f"[[{self.page_dir.title()} Page]] | includes | [[Scenario]] | C1"],
                     evidence=["C1 | sd_test | unit:0 | scenario source support | high"],
                     synthesis=f"Scenario answer for {self.page_dir}.",
-                    key_points=[f"{self.page_dir} key point."],
-                    tags=[self.page_dir],
                     source_digest_ids=[kwargs["knowledge_atom_batch"].source_digest_id],
                     atom_ids=[] if self.page_dir == "sources" else ["claim_agent_loop", "rel_agent_loop_control_cycle"],
                     patches=patches,
@@ -631,15 +619,12 @@ class IngestSemanticWorkflowFixtures:
                         title="Agent Loop",
                         page_dir="concepts",
                         question="Agent Loop",
-                        answer="Agent loop repeats observe, decide, act, and feedback.",
                         summary="Agent loop is a control pattern.",
                         claims=["C1: [[Agent Loop]] repeats observe, decide, act, and feedback."],
                         entities=["[[Agent Loop]]"],
                         relations=["[[Agent Loop]] | repeats | [[Control Cycle]] | C1"],
                         evidence=["C1 | test-digest | unit:0 | source states the loop cycle | high"],
                         synthesis="Agent loop repeats observe, decide, act, and feedback.",
-                        key_points=["Observe, decide, act."],
-                        tags=["agent", "loop"],
                         source_digest_ids=["test-digest"],
                         atom_ids=["claim_agent_loop", "rel_agent_loop_control_cycle"],
                         model_provider="test",
@@ -1433,7 +1418,7 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertIn("relation_selected_without_source_claim", source.error_message or "")
         self.assertEqual(source.generated_pages, [])
 
-    def test_relation_update_operation_patches_existing_page(self) -> None:
+    def test_relation_update_operation_rewrites_existing_page_with_structured_schema(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             vault = root / "vaults" / "all"
@@ -1487,7 +1472,10 @@ class IngestPipelineTests(unittest.TestCase):
             content = (vault / "concepts" / "Existing.md").read_text(encoding="utf-8")
 
         self.assertEqual(result.stats["written_count"], 1)
-        self.assertIn("update adds a durable point.", content)
+        self.assertIn("Scenario answer for concepts.", content)
+        self.assertIn("## Claims", content)
+        self.assertIn("## Evidence", content)
+        self.assertNotIn("## Key Points", content)
         self.assertEqual(result.results[0].generated_pages, ["concepts/Existing.md"])
 
     def test_relation_skip_records_semantic_skip_reason_without_writing(self) -> None:

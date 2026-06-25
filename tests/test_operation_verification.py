@@ -256,8 +256,8 @@ class OperationVerificationTest(unittest.TestCase):
                                 "title": "Agent",
                                 "page_dir": "concepts",
                                 "question": "What is Agent?",
-                                "answer": "Agent loop coordinates model reasoning and tool execution.",
                                 "summary": "Agent loop coordinates model reasoning and tool execution.",
+                                "synthesis": "Agent loop coordinates model reasoning and tool execution.",
                                 "patches": [
                                     {
                                         "operation": "replace_section",
@@ -335,8 +335,8 @@ class OperationVerificationTest(unittest.TestCase):
                                 "title": "Agent",
                                 "page_dir": "concepts",
                                 "question": "What is Agent?",
-                                "answer": "Agent summary.",
                                 "summary": "Agent summary.",
+                                "synthesis": "Agent summary.",
                                 "patches": [
                                     {
                                         "operation": "append_section",

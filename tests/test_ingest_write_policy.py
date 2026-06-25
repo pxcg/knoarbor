@@ -39,7 +39,6 @@ def _write_item(title: str, page_dir: str) -> WikiDraftBatchWriteItem:
             title=title,
             page_dir=page_dir,
             question=title,
-            answer=f"{title} answer.",
             summary=f"{title} summary.",
             claims=[f"C1: [[{title}]] is supported by the source."],
             entities=[f"[[{title}]]"],

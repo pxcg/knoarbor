@@ -40,19 +40,15 @@
     "batch_summary": "One draft.",
     "drafts": [
       {
-        "answer": "This source describes Agent Loop.",
         "atom_ids": [],
+        "attachments": [],
         "canonical_path": "sources/Agent-Source-Digest.md",
         "claims": [],
         "confidence": 0.8,
-        "definition": "Source digest for Agent notes.",
         "entities": [],
         "evidence": [],
         "facets": [
           "source_digest"
-        ],
-        "key_points": [
-          "Mentions Agent Loop."
         ],
         "legacy_paths": [],
         "model_name": "unit",
@@ -68,11 +64,9 @@
         "subject_kind": "source_digest",
         "summary": "Source digest for Agent notes.",
         "synthesis": "This source describes Agent Loop.",
-        "tags": [
-          "source-digest"
-        ],
         "target_page": null,
         "title": "Agent Source Digest",
+        "unresolved_items": [],
         "write_action": "create"
       }
     ],

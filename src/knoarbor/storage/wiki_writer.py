@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import difflib
+import re
 from pathlib import Path
 
 from knoarbor.core.errors import PolicyRejection
@@ -29,12 +30,15 @@ TRACKED_WRITE_SECTIONS = (
     "Source Identity",
     "Audit Summary",
     "Source Units",
+    "Attachments",
     "Contribution Map",
     "Unresolved / Rejected",
     "Raw Source",
 )
 
 MAX_WRITE_DIFF_LINES = 320
+STRUCTURED_KNOWLEDGE_SECTIONS = ("Summary", "Claims", "Entities", "Relations", "Evidence", "Synthesis")
+LEGACY_BODY_PATCH_SECTIONS = {"Answer", "Definition", "Source Focus"}
 
 
 def section_changed(before_content: str, after_content: str, heading: str) -> bool:
@@ -163,11 +167,17 @@ def write_draft(
     related_links = find_related_links(vault_path, draft.question, wiki_path) if auto_related_links else []
     page_source_file = display_source_file or source_file
     if target_path and wiki_path.exists():
-        if not draft.patches:
+        structured_rewrite = _structured_rewrite_required(before_content or "", draft, source_file=page_source_file)
+        if not draft.patches and not structured_rewrite:
             raise PolicyRejection(f"{write_action} requires patches[] for target_page: {target_page}")
-        content = apply_patched_markdown(before_content or "", draft, related_links, page_source_file, digest, auto_related_links)
+        if structured_rewrite:
+            content = render_markdown(draft, related_links, page_source_file, digest, created_at=created_at)
+        else:
+            content = apply_patched_markdown(before_content or "", draft, related_links, page_source_file, digest, auto_related_links)
     else:
         content = render_markdown(draft, related_links, page_source_file, digest, created_at)
+
+    _validate_rendered_structured_page(content, draft)
 
     created = not wiki_path.exists()
     if target_path or created:
@@ -216,6 +226,88 @@ def _draft_content_hash(draft: WikiDraft) -> str:
         ]
     )
     return content_hash("wiki_draft_v2", payload)
+
+
+def _structured_rewrite_required(before_content: str, draft: WikiDraft, *, source_file: str | None) -> bool:
+    if draft.page_dir == "sources":
+        return True
+    if draft.page_dir not in {"entities", "concepts", "comparisons", "queries", "timelines", "workflows"}:
+        return False
+    if not source_file:
+        return False
+    if _has_complete_structured_draft(draft):
+        return True
+    if not draft.patches:
+        return True
+    return any(patch.section in LEGACY_BODY_PATCH_SECTIONS for patch in draft.patches)
+
+
+def _has_complete_structured_draft(draft: WikiDraft) -> bool:
+    return bool(
+        draft.summary.strip()
+        and draft.synthesis.strip()
+        and any(item.strip() for item in draft.claims)
+        and any(item.strip() for item in draft.evidence)
+    )
+
+
+def _validate_rendered_structured_page(content: str, draft: WikiDraft) -> None:
+    if draft.page_dir == "sources" or draft.role == "source_digest" or draft.page_kind == "source_digest":
+        return
+    if draft.page_dir not in {"entities", "concepts", "comparisons", "queries", "timelines", "workflows"}:
+        return
+    if not _has_rendered_structured_body(content):
+        return
+    claim_ids = _rendered_claim_ids(content)
+    if not claim_ids:
+        raise PolicyRejection("structured knowledge page must render at least one claim")
+    evidence_claims = _rendered_table_claim_ids(content, "Evidence", first_column_only=True)
+    if not evidence_claims:
+        raise PolicyRejection("structured knowledge page must render at least one evidence row")
+    missing_evidence_claims = sorted(evidence_claims.difference(claim_ids), key=_claim_sort_key)
+    if missing_evidence_claims:
+        raise PolicyRejection(
+            "structured knowledge page evidence references missing claims: "
+            + ", ".join(missing_evidence_claims)
+        )
+    relation_claims = _rendered_table_claim_ids(content, "Relations", first_column_only=False)
+    missing_relation_claims = sorted(relation_claims.difference(claim_ids), key=_claim_sort_key)
+    if missing_relation_claims:
+        raise PolicyRejection(
+            "structured knowledge page relations reference missing claims: "
+            + ", ".join(missing_relation_claims)
+        )
+
+
+def _rendered_claim_ids(content: str) -> set[str]:
+    section = extract_section(content, "Claims")
+    return {
+        f"C{int(match.group(1))}"
+        for match in re.finditer(r"^\s*-\s*C(\d+)\s*:", section, flags=re.MULTILINE)
+    }
+
+
+def _has_rendered_structured_body(content: str) -> bool:
+    return any(extract_section(content, section).strip() for section in ("Claims", "Relations", "Evidence"))
+
+
+def _rendered_table_claim_ids(content: str, heading: str, *, first_column_only: bool) -> set[str]:
+    section = extract_section(content, heading)
+    ids: set[str] = set()
+    for line in section.splitlines():
+        text = line.strip()
+        if not text.startswith("|") or "---" in text or text.lower().startswith("| claim"):
+            continue
+        cells = [cell.strip() for cell in text.strip("|").split("|")]
+        fields = cells[:1] if first_column_only else cells
+        for field in fields:
+            for claim_id in re.findall(r"\bC(\d+)\b", field, flags=re.IGNORECASE):
+                ids.add(f"C{int(claim_id)}")
+    return ids
+
+
+def _claim_sort_key(claim_id: str) -> int:
+    return int(claim_id[1:]) if claim_id.startswith("C") and claim_id[1:].isdigit() else 0
 
 
 def _draft_with_resolved_identity(vault_path: Path, draft: WikiDraft, wiki_path: Path) -> WikiDraft:

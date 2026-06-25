@@ -26,10 +26,12 @@ Use the same `wiki_draft_batch.v1` output shape as ingest draft compilation:
         "title": "page title",
         "page_dir": "sources | entities | concepts | comparisons | queries | timelines | workflows",
         "question": "maintenance focus",
-        "answer": "page body for create, or new material for update/merge",
         "summary": "short summary",
-        "key_points": [],
-        "tags": [],
+        "synthesis": "page synthesis for create, or new material for update/merge",
+        "claims": [],
+        "entities": [],
+        "relations": [],
+        "evidence": [],
         "patches": [
           {
             "operation": "append_section | replace_section | merge_list",
@@ -67,6 +69,6 @@ Use the same `wiki_draft_batch.v1` output shape as ingest draft compilation:
   - `heading`: optional subsection heading or `null`.
   - `max_items`: optional integer cap, `0`, or `null`.
 - Never output JSON Patch fields such as `op`, `path`, `value`, `add`, `replace`, or JSON Pointer paths. They are invalid for this contract.
-- `answer` must not contain YAML frontmatter, H1 titles, full page Markdown wrappers, or raw source dumps.
+- `synthesis` must not contain YAML frontmatter, H1 titles, full page Markdown wrappers, or raw source dumps.
 - Do not patch raw files, `index.md`, `log.md`, or maintenance reports.
 - Preserve uncertainty and do not invent citations, source facts, or external verification.

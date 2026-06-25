@@ -5,6 +5,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from knoarbor.maintenance.lint_collection import collect_pages, page_lookup_maps, semantic_adjacency
 from knoarbor.storage import ensure_machine_index, machine_index_dir
 
 
@@ -100,7 +101,7 @@ def build_wiki_graph(vault_path: Path) -> WikiGraph:
             )
         )
 
-    seen_edges: set[tuple[str, str]] = set()
+    seen_edges: set[tuple[str, str, str]] = set()
     for link in link_records:
         source = str(link.get("source") or "")
         target = str(link.get("target_path") or "")
@@ -108,11 +109,19 @@ def build_wiki_graph(vault_path: Path) -> WikiGraph:
             continue
         if source not in page_ids or target not in page_ids:
             continue
-        edge_key = (source, target)
-        if edge_key in seen_edges:
+        edge_key = _edge_key(source, target)
+        if (*edge_key, "wikilink") in seen_edges:
             continue
-        seen_edges.add(edge_key)
+        seen_edges.add((*edge_key, "wikilink"))
         edges.append(WikiGraphEdge(source=source, target=target))
+
+    semantic_edges = _semantic_page_edges(vault_path, page_ids)
+    for source, target in semantic_edges:
+        edge_key = _edge_key(source, target)
+        if any(item[0] == edge_key[0] and item[1] == edge_key[1] for item in seen_edges):
+            continue
+        seen_edges.add((*edge_key, "semantic"))
+        edges.append(WikiGraphEdge(source=source, target=target, kind="semantic"))
 
     connected = {edge.source for edge in edges} | {edge.target for edge in edges}
     stats = WikiGraphStats(
@@ -136,3 +145,19 @@ def _read_json(path: Path) -> dict[str, object]:
 
 def _metadata_text(value: object) -> str | None:
     return value if isinstance(value, str) and value else None
+
+
+def _edge_key(source: str, target: str) -> tuple[str, str]:
+    return (source, target) if source <= target else (target, source)
+
+
+def _semantic_page_edges(vault_path: Path, page_ids: set[str]) -> list[tuple[str, str]]:
+    pages = [page for page in collect_pages(vault_path) if page.relative_path in page_ids]
+    pages_by_relative, pages_by_stem, pages_by_title = page_lookup_maps(pages)
+    adjacency = semantic_adjacency(pages, pages_by_relative, pages_by_stem, pages_by_title)
+    edges: list[tuple[str, str]] = []
+    for source, targets in adjacency.items():
+        for target in targets:
+            if source < target:
+                edges.append((source, target))
+    return edges

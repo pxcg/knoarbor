@@ -17,10 +17,8 @@ class DraftCanonicalizerTests(unittest.TestCase):
             title="LLM-Wiki.md",
             page_dir="sources",
             question="# Source Context",
-            answer="# Overview\n\n## Details",
+            synthesis="# Overview\n\n## Details",
             summary="## Summary",
-            key_points=["Point"],
-            tags=["Knowledge Management"],
             confidence=0.8,
             model_provider="test",
             model_name="unit",
@@ -32,28 +30,23 @@ class DraftCanonicalizerTests(unittest.TestCase):
         self.assertEqual(result.draft.page_kind, "source_digest")
         self.assertEqual(result.draft.subject_kind, "source_digest")
         self.assertEqual(result.draft.question, "### Source Context")
-        self.assertIn("### Overview", result.draft.answer)
-        self.assertEqual(result.draft.tags, [])
+        self.assertIn("### Overview", result.draft.synthesis)
         self.assertIn("normalized_title", result.changes)
         self.assertIn("normalized_body_headings", result.changes)
 
-    def test_legacy_fields_do_not_backfill_claims_or_facets(self) -> None:
+    def test_identity_facets_do_not_backfill_claims(self) -> None:
         draft = WikiDraftInput(
             title="Agent Loop",
             page_dir="concepts",
             question="Agent Loop",
-            answer="Agent loop repeats reasoning and tool use.",
+            synthesis="Agent loop repeats reasoning and tool use.",
             summary="Agent loop is a control pattern.",
-            key_points=["Legacy point should not become a claim."],
-            tags=["Legacy Tag"],
             facets=["agent-control"],
         )
 
         result = DraftCanonicalizer().canonicalize_draft(draft, source_file="raw/notes/agent.md", write_action="create")
 
         self.assertEqual(result.draft.claims, [])
-        self.assertEqual(result.draft.key_points, [])
-        self.assertEqual(result.draft.tags, [])
         self.assertIn("agent_control", result.draft.facets)
         self.assertNotIn("legacy_tag", result.draft.facets)
 
@@ -62,7 +55,7 @@ class DraftCanonicalizerTests(unittest.TestCase):
             title="Agent Loop",
             page_dir="concepts",
             question="Agent Loop",
-            answer="Agent loop repeats reasoning and tool use.",
+            synthesis="Agent loop repeats reasoning and tool use.",
             summary="Agent loop is a control pattern.",
             source_digest_ids=[" sd_agent ", "sd_agent"],
             atom_ids=["fact_agent_loop", " fact_agent_loop "],
@@ -78,7 +71,7 @@ class DraftCanonicalizerTests(unittest.TestCase):
             title="LLM Wiki",
             page_dir="concepts",
             question="LLM Wiki",
-            answer="Body",
+            synthesis="Body",
             summary="Summary",
         )
 
@@ -90,7 +83,7 @@ class DraftCanonicalizerTests(unittest.TestCase):
             title="Deploy",
             page_dir="workflows",
             question="Rewrite workflow steps",
-            answer="Body",
+            synthesis="Body",
             summary="Summary",
             patches=[
                 {

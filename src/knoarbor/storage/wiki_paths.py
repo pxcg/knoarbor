@@ -34,7 +34,7 @@ def content_root(vault_path: Path) -> Path:
 
 
 def source_digest_root(vault_path: Path) -> Path:
-    return vault_path.expanduser().resolve() / SOURCE_DIGEST_ROOT_DIR
+    return content_root(vault_path) / SOURCE_DIGEST_ROOT_DIR
 
 
 def is_pages_layout(vault_path: Path) -> bool:

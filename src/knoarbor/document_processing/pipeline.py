@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from fnmatch import fnmatch
 
 from knoarbor.core.config import KnoArborConfig
 from knoarbor.core.errors import DocumentPreprocessorUnavailable, SourceNotFound
@@ -43,14 +44,28 @@ class DocumentProcessingPipeline:
             stats={"item_count": 1, "processed_count": 1, "skipped_count": 0, "failed_count": 0},
         )
 
-    def prepare_input_folder(self, config: KnoArborConfig, input_path: Path, *, recursive: bool = True) -> tuple[list[Path], DocumentProcessingResult]:
+    def prepare_input_folder(
+        self,
+        config: KnoArborConfig,
+        input_path: Path,
+        *,
+        recursive: bool = True,
+        markdown_only: bool = False,
+    ) -> tuple[list[Path], DocumentProcessingResult]:
         root = input_path.expanduser().resolve()
         if not root.exists() or not root.is_dir():
             raise SourceNotFound(f"Ingest input folder does not exist: {root}")
 
         files = _discover_folder_files(root, recursive=recursive)
         markdown_paths = [path for path in files if is_markdown_file(path)]
-        rich_files = [path for path in files if not is_markdown_file(path)]
+        if markdown_only:
+            return sorted(set(markdown_paths)), _empty_processing_result()
+
+        rich_files = [
+            path
+            for path in files
+            if not is_markdown_file(path) and _matches_any_pattern(path, config.document_processing.mineru.patterns)
+        ]
         if not rich_files:
             return markdown_paths, _empty_processing_result()
 
@@ -112,3 +127,10 @@ def _is_hidden_path(root: Path, path: Path) -> bool:
     except ValueError:
         return False
     return any(part.startswith(".") for part in relative.parts)
+
+
+def _matches_any_pattern(path: Path, patterns: list[str]) -> bool:
+    if not patterns:
+        return False
+    name = path.name
+    return any(fnmatch(name, pattern) for pattern in patterns)

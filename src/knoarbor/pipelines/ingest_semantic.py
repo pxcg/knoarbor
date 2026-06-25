@@ -120,6 +120,7 @@ class IngestSemanticRunner:
                     "digest_id": source_digest.digest_id,
                     "summary": source_digest.summary_counts(),
                 },
+                "attachments": {"count": len(source_digest.attachments)},
                 "knowledge_atoms": knowledge_atom_quality.summary(),
                 "knowledge_atom_quality": knowledge_atom_quality.model_dump(),
             },

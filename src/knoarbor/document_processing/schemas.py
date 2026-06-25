@@ -13,6 +13,7 @@ class DocumentProcessingItem(BaseModel):
     reason: str
     error_type: str | None = None
     error_message: str | None = None
+    attachments: list[dict[str, object]] = Field(default_factory=list)
 
 
 class DocumentProcessingResult(BaseModel):

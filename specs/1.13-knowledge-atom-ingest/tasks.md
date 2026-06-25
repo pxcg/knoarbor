@@ -9,13 +9,13 @@ so progress does not depend on conversation context.
 | Step | Boundary | Status | Owner / Output | Notes |
 | --- | --- | --- | --- | --- |
 | 1 | Source Input | Frozen | Connectors, document processors, `SourceDocument`, checkpoint identity | Raw materials become normalized source documents with source identity, raw state, fingerprint, stable session raw indexes, and checkpoint windows. |
-| 2 | Source Segmentation + Source Unitization | Frozen / Unitization Planned | `SourceSegmenter`, planned deterministic unitizer | Segmentation splits long sources for budget. Unitization produces source-native evidence spans for source digests and atoms. Neither boundary decides page boundaries or writes. |
+| 2 | Source Segmentation + Source Unitization | Frozen | `SourceSegmenter`, `SourceUnitizer` | Segmentation splits long sources for budget. Unitization produces source-native evidence spans for source digests and atoms. Neither boundary decides page boundaries or writes. |
 | 3 | Segment-level Semantic Extraction | Frozen | `source_normalize`, `wiki_atom_extract`, `knowledge_atoms.v2` | Extract claims, entities, relations, and evidence from each source or segment. This is where claims are created. |
 | 4 | Source-level Aggregation | Frozen | `AggregatedSemanticArtifacts` | Merge segment extracts, remap evidence ranges, deduplicate atoms, rebuild source-level digest audit data, and emit source-level atom quality. |
 | 5 | Page Planning | Frozen | `WikiPagePlan` | Decide create/update/skip and select claim ids per page. It should not retrieve, write, or assemble page bodies. |
 | 6 | Claim / Relation / Evidence Closure | Frozen | `knowledge_atom_closure` | Given selected claims, deterministically close supported relations, entities, evidence, and source digest traces. |
 | 7 | Page Assembly / Draft Compile | Frozen | `PageAssemblyService` + page-local prose generation | Assemble identity, claims, relations, entities, evidence, and Markdown skeleton deterministically; use LLM mainly for summary, synthesis, and safe update prose. |
-| 8 | Review / Write Gate | Partial | `IngestWriteGate`, draft review agent | Split deterministic write gate from semantic review and make review conditional on risk signals. |
+| 8 | Review / Write Gate | Frozen | `IngestWriteGate`, draft review agent, ingest report renderer | Deterministic write gate is separate from semantic review; semantic review is conditional on risk signals, and reports expose both decisions independently. |
 | 9 | Write / Report / Index | Frozen | `IngestPostProcessor`, `WikiWritePipeline`, atom index, graph/manifest reports | Persist approved pages, refresh indexes, run scoped maintenance, commit checkpoints, and emit reports without creating new semantic decisions. |
 
 Step 2 has one implemented boundary and one frozen implementation target:
@@ -27,10 +27,11 @@ Step 2 has one implemented boundary and one frozen implementation target:
 
 Segmentation is an execution and budget boundary. Unitization is an evidence and
 audit boundary. The detailed contract is frozen in
-[Source Unitization Boundary](source-unitization-boundary.md). Current code
-still relies on semantic source normalization for some unit boundaries; the next
-implementation task is to move source-type unit boundaries into deterministic
-code according to the frozen matrix.
+[Source Unitization Boundary](source-unitization-boundary.md). Source-type unit
+boundaries are produced by deterministic code and then passed to source
+normalization as the evidence contract. Remaining matrix entries, such as
+image OCR region units, are explicit future source-type extensions rather than
+semantic-agent responsibilities.
 
 Step 3 is frozen as four named substeps. Use these names in code review,
 implementation notes, and future SDD updates:
@@ -143,6 +144,9 @@ reports must preserve generated page paths even if a later index step fails.
   `SourceDigest`.
 - [x] Update source digest report payloads without changing existing page
   output.
+- [x] Add rich-document attachment boundary: source digest Markdown displays
+  only topic, description, and path, while sidecar metadata keeps raw image
+  extraction, page regions, MIME type, and hashes.
 
 ## P1A Source Unitization Boundary
 
@@ -167,6 +171,18 @@ reports must preserve generated page paths even if a later index step fails.
 - [x] Add report fields for source unit count, unitization rule, fallback rule,
   and unitization warnings.
 - [x] Add tests proving segment count and source unit count can differ.
+
+## P1B Rich Document Attachments
+
+- [x] Materialize MinerU native response images from base64 payloads into
+  generated Markdown `images/` folders.
+- [x] Record image attachments in `*.attachments.json` sidecars.
+- [x] Preserve MinerU image caption, raw extracted content, subtype, page index,
+  and bounding box in attachment metadata.
+- [x] Keep source digest and wiki Markdown attachment views compact:
+  `Topic | Description | Path`.
+- [x] Prevent raw Mermaid/OCR/model output from being inlined into default wiki
+  page bodies.
 
 ## P2 Atom Extraction
 
@@ -237,7 +253,7 @@ reports must preserve generated page paths even if a later index step fails.
   scaffolds, not source digest audit pages or broad source text.
 - [x] Make semantic draft review conditional on update, conflict, duplicate,
   weak evidence, low-confidence, or structural-risk signals.
-- [ ] Separate deterministic gate decisions and semantic review decisions in
+- [x] Separate deterministic gate decisions and semantic review decisions in
   ingest reports.
 
 ## Deferred

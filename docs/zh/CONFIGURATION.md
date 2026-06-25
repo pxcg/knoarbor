@@ -257,14 +257,20 @@ document_processing:
       return_middle_json: false
       return_model_output: false
       return_content_list: false
-      return_images: false
+      return_images: true
       response_format_zip: false
 ```
 
 MinerU 只负责把 PDF/DOCX/PPTX 等富文档转换为 Markdown；最终仍由 `markdown` 输入来源读取转换结果并进入知识编译。
 
+当 MinerU 输出图片时，KnoArbor 会在生成的 Markdown 旁边写入
+`*.attachments.json` 附件清单。Markdown connector 也会扫描正文里的图片链接，
+例如 `![figure](images/a.png)`。进入 ingest 后，这些附件会写入 source
+digest 审计页的 `## Attachments` 章节，并以紧凑表格展示 topic、description
+和 path。MIME type、内容 hash、页码、bbox、MinerU 原始图片解析结果等完整审计字段保留在 sidecar metadata 中。图片二进制不会发送给语义模型。
+
 管理界面默认只展示 MinerU 服务地址。只有当你的 MinerU 部署需要切换
-`pipeline`、`vlm-auto-engine`、`hybrid-auto-engine` 等后端、调整
+`pipeline`、`vlm-engine`、`hybrid-engine`、`vlm-http-client`、`hybrid-http-client` 等后端、调整
 `parse_method`、文件匹配规则或额外 multipart 字段时，再展开高级配置修改。
 
 KnoArbor 不内置、不分发 MinerU 运行时、模型权重或素材。如果启用该 adapter，需要用户自行安装并运行 MinerU，同时遵守 MinerU 自身的许可和署名要求。KnoArbor 这里只与 MinerU 兼容 HTTP 端点交互。

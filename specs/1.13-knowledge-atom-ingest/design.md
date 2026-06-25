@@ -72,6 +72,10 @@ Responsibilities:
 - expose the structured inputs needed by the source digest Markdown view:
   source identity, audit summary, source units, contribution map placeholders,
   unresolved/rejected items, and raw source pointers.
+- expose rich-document attachments as audit references. For image attachments,
+  the Markdown view keeps only `topic`, `description`, and `path`; page number,
+  bounding box, MIME type, content hash, and raw VLM/OCR extraction remain in
+  attachment sidecars and machine metadata.
 
 Source digest Markdown is a view. It is not the only storage shape.
 
@@ -147,8 +151,8 @@ Responsibilities:
 - source digest audit pages are code-generated provenance views from source
   units, selected atoms, write results, warnings, and raw pointers. They are
   not compiled by the page draft agent;
-- keep legacy `answer` as a schema compatibility input that maps to
-  `Synthesis`, not as the primary knowledge boundary;
+- use `Synthesis` directly for readable prose. Ingest drafts expose no separate
+  prose transport field;
 - attach source digest ids and atom ids in frontmatter or report metadata;
 - reject page statements that cannot be linked to source evidence or approved
   atoms.
@@ -229,6 +233,13 @@ Section boundaries:
 - Derived navigation such as related pages, tags, facets, or views belongs in
   machine indexes and frontend projections, not in the canonical Markdown page
   body.
+- Rich-document images are attachments, not ordinary claims. A page may show an
+  attachment topic, a short human-readable description, and the relative image
+  path. Raw image extraction such as Mermaid, OCR text, model output, page
+  coordinates, MIME type, and hashes stay outside the readable page body in
+  sidecar metadata. Image-derived claims are allowed only when the image is the
+  primary or only evidence for a maintained statement, and such evidence must
+  be explicitly marked as image-backed.
 
 ### Source Digest Boundary
 
@@ -299,7 +310,7 @@ should make unsupported expansion visible.
 - A fixed full-section Markdown template for every page. This makes short
   sources look complete when evidence is thin and encourages unsupported
   expansion.
-- Treating `Synthesis` or legacy `Answer` prose as the durable knowledge boundary.
+- Treating `Synthesis` prose as the durable knowledge boundary.
   Readable prose remains a projection over claims, relations, and evidence.
 - Treating source-side context as the page subject. Source context belongs in
   source digests and evidence mappings; page identity, claims, entities, and

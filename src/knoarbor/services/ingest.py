@@ -48,6 +48,7 @@ class IngestService:
                 max_tokens=config.models.resolve_max_tokens(request.provider, request.max_tokens),
                 write_report=request.write_report,
                 append_ledger=request.append_ledger,
+                force_reprocess=request.force_reprocess,
             )
         except Exception as exc:
             _write_failure_artifacts(request, exc, config=config)
@@ -99,6 +100,7 @@ class IngestService:
                 write_report=request.write_report,
                 append_ledger=request.append_ledger,
                 document_processing_result=processing_result,
+                force_reprocess=request.force_reprocess,
             )
         except Exception as exc:
             _write_failure_artifacts(request, exc, config=config)
@@ -112,6 +114,7 @@ class IngestService:
                 config,
                 Path(request.input_path),
                 recursive=request.recursive,
+                markdown_only=_is_markdown_only_folder_request(request),
             )
             folder_config = _markdown_files_config(config, markdown_paths)
             pipeline = _build_ingest_pipeline(folder_config, request.provider)
@@ -123,6 +126,7 @@ class IngestService:
                 write_report=request.write_report,
                 append_ledger=request.append_ledger,
                 document_processing_result=processing_result,
+                force_reprocess=request.force_reprocess,
             )
         except Exception as exc:
             _write_failure_artifacts(request, exc, config=config)
@@ -183,3 +187,8 @@ def _markdown_files_config(config: KnoArborConfig, markdown_paths: list[Path]) -
         )
     }
     return config.model_copy(update={"connectors": connectors, "document_processing": document_processing})
+
+
+def _is_markdown_only_folder_request(request: IngestFolderRunRequest) -> bool:
+    requested = set(request.connector_names or [])
+    return requested == {"markdown"}

@@ -29,6 +29,17 @@ class IngestWriteGateTests(unittest.TestCase):
 
         self.assertTrue(gate.passed, [issue.model_dump() for issue in gate.issues])
 
+    def test_knowledge_page_claim_ids_follow_rendered_order_not_model_prefixes(self) -> None:
+        result = _semantic_result_with_renumbered_claim_mismatch()
+        gate = IngestWriteGate().validate(
+            result,
+            [0],
+            candidate_page_context=IngestCandidatePageContext(pages=[], stats={}),
+        )
+
+        self.assertFalse(gate.passed)
+        self.assertIn("evidence_without_claim", {issue.code for issue in gate.issues})
+
 
 def _semantic_result_with_source_draft() -> IngestSemanticWorkflowResult:
     return IngestSemanticWorkflowResult(
@@ -81,7 +92,6 @@ def _semantic_result_with_source_draft() -> IngestSemanticWorkflowResult:
                     title="Memory Source",
                     page_dir="sources",
                     question="Memory Source",
-                    answer="Source audit page.",
                     summary="Source audit page.",
                     claims=[],
                     entities=[],
@@ -93,6 +103,73 @@ def _semantic_result_with_source_draft() -> IngestSemanticWorkflowResult:
                 )
             ],
             batch_summary="One source draft.",
+        ),
+        ingest_draft_review=IngestDraftReview(
+            decisions=[_make_review(0)],
+            batch_decision="approve",
+            summary="Approved.",
+        ),
+    )
+
+
+def _semantic_result_with_renumbered_claim_mismatch() -> IngestSemanticWorkflowResult:
+    source = KnowledgeSource(
+        source_type="markdown",
+        source_app="markdown",
+        source_id="markdown:agent",
+        source_path="raw/notes/agent.md",
+        title="Agent",
+    )
+    return IngestSemanticWorkflowResult(
+        knowledge_extract=KnowledgeExtract(
+            source=source,
+            content_units=[ContentUnit(index=0, unit_type="note", role="note", content="Agent loop.")],
+            compile_context=CompileContext(primary_content="Agent loop."),
+        ),
+        source_digest=SourceDigest(
+            digest_id="sd_agent",
+            source=source,
+            raw_source="raw/notes/agent.md",
+            content_hash="abc",
+            source_focus="Agent",
+            summary="Agent loop.",
+        ),
+        knowledge_atom_batch=KnowledgeAtomBatch(source_digest_id="sd_agent"),
+        knowledge_atom_quality=None,
+        wiki_page_plan=WikiPagePlan(
+            operations=[
+                WikiPageOperation(
+                    action="create",
+                    page_dir="concepts",
+                    title="Agent Loop",
+                    knowledge_object="Agent Loop",
+                    selected_claim_ids=["claim_agent_loop"],
+                    source_digest_ids=["sd_agent"],
+                    decision_reason="Create knowledge page.",
+                )
+            ],
+            overall_summary="Create knowledge page.",
+        ),
+        wiki_draft_batch=WikiDraftBatch(
+            drafts=[
+                WikiDraftBatchItem(
+                    operation_index=0,
+                    write_action="create",
+                    source_file="raw/notes/agent.md",
+                    title="Agent Loop",
+                    page_dir="concepts",
+                    question="Agent Loop",
+                    summary="Agent loop summary.",
+                    claims=["C13: [[Agent Loop]] repeats observe and act."],
+                    entities=["[[Agent Loop]]"],
+                    relations=["[[Agent Loop]] | repeats | [[Control Cycle]] | C1"],
+                    evidence=["C13 | sd_agent | unit:0 | source support | high"],
+                    synthesis="Agent loop synthesis.",
+                    source_digest_ids=["sd_agent"],
+                    atom_ids=["claim_agent_loop"],
+                )
+            ],
+            batch_summary="One knowledge draft.",
         ),
         ingest_draft_review=IngestDraftReview(
             decisions=[_make_review(0)],

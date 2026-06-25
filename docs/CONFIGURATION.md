@@ -410,16 +410,26 @@ document_processing:
       return_middle_json: false
       return_model_output: false
       return_content_list: false
-      return_images: false
+      return_images: true
       response_format_zip: false
 ```
 
 MinerU is intentionally not listed as a source connector. It prepares Markdown;
 the source connector that compiles the result is still `markdown`.
 
+When MinerU outputs images, KnoArbor records them as source attachments next to
+the generated Markdown using a `*.attachments.json` sidecar. The Markdown
+connector also scans Markdown image links such as `![figure](images/a.png)`.
+During ingest, those attachments are copied into the source digest audit page
+under `## Attachments` as a compact readable table with topic, description, and
+path. Full audit fields such as MIME type, content hash, page index, bounding
+box, and raw MinerU image extraction remain in the sidecar metadata. Image bytes
+are not sent to the semantic model.
+
 The management UI keeps only the endpoint visible by default. Use the folded
 advanced section when your MinerU deployment needs a different backend such as
-`pipeline`, `vlm-auto-engine`, or `hybrid-auto-engine`, a different
+`pipeline`, `vlm-engine`, `hybrid-engine`, `vlm-http-client`, or
+`hybrid-http-client`, a different
 `parse_method`, custom file patterns, or extra multipart fields.
 
 KnoArbor does not vendor or redistribute the MinerU runtime, model weights, or
