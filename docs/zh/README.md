@@ -28,6 +28,7 @@
 - [溯源设计](PROVENANCE_DESIGN.md)：原始资料、来源摘要和知识页面之间的证据链。
 - [备份与恢复](BACKUP_AND_RECOVERY.md)：运行时知识库备份、git 恢复边界和索引重建。
 - [功能规格](../../specs/README.md)：多步骤架构或契约变更的需求、设计、任务和验收记录。
+- [桌面端规格](../../specs/1.15-desktop-app/requirements.zh-CN.md)：Electron 桌面壳、内置 Python 服务、应用数据目录、日志和内网更新架构。
 
 ## 参考
 
@@ -35,6 +36,7 @@
 - [维护者指南](MAINTAINERS.md)：长期分支、架构、兜底、兼容性和发布治理。
 - [测试与质量门禁](TESTING.md)：单元测试、前端冒烟、发布检查和真实模型冒烟边界。
 - [发布前审查清单](RELEASE_CHECKLIST.md)：公开发布前的仓库、隐私、测试、文档、UI 和发布门禁。
+- [v2.0.0 发布说明](../releases/v2.0.0.md)：桌面端和 ingest 升级版本说明。
 - [v1.3.0 发布说明](releases/v1.3.0.md)：Wiki 优先对话、页面级检索、多知识库工作区和模型配置版本说明。
 - [v1.2.1 发布说明](../releases/v1.2.1.md)：模型端点检测和本地供应商配置版本说明。
 - [v1.2.0 发布说明](../releases/v1.2.0.md)：多知识库配置和 Skill 集成版本说明。

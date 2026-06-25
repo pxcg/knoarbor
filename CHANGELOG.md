@@ -4,15 +4,28 @@ All notable public changes to KnoArbor will be documented in this file.
 
 This project follows a simple release-note format for public releases.
 
-## Unreleased
+## 2.0.0 - 2026-06-25
+
+### Added
+
+- Added the first-class Electron desktop app surface, with managed service lifecycle, native menus, diagnostics, and app-data oriented startup behavior.
+- Added document preprocessing support for richer ingest sources through the MinerU adapter.
 
 ### Changed
 
-- Tightened chat tool-planning and answer-synthesis prompts so chat answers
-  prefer sufficient page evidence, avoid redundant searches, and answer before
-  offering follow-up pages.
-- Clarified branch and release discipline for keeping `main` aligned to public
-  version tags while active work continues on `dev`.
+- Upgraded ingest planning, source digests, draft canonicalization, write gates, and report generation to support the desktop release and richer document flows.
+- Refined the React console for the desktop shell and refreshed navigation, settings, run, wiki, and report surfaces.
+- Synchronized package and runtime version metadata for the 2.0.0 release line.
+
+### Validation
+
+- `scripts/dev-check.sh`
+- `scripts/release-readiness.py`
+- `scripts/clean-clone-smoke.sh`
+
+## Unreleased
+
+Planned changes for the next release will be listed here.
 
 ## 1.3.0 - 2026-06-15
 

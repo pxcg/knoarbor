@@ -31,6 +31,8 @@ env/
 htmlcov/
 eval_results/
 tmp/
+output/
+notebooks/tmp.md
 dist/
 build/
 *.egg-info/

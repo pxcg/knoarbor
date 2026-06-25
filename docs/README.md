@@ -26,12 +26,14 @@ Chinese documentation lives in [zh/](zh/). This documentation tree is intended f
 - [Provenance Design](PROVENANCE_DESIGN.md): source chain semantics across raw sources, source digests, and knowledge pages.
 - [Backup And Recovery](BACKUP_AND_RECOVERY.md): runtime vault backup, git recovery boundaries, and safe index rebuilds.
 - [Feature Specs](../specs/README.md): spec-driven requirements, design, tasks, and verification for multi-step architecture or contract changes.
+- [Desktop App Spec](../specs/1.15-desktop-app/requirements.md): Electron desktop surface, packaged Python service, app-data, logs, and intranet update architecture.
 
 ## Operations
 
 - [Release Preflight Checklist](RELEASE_CHECKLIST.md): repository, privacy, tests, docs, UI, and release gates before tagging.
 - [Testing And Quality Gates](TESTING.md): unit tests, frontend smoke, release checks, and live model smoke boundaries.
 - [Changelog](../CHANGELOG.md): public release notes.
+- [v2.0.0 Release Notes](releases/v2.0.0.md): desktop app and ingest upgrade release content.
 - [v1.3.0 Release Notes](releases/v1.3.0.md): wiki-first chat, page-first retrieval, multi-vault workspace, and model configuration release content.
 - [v1.2.1 Release Notes](releases/v1.2.1.md): model endpoint detection and local provider configuration release content.
 - [v1.2.0 Release Notes](releases/v1.2.0.md): multi-vault configuration and skill integration release content.
