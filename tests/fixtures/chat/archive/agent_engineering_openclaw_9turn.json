@@ -10,17 +10,17 @@
       "question": "Agent 系统中的 Agent Loop 到底是什么？它和普通 Workflow 的本质区别是什么？",
       "expected_pages": [
         "sources/Agent-Loop-Source.md",
-        "concepts/Agent-Infrastructure-Harness,-Context-Engineerin.md",
-        "concepts/Multi-Agent-Orchestration-and-Planning.md"
+        "Agent-Infrastructure-Harness,-Context-Engineerin.md",
+        "Multi-Agent-Orchestration-and-Planning.md"
       ]
     },
     {
       "turn": 2,
       "question": "如果一个 Agent Loop 要从 demo 走向生产环境，最关键的工程模块有哪些？请按执行、工具、上下文、记忆和监控几个方面组织回答。",
       "expected_pages": [
-        "concepts/Agent-Infrastructure-Harness,-Context-Engineerin.md",
-        "concepts/Agent-Evaluation-and-Observability.md",
-        "concepts/Conversational-Memory-Strategies-and-Storage-for.md",
+        "Agent-Infrastructure-Harness,-Context-Engineerin.md",
+        "Agent-Evaluation-and-Observability.md",
+        "Conversational-Memory-Strategies-and-Storage-for.md",
         "sources/Agent-Loop-Source.md"
       ]
     },
@@ -28,26 +28,26 @@
       "turn": 3,
       "question": "这里面的 Memory 系统应该怎么设计？短期对话记忆、长期记忆、候选记忆和工具输出摘要应该如何分层？",
       "expected_pages": [
-        "concepts/Conversational-Memory-Strategies-and-Storage-for.md",
+        "Conversational-Memory-Strategies-and-Storage-for.md",
         "sources/Memory-Source-Digest.md",
-        "concepts/Agent-Infrastructure-Harness,-Context-Engineerin.md"
+        "Agent-Infrastructure-Harness,-Context-Engineerin.md"
       ]
     },
     {
       "turn": 4,
       "question": "如果用户的问题类型很多，比如查资料、执行工具、分析表格、调外部系统，这时意图识别和多路由调度应该放在 Agent Loop 的哪个位置？",
       "expected_pages": [
-        "concepts/意图识别与多路由调度.md",
+        "意图识别与多路由调度.md",
         "sources/意图识别与多路由调度-Source-Digest.md",
-        "concepts/Multi-Agent-Orchestration-and-Planning.md"
+        "Multi-Agent-Orchestration-and-Planning.md"
       ]
     },
     {
       "turn": 5,
       "question": "MCP 在这个系统里应该承担什么角色？它和 JSON-RPC、普通 HTTP API、内部工具调用之间是什么关系？",
       "expected_pages": [
-        "concepts/Model-Context-Protocol-(MCP).md",
-        "concepts/JSON-RPC-2.0.md",
+        "Model-Context-Protocol-(MCP).md",
+        "JSON-RPC-2.0.md",
         "sources/MCP-Source.md"
       ]
     },
@@ -55,33 +55,33 @@
       "turn": 6,
       "question": "如果要支持多个子 Agent 协作，比如一个负责搜索、一个负责代码、一个负责数据分析，那么 A2A 和多 Agent 编排应该怎么设计？哪些任务适合拆给子 Agent？",
       "expected_pages": [
-        "concepts/Agent-to-Agent-Interaction.md",
+        "Agent-to-Agent-Interaction.md",
         "sources/A2A-Source.md",
-        "concepts/Multi-Agent-Orchestration-and-Planning.md",
-        "concepts/Agent-Autonomous-Planning.md"
+        "Multi-Agent-Orchestration-and-Planning.md",
+        "Agent-Autonomous-Planning.md"
       ]
     },
     {
       "turn": 7,
       "question": "现在把这些模块合在一起，帮我设计一个工程化 Agent 框架的总体架构。要求包含：入口层、Agent Loop、工具协议、路由层、记忆系统、多 Agent 协作、可观测性和安全边界。",
       "expected_pages": [
-        "concepts/Agent-Infrastructure-Harness,-Context-Engineerin.md",
-        "concepts/Multi-Agent-Orchestration-and-Planning.md",
-        "concepts/Conversational-Memory-Strategies-and-Storage-for.md",
-        "concepts/Model-Context-Protocol-(MCP).md",
-        "concepts/Agent-to-Agent-Interaction.md",
-        "concepts/意图识别与多路由调度.md"
+        "Agent-Infrastructure-Harness,-Context-Engineerin.md",
+        "Multi-Agent-Orchestration-and-Planning.md",
+        "Conversational-Memory-Strategies-and-Storage-for.md",
+        "Model-Context-Protocol-(MCP).md",
+        "Agent-to-Agent-Interaction.md",
+        "意图识别与多路由调度.md"
       ]
     },
     {
       "turn": 8,
       "question": "用 OpenClaw 作为参照，分析这个架构哪些地方已经有成熟实现，哪些地方还需要补齐？请给出一个从 MVP 到生产级系统的迭代路线。",
       "expected_pages": [
-        "entities/OpenClaw-(Engineering-Agent).md",
+        "OpenClaw-(Engineering-Agent).md",
         "sources/OpenClaw-Architecture-Source.md",
-        "concepts/Agent-Infrastructure-Harness,-Context-Engineerin.md",
-        "concepts/Agent-Evaluation-and-Observability.md",
-        "concepts/Agent-Autonomous-Planning.md"
+        "Agent-Infrastructure-Harness,-Context-Engineerin.md",
+        "Agent-Evaluation-and-Observability.md",
+        "Agent-Autonomous-Planning.md"
       ]
     },
     {

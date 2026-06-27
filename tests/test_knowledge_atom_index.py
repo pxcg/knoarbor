@@ -23,7 +23,7 @@ from knoarbor.storage.knowledge_atom_index import (
 
 
 def _evidence() -> KnowledgeEvidenceSpan:
-    return KnowledgeEvidenceSpan(source_digest_id="sd_agent", source_path="raw/notes/agent.md", excerpt="Agent loops reason and act.")
+    return KnowledgeEvidenceSpan(source_digest_id="sd_agent", source_path="raw/inbox/notes/agent.md", excerpt="Agent loops reason and act.")
 
 
 def _batch(statement: str = "Agent loops reason and act.") -> KnowledgeAtomBatch:
@@ -62,7 +62,7 @@ class KnowledgeAtomIndexTests(unittest.TestCase):
             vault = Path(tmp_dir)
             page_refs = [
                 KnowledgeAtomPageRef(
-                    path="concepts/Agent-Loop.md",
+                    path="Agent-Loop.md",
                     source_digest_ids=["sd_agent"],
                     atom_ids=["entity_agent_loop", "claim_agent_loop"],
                 )
@@ -75,12 +75,12 @@ class KnowledgeAtomIndexTests(unittest.TestCase):
             self.assertEqual(len(records), 5)
             claim = next(record for record in records if record.atom_id == "claim_agent_loop")
             self.assertEqual(claim.atom_type, "claim")
-            self.assertEqual(claim.page_paths, ["concepts/Agent-Loop.md"])
+            self.assertEqual(claim.page_paths, ["Agent-Loop.md"])
 
     def test_upsert_replaces_same_source_digest_records(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            page_refs = [KnowledgeAtomPageRef(path="concepts/Agent-Loop.md", source_digest_ids=["sd_agent"], atom_ids=["claim_agent_loop"])]
+            page_refs = [KnowledgeAtomPageRef(path="Agent-Loop.md", source_digest_ids=["sd_agent"], atom_ids=["claim_agent_loop"])]
 
             upsert_knowledge_atom_batch(vault, _batch("Old statement."), page_refs)
             upsert_knowledge_atom_batch(vault, _batch("New statement."), page_refs)

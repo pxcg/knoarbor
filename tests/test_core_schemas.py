@@ -42,7 +42,7 @@ class CoreSchemaTests(unittest.TestCase):
             origin={
                 "connector": "external",
                 "uri": "external://workspace/session-1",
-                "raw_path": "raw/documents/session-1.md",
+                "raw_path": "raw/inbox/documents/session-1.md",
             },
             content={"format": "markdown", "text": "# Note"},
             fingerprint={

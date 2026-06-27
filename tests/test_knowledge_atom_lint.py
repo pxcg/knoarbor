@@ -19,7 +19,7 @@ from knoarbor.storage.knowledge_atom_index import KnowledgeAtomPageRef, upsert_k
 
 
 def _write_page(vault: Path) -> None:
-    page = vault / "pages" / "concepts" / "Agent-Loop.md"
+    page = vault / "wiki" / "pages" / "Agent-Loop.md"
     page.parent.mkdir(parents=True)
     page.write_text(
         """# Agent Loop
@@ -27,9 +27,7 @@ def _write_page(vault: Path) -> None:
 ---
 created: 2026-01-01 00:00:00
 updated: 2026-01-01 00:00:00
-type: concept
-status: draft
-source: raw/notes/agent.md
+role: knowledge_page
 content_hash: test
 confidence: 0.80
 model_provider: test
@@ -42,29 +40,27 @@ atom_ids: ["claim_missing_support", "rel_supports", "rel_contradicts"]
 
 Agent loop summary.
 
-## Source Focus
+## Claims
 
-Agent loop.
+- C1: Agent loop coordinates reasoning and tool execution.
 
-## Answer
+## Entities
+
+- Agent Loop
+
+## Relations
+
+- [[Agent Loop]] | coordinates | [[Tool Execution]] | C1
+
+## Evidence
+
+| Claim | Source | Range | Basis |
+|---|---|---|---|
+| C1 | sd_agent | unit:0 | Agent loop evidence. |
+
+## Synthesis
 
 Agent loop answer.
-
-## Key Points
-
-- Agent loop point.
-
-## Related Pages
-
-- 暂无关联知识
-
-## Tags
-
-- agent
-
-## Source
-
-- raw/notes/agent.md
 """,
         encoding="utf-8",
     )
@@ -112,7 +108,7 @@ class KnowledgeAtomLintTests(unittest.TestCase):
                 ),
                 [
                     KnowledgeAtomPageRef(
-                        path="concepts/Agent-Loop.md",
+                        path="Agent-Loop.md",
                         source_digest_ids=["sd_agent"],
                         atom_ids=["claim_missing_support", "rel_supports", "rel_contradicts"],
                     )

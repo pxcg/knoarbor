@@ -65,10 +65,11 @@ class SourceUnitizationTests(unittest.TestCase):
             make_document(
                 source_type="markdown",
                 text="# A2A\n\nProtocol overview.\n\n## Agent Card\n\nCapability metadata.",
+                attachments=[{"name": "figure-1.png", "relative_path": "images/figure-1.png"}],
             )
         )
         model_extract = KnowledgeExtract(
-            source=KnowledgeSource(source_type="markdown", source_app="markdown", source_id="source-1", source_path="raw/notes/source.md", title="A2A"),
+            source=KnowledgeSource(source_type="markdown", source_app="markdown", source_id="source-1", source_path="raw/inbox/notes/source.md", title="A2A"),
             content_units=[
                 ContentUnit(index=0, unit_type="note", role="note", title="Model Unit", content=document.content.text),
             ],
@@ -82,6 +83,7 @@ class SourceUnitizationTests(unittest.TestCase):
         self.assertEqual(extract.compile_context.latest_unit_indexes, [0, 1])
         self.assertIn("model_warning", extract.warnings)
         self.assertEqual(extract.content_units[0].metadata["source_unitization_rule"], "markdown_heading")
+        self.assertEqual(extract.attachments[0]["name"], "figure-1.png")
 
     def test_public_summary_omits_unit_content(self) -> None:
         unitization = SourceUnitizer().unitize(
@@ -102,7 +104,7 @@ class SourceUnitizationTests(unittest.TestCase):
         document = SourceDocument(
             source_id="doc-1",
             source_type="document",
-            origin=SourceOrigin(connector="document", uri="file:///doc.pdf", raw_path="raw/documents/doc.md"),
+            origin=SourceOrigin(connector="document", uri="file:///doc.pdf", raw_path="raw/inbox/documents/doc.md"),
             content=SourceContent(
                 format="markdown",
                 text="# Parsed\n\nBody",
@@ -123,12 +125,12 @@ class SourceUnitizationTests(unittest.TestCase):
         self.assertEqual(unitization.units[1].metadata["type"], "table")
 
 
-def make_document(*, source_type: str, text: str, fmt: str = "markdown") -> SourceDocument:
+def make_document(*, source_type: str, text: str, fmt: str = "markdown", attachments: list[dict[str, object]] | None = None) -> SourceDocument:
     return SourceDocument(
         source_id="source-1",
         source_type=source_type,  # type: ignore[arg-type]
-        origin=SourceOrigin(connector="test", uri="test://source", raw_path="raw/notes/source.md"),
-        content=SourceContent(format=fmt, text=text),  # type: ignore[arg-type]
+        origin=SourceOrigin(connector="test", uri="test://source", raw_path="raw/inbox/notes/source.md"),
+        content=SourceContent(format=fmt, text=text, attachments=attachments or []),  # type: ignore[arg-type]
         metadata={"title": "Source"},
         fingerprint=SourceFingerprint(content_hash="abc123", connector_version="test@1"),
     )

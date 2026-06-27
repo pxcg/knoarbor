@@ -90,10 +90,10 @@ class CliTests(unittest.TestCase):
     def test_query_command_prints_context_pack(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "concepts").mkdir()
+            (vault / "wiki" / "pages").mkdir(parents=True)
             config = vault.parent / "config.yaml"
             config.write_text(f"vault:\n  path: {vault}\n", encoding="utf-8")
-            (vault / "concepts" / "Agent-Loop.md").write_text(
+            (vault / "wiki" / "pages" / "Agent-Loop.md").write_text(
                 "# Agent Loop\n\n## Summary\n\nAgent loop uses observe, decide, act, and feedback.\n",
                 encoding="utf-8",
             )
@@ -104,18 +104,18 @@ class CliTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 0)
             self.assertIn("Agent Loop", output.getvalue())
-            self.assertIn("concepts/Agent-Loop.md", output.getvalue())
-            self.assertTrue((vault / "maintenance" / "query_ledger.jsonl").exists())
+            self.assertIn("Agent-Loop.md", output.getvalue())
+            self.assertTrue((vault / ".knoarbor" / "ledgers" / "query.jsonl").exists())
 
     def test_query_command_accepts_vault_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             personal = root / "personal-wiki"
             team = root / "team-wiki"
-            (personal / "concepts").mkdir(parents=True)
-            (team / "concepts").mkdir(parents=True)
-            (personal / "concepts" / "Personal.md").write_text("# Personal\n\n## Summary\n\nPersonal note.\n", encoding="utf-8")
-            (team / "concepts" / "Team-Agent.md").write_text("# Team Agent\n\n## Summary\n\nTeam agent note.\n", encoding="utf-8")
+            (personal / "wiki" / "pages").mkdir(parents=True)
+            (team / "wiki" / "pages").mkdir(parents=True)
+            (personal / "wiki" / "pages" / "Personal.md").write_text("# Personal\n\n## Summary\n\nPersonal note.\n", encoding="utf-8")
+            (team / "wiki" / "pages" / "Team-Agent.md").write_text("# Team Agent\n\n## Summary\n\nTeam agent note.\n", encoding="utf-8")
             config = root / "config.yaml"
             config.write_text(
                 f"""
@@ -141,7 +141,7 @@ connectors: {{}}
 
         self.assertEqual(exit_code, 0)
         self.assertIn("Team Agent", output.getvalue())
-        self.assertIn("concepts/Team-Agent.md", output.getvalue())
+        self.assertIn("Team-Agent.md", output.getvalue())
         self.assertNotIn("Personal.md", output.getvalue())
 
     def test_vaults_command_lists_configured_vaults(self) -> None:
@@ -183,10 +183,10 @@ connectors: {{}}
     def test_query_command_can_write_query_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "concepts").mkdir()
+            (vault / "wiki" / "pages").mkdir(parents=True)
             config = vault.parent / "config.yaml"
             config.write_text(f"vault:\n  path: {vault}\n", encoding="utf-8")
-            (vault / "concepts" / "Agent-Loop.md").write_text(
+            (vault / "wiki" / "pages" / "Agent-Loop.md").write_text(
                 "# Agent Loop\n\n## Summary\n\nAgent loop uses observe, decide, act, and feedback.\n",
                 encoding="utf-8",
             )
@@ -196,8 +196,8 @@ connectors: {{}}
                 exit_code = main(["--config", str(config), "query", "agent loop", "--write-report"])
 
             self.assertEqual(exit_code, 0)
-            self.assertIn("report: maintenance/query_report_", output.getvalue())
-            reports = list((vault / "maintenance").glob("query_report_*.md"))
+            self.assertIn("report: maintenance/reports/query/query_report_", output.getvalue())
+            reports = list((vault / "maintenance" / "reports" / "query").glob("query_report_*.md"))
             self.assertEqual(len(reports), 1)
             self.assertIn("# Query Report", reports[0].read_text(encoding="utf-8"))
 
@@ -217,13 +217,13 @@ connectors: {{}}
                         "agent loop",
                         "--useful",
                         "--selected-path",
-                        "concepts/Agent-Loop.md",
+                        "Agent-Loop.md",
                     ]
                 )
 
             self.assertEqual(exit_code, 0)
             self.assertIn("recorded: True", output.getvalue())
-            self.assertTrue((vault / "maintenance" / "query_feedback_ledger.jsonl").exists())
+            self.assertTrue((vault / ".knoarbor" / "ledgers" / "query_feedback.jsonl").exists())
 
     def test_scan_command_prints_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -352,7 +352,7 @@ connectors:
             config = root / "config.yaml"
             self.assertEqual(exit_code, 0)
             self.assertTrue(config.exists())
-            self.assertTrue((vault / "pages" / "SCHEMA.md").exists())
+            self.assertTrue((vault / ".knoarbor" / "index" / "manifest.json").exists())
             self.assertIn("config:", output.getvalue())
             self.assertIn("created", output.getvalue())
 
@@ -481,12 +481,12 @@ connectors:
         lint_primary_args = parser.parse_args(["lint"])
         lint_args = parser.parse_args(["lint-plan"])
         pages_list_args = parser.parse_args(["pages", "list"])
-        pages_read_args = parser.parse_args(["pages", "read", "concepts/Agent-Loop.md"])
-        pages_read_late_vault_args = parser.parse_args(["pages", "read", "--vault-id", "personal", "concepts/Agent-Loop.md"])
-        pages_links_args = parser.parse_args(["pages", "links", "concepts/Agent-Loop.md"])
+        pages_read_args = parser.parse_args(["pages", "read", "Agent-Loop.md"])
+        pages_read_late_vault_args = parser.parse_args(["pages", "read", "--vault-id", "personal", "Agent-Loop.md"])
+        pages_relations_args = parser.parse_args(["pages", "relations", "Agent-Loop.md"])
         reports_list_args = parser.parse_args(["reports", "list"])
         reports_list_late_vault_args = parser.parse_args(["reports", "list", "--vault-id", "personal"])
-        reports_read_args = parser.parse_args(["reports", "read", "maintenance/ingest_report.md"])
+        reports_read_args = parser.parse_args(["reports", "read", "maintenance/reports/ingest/ingest_report.md"])
 
         self.assertEqual(init_args.command, "init")
         self.assertEqual(status_args.command, "status")
@@ -511,25 +511,25 @@ connectors:
         self.assertEqual(pages_list_args.pages_command, "list")
         self.assertEqual(pages_read_args.pages_command, "read")
         self.assertEqual(pages_read_late_vault_args.vault_id, "personal")
-        self.assertEqual(pages_links_args.pages_command, "links")
+        self.assertEqual(pages_relations_args.pages_command, "relations")
         self.assertEqual(reports_list_args.reports_command, "list")
         self.assertEqual(reports_list_late_vault_args.vault_id, "personal")
         self.assertEqual(reports_read_args.reports_command, "read")
 
-    def test_pages_command_lists_reads_and_links_pages(self) -> None:
+    def test_pages_command_lists_reads_and_inspects_relations(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             vault = root / "vaults" / "all"
-            concepts = vault / "concepts"
-            concepts.mkdir(parents=True)
+            pages = vault / "wiki" / "pages"
+            pages.mkdir(parents=True)
             config = root / "config.yaml"
             config.write_text(f"vault:\n  path: {vault}\n", encoding="utf-8")
-            (concepts / "Agent-Loop.md").write_text(
-                "# Agent Loop\n\n## Summary\n\nAgent loop note.\n\nRelated: [[concepts/Tool-Use|Tool Use]]\n",
+            (pages / "Agent-Loop.md").write_text(
+                "# Agent Loop\n\n## Summary\n\nAgent loop note.\n\nRelated: [[Tool-Use|Tool Use]]\n",
                 encoding="utf-8",
             )
-            (concepts / "Tool-Use.md").write_text(
-                "# Tool Use\n\n## Summary\n\nTool use note.\n\nBack to [[concepts/Agent-Loop|Agent Loop]].\n",
+            (pages / "Tool-Use.md").write_text(
+                "# Tool Use\n\n## Summary\n\nTool use note.\n\nBack to [[Agent-Loop|Agent Loop]].\n",
                 encoding="utf-8",
             )
 
@@ -539,25 +539,25 @@ connectors:
 
             read_output = io.StringIO()
             with redirect_stdout(read_output):
-                read_code = main(["--config", str(config), "pages", "read", "concepts/Agent-Loop.md"])
+                read_code = main(["--config", str(config), "pages", "read", "Agent-Loop.md"])
 
             links_output = io.StringIO()
             with redirect_stdout(links_output):
-                links_code = main(["--config", str(config), "pages", "links", "concepts/Agent-Loop.md"])
+                links_code = main(["--config", str(config), "pages", "relations", "Agent-Loop.md"])
 
         self.assertEqual(list_code, 0)
         self.assertIn("Agent Loop", list_output.getvalue())
         self.assertEqual(read_code, 0)
         self.assertIn("# Agent Loop", read_output.getvalue())
         self.assertEqual(links_code, 0)
-        self.assertIn("outbound_links:", links_output.getvalue())
-        self.assertIn("concepts/Tool-Use.md", links_output.getvalue())
+        self.assertIn("outgoing_pages:", links_output.getvalue())
+        self.assertIn("Tool-Use.md", links_output.getvalue())
 
     def test_reports_command_lists_and_reads_reports(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             vault = root / "vaults" / "all"
-            maintenance = vault / "maintenance"
+            maintenance = vault / "maintenance" / "reports" / "ingest"
             maintenance.mkdir(parents=True)
             config = root / "config.yaml"
             config.write_text(f"vault:\n  path: {vault}\n", encoding="utf-8")
@@ -570,11 +570,11 @@ connectors:
 
             read_output = io.StringIO()
             with redirect_stdout(read_output):
-                read_code = main(["--config", str(config), "reports", "read", "maintenance/ingest_report_20260610_120000.md"])
+                read_code = main(["--config", str(config), "reports", "read", "maintenance/reports/ingest/ingest_report_20260610_120000.md"])
 
         self.assertEqual(list_code, 0)
         self.assertIn("reports: 1", list_output.getvalue())
-        self.assertIn("maintenance/ingest_report_20260610_120000.md", list_output.getvalue())
+        self.assertIn("maintenance/reports/ingest/ingest_report_20260610_120000.md", list_output.getvalue())
         self.assertEqual(read_code, 0)
         self.assertIn("# Ingest Report", read_output.getvalue())
 

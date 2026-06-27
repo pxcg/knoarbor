@@ -162,7 +162,7 @@ class SkillQueryHelperTests(unittest.TestCase):
             self.assertEqual(helper._base_url_from_runtime_endpoint(endpoint), "http://127.0.0.1:8124")
             self.assertEqual(helper._vault_path_from_runtime_endpoint(endpoint), "/tmp/endpoint-wiki")
 
-    def test_config_lookup_does_not_fall_back_to_legacy_project_name(self) -> None:
+    def test_config_lookup_uses_current_project_candidates(self) -> None:
         helper = load_query_helper()
         with tempfile.TemporaryDirectory() as tmp:
             old_cwd = Path.cwd()
@@ -348,19 +348,19 @@ class SkillQueryHelperTests(unittest.TestCase):
                 "stats": {"vault_path": "/tmp/vaults/all"},
                 "results": [
                     {
-                        "path": "concepts/Agent-Loop.md",
+                        "path": "Agent-Loop.md",
                         "title": "Agent Loop",
                         "relevance": "high",
                         "match_kind": "direct",
                         "summary": "Agent Loop summary.",
-                        "key_points": ["Observe, think, act."],
+                        "claims": ["Observe, think, act."],
                     }
                 ],
                 "context_pack": "context",
             }
         )
 
-        self.assertIn("Agent Loop (concepts/Agent-Loop.md) [high, direct]", text)
+        self.assertIn("Agent Loop (Agent-Loop.md) [high, direct]", text)
         self.assertIn("Vault: /tmp/vaults/all", text)
         self.assertIn("Context Pack:", text)
 
@@ -375,7 +375,7 @@ class SkillQueryHelperTests(unittest.TestCase):
                     {
                         "vault_id": "personal",
                         "vault_name": "Personal",
-                        "path": "concepts/Agent-Loop.md",
+                        "path": "Agent-Loop.md",
                         "title": "Agent Loop",
                         "relevance": "high",
                         "match_kind": "direct",
@@ -383,7 +383,7 @@ class SkillQueryHelperTests(unittest.TestCase):
                     {
                         "vault_id": "team",
                         "vault_name": "Team",
-                        "path": "entities/OpenClaw.md",
+                        "path": "OpenClaw.md",
                         "title": "OpenClaw",
                         "relevance": "medium",
                         "match_kind": "related",
@@ -392,8 +392,8 @@ class SkillQueryHelperTests(unittest.TestCase):
             }
         )
 
-        self.assertIn("Personal · Agent Loop (concepts/Agent-Loop.md)", text)
-        self.assertIn("Team · OpenClaw (entities/OpenClaw.md)", text)
+        self.assertIn("Personal · Agent Loop (Agent-Loop.md)", text)
+        self.assertIn("Team · OpenClaw (OpenClaw.md)", text)
 
     def test_query_command_can_search_all_vaults_without_resolved_vault_path(self) -> None:
         helper = load_query_helper()
@@ -465,9 +465,9 @@ class SkillQueryHelperTests(unittest.TestCase):
             vault_id="team",
             vault_name="Team",
         )
-        args = argparse.Namespace(page_command="read", path="concepts/Agent-Loop.md")
+        args = argparse.Namespace(page_command="read", path="Agent-Loop.md")
 
-        with patch.object(helper, "_get_json", return_value={"path": "concepts/Agent-Loop.md", "content": "# Agent Loop"}) as get_json, redirect_stdout(io.StringIO()):
+        with patch.object(helper, "_get_json", return_value={"path": "Agent-Loop.md", "content": "# Agent Loop"}) as get_json, redirect_stdout(io.StringIO()):
             exit_code = helper._cmd_page(args, runtime)
 
         self.assertEqual(exit_code, 0)
@@ -476,7 +476,7 @@ class SkillQueryHelperTests(unittest.TestCase):
         self.assertIn("vault_path=%2Ftmp%2Fteam-wiki", url)
         self.assertIn("vault_id=team", url)
         self.assertIn("config_path=%2Ftmp%2Fconfig.yaml", url)
-        self.assertIn("path=concepts%2FAgent-Loop.md", url)
+        self.assertIn("path=Agent-Loop.md", url)
 
     def test_vaults_command_uses_public_vaults_endpoint(self) -> None:
         helper = load_query_helper()
@@ -507,7 +507,7 @@ class SkillQueryHelperTests(unittest.TestCase):
         self.assertIn("config_path=%2Ftmp%2Fconfig.yaml", get_json.call_args.args[0])
         self.assertIn("* personal · Personal · available", stdout.getvalue())
 
-    def test_page_links_uses_resolved_vault_path_from_requested_vault_id(self) -> None:
+    def test_page_relations_uses_resolved_vault_path_from_requested_vault_id(self) -> None:
         helper = load_query_helper()
         runtime = helper.Runtime(
             base_url="http://127.0.0.1:8123",
@@ -518,18 +518,18 @@ class SkillQueryHelperTests(unittest.TestCase):
             vault_id="team",
             vault_name="Team",
         )
-        args = argparse.Namespace(page_command="links", path="concepts/Agent-Loop.md")
+        args = argparse.Namespace(page_command="relations", path="Agent-Loop.md")
 
-        with patch.object(helper, "_get_json", return_value={"path": "concepts/Agent-Loop.md", "outbound_links": [], "backlinks": []}) as get_json, redirect_stdout(io.StringIO()):
+        with patch.object(helper, "_get_json", return_value={"path": "Agent-Loop.md", "outgoing_pages": [], "incoming_pages": []}) as get_json, redirect_stdout(io.StringIO()):
             exit_code = helper._cmd_page(args, runtime)
 
         self.assertEqual(exit_code, 0)
         url = get_json.call_args.args[0]
-        self.assertIn("/wiki/pages/links", url)
+        self.assertIn("/wiki/pages/relations", url)
         self.assertIn("vault_path=%2Ftmp%2Fteam-wiki", url)
         self.assertIn("vault_id=team", url)
         self.assertIn("config_path=%2Ftmp%2Fconfig.yaml", url)
-        self.assertIn("path=concepts%2FAgent-Loop.md", url)
+        self.assertIn("path=Agent-Loop.md", url)
 
     def test_sources_catalog_uses_public_sources_endpoint(self) -> None:
         helper = load_query_helper()

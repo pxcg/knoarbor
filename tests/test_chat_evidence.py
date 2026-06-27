@@ -12,7 +12,7 @@ class ChatEvidencePlannerTests(unittest.TestCase):
             answer_set={"kind": "multi_page"},
             evidence_coverage={"status": "strong", "primary_count": 1, "supporting_count": 1, "source_count": 0},
             primary_page={
-                "path": "concepts/Agent-Infrastructure.md",
+                "path": "Agent-Infrastructure.md",
                 "title": "Agent Infrastructure",
                 "type": "concept",
                 "summary": "Infrastructure page.",
@@ -20,7 +20,7 @@ class ChatEvidencePlannerTests(unittest.TestCase):
             },
             primary_pages=[
                 {
-                    "path": "concepts/Agent-Infrastructure.md",
+                    "path": "Agent-Infrastructure.md",
                     "title": "Agent Infrastructure",
                     "type": "concept",
                     "summary": "Infrastructure page.",
@@ -29,7 +29,7 @@ class ChatEvidencePlannerTests(unittest.TestCase):
             ],
             supporting_pages=[
                 {
-                    "path": "concepts/Session-Memory.md",
+                    "path": "Session-Memory.md",
                     "title": "Session Memory",
                     "type": "concept",
                     "summary": "Memory page.",
@@ -55,7 +55,7 @@ class ChatEvidencePlannerTests(unittest.TestCase):
             answer_set={"kind": "single_page"},
             evidence_coverage={"status": "strong", "primary_count": 1, "supporting_count": 0, "source_count": 0},
             primary_page={
-                "path": "concepts/Agent-Loop.md",
+                "path": "Agent-Loop.md",
                 "title": "Agent Loop",
                 "type": "concept",
                 "summary": "Agent Loop page.",

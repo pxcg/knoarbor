@@ -28,7 +28,7 @@ class FakeDraftCompileRunner:
                     operation_index=0,
                     write_action="create",
                     title="Agent Loop",
-                    page_dir="concepts",
+                    page_dir="pages",
                     question="Agent Loop",
                     synthesis="Agent loop alternates reasoning, action, and observation.",
                     summary="Agent loop is a control pattern.",
@@ -90,7 +90,7 @@ def _page_plan() -> WikiPagePlan:
         operations=[
             WikiPageOperation(
                 action="create",
-                page_dir="concepts",
+                page_dir="pages",
                 title="Agent Loop",
                 knowledge_object="Agent Loop",
                 selected_claim_ids=["claim_agent_loop"],

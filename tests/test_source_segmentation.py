@@ -21,6 +21,25 @@ class SourceSegmentationTests(unittest.TestCase):
         self.assertGreaterEqual(len(batch.segments), 2)
         self.assertTrue(all(segment.document.metadata["segmentation"]["enabled"] for segment in batch.segments))
 
+    def test_segmented_document_preserves_source_attachments(self) -> None:
+        document = make_document(
+            source_type="markdown",
+            text="# Intro\n\n" + "a" * 900 + "\n\n## Architecture\n\n" + "b" * 900,
+            attachments=[
+                {
+                    "attachment_type": "image",
+                    "name": "figure-1.png",
+                    "relative_path": "images/figure-1.png",
+                    "description": "Architecture diagram.",
+                }
+            ],
+        )
+
+        batch = SourceSegmenter(test_config()).segment(document)
+
+        self.assertTrue(batch.segments)
+        self.assertEqual(batch.segments[0].document.content.attachments[0]["name"], "figure-1.png")
+
     def test_segmented_sources_carry_outline_context_without_sibling_body(self) -> None:
         document = make_document(
             source_type="markdown",
@@ -165,12 +184,12 @@ def test_config() -> IngestSegmentationConfig:
     )
 
 
-def make_document(*, source_type: str, text: str, fmt: str = "markdown") -> SourceDocument:
+def make_document(*, source_type: str, text: str, fmt: str = "markdown", attachments: list[dict[str, object]] | None = None) -> SourceDocument:
     return SourceDocument(
         source_id="source-1",
         source_type=source_type,  # type: ignore[arg-type]
-        origin=SourceOrigin(connector="test", uri="test://source", raw_path="raw/notes/source.md"),
-        content=SourceContent(format=fmt, text=text),  # type: ignore[arg-type]
+        origin=SourceOrigin(connector="test", uri="test://source", raw_path="raw/inbox/notes/source.md"),
+        content=SourceContent(format=fmt, text=text, attachments=attachments or []),  # type: ignore[arg-type]
         metadata={"title": "Source"},
         fingerprint=SourceFingerprint(content_hash="abc123", connector_version="test@1"),
     )

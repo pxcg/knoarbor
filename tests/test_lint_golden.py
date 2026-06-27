@@ -41,7 +41,7 @@ class LintGoldenTests(unittest.TestCase):
                         scope_id="golden:lint",
                         trigger="manual",
                         source=MaintenanceScopeSource(kind="test"),
-                        changed_pages=["concepts/Agent-Loop.md"],
+                        changed_pages=["Agent-Loop.md"],
                     ),
                     mode="semantic_structural",
                     include_related=True,
@@ -67,8 +67,7 @@ def _stable_scan_response(response: Any) -> dict[str, object]:
                 "path": page.path,
                 "directory": page.directory,
                 "title": page.title,
-                "page_type": page.page_type,
-                "source": page.source,
+                "role": page.role,
                 "headings": page.headings,
                 "outgoing_links": page.outgoing_links,
             }

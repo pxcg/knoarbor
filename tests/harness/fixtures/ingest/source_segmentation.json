@@ -201,7 +201,7 @@
         "warnings": []
       }
     ],
-    "source_file": "raw/chats/codex-golden-session.json",
+    "source_file": "raw/normalized/chats/codex-golden-session.json",
     "source_id": "codex:golden-session",
     "summary": {
       "enabled": true,
@@ -421,7 +421,7 @@
         "warnings": []
       }
     ],
-    "source_file": "raw/notes/long-agent-loop.md",
+    "source_file": "raw/inbox/notes/long-agent-loop.md",
     "source_id": "markdown:golden-long-note",
     "summary": {
       "enabled": true,

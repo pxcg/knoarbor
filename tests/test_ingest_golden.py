@@ -221,9 +221,6 @@ def _written_page_snapshots(vault: Path, pages: list[str]) -> list[dict[str, obj
             {
                 "path": page,
                 "title": title_match.group(1).strip() if title_match else "",
-                "type": metadata.get("type"),
-                "source": metadata.get("source"),
-                "tags": metadata.get("tags", []),
                 "wikilinks": sorted(set(re.findall(r"\[\[([^\]|]+)", content))),
             }
         )

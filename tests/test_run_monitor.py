@@ -187,7 +187,7 @@ class RunMonitorTests(unittest.TestCase):
                         break
                     time.sleep(0.05)
                 events = manager.events(str(vault), started.run_id).events
-            reports = sorted((vault / "maintenance").glob("query_run_report_*.md"))
+            reports = sorted((vault / "maintenance" / "reports" / "query").glob("query_run_report_*.md"))
             report_text = reports[0].read_text(encoding="utf-8") if reports else ""
 
         self.assertEqual(record.status, "failed")

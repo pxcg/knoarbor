@@ -10,7 +10,7 @@ def test_build_ingest_token_records_from_segment_metrics():
             {
                 "connector": "codex",
                 "source_id": "codex:1",
-                "source_file": "raw/chats/example.jsonl",
+                "source_file": "raw/normalized/chats/example.jsonl",
                 "status": "processed",
                 "mode": "new_source",
                 "segments": [
@@ -18,7 +18,7 @@ def test_build_ingest_token_records_from_segment_metrics():
                         "index": 0,
                         "title": "turns 1-3",
                         "chars": 1200,
-                        "generated_pages": ["concepts/Agent-Loop.md"],
+                        "generated_pages": ["Agent-Loop.md"],
                         "metrics": {
                             "semantic": {
                                 "calls": [
@@ -54,8 +54,8 @@ def test_build_ingest_token_records_from_segment_metrics():
     assert len(rows) == 1
     assert rows[0]["flow"] == "ingest"
     assert rows[0]["agent"] == "wiki_page_plan"
-    assert rows[0]["source_file"] == "raw/chats/example.jsonl"
-    assert rows[0]["page_paths"] == ["concepts/Agent-Loop.md"]
+    assert rows[0]["source_file"] == "raw/normalized/chats/example.jsonl"
+    assert rows[0]["page_paths"] == ["Agent-Loop.md"]
     assert rows[0]["prompt_cache_rate"] == 0.4
     assert rows[0]["prompt_stable_chars"] == 1000
     assert rows[0]["prompt_dynamic_chars"] == 2500
@@ -73,7 +73,7 @@ def test_build_token_analysis_groups_by_flow_agent_source_and_page():
             "source_file": "raw/a.md",
             "connector": "markdown",
             "model": "m",
-            "page_paths": ["concepts/A.md"],
+            "page_paths": ["A.md"],
             "prompt_tokens": 100,
             "prompt_cached_tokens": 25,
             "prompt_stable_chars": 1000,
@@ -91,7 +91,7 @@ def test_build_token_analysis_groups_by_flow_agent_source_and_page():
             "source_file": "",
             "connector": "",
             "model": "m",
-            "page_paths": ["concepts/A.md"],
+            "page_paths": ["A.md"],
             "prompt_tokens": 50,
             "prompt_cached_tokens": 0,
             "prompt_stable_chars": 1000,
@@ -113,7 +113,7 @@ def test_build_token_analysis_groups_by_flow_agent_source_and_page():
     assert analysis["totals"]["dynamic_to_stable_ratio"] == 2.75
     assert analysis["by_flow"][0]["name"] == "ingest"
     assert analysis["by_agent"][0]["name"] == "wiki_page_plan"
-    assert analysis["by_page"][0]["name"] == "concepts/A.md"
+    assert analysis["by_page"][0]["name"] == "A.md"
     assert analysis["by_payload_field"][0]["name"] == "wiki_context"
     assert analysis["by_payload_field"][0]["payload_chars"] == 3000
     assert len(analysis["cache_diagnostics"]["low_cache_calls"]) == 1

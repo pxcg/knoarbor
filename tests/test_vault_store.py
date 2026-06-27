@@ -14,18 +14,18 @@ class VaultStoreTests(unittest.TestCase):
     def test_read_pages_normalizes_wikilinks_and_deduplicates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "concepts").mkdir()
-            (vault / "concepts" / "Agent.md").write_text("# Agent\n\nLoop.", encoding="utf-8")
+            (vault / "wiki" / "pages").mkdir(parents=True)
+            (vault / "wiki" / "pages" / "Agent.md").write_text("# Agent\n\nLoop.", encoding="utf-8")
 
             pages = VaultStore(vault).read_pages(
-                ["[[concepts/Agent|Agent]]", "concepts/Agent.md"],
+                ["[[Agent|Agent]]", "Agent.md"],
                 max_pages=5,
                 max_chars_per_page=100,
             )
 
         self.assertEqual(len(pages), 1)
         self.assertTrue(pages[0].exists)
-        self.assertEqual(pages[0].path, "concepts/Agent.md")
+        self.assertEqual(pages[0].path, "Agent.md")
 
     def test_read_page_blocks_path_escape(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

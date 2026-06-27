@@ -32,7 +32,7 @@ class IngestReportTests(unittest.TestCase):
                     {
                         "connector": "markdown",
                         "source_id": "source-1",
-                        "source_file": "raw/notes/a2a.md",
+                        "source_file": "raw/inbox/notes/a2a.md",
                         "should_process": True,
                         "mode": "new_source",
                         "reason": "test",

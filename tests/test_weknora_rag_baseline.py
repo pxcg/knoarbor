@@ -83,7 +83,7 @@ class WeKnoraRagBaselineTests(unittest.TestCase):
                 {
                     "turn": 1,
                     "question": "Agent Loop 是什么？",
-                    "expected_pages": ["concepts/Agent-Loop-and-Control-Patterns.md"],
+                    "expected_pages": ["Agent-Loop-and-Control-Patterns.md"],
                     "answer": "Agent Loop answer",
                     "elapsed_seconds": 1,
                     "event_count": 2,
@@ -93,7 +93,7 @@ class WeKnoraRagBaselineTests(unittest.TestCase):
         )
 
         self.assertIn("reference_count: 1", report)
-        self.assertIn("concepts/Agent-Loop-and-Control-Patterns.md", report)
+        self.assertIn("Agent-Loop-and-Control-Patterns.md", report)
         self.assertIn("Agent.md", report)
 
 

@@ -46,7 +46,7 @@ def _write_run_record(vault: Path, run_id: str, updated_at: str) -> None:
   "progress": {{"completed": 1}},
   "metrics": {{}},
   "metadata": {{}},
-  "result_summary": {{"report_path": "maintenance/ingest_report.md"}},
+  "result_summary": {{"report_path": "maintenance/reports/ingest/ingest_report.md"}},
   "error_info": {{}},
   "cancel_requested": false
 }}""",
@@ -284,8 +284,8 @@ connectors:
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "concepts").mkdir()
-            (vault / "concepts" / "Agent-Loop.md").write_text(
+            (vault / "wiki" / "pages").mkdir(parents=True)
+            (vault / "wiki" / "pages" / "Agent-Loop.md").write_text(
                 "# Agent Loop\n\n## Summary\n\nAgent loop coordinates reasoning and tool use.\n",
                 encoding="utf-8",
             )
@@ -302,9 +302,9 @@ connectors:
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["results"][0]["path"], "concepts/Agent-Loop.md")
-        self.assertEqual(payload["results"][0]["excerpts"][0]["path"], "concepts/Agent-Loop.md")
-        self.assertTrue(payload["answer_guidance"])
+        self.assertEqual(payload["results"][0]["path"], "Agent-Loop.md")
+        self.assertEqual(payload["results"][0]["excerpts"][0]["path"], "Agent-Loop.md")
+        self.assertTrue(payload["response_guidance"])
         self.assertIn("Match origin: direct", payload["context_pack"])
         self.assertIn("Why matched", payload["context_pack"])
         self.assertEqual(payload["stats"]["index_provider"], "machine")
@@ -318,8 +318,8 @@ connectors:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             team_vault = root / "team-wiki"
-            (team_vault / "concepts").mkdir(parents=True)
-            (team_vault / "concepts" / "Team-Agent.md").write_text(
+            (team_vault / "wiki" / "pages").mkdir(parents=True)
+            (team_vault / "wiki" / "pages" / "Team-Agent.md").write_text(
                 "# Team Agent\n\n## Summary\n\nTeam agent coordination note.\n",
                 encoding="utf-8",
             )
@@ -351,7 +351,7 @@ connectors: {{}}
         payload = response.json()
         self.assertEqual(payload["stats"]["vault_id"], "team")
         self.assertEqual(payload["stats"]["vault_name"], "Team")
-        self.assertEqual(payload["results"][0]["path"], "concepts/Team-Agent.md")
+        self.assertEqual(payload["results"][0]["path"], "Team-Agent.md")
 
     def test_query_endpoint_accepts_all_vaults(self) -> None:
         import tempfile
@@ -360,20 +360,20 @@ connectors: {{}}
             root = Path(tmp_dir)
             personal_vault = root / "personal-wiki"
             team_vault = root / "team-wiki"
-            legacy_all_vault = root / "all-wiki"
-            (personal_vault / "concepts").mkdir(parents=True)
-            (team_vault / "concepts").mkdir(parents=True)
-            (legacy_all_vault / "concepts").mkdir(parents=True)
-            (personal_vault / "concepts" / "Personal-Agent.md").write_text(
+            unconfigured_all_vault = root / "all-wiki"
+            (personal_vault / "wiki" / "pages").mkdir(parents=True)
+            (team_vault / "wiki" / "pages").mkdir(parents=True)
+            (unconfigured_all_vault / "wiki" / "pages").mkdir(parents=True)
+            (personal_vault / "wiki" / "pages" / "Personal-Agent.md").write_text(
                 "# Personal Agent\n\n## Summary\n\nPersonal agent loop note.\n",
                 encoding="utf-8",
             )
-            (team_vault / "concepts" / "Team-Agent.md").write_text(
+            (team_vault / "wiki" / "pages" / "Team-Agent.md").write_text(
                 "# Team Agent\n\n## Summary\n\nTeam agent coordination note.\n",
                 encoding="utf-8",
             )
-            (legacy_all_vault / "concepts" / "Legacy-All.md").write_text(
-                "# Legacy All\n\n## Summary\n\nThis legacy profile should not be searched by virtual all.\n",
+            (unconfigured_all_vault / "wiki" / "pages" / "Legacy-All.md").write_text(
+                "# Unconfigured All\n\n## Summary\n\nThis unconfigured profile should not be searched by virtual all.\n",
                 encoding="utf-8",
             )
             (root / "config.yaml").write_text(
@@ -382,8 +382,8 @@ vaults:
   default: personal
   profiles:
     all:
-      name: Legacy All
-      path: {legacy_all_vault}
+      name: Unconfigured All
+      path: {unconfigured_all_vault}
     personal:
       name: Personal
       path: {personal_vault}
@@ -410,7 +410,7 @@ connectors: {{}}
         self.assertEqual({result["vault_id"] for result in payload["results"]}, {"personal", "team"})
         self.assertIn("# Personal", payload["context_pack"])
         self.assertIn("# Team", payload["context_pack"])
-        self.assertNotIn("Legacy All", payload["context_pack"])
+        self.assertNotIn("Unconfigured All", payload["context_pack"])
 
     def test_query_endpoint_treats_vault_id_all_as_virtual_scope(self) -> None:
         import tempfile
@@ -419,13 +419,13 @@ connectors: {{}}
             root = Path(tmp_dir)
             personal_vault = root / "personal-wiki"
             team_vault = root / "team-wiki"
-            (personal_vault / "concepts").mkdir(parents=True)
-            (team_vault / "concepts").mkdir(parents=True)
-            (personal_vault / "concepts" / "Personal-Agent.md").write_text(
+            (personal_vault / "wiki" / "pages").mkdir(parents=True)
+            (team_vault / "wiki" / "pages").mkdir(parents=True)
+            (personal_vault / "wiki" / "pages" / "Personal-Agent.md").write_text(
                 "# Personal Agent\n\n## Summary\n\nPersonal agent loop note.\n",
                 encoding="utf-8",
             )
-            (team_vault / "concepts" / "Team-Agent.md").write_text(
+            (team_vault / "wiki" / "pages" / "Team-Agent.md").write_text(
                 "# Team Agent\n\n## Summary\n\nTeam agent coordination note.\n",
                 encoding="utf-8",
             )
@@ -503,22 +503,22 @@ connectors: {{}}
                     "vault_path": str(vault),
                     "query": "agent loop",
                     "useful": True,
-                    "selected_paths": ["concepts/Agent-Loop.md"],
+                    "selected_paths": ["Agent-Loop.md"],
                 },
             )
 
             self.assertEqual(response.status_code, 200)
             payload = response.json()
             self.assertTrue(payload["recorded"])
-            self.assertTrue((vault / "maintenance" / "query_feedback_ledger.jsonl").exists())
+            self.assertTrue((vault / ".knoarbor" / "ledgers" / "query_feedback.jsonl").exists())
 
     def test_reports_endpoints_list_and_read_markdown_reports(self) -> None:
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            maintenance = vault / "maintenance"
-            maintenance.mkdir()
+            maintenance = vault / "maintenance" / "reports" / "ingest"
+            maintenance.mkdir(parents=True)
             report = maintenance / "ingest_report_20260604_120000.md"
             report.write_text("# Ingest Report\n\n- written_pages: 2\n", encoding="utf-8")
             client = TestClient(create_app())
@@ -526,16 +526,16 @@ connectors: {{}}
             list_response = client.get("/reports", params={"vault_path": str(vault)})
             self.assertEqual(list_response.status_code, 200)
             list_payload = list_response.json()
-            self.assertEqual(list_payload["reports"][0]["path"], "maintenance/ingest_report_20260604_120000.md")
+            self.assertEqual(list_payload["reports"][0]["path"], "maintenance/reports/ingest/ingest_report_20260604_120000.md")
             self.assertEqual(list_payload["reports"][0]["kind"], "ingest")
 
             read_response = client.get(
                 "/reports/content",
-                params={"vault_path": str(vault), "path": "maintenance/ingest_report_20260604_120000.md"},
+                params={"vault_path": str(vault), "path": "maintenance/reports/ingest/ingest_report_20260604_120000.md"},
             )
             self.assertEqual(read_response.status_code, 200)
             read_payload = read_response.json()
-            self.assertEqual(read_payload["path"], "maintenance/ingest_report_20260604_120000.md")
+            self.assertEqual(read_payload["path"], "maintenance/reports/ingest/ingest_report_20260604_120000.md")
             self.assertIn("written_pages", read_payload["content"])
 
     def test_reports_endpoint_accepts_all_vaults(self) -> None:
@@ -546,7 +546,7 @@ connectors: {{}}
             personal = root / "personal-wiki"
             team = root / "team-wiki"
             for vault, name in [(personal, "personal"), (team, "team")]:
-                maintenance = vault / "maintenance"
+                maintenance = vault / "maintenance" / "reports" / "ingest"
                 maintenance.mkdir(parents=True)
                 (maintenance / f"ingest_report_{name}.md").write_text(f"# {name.title()} Ingest Report\n", encoding="utf-8")
             config_path = root / "config.yaml"
@@ -618,8 +618,8 @@ connectors: {{}}
             personal = root / "personal-wiki"
             team = root / "team-wiki"
             personal.mkdir()
-            (team / "concepts").mkdir(parents=True)
-            (team / "concepts" / "Team-Agent.md").write_text("# Team Agent\n\n## Source\n\nraw/team.md\n", encoding="utf-8")
+            (team / "wiki" / "pages").mkdir(parents=True)
+            (team / "wiki" / "pages" / "Team-Agent.md").write_text("# Team Agent", encoding="utf-8")
             config_path = root / "config.yaml"
             config_path.write_text(
                 f"""
@@ -777,8 +777,8 @@ connectors: {{}}
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "concepts").mkdir()
-            (vault / "concepts" / "Agent-Loop.md").write_text(
+            (vault / "wiki" / "pages").mkdir(parents=True)
+            (vault / "wiki" / "pages" / "Agent-Loop.md").write_text(
                 "# Agent Loop\n\n## Summary\n\nAgent loop coordinates reasoning and tool use.\n",
                 encoding="utf-8",
             )
@@ -796,7 +796,7 @@ connectors: {{}}
             payload = response.json()
 
         self.assertEqual(payload["schema_version"], "wiki_query.v1")
-        self.assertEqual(payload["results"][0]["path"], "concepts/Agent-Loop.md")
+        self.assertEqual(payload["results"][0]["path"], "Agent-Loop.md")
 
     def test_run_ingest_file_records_preprocessor_error_for_pdf(self) -> None:
         import tempfile
@@ -885,11 +885,10 @@ connectors: {{}}
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             archive_vault = root / "archive-wiki"
-            (archive_vault / "entities").mkdir(parents=True)
-            (archive_vault / "concepts").mkdir(parents=True)
-            (archive_vault / "entities" / "Archive.md").write_text("# Archive\n\nStored page.\n", encoding="utf-8")
-            (archive_vault / "concepts" / "Archive-Concept.md").write_text(
-                "# Archive Concept\n\nSee [[entities/Archive|Archive]].\n",
+            (archive_vault / "wiki" / "pages").mkdir(parents=True)
+            (archive_vault / "wiki" / "pages" / "Archive.md").write_text("# Archive\n\nStored page.\n", encoding="utf-8")
+            (archive_vault / "wiki" / "pages" / "Archive-Concept.md").write_text(
+                "# Archive Concept\n\nSee [[Archive|Archive]].\n",
                 encoding="utf-8",
             )
             (root / "config.yaml").write_text(
@@ -911,11 +910,11 @@ connectors: {{}}
                 response = client.get("/wiki/pages", params={"config_path": str(root / "config.yaml"), "vault_id": "archive"})
                 content_response = client.get(
                     "/wiki/pages/content",
-                    params={"config_path": str(root / "config.yaml"), "vault_id": "archive", "path": "concepts/Archive-Concept.md"},
+                    params={"config_path": str(root / "config.yaml"), "vault_id": "archive", "path": "Archive-Concept.md"},
                 )
-                links_response = client.get(
-                    "/wiki/pages/links",
-                    params={"config_path": str(root / "config.yaml"), "vault_id": "archive", "path": "concepts/Archive-Concept.md"},
+                relations_response = client.get(
+                    "/wiki/pages/relations",
+                    params={"config_path": str(root / "config.yaml"), "vault_id": "archive", "path": "Archive-Concept.md"},
                 )
 
         self.assertEqual(response.status_code, 200)
@@ -923,18 +922,18 @@ connectors: {{}}
         self.assertEqual(payload["vault_path"], str(archive_vault.resolve()))
         self.assertEqual(payload["vault_id"], "archive")
         self.assertEqual(payload["vault_name"], "Archive")
-        self.assertEqual({page["path"] for page in payload["pages"]}, {"entities/Archive.md", "concepts/Archive-Concept.md"})
+        self.assertEqual({page["path"] for page in payload["pages"]}, {"Archive.md", "Archive-Concept.md"})
         self.assertEqual(content_response.status_code, 200)
         content_payload = content_response.json()
-        self.assertEqual(content_payload["path"], "concepts/Archive-Concept.md")
+        self.assertEqual(content_payload["path"], "Archive-Concept.md")
         self.assertEqual(content_payload["vault_id"], "archive")
         self.assertEqual(content_payload["vault_name"], "Archive")
-        self.assertIn("See [[entities/Archive|Archive]]", content_payload["content"])
-        self.assertEqual(links_response.status_code, 200)
-        links_payload = links_response.json()
-        self.assertEqual(links_payload["vault_id"], "archive")
-        self.assertEqual(links_payload["vault_name"], "Archive")
-        self.assertEqual(links_payload["outbound_links"][0]["target_path"], "entities/Archive.md")
+        self.assertIn("See [[Archive|Archive]]", content_payload["content"])
+        self.assertEqual(relations_response.status_code, 200)
+        relations_payload = relations_response.json()
+        self.assertEqual(relations_payload["vault_id"], "archive")
+        self.assertEqual(relations_payload["vault_name"], "Archive")
+        self.assertEqual(relations_payload["outgoing_pages"][0]["target_path"], "Archive.md")
 
     def test_http_exception_uses_public_error_envelope(self) -> None:
         import tempfile
@@ -945,7 +944,7 @@ connectors: {{}}
 
             response = client.get(
                 "/wiki/pages/content",
-                params={"vault_path": str(vault), "path": "concepts/Missing.md"},
+                params={"vault_path": str(vault), "path": "Missing.md"},
             )
 
         self.assertEqual(response.status_code, 404)

@@ -114,7 +114,7 @@ class ConfigTests(unittest.TestCase):
                     "connectors": {
                         "markdown": {
                             "enabled": True,
-                            "settings": {"roots": ["./notes"], "raw_output_dir": "./vaults/all/raw/notes"},
+                            "settings": {"roots": ["./notes"], "raw_output_dir": "./vaults/all/raw/inbox/notes"},
                         }
                     },
                 },
@@ -124,7 +124,10 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(prepared["config_version"], 1)
         self.assertEqual(prepared["vault"]["path"], (Path(tmp_dir) / "vaults" / "all").resolve())
         self.assertEqual(prepared["connectors"]["markdown"]["settings"]["roots"], [(Path(tmp_dir) / "notes").resolve()])
-        self.assertEqual(prepared["connectors"]["markdown"]["settings"]["raw_output_dir"], (Path(tmp_dir) / "vaults" / "all" / "raw" / "notes").resolve())
+        self.assertEqual(
+            prepared["connectors"]["markdown"]["settings"]["raw_output_dir"],
+            (Path(tmp_dir) / "vaults" / "all" / "raw" / "inbox" / "notes").resolve(),
+        )
 
     def test_migrate_config_data_rejects_newer_versions(self) -> None:
         with self.assertRaisesRegex(ConfigMigrationError, "newer than this KnoArbor build"):

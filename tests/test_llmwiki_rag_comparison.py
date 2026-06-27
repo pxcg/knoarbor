@@ -64,7 +64,7 @@ class LlmWikiRagComparisonTests(unittest.TestCase):
                         "question": "Agent Loop 是什么？",
                         "answer": "Agent Loop answer",
                         "answer_chars": 17,
-                        "citation_paths": ["concepts/Agent-Loop.md"],
+                        "citation_paths": ["Agent-Loop.md"],
                         "hidden_evidence_count": 0,
                         "tool_trace": [{"tool": "query_wiki"}],
                         "stats": {"usage": {"total_tokens": 42}},
@@ -76,7 +76,7 @@ class LlmWikiRagComparisonTests(unittest.TestCase):
 
         self.assertIn("provider: deepseek", report)
         self.assertIn("vault_id: agent-engineering", report)
-        self.assertIn("concepts/Agent-Loop.md", report)
+        self.assertIn("Agent-Loop.md", report)
 
     def test_build_comparison_report_reads_result_shapes(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -97,7 +97,7 @@ class LlmWikiRagComparisonTests(unittest.TestCase):
                     {
                       "turn": 1,
                       "question": "Agent Loop 是什么？",
-                      "citation_paths": ["concepts/Agent-Loop.md"],
+                      "citation_paths": ["Agent-Loop.md"],
                       "stats": {"usage": {"prompt_tokens": 10, "completion_tokens": 2, "total_tokens": 12}}
                     }
                   ]
@@ -131,7 +131,7 @@ class LlmWikiRagComparisonTests(unittest.TestCase):
             )
             text = report.read_text(encoding="utf-8")
         self.assertIn("Fixed LLM-Wiki vs Markdown Chunk-RAG Evaluation", text)
-        self.assertIn("concepts/Agent-Loop.md", text)
+        self.assertIn("Agent-Loop.md", text)
         self.assertIn("Agent.md#0", text)
 
 

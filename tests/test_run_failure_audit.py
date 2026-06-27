@@ -37,8 +37,8 @@ class RunFailureAuditTests(unittest.TestCase):
             with self.assertRaises(Exception):
                 IngestService().run_file(request)
 
-            reports = sorted((vault / "maintenance").glob("ingest_run_report_*.md"))
-            ledgers = sorted((vault / "maintenance").glob("ingest_ledger.jsonl"))
+            reports = sorted((vault / "maintenance" / "reports" / "ingest").glob("ingest_run_report_*.md"))
+            ledgers = sorted((vault / ".knoarbor" / "ledgers").glob("ingest.jsonl"))
             self.assertEqual(len(reports), 1)
             self.assertEqual(len(ledgers), 1)
             report = reports[0].read_text(encoding="utf-8")
@@ -64,8 +64,8 @@ class RunFailureAuditTests(unittest.TestCase):
             with self.assertRaises(Exception):
                 WikiLinterService().run_maintenance(request)
 
-            reports = sorted((vault / "maintenance").glob("lint_run_report_*.md"))
-            ledgers = sorted((vault / "maintenance").glob("lint_run_ledger.jsonl"))
+            reports = sorted((vault / "maintenance" / "reports" / "lint").glob("lint_run_report_*.md"))
+            ledgers = sorted((vault / ".knoarbor" / "ledgers").glob("lint_run.jsonl"))
             self.assertEqual(len(reports), 1)
             self.assertEqual(len(ledgers), 1)
             report = reports[0].read_text(encoding="utf-8")
@@ -86,8 +86,8 @@ class RunFailureAuditTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     WikiSearchService().search(request)
 
-            reports = sorted((vault / "maintenance").glob("query_run_report_*.md"))
-            ledgers = sorted((vault / "maintenance").glob("query_ledger.jsonl"))
+            reports = sorted((vault / "maintenance" / "reports" / "query").glob("query_run_report_*.md"))
+            ledgers = sorted((vault / ".knoarbor" / "ledgers").glob("query.jsonl"))
             self.assertEqual(len(reports), 1)
             self.assertEqual(len(ledgers), 1)
             report = reports[0].read_text(encoding="utf-8")

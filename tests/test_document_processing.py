@@ -189,10 +189,13 @@ class DocumentProcessingTests(unittest.TestCase):
             self.assertEqual(result.stats["processed_count"], 1)
             self.assertEqual(prepared, (output_dir / "paper.md").resolve())
             self.assertEqual(len(result.items[0].attachments), 1)
-            self.assertEqual(result.items[0].attachments[0]["relative_path"], "paper/images/figure-1.png")
+            relative_path = str(result.items[0].attachments[0]["relative_path"])
+            self.assertTrue(relative_path.startswith("images/paper-figure-1-"))
+            self.assertTrue(relative_path.endswith(".png"))
+            self.assertIn("](../assets/images/paper-figure-1-", prepared.read_text(encoding="utf-8"))
             sidecar = output_dir / "paper.attachments.json"
             self.assertTrue(sidecar.exists())
-            self.assertIn("figure-1.png", sidecar.read_text(encoding="utf-8"))
+            self.assertIn("paper-figure-1-", sidecar.read_text(encoding="utf-8"))
 
     def test_mineru_processor_materializes_native_response_images(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -215,16 +218,17 @@ class DocumentProcessingTests(unittest.TestCase):
 
             prepared, result = DocumentProcessingPipeline(mineru=FakeNativeMinerUResponseImageProcessor()).prepare_input_file(config, path)
 
-            image_path = output_dir / "images" / "figure-1.png"
             self.assertEqual(result.stats["processed_count"], 1)
             self.assertEqual(prepared, (output_dir / "paper.md").resolve())
-            self.assertTrue(image_path.exists())
             self.assertEqual(len(result.items[0].attachments), 1)
-            self.assertEqual(result.items[0].attachments[0]["relative_path"], "images/figure-1.png")
+            relative_path = str(result.items[0].attachments[0]["relative_path"])
+            self.assertTrue(relative_path.startswith("images/paper-figure-1-"))
+            self.assertTrue(relative_path.endswith(".png"))
+            self.assertTrue((output_dir.parent / "assets" / relative_path).exists())
             self.assertIn("Agent loop diagram", str(result.items[0].attachments[0]["description"]))
             self.assertEqual(result.items[0].attachments[0]["metadata"]["page_idx"], 0)
 
-    def test_mineru_image_description_does_not_inline_raw_extraction(self) -> None:
+    def test_mineru_image_description_uses_compact_extraction_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             path = root / "paper.pdf"
@@ -246,8 +250,7 @@ class DocumentProcessingTests(unittest.TestCase):
             _, result = DocumentProcessingPipeline(mineru=FakeNativeMinerUContentOnlyImageProcessor()).prepare_input_file(config, path)
 
             attachment = result.items[0].attachments[0]
-            self.assertEqual(attachment["description"], "flowchart extraction is available in attachment metadata.")
-            self.assertNotIn("mermaid", str(attachment["description"]))
+            self.assertIn("graph LR", str(attachment["description"]))
             self.assertIn("mermaid", str(attachment["metadata"]["content"]))
 
     def test_prepare_input_folder_markdown_only_ignores_obsidian_assets(self) -> None:

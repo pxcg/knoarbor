@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.connectors import ConnectorConfig, ConnectorRegistry, MarkdownConnector
-from knoarbor.core.attachments import write_attachment_sidecar
+from knoarbor.core.attachments import attachment_sidecar_path, write_attachment_sidecar
 
 
 class MarkdownConnectorTests(unittest.TestCase):
@@ -80,6 +80,21 @@ class MarkdownConnectorTests(unittest.TestCase):
             sorted(item["relative_path"] for item in document.content.attachments),
             ["images/linked.png", "images/sidecar.png"],
         )
+
+    def test_normalized_markdown_sidecar_uses_raw_sidecars(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = (Path(tmp_dir) / "vault").resolve()
+            markdown_path = vault / "raw" / "normalized" / "markdown" / "paper.md"
+            markdown_path.parent.mkdir(parents=True)
+            markdown_path.write_text("# Paper\n", encoding="utf-8")
+
+            write_attachment_sidecar(markdown_path, [], source="test")
+
+            self.assertEqual(
+                attachment_sidecar_path(markdown_path),
+                vault / "raw" / "sidecars" / "sources" / "paper.attachments.json",
+            )
+            self.assertTrue((vault / "raw" / "sidecars" / "sources" / "paper.attachments.json").exists())
 
     def test_registry_returns_markdown_connector(self) -> None:
         registry = ConnectorRegistry()

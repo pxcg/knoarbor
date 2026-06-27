@@ -88,7 +88,7 @@ class SemanticRunnerTests(unittest.TestCase):
                   "source_type": "markdown",
                   "source_app": "unit",
                   "source_id": "unit:1",
-                  "source_path": "raw/notes/unit.md",
+                  "source_path": "raw/inbox/notes/unit.md",
                   "title": "Unit",
                   "created_at": null,
                   "updated_at": null
@@ -133,7 +133,7 @@ class SemanticRunnerTests(unittest.TestCase):
                 "source_type": "markdown",
                 "source_app": "unit",
                 "source_id": "unit:1",
-                "source_path": "raw/notes/unit.md",
+                "source_path": "raw/inbox/notes/unit.md",
                 "title": "Schema Root",
                 "created_at": null,
                 "updated_at": null
@@ -180,7 +180,7 @@ class SemanticRunnerTests(unittest.TestCase):
               "source_type": "markdown",
               "source_app": "unit",
               "source_id": "unit:2",
-              "source_path": "raw/notes/unit.md",
+              "source_path": "raw/inbox/notes/unit.md",
               "title": "Runner Unit",
               "created_at": null,
               "updated_at": null
@@ -251,7 +251,7 @@ class SemanticRunnerTests(unittest.TestCase):
               "source_type": "markdown",
               "source_app": "unit",
               "source_id": "unit:retry",
-              "source_path": "raw/notes/unit.md",
+              "source_path": "raw/inbox/notes/unit.md",
               "title": "Retry Unit",
               "created_at": null,
               "updated_at": null
@@ -316,7 +316,7 @@ class SemanticRunnerTests(unittest.TestCase):
               "source_type": "markdown",
               "source_app": "unit",
               "source_id": "unit:json-retry",
-              "source_path": "raw/notes/unit.md",
+              "source_path": "raw/inbox/notes/unit.md",
               "title": "JSON Retry Unit",
               "created_at": null,
               "updated_at": null

@@ -23,7 +23,7 @@ def make_document(text: str) -> SourceDocument:
         origin=SourceOrigin(
             connector="markdown",
             uri="file:///Users/alice/notes/private.md",
-            raw_path="raw/notes/private.md",
+            raw_path="raw/inbox/notes/private.md",
         ),
         content=SourceContent(
             format="markdown",

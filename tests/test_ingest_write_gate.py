@@ -48,7 +48,7 @@ def _semantic_result_with_source_draft() -> IngestSemanticWorkflowResult:
                 source_type="markdown",
                 source_app="markdown",
                 source_id="markdown:memory",
-                source_path="raw/notes/Memory.md",
+                source_path="raw/inbox/notes/Memory.md",
                 title="Memory",
             ),
             content_units=[ContentUnit(index=0, unit_type="note", role="note", content="Memory strategies.")],
@@ -60,10 +60,10 @@ def _semantic_result_with_source_draft() -> IngestSemanticWorkflowResult:
                 source_type="markdown",
                 source_app="markdown",
                 source_id="markdown:memory",
-                source_path="raw/notes/Memory.md",
+                source_path="raw/inbox/notes/Memory.md",
                 title="Memory",
             ),
-            raw_source="raw/notes/Memory.md",
+            raw_source="raw/inbox/notes/Memory.md",
             content_hash="abc",
             source_focus="Memory",
             summary="Memory strategies.",
@@ -88,7 +88,7 @@ def _semantic_result_with_source_draft() -> IngestSemanticWorkflowResult:
                 WikiDraftBatchItem(
                     operation_index=0,
                     write_action="create",
-                    source_file="raw/notes/Memory.md",
+                    source_file="raw/inbox/notes/Memory.md",
                     title="Memory Source",
                     page_dir="sources",
                     question="Memory Source",
@@ -96,7 +96,7 @@ def _semantic_result_with_source_draft() -> IngestSemanticWorkflowResult:
                     claims=[],
                     entities=[],
                     relations=[],
-                    evidence=["U1 | raw/notes/Memory.md | unit:0 | source unit basis | high"],
+                    evidence=["U1 | raw/inbox/notes/Memory.md | unit:0 | source unit basis | high"],
                     synthesis="Source audit page.",
                     source_digest_ids=["sd_memory"],
                     atom_ids=[],
@@ -117,7 +117,7 @@ def _semantic_result_with_renumbered_claim_mismatch() -> IngestSemanticWorkflowR
         source_type="markdown",
         source_app="markdown",
         source_id="markdown:agent",
-        source_path="raw/notes/agent.md",
+        source_path="raw/inbox/notes/agent.md",
         title="Agent",
     )
     return IngestSemanticWorkflowResult(
@@ -129,7 +129,7 @@ def _semantic_result_with_renumbered_claim_mismatch() -> IngestSemanticWorkflowR
         source_digest=SourceDigest(
             digest_id="sd_agent",
             source=source,
-            raw_source="raw/notes/agent.md",
+            raw_source="raw/inbox/notes/agent.md",
             content_hash="abc",
             source_focus="Agent",
             summary="Agent loop.",
@@ -140,7 +140,7 @@ def _semantic_result_with_renumbered_claim_mismatch() -> IngestSemanticWorkflowR
             operations=[
                 WikiPageOperation(
                     action="create",
-                    page_dir="concepts",
+                    page_dir="pages",
                     title="Agent Loop",
                     knowledge_object="Agent Loop",
                     selected_claim_ids=["claim_agent_loop"],
@@ -155,9 +155,9 @@ def _semantic_result_with_renumbered_claim_mismatch() -> IngestSemanticWorkflowR
                 WikiDraftBatchItem(
                     operation_index=0,
                     write_action="create",
-                    source_file="raw/notes/agent.md",
+                    source_file="raw/inbox/notes/agent.md",
                     title="Agent Loop",
-                    page_dir="concepts",
+                    page_dir="pages",
                     question="Agent Loop",
                     summary="Agent loop summary.",
                     claims=["C13: [[Agent Loop]] repeats observe and act."],

@@ -19,7 +19,7 @@ from knoarbor.storage import (
 
 class WikiPathsStorageTests(unittest.TestCase):
     def test_normalize_wiki_page_path_accepts_wikilinks(self) -> None:
-        self.assertEqual(normalize_wiki_page_path("[[concepts/Agent|Agent]]"), "concepts/Agent.md")
+        self.assertEqual(normalize_wiki_page_path("[[Agent|Agent]]"), "Agent.md")
 
     def test_resolve_wiki_page_blocks_invalid_paths(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -31,13 +31,13 @@ class WikiPathsStorageTests(unittest.TestCase):
     def test_resolve_existing_by_hash_and_available_title_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            concepts = vault / "concepts"
-            concepts.mkdir()
-            existing = concepts / "Agent.md"
+            pages = vault / "wiki" / "pages"
+            pages.mkdir(parents=True)
+            existing = pages / "Agent.md"
             existing.write_text("---\ncontent_hash: abc123\n---\n# Agent\n", encoding="utf-8")
 
-            matched = resolve_existing_by_hash(vault, "concepts", "abc123")
-            available = available_title_path(concepts, "Agent")
+            matched = resolve_existing_by_hash(vault, "pages", "abc123")
+            available = available_title_path(pages, "Agent")
 
         self.assertEqual(matched, existing.resolve())
         self.assertEqual(available.name, "Agent-2.md")

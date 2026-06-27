@@ -81,7 +81,7 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
         candidate_page_context = {
             "pages": [
                 {
-                    "path": "concepts/Agent.md",
+                    "path": "Agent.md",
                     "exists": True,
                     "context_role": "target",
                     "content_kind": "full",
@@ -110,7 +110,7 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
         self.assertIn("content_hash", plan_payload["source_digest"])
         self.assertIn("contribution_map", plan_payload["source_digest"])
         self.assertIn("unresolved_items", plan_payload["source_digest"])
-        self.assertEqual(plan_payload["source_digest"]["units"][0]["summary"], "Agent")
+        self.assertEqual(plan_payload["source_digest"]["units"][0]["summary"], "Paragraph group 1")
         self.assertNotIn("evidence", plan_payload["source_digest"]["units"][0])
         self.assertEqual(plan_payload["knowledge_atoms"]["source_digest_id"], "sd_test_agent")
         self.assertEqual(plan_payload["knowledge_atoms"]["claims"][0]["id"], "claim_agent_loop_control_pattern")
@@ -171,7 +171,7 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
         draft["claims"] = ["U1: model used source-unit numbering instead of claim numbering."]
         draft["entities"] = []
         draft["relations"] = []
-        draft["evidence"] = ["U1 | raw/notes/Agent.md | unit:0 | model-authored evidence row | high"]
+        draft["evidence"] = ["U1 | raw/inbox/notes/Agent.md | unit:0 | model-authored evidence row | high"]
         client = ScriptedChatClient(
             [
                 source_normalize_output(),
@@ -252,16 +252,11 @@ def _plan_with_source_digest_operation() -> dict[str, object]:
             "target_page": None,
             "page_dir": "sources",
             "canonical_path": "sources/Agent-Source.md",
-            "legacy_paths": [],
-            "page_kind": "source_digest",
-            "subject_kind": "source",
-            "facets": ["source_audit"],
             "title": "Agent Source",
             "knowledge_object": "Agent source audit",
             "selected_claim_ids": [],
             "selected_relation_ids": [],
             "source_digest_ids": ["sd_test_agent"],
-            "related_pages": [],
             "candidate_pages": [],
             "decision_reason": "Every substantive source has one audit page.",
         },
@@ -289,7 +284,7 @@ def _atom_output_with_unselected_material() -> dict[str, object]:
             "evidence": [
                 {
                     "source_digest_id": "sd_test_agent",
-                    "source_path": "raw/notes/Agent.md",
+                    "source_path": "raw/inbox/notes/Agent.md",
                     "source_unit_index": 0,
                     "excerpt": "Noise background.",
                 }

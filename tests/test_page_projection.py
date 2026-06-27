@@ -18,10 +18,10 @@ class PageProjectionTests(unittest.TestCase):
                 source_type="markdown",
                 source_app="markdown",
                 source_id="markdown:memory",
-                source_path="raw/notes/Memory.md",
+                source_path="raw/inbox/notes/Memory.md",
                 title="Memory",
             ),
-            raw_source="raw/notes/Memory.md",
+            raw_source="raw/inbox/notes/Memory.md",
             content_hash="abc",
             source_focus="Memory strategies",
             summary="Conversation memory note.",
@@ -33,7 +33,7 @@ class PageProjectionTests(unittest.TestCase):
                     summary="Full history | sliding window strategies.",
                     evidence=KnowledgeEvidenceSpan(
                         source_digest_id="sd_memory",
-                        source_path="raw/notes/Memory.md",
+                        source_path="raw/inbox/notes/Memory.md",
                         source_unit_index=0,
                         excerpt="Full history and sliding window strategies.",
                     ),
@@ -45,7 +45,7 @@ class PageProjectionTests(unittest.TestCase):
                 WikiDraftBatchItem(
                     operation_index=0,
                     write_action="create",
-                    source_file="raw/notes/Memory.md",
+                    source_file="raw/inbox/notes/Memory.md",
                     title="Memory Source",
                     page_dir="sources",
                     question="Memory Source",
@@ -75,7 +75,7 @@ class PageProjectionTests(unittest.TestCase):
         draft = projected.drafts[0]
         self.assertEqual(draft.source_digest_ids, ["sd_memory"])
         self.assertEqual(draft.summary, "Conversation memory note.")
-        self.assertEqual(draft.evidence, ["U1 | raw/notes/Memory.md | unit:0 | Full history / sliding window strategies. | high"])
+        self.assertEqual(draft.evidence, ["U1 | raw/inbox/notes/Memory.md | unit:0 | Full history / sliding window strategies. | high"])
 
 
 if __name__ == "__main__":

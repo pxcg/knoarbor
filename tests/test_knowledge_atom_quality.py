@@ -16,7 +16,7 @@ from knoarbor.semantic.knowledge_atom_quality import evaluate_knowledge_atoms
 def _evidence(source_digest_id: str = "sd_agent") -> KnowledgeEvidenceSpan:
     return KnowledgeEvidenceSpan(
         source_digest_id=source_digest_id,
-        source_path="raw/notes/Agent.md",
+        source_path="raw/inbox/notes/Agent.md",
         source_unit_index=0,
         excerpt="Agent loop coordinates tool use.",
     )

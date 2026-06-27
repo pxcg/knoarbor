@@ -12,7 +12,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.entrypoints.api import create_app
 from knoarbor.storage.wiki_init import init_wiki_vault
-from knoarbor.storage.wiki_paths import content_root
+from knoarbor.storage.vault_layout import raw_asset_images_root
+from knoarbor.storage.wiki_paths import content_root, source_digest_root
 
 
 class UiApiTests(unittest.TestCase):
@@ -33,6 +34,24 @@ class UiApiTests(unittest.TestCase):
         for root_asset in ("favicon.ico", "site.webmanifest", "knoarbor-logo.svg"):
             asset = client.get(f"/ui/{root_asset}")
             self.assertEqual(asset.status_code, 200)
+
+    def test_vault_assets_read_raw_asset_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault_path = Path(tmp_dir) / "vault"
+            init_wiki_vault(vault_path)
+            asset_dir = raw_asset_images_root(vault_path)
+            asset_dir.mkdir(parents=True, exist_ok=True)
+            asset_path = asset_dir / "figure.png"
+            asset_path.write_bytes(b"fake-png")
+            client = TestClient(create_app())
+
+            response = client.get(
+                "/ui/api/vault-assets/images/figure.png",
+                params={"vault_path": str(vault_path)},
+            )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.content, b"fake-png")
 
     def test_ui_config_can_validate_and_save_local_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -233,24 +252,24 @@ models:
                     "providers": [],
                     "codex_enabled": True,
                     "codex_sessions_dir": str(external_sessions),
-                    "codex_raw_output_dir": str(vault_path / "raw" / "chats"),
+                    "codex_raw_output_dir": str(vault_path / "raw" / "normalized" / "chats"),
                     "markdown_enabled": True,
-                    "markdown_roots": [str(vault_path / "raw" / "notes")],
-                    "markdown_raw_output_dir": str(vault_path / "raw" / "notes"),
+                    "markdown_roots": [str(vault_path / "raw" / "inbox" / "notes")],
+                    "markdown_raw_output_dir": str(vault_path / "raw" / "inbox" / "notes"),
                     "mineru_enabled": True,
                     "mineru_endpoint": "http://127.0.0.1:30000",
-                    "mineru_input_dir": str(vault_path / "raw" / "documents" / "originals"),
-                    "mineru_output_dir": str(vault_path / "raw" / "documents" / "markdown"),
+                    "mineru_input_dir": str(vault_path / "raw" / "inbox" / "documents"),
+                    "mineru_output_dir": str(vault_path / "raw" / "normalized" / "markdown"),
                 },
             )
 
             self.assertEqual(response.status_code, 200)
             saved = config_path.read_text(encoding="utf-8")
             self.assertIn("path: ./vaults/all", saved)
-            self.assertIn("- ./vaults/all/raw/notes", saved)
-            self.assertIn("raw_output_dir: ./vaults/all/raw/chats", saved)
-            self.assertIn("input_dir: ./vaults/all/raw/documents/originals", saved)
-            self.assertIn("output_dir: ./vaults/all/raw/documents/markdown", saved)
+            self.assertIn("- ./vaults/all/raw/inbox/notes", saved)
+            self.assertIn("raw_output_dir: ./vaults/all/raw/normalized/chats", saved)
+            self.assertIn("input_dir: ./vaults/all/raw/inbox/documents", saved)
+            self.assertIn("output_dir: ./vaults/all/raw/normalized/markdown", saved)
             self.assertIn(f"sessions_dir: {external_sessions.as_posix()}", saved)
 
     def test_ui_config_form_round_trips_mineru_advanced_options(self) -> None:
@@ -383,7 +402,7 @@ connectors:
     settings:
       roots:
         - {root.as_posix()}
-      raw_output_dir: ./vaults/all/raw/notes
+      raw_output_dir: ./vaults/all/raw/inbox/notes
 models:
   providers: {{}}
 """,
@@ -420,7 +439,7 @@ connectors:
     settings:
       roots:
         - {missing.as_posix()}
-      raw_output_dir: ./vaults/all/raw/notes
+      raw_output_dir: ./vaults/all/raw/inbox/notes
 models:
   providers: {{}}
 """,
@@ -500,7 +519,7 @@ connectors: {{}}
                 "# Unit\n\n## Summary\n\nA unit page.\n",
                 encoding="utf-8",
             )
-            (vault_path / "raw" / "notes").mkdir(parents=True)
+            (vault_path / "raw" / "notes").mkdir(parents=True, exist_ok=True)
             (vault_path / "raw" / "notes" / "unit.md").write_text("# Unit", encoding="utf-8")
             client = TestClient(create_app())
 
@@ -517,15 +536,54 @@ connectors: {{}}
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault_path = Path(tmp_dir) / "vaults" / "all"
             init_wiki_vault(vault_path)
-            source_path = content_root(vault_path) / "sources" / "Source.md"
+            source_path = source_digest_root(vault_path) / "Source.md"
             concept_path = content_root(vault_path) / "Agent-Loop.md"
             source_path.write_text(
-                "# Source\n\n---\ntype: source\nsource: raw/notes/source.md\ntags: [source-digest]\n---\n\n"
-                "## Summary\n\nSource summary.\n\n## Related Pages\n\n- [[Agent-Loop|Agent Loop]]\n",
+                "---\nrole: source_digest\n---\n# Source\n\n## Source Identity\n\n- Raw source: raw/inbox/notes/source.md\n- Content hash: test\n\n## Source Units\n\n- U1: Agent loop source notes.\n\n## Contribution Map\n\n- [[Agent-Loop|Agent Loop]]: source support\n\n## Raw Source\n\n- raw/inbox/notes/source.md\n",
                 encoding="utf-8",
             )
             concept_path.write_text(
-                "# Agent Loop\n\n---\ntype: concept\ntags: [agent]\n---\n\n## Summary\n\nAgent loop summary.\n",
+                "---\nrole: knowledge_page\n---\n# Agent Loop\n\n## Summary\n\nAgent loop summary.\n",
+                encoding="utf-8",
+            )
+            client = TestClient(create_app())
+
+            response = client.get("/ui/api/graph", params={"vault_path": str(vault_path), "view": "page"})
+
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertEqual(payload["graph_kind"], "page")
+            self.assertEqual(payload["stats"]["page_count"], 2)
+            self.assertEqual(payload["stats"]["edge_count"], 1)
+            self.assertEqual(payload["stats"]["orphan_count"], 0)
+            self.assertEqual(payload["stats"]["directory_counts"]["sources"], 1)
+            self.assertEqual(payload["stats"]["role_counts"]["source_digest"], 1)
+            self.assertEqual(payload["stats"]["role_counts"]["knowledge_page"], 1)
+            source_node = next(node for node in payload["nodes"] if node["id"] == "sources/Source.md")
+            self.assertEqual(source_node["role"], "source_digest")
+            self.assertEqual(payload["stats"]["entity_counts"], {})
+            self.assertEqual(payload["edges"][0]["source"], "sources/Source.md")
+            self.assertEqual(payload["edges"][0]["target"], "Agent-Loop.md")
+
+    def test_ui_graph_defaults_to_entity_relation_graph(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault_path = Path(tmp_dir) / "vaults" / "default"
+            init_wiki_vault(vault_path)
+            concept_path = content_root(vault_path) / "Agent-Loop.md"
+            concept_path.write_text(
+                "# Agent Loop\n\n---\nrole: knowledge_page\n---\n\n"
+                "## Summary\n\nAgent Loop coordinates tool-using agent execution.\n\n"
+                "## Claims\n\n"
+                "- C1: Agent Loop coordinates [[Tool Call]] and [[Memory]] during execution.\n\n"
+                "## Relations\n\n"
+                "| Subject | Predicate | Object | Claim |\n"
+                "| --- | --- | --- | --- |\n"
+                "| [[Agent Loop]] | coordinates | [[Tool Call]] | C1 |\n"
+                "| [[Agent Loop]] | updates | [[Memory]] | C1 |\n\n"
+                "## Entities\n\n"
+                "- Agent Loop\n"
+                "- Tool Call\n"
+                "- Memory\n",
                 encoding="utf-8",
             )
             client = TestClient(create_app())
@@ -534,20 +592,13 @@ connectors: {{}}
 
             self.assertEqual(response.status_code, 200)
             payload = response.json()
-            self.assertEqual(payload["stats"]["page_count"], 2)
-            self.assertEqual(payload["stats"]["edge_count"], 1)
-            self.assertEqual(payload["stats"]["orphan_count"], 0)
-            self.assertEqual(payload["stats"]["directory_counts"]["sources"], 1)
-            self.assertEqual(payload["stats"]["page_kind_counts"]["source_digest"], 1)
-            self.assertEqual(payload["stats"]["page_kind_counts"]["concept"], 1)
-            self.assertEqual(payload["stats"]["role_counts"]["source_digest"], 1)
-            self.assertEqual(payload["stats"]["role_counts"]["knowledge_page"], 1)
-            source_node = next(node for node in payload["nodes"] if node["id"] == "sources/Source.md")
-            self.assertEqual(source_node["page_kind"], "source_digest")
-            self.assertIn("source_digest", source_node["facets"])
-            self.assertEqual(payload["stats"]["tag_counts"]["agent"], 1)
-            self.assertEqual(payload["edges"][0]["source"], "sources/Source.md")
-            self.assertEqual(payload["edges"][0]["target"], "Agent-Loop.md")
+            self.assertEqual(payload["graph_kind"], "entity")
+            self.assertEqual(payload["stats"]["edge_count"], 2)
+            self.assertEqual({node["id"] for node in payload["nodes"]}, {"Agent Loop", "Tool Call", "Memory"})
+            first_edge = payload["edges"][0]
+            self.assertIn(first_edge["label"], {"coordinates", "updates"})
+            self.assertEqual(first_edge["kind"], "relation")
+            self.assertEqual(first_edge["page"], "Agent-Loop.md")
 
 
 if __name__ == "__main__":

@@ -62,7 +62,7 @@ class KnowledgeAtomSchemaTest(unittest.TestCase):
         )
         self.assertEqual(relation.predicate, "contrasts_with")
 
-    def test_relation_rejects_legacy_generic_predicates(self) -> None:
+    def test_relation_rejects_deprecated_generic_predicates(self) -> None:
         subject = KnowledgeAtomObject(object_type="knowledge_object", name="SoundAnalysis")
         obj = KnowledgeAtomObject(object_type="knowledge_object", name="Energy Peak Baseline")
         for predicate in ("relates_to", "mentions", "contrasts"):

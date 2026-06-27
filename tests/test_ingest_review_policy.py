@@ -37,7 +37,7 @@ class IngestDraftReviewPolicyTests(unittest.TestCase):
             WikiPageOperation(
                 action="update",
                 target_page="Agent-Loop.md",
-                page_dir="concepts",
+                page_dir="pages",
                 title="Agent Loop",
                 knowledge_object="Agent Loop",
                 selected_claim_ids=["claim_agent_loop"],
@@ -102,7 +102,7 @@ def _page_plan(operation: WikiPageOperation) -> WikiPagePlan:
 def _create_operation() -> WikiPageOperation:
     return WikiPageOperation(
         action="create",
-        page_dir="concepts",
+        page_dir="pages",
         title="Agent Loop",
         knowledge_object="Agent Loop",
         selected_claim_ids=["claim_agent_loop"],
@@ -120,7 +120,7 @@ def _create_draft() -> WikiDraftBatchItem:
         operation_index=0,
         write_action="create",
         title="Agent Loop",
-        page_dir="concepts",
+        page_dir="pages",
         question="Agent Loop",
         summary="Agent Loop is an execution control pattern.",
         claims=["C1: [[Agent Loop]] repeats observe, decide, act, and feedback."],

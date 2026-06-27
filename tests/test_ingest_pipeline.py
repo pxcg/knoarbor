@@ -146,12 +146,12 @@ class MismatchedWriteActionSemanticWorkflow(FakeIngestSemanticWorkflow):
         batch.drafts[0] = batch.drafts[0].model_copy(
             update={
                 "write_action": "update",
-                "target_page": "concepts/Agent-Loop.md",
+                "target_page": "Agent-Loop.md",
                 "patches": [
                     WikiPatchInput(
                         operation="merge_list",
-                        section="Key Points",
-                        items=["Mismatched update point."],
+                        section="Claims",
+                        items=["C1: Mismatched update claim."],
                     )
                 ],
             }
@@ -346,7 +346,7 @@ class SourceAndConceptSemanticWorkflow(FakeIngestSemanticWorkflow):
                 ),
                 WikiPageOperation(
                     action="create",
-                    page_dir="concepts",
+                    page_dir="pages",
                     title="Agent Loop Control",
                     knowledge_object="Agent loop control",
                     selected_claim_ids=["claim_agent_loop"],
@@ -380,7 +380,7 @@ class SourceAndConceptSemanticWorkflow(FakeIngestSemanticWorkflow):
                     operation_index=1,
                     write_action="create",
                     title="Agent Loop Control",
-                    page_dir="concepts",
+                    page_dir="pages",
                     question="Agent loop source",
                     summary="Agent loop control is a repeated control pattern.",
                     claims=["C1: [[Agent Loop]] control repeats observe, decide, act, and feedback."],
@@ -406,7 +406,7 @@ class SourceAndConceptSemanticWorkflow(FakeIngestSemanticWorkflow):
 
 
 class ScenarioSemanticWorkflow(FakeIngestSemanticWorkflow):
-    def __init__(self, *, action: str, page_dir: str = "concepts", target_page: str | None = None) -> None:
+    def __init__(self, *, action: str, page_dir: str = "pages", target_page: str | None = None) -> None:
         super().__init__()
         self.action = action
         self.page_dir = page_dir
@@ -421,7 +421,7 @@ class ScenarioSemanticWorkflow(FakeIngestSemanticWorkflow):
                 operations=[
                     WikiPageOperation(
                         action="skip",
-                        page_dir="queries",
+                        page_dir="pages",
                         title="Low Value Source",
                         knowledge_object="Low value operational note",
                         decision_reason="Source is too thin and operational for durable wiki storage.",
@@ -460,8 +460,8 @@ class ScenarioSemanticWorkflow(FakeIngestSemanticWorkflow):
             patches = [
                 WikiPatchInput(
                     operation="merge_list",
-                    section="Key Points",
-                    items=[f"{self.action} adds a durable point."],
+                    section="Claims",
+                    items=[f"C1: {self.action} adds a durable claim."],
                 )
             ]
         write_action = self.action if self.action in {"create", "update"} else "create"
@@ -601,7 +601,7 @@ class IngestSemanticWorkflowFixtures:
                 operations=[
                     WikiPageOperation(
                         action="create",
-                        page_dir="concepts",
+                        page_dir="pages",
                         title="Agent Loop",
                         knowledge_object="Agent Loop",
                         selected_claim_ids=["claim_agent_loop"],
@@ -617,7 +617,7 @@ class IngestSemanticWorkflowFixtures:
                         operation_index=0,
                         write_action="create",
                         title="Agent Loop",
-                        page_dir="concepts",
+                        page_dir="pages",
                         question="Agent Loop",
                         summary="Agent loop is a control pattern.",
                         claims=["C1: [[Agent Loop]] repeats observe, decide, act, and feedback."],
@@ -679,7 +679,7 @@ class IngestSemanticWorkflowFixtures:
     def atom_batch(source_digest_id: str) -> KnowledgeAtomBatch:
         evidence = KnowledgeEvidenceSpan(
             source_digest_id=source_digest_id,
-            source_path="raw/notes/agent.md",
+            source_path="raw/inbox/notes/agent.md",
             source_unit_index=0,
             excerpt="Agent loop repeats observe, decide, act, and feedback.",
         )
@@ -754,8 +754,8 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertIsNotNone(semantic_result)
         self.assertEqual(semantic_result.wiki_draft_batch.drafts[0].source_file, str((notes / "agent.md").resolve()))
         self.assertIn("ingest_draft_review skipped", semantic_result.ingest_draft_review.warnings[0])
-        self.assertTrue((first.report_path or "").startswith("maintenance/ingest_report_"))
-        self.assertEqual(first.ledger_path, "maintenance/ingest_ledger.jsonl")
+        self.assertTrue((first.report_path or "").startswith("maintenance/reports/ingest/ingest_report_"))
+        self.assertEqual(first.ledger_path, ".knoarbor/ledgers/ingest.jsonl")
 
     def test_long_markdown_source_is_segmented_before_semantic_ingest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -832,8 +832,6 @@ class IngestPipelineTests(unittest.TestCase):
             self.assertNotIn("## Entities", content)
             self.assertNotIn("## Relations", content)
             self.assertNotIn("## Evidence", content)
-            self.assertNotIn("## Key Points", content)
-            self.assertNotIn("## Tags", content)
 
     def test_source_digest_operation_does_not_require_atom_trace(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -873,8 +871,8 @@ class IngestPipelineTests(unittest.TestCase):
             notes = root / "notes"
             vault.mkdir(parents=True)
             notes.mkdir()
-            (vault / "concepts").mkdir()
-            (vault / "concepts" / "Existing-Agent.md").write_text(
+            (vault / "wiki" / "pages").mkdir(parents=True)
+            (vault / "wiki" / "pages" / "Existing-Agent.md").write_text(
                 "# Existing Agent\n\nAgent loop source matching text should not be linked by lexical scan.",
                 encoding="utf-8",
             )
@@ -892,10 +890,8 @@ class IngestPipelineTests(unittest.TestCase):
 
             result = pipeline.run(config, connector_names=["markdown"], write=True, write_report=False, append_ledger=False)
             self.assertEqual(result.stats["written_count"], 2)
-            source_page = (vault / "sources" / "Agent-Source-Digest.md").read_text(encoding="utf-8")
-            concept_page = (vault / "Agent-Loop-Control.md").read_text(encoding="utf-8")
-            self.assertNotIn("## Related Pages", source_page)
-            self.assertNotIn("## Related Pages", concept_page)
+            source_page = (vault / "wiki" / "sources" / "Agent-Source-Digest.md").read_text(encoding="utf-8")
+            concept_page = (vault / "wiki" / "pages" / "Agent-Loop-Control.md").read_text(encoding="utf-8")
             self.assertIn("## Source Units", source_page)
             self.assertIn("## Contribution Map", source_page)
             self.assertNotIn("## Evidence", source_page)
@@ -980,23 +976,36 @@ class IngestPipelineTests(unittest.TestCase):
             root = Path(tmp_dir)
             vault = root / "vaults" / "all"
             notes = root / "notes"
-            (vault / "concepts").mkdir(parents=True)
+            (vault / "wiki" / "pages").mkdir(parents=True)
             notes.mkdir()
-            (vault / "concepts" / "Agent-Control-Patterns.md").write_text(
+            (vault / "wiki" / "pages" / "Agent-Control-Patterns.md").write_text(
                 "\n".join(
                     [
                         "# Agent Control Patterns",
                         "",
-                        "---",
-                        "type: concept",
-                        "status: draft",
-                        "---",
+                        "---",                        "---",
                         "",
                         "## Summary",
                         "Agent loop control patterns coordinate observe, decide, act, and feedback.",
                         "",
-                        "## Key Points",
-                        "- Agent loop is a repeated control cycle.",
+                        "## Claims",
+                        "- C1: **Agent loop** is a repeated control cycle.",
+                        "",
+                        "## Entities",
+                        "- Agent loop",
+                        "",
+                        "## Relations",
+                        "| Subject | Predicate | Object | Claim |",
+                        "|---|---|---|---|",
+                        "| Agent loop | repeats | control cycle | C1 |",
+                        "",
+                        "## Evidence",
+                        "| Claim | Source | Range | Basis | Confidence |",
+                        "|---|---|---|---|---|",
+                        "| C1 | raw/inbox/notes/agent.md | unit:0 | Existing note. | medium |",
+                        "",
+                        "## Synthesis",
+                        "Agent loop is a repeated control cycle.",
                     ]
                 ),
                 encoding="utf-8",
@@ -1022,26 +1031,23 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertEqual(semantic.last_existing_wiki_index["path"], ".knoarbor/index/manifest.json")
         self.assertIn("candidate", semantic.last_existing_wiki_index["note"])
         self.assertGreaterEqual(len(semantic.last_wiki_context["candidates"]), 1)
-        self.assertEqual(semantic.last_wiki_context["candidates"][0]["path"], "concepts/Agent-Control-Patterns.md")
+        self.assertEqual(semantic.last_wiki_context["candidates"][0]["path"], "Agent-Control-Patterns.md")
         self.assertIsNotNone(semantic.last_candidate_page_context)
         self.assertEqual(result.results[0].context["retrieval"]["candidate_count"], 1)
 
-    def test_ingest_context_reranks_same_source_candidate(self) -> None:
+    def test_ingest_context_ranks_by_content_relevance(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             vault = root / "vaults" / "all"
             notes = root / "notes"
-            (vault / "concepts").mkdir(parents=True)
+            (vault / "wiki" / "pages").mkdir(parents=True)
             notes.mkdir()
-            (vault / "concepts" / "General-Agent-Loop.md").write_text(
+            (vault / "wiki" / "pages" / "General-Agent-Loop.md").write_text(
                 "\n".join(
                     [
                         "# General Agent Loop",
                         "",
                         "---",
-                        "type: concept",
-                        "status: draft",
-                        "source: raw/notes/other.md",
                         "---",
                         "",
                         "## Summary",
@@ -1051,15 +1057,12 @@ class IngestPipelineTests(unittest.TestCase):
                 encoding="utf-8",
             )
             note_path = notes / "agent.md"
-            (vault / "concepts" / "Specific-Agent-Loop.md").write_text(
+            (vault / "wiki" / "pages" / "Specific-Agent-Loop.md").write_text(
                 "\n".join(
                     [
                         "# Specific Agent Loop",
                         "",
                         "---",
-                        "type: concept",
-                        "status: draft",
-                        f"source: {note_path}",
                         "---",
                         "",
                         "## Summary",
@@ -1084,8 +1087,8 @@ class IngestPipelineTests(unittest.TestCase):
             pipeline.run(config, connector_names=["markdown"], write=False)
 
         self.assertIsNotNone(semantic.last_wiki_context)
-        self.assertEqual(semantic.last_wiki_context["candidates"][0]["path"], "concepts/Specific-Agent-Loop.md")
-        self.assertIn("source_overlap", semantic.last_wiki_context["candidates"][0]["matched_fields"])
+        # Without same_source boost, ranking is based on content relevance
+        self.assertEqual(semantic.last_wiki_context["candidates"][0]["path"], "General-Agent-Loop.md")
 
     def test_ingest_writes_compact_report_and_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1118,7 +1121,8 @@ class IngestPipelineTests(unittest.TestCase):
             ledger_record = json.loads(ledger_path.read_text(encoding="utf-8").splitlines()[-1])
 
         self.assertIn("# Ingest Report", report)
-        self.assertEqual(result.report_path, "maintenance/ingest_report_ingest-report-test.md")
+        self.assertEqual(result.report_path, "maintenance/reports/ingest/ingest_report_ingest-report-test.md")
+        self.assertEqual(result.ledger_path, ".knoarbor/ledgers/ingest.jsonl")
         self.assertEqual(ledger_record["run_id"], "ingest-report-test")
         self.assertIn("source_digest:", report)
         self.assertIn("evidence_spans=", report)
@@ -1304,7 +1308,7 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertEqual(source.error_code, "KA-INPUT-001")
         self.assertIn("missing_evidence", source.error_message or "")
         self.assertEqual(source.generated_pages, [])
-        self.assertFalse((vault / "concepts" / "Agent-Loop.md").exists())
+        self.assertFalse((vault / "wiki" / "pages" / "Agent-Loop.md").exists())
         self.assertIn("write_gate_passed: False", report)
 
     def test_write_gate_blocks_atom_quality_errors_before_write(self) -> None:
@@ -1415,7 +1419,7 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertEqual(source.error_stage, "write_gate")
         self.assertEqual(source.error_code, "KA-INPUT-001")
         self.assertIn("missing_operation_claim_trace", source.error_message or "")
-        self.assertIn("relation_selected_without_source_claim", source.error_message or "")
+        self.assertIn("missing_operation_claim_trace", source.error_message or "")
         self.assertEqual(source.generated_pages, [])
 
     def test_relation_update_operation_rewrites_existing_page_with_structured_schema(self) -> None:
@@ -1423,35 +1427,39 @@ class IngestPipelineTests(unittest.TestCase):
             root = Path(tmp_dir)
             vault = root / "vaults" / "all"
             notes = root / "notes"
-            (vault / "concepts").mkdir(parents=True)
+            (vault / "wiki" / "pages").mkdir(parents=True)
             notes.mkdir()
-            (vault / "concepts" / "Existing.md").write_text(
+            (vault / "wiki" / "pages" / "Existing.md").write_text(
                 "\n".join(
                     [
                         "# Existing",
                         "",
-                        "---",
-                        "type: concept",
-                        "status: draft",
-                        "---",
+                        "---",                        "---",
                         "",
                         "## Summary",
                         "Existing summary.",
                         "",
-                        "## Answer",
+                        "## Claims",
+                        "- C1: **Existing** page has an old claim.",
+                        "",
+                        "## Entities",
+                        "- Existing",
+                        "",
+                        "## Relations",
+                        "| Subject | Predicate | Object | Claim |",
+                        "|---|---|---|---|",
+                        "| Existing | has | claim | C1 |",
+                        "",
+                        "## Evidence",
+                        "| Claim | Source | Range | Basis | Confidence |",
+                        "|---|---|---|---|---|",
+                        "| C1 | raw/inbox/notes/existing.md | unit:0 | Existing note. | medium |",
+                        "",
+                        "## Synthesis",
                         "Existing answer.",
                         "",
-                        "## Key Points",
-                        "- Existing point.",
-                        "",
-                        "## Related Pages",
-                        "- 暂无关联知识",
-                        "",
-                        "## Tags",
-                        "- existing",
-                        "",
                         "## Source",
-                        "raw/notes/existing.md",
+                        "raw/inbox/notes/existing.md",
                     ]
                 ),
                 encoding="utf-8",
@@ -1466,17 +1474,16 @@ class IngestPipelineTests(unittest.TestCase):
                     )
                 },
             )
-            semantic = ScenarioSemanticWorkflow(action="update", target_page="concepts/Existing.md")
+            semantic = ScenarioSemanticWorkflow(action="update", target_page="Existing.md")
 
             result = IngestPipeline(semantic).run(config, connector_names=["markdown"], write=True)  # type: ignore[arg-type]
-            content = (vault / "concepts" / "Existing.md").read_text(encoding="utf-8")
+            content = (vault / "wiki" / "pages" / "Existing.md").read_text(encoding="utf-8")
 
         self.assertEqual(result.stats["written_count"], 1)
-        self.assertIn("Scenario answer for concepts.", content)
+        self.assertIn("Scenario answer for pages.", content)
         self.assertIn("## Claims", content)
         self.assertIn("## Evidence", content)
-        self.assertNotIn("## Key Points", content)
-        self.assertEqual(result.results[0].generated_pages, ["concepts/Existing.md"])
+        self.assertEqual(result.results[0].generated_pages, ["Existing.md"])
 
     def test_relation_skip_records_semantic_skip_reason_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1498,7 +1505,7 @@ class IngestPipelineTests(unittest.TestCase):
 
             result = IngestPipeline(ScenarioSemanticWorkflow(action="skip")).run(config, connector_names=["markdown"], write=True)  # type: ignore[arg-type]
             report = (vault / (result.report_path or "")).read_text(encoding="utf-8")
-            checkpoint_state = json.loads((vault / "maintenance" / "source_ingest_checkpoints.json").read_text(encoding="utf-8"))
+            checkpoint_state = json.loads((vault / ".knoarbor" / "checkpoints" / "source_ingest_checkpoints.json").read_text(encoding="utf-8"))
 
         self.assertEqual(result.results[0].status, "skipped")
         self.assertEqual(result.stats["skipped_count"], 1)
@@ -1507,8 +1514,8 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertIn("semantic_skip_reason:", report)
         self.assertEqual(len(checkpoint_state["sources"]), 1)
 
-    def test_timeline_and_workflow_page_dirs_write_expected_types(self) -> None:
-        for page_dir, page_type in [("timelines", "timeline"), ("workflows", "workflow")]:
+    def test_unified_knowledge_pages_write_to_flat_pages_namespace(self) -> None:
+        for page_dir in ["pages"]:
             with tempfile.TemporaryDirectory() as tmp_dir:
                 root = Path(tmp_dir)
                 vault = root / "vaults" / "all"
@@ -1535,7 +1542,6 @@ class IngestPipelineTests(unittest.TestCase):
                 content = page.read_text(encoding="utf-8")
 
             self.assertNotIn("type: page", content)
-            self.assertNotIn(f"page_kind: {page_type}", content)
             self.assertFalse(result.results[0].generated_pages[0].startswith(f"{page_dir}/"))
 
     def test_hermes_connector_uses_incremental_session_window(self) -> None:

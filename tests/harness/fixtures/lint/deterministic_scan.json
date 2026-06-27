@@ -47,70 +47,70 @@
       "description": "Add the missing standard section through reviewed deterministic wiki operation.",
       "issue_code": "missing_required_section",
       "mode": "manual",
-      "path": "entities/OpenClaw.md"
+      "path": "OpenClaw.md"
     },
     {
       "action": "add_missing_section",
       "description": "Add the missing standard section through reviewed deterministic wiki operation.",
       "issue_code": "missing_required_section",
       "mode": "manual",
-      "path": "entities/OpenClaw.md"
+      "path": "OpenClaw.md"
     },
     {
       "action": "add_missing_section",
       "description": "Add the missing standard section through reviewed deterministic wiki operation.",
       "issue_code": "missing_required_section",
       "mode": "manual",
-      "path": "entities/OpenClaw.md"
+      "path": "OpenClaw.md"
     },
     {
       "action": "add_missing_section",
       "description": "Add the missing standard section through reviewed deterministic wiki operation.",
       "issue_code": "missing_required_section",
       "mode": "manual",
-      "path": "entities/OpenClaw.md"
+      "path": "OpenClaw.md"
     },
     {
       "action": "add_missing_section",
       "description": "Add the missing standard section through reviewed deterministic wiki operation.",
       "issue_code": "missing_required_section",
       "mode": "manual",
-      "path": "entities/OpenClaw.md"
+      "path": "OpenClaw.md"
     },
     {
       "action": "add_missing_section",
       "description": "Add the missing standard section through reviewed deterministic wiki operation.",
       "issue_code": "missing_required_section",
       "mode": "manual",
-      "path": "concepts/Agent-Loop.md"
+      "path": "Agent-Loop.md"
     },
     {
       "action": "add_missing_section",
       "description": "Add the missing standard section through reviewed deterministic wiki operation.",
       "issue_code": "missing_required_section",
       "mode": "manual",
-      "path": "concepts/Agent-Loop.md"
+      "path": "Agent-Loop.md"
     },
     {
       "action": "add_missing_section",
       "description": "Add the missing standard section through reviewed deterministic wiki operation.",
       "issue_code": "missing_required_section",
       "mode": "manual",
-      "path": "concepts/Agent-Loop.md"
+      "path": "Agent-Loop.md"
     },
     {
       "action": "add_missing_section",
       "description": "Add the missing standard section through reviewed deterministic wiki operation.",
       "issue_code": "missing_required_section",
       "mode": "manual",
-      "path": "concepts/Agent-Loop.md"
+      "path": "Agent-Loop.md"
     },
     {
       "action": "add_missing_section",
       "description": "Add the missing standard section through reviewed deterministic wiki operation.",
       "issue_code": "missing_required_section",
       "mode": "manual",
-      "path": "concepts/Agent-Loop.md"
+      "path": "Agent-Loop.md"
     },
     {
       "action": "rebuild_index",
@@ -124,28 +124,28 @@
       "description": "Update the link target to an existing page or create the missing page through ingest.",
       "issue_code": "broken_wikilink",
       "mode": "manual",
-      "path": "concepts/Agent-Loop.md"
+      "path": "Agent-Loop.md"
     },
     {
       "action": "review_relationships",
       "description": "Review whether this page should be linked from a source, entity, concept, query, or index-facing hub page.",
       "issue_code": "orphan_page",
       "mode": "manual",
-      "path": "entities/OpenClaw.md"
+      "path": "OpenClaw.md"
     },
     {
       "action": "review_graph_density",
       "description": "Review whether this page needs contextual links, relationship pruning, or a hub page.",
       "issue_code": "weak_link_graph",
       "mode": "manual",
-      "path": "entities/OpenClaw.md"
+      "path": "OpenClaw.md"
     },
     {
       "action": "repair_source_provenance",
       "description": "Review source provenance and connect the source digest to generated knowledge pages.",
       "issue_code": "knowledge_without_source_digest",
       "mode": "manual",
-      "path": "entities/OpenClaw.md"
+      "path": "OpenClaw.md"
     }
   ],
   "issues": [
@@ -153,10 +153,9 @@
       "code": "missing_required_section",
       "details": {
         "directory": "sources",
-        "page_type": "source",
         "section": "Source Identity"
       },
-      "message": "Page is missing required sources section: Source Identity.",
+      "message": "Page is missing required source_digest section: Source Identity.",
       "path": "sources/Agent-Loop-Source.md",
       "severity": "info"
     },
@@ -164,10 +163,9 @@
       "code": "missing_required_section",
       "details": {
         "directory": "sources",
-        "page_type": "source",
         "section": "Audit Summary"
       },
-      "message": "Page is missing required sources section: Audit Summary.",
+      "message": "Page is missing required source_digest section: Audit Summary.",
       "path": "sources/Agent-Loop-Source.md",
       "severity": "info"
     },
@@ -175,10 +173,9 @@
       "code": "missing_required_section",
       "details": {
         "directory": "sources",
-        "page_type": "source",
         "section": "Source Units"
       },
-      "message": "Page is missing required sources section: Source Units.",
+      "message": "Page is missing required source_digest section: Source Units.",
       "path": "sources/Agent-Loop-Source.md",
       "severity": "info"
     },
@@ -186,10 +183,9 @@
       "code": "missing_required_section",
       "details": {
         "directory": "sources",
-        "page_type": "source",
         "section": "Contribution Map"
       },
-      "message": "Page is missing required sources section: Contribution Map.",
+      "message": "Page is missing required source_digest section: Contribution Map.",
       "path": "sources/Agent-Loop-Source.md",
       "severity": "info"
     },
@@ -197,10 +193,9 @@
       "code": "missing_required_section",
       "details": {
         "directory": "sources",
-        "page_type": "source",
         "section": "Unresolved / Rejected"
       },
-      "message": "Page is missing required sources section: Unresolved / Rejected.",
+      "message": "Page is missing required source_digest section: Unresolved / Rejected.",
       "path": "sources/Agent-Loop-Source.md",
       "severity": "info"
     },
@@ -208,121 +203,110 @@
       "code": "missing_required_section",
       "details": {
         "directory": "sources",
-        "page_type": "source",
         "section": "Raw Source"
       },
-      "message": "Page is missing required sources section: Raw Source.",
+      "message": "Page is missing required source_digest section: Raw Source.",
       "path": "sources/Agent-Loop-Source.md",
       "severity": "info"
     },
     {
       "code": "missing_required_section",
       "details": {
-        "directory": "entities",
-        "page_type": "entity",
+        "directory": "pages",
         "section": "Claims"
       },
-      "message": "Page is missing required entities section: Claims.",
-      "path": "entities/OpenClaw.md",
+      "message": "Page is missing required knowledge page section: Claims.",
+      "path": "OpenClaw.md",
       "severity": "info"
     },
     {
       "code": "missing_required_section",
       "details": {
-        "directory": "entities",
-        "page_type": "entity",
+        "directory": "pages",
         "section": "Entities"
       },
-      "message": "Page is missing required entities section: Entities.",
-      "path": "entities/OpenClaw.md",
+      "message": "Page is missing required knowledge page section: Entities.",
+      "path": "OpenClaw.md",
       "severity": "info"
     },
     {
       "code": "missing_required_section",
       "details": {
-        "directory": "entities",
-        "page_type": "entity",
+        "directory": "pages",
         "section": "Relations"
       },
-      "message": "Page is missing required entities section: Relations.",
-      "path": "entities/OpenClaw.md",
+      "message": "Page is missing required knowledge page section: Relations.",
+      "path": "OpenClaw.md",
       "severity": "info"
     },
     {
       "code": "missing_required_section",
       "details": {
-        "directory": "entities",
-        "page_type": "entity",
+        "directory": "pages",
         "section": "Evidence"
       },
-      "message": "Page is missing required entities section: Evidence.",
-      "path": "entities/OpenClaw.md",
+      "message": "Page is missing required knowledge page section: Evidence.",
+      "path": "OpenClaw.md",
       "severity": "info"
     },
     {
       "code": "missing_required_section",
       "details": {
-        "directory": "entities",
-        "page_type": "entity",
+        "directory": "pages",
         "section": "Synthesis"
       },
-      "message": "Page is missing required entities section: Synthesis.",
-      "path": "entities/OpenClaw.md",
+      "message": "Page is missing required knowledge page section: Synthesis.",
+      "path": "OpenClaw.md",
       "severity": "info"
     },
     {
       "code": "missing_required_section",
       "details": {
-        "directory": "concepts",
-        "page_type": "concept",
+        "directory": "pages",
         "section": "Claims"
       },
-      "message": "Page is missing required concepts section: Claims.",
-      "path": "concepts/Agent-Loop.md",
+      "message": "Page is missing required knowledge page section: Claims.",
+      "path": "Agent-Loop.md",
       "severity": "info"
     },
     {
       "code": "missing_required_section",
       "details": {
-        "directory": "concepts",
-        "page_type": "concept",
+        "directory": "pages",
         "section": "Entities"
       },
-      "message": "Page is missing required concepts section: Entities.",
-      "path": "concepts/Agent-Loop.md",
+      "message": "Page is missing required knowledge page section: Entities.",
+      "path": "Agent-Loop.md",
       "severity": "info"
     },
     {
       "code": "missing_required_section",
       "details": {
-        "directory": "concepts",
-        "page_type": "concept",
+        "directory": "pages",
         "section": "Relations"
       },
-      "message": "Page is missing required concepts section: Relations.",
-      "path": "concepts/Agent-Loop.md",
+      "message": "Page is missing required knowledge page section: Relations.",
+      "path": "Agent-Loop.md",
       "severity": "info"
     },
     {
       "code": "missing_required_section",
       "details": {
-        "directory": "concepts",
-        "page_type": "concept",
+        "directory": "pages",
         "section": "Evidence"
       },
-      "message": "Page is missing required concepts section: Evidence.",
-      "path": "concepts/Agent-Loop.md",
+      "message": "Page is missing required knowledge page section: Evidence.",
+      "path": "Agent-Loop.md",
       "severity": "info"
     },
     {
       "code": "missing_required_section",
       "details": {
-        "directory": "concepts",
-        "page_type": "concept",
+        "directory": "pages",
         "section": "Synthesis"
       },
-      "message": "Page is missing required concepts section: Synthesis.",
-      "path": "concepts/Agent-Loop.md",
+      "message": "Page is missing required knowledge page section: Synthesis.",
+      "path": "Agent-Loop.md",
       "severity": "info"
     },
     {
@@ -338,14 +322,14 @@
         "target": "Missing Page"
       },
       "message": "Wiki link target does not exist.",
-      "path": "concepts/Agent-Loop.md",
+      "path": "Agent-Loop.md",
       "severity": "error"
     },
     {
       "code": "orphan_page",
       "details": {},
       "message": "No other wiki page links to this page.",
-      "path": "entities/OpenClaw.md",
+      "path": "OpenClaw.md",
       "severity": "info"
     },
     {
@@ -355,16 +339,16 @@
         "outgoing_count": 0
       },
       "message": "Generated knowledge page has no resolved incoming or outgoing wiki links.",
-      "path": "entities/OpenClaw.md",
+      "path": "OpenClaw.md",
       "severity": "info"
     },
     {
       "code": "knowledge_without_source_digest",
       "details": {
-        "source": "raw/notes/openclaw.md"
+        "source": "raw/inbox/notes/openclaw.md"
       },
       "message": "Generated knowledge page points to a raw source without a matching source digest page.",
-      "path": "entities/OpenClaw.md",
+      "path": "OpenClaw.md",
       "severity": "info"
     }
   ],
@@ -373,77 +357,66 @@
       "directory": "sources",
       "headings": [
         "Agent Loop Source",
-        "Summary",
-        "Answer",
-        "Key Points",
-        "Related Pages",
-        "Tags",
-        "Source"
+        "Audit Summary",
+        "Raw Source",
+        "Source Units",
+        "Contribution Map",
+        "Unresolved Items"
       ],
       "outgoing_links": [],
-      "page_type": "source",
       "path": "sources/Agent-Loop-Source.md",
-      "source": "raw/notes/agent.md",
+      "role": "source_digest",
       "title": "Agent Loop Source"
     },
     {
-      "directory": "entities",
+      "directory": "pages",
       "headings": [
         "OpenClaw",
         "Summary",
-        "Answer",
-        "Key Points",
-        "Related Pages",
-        "Tags",
+        "Claims",
+        "Entities",
+        "Relations",
+        "Evidence",
+        "Synthesis",
         "Source"
       ],
       "outgoing_links": [],
-      "page_type": "entity",
-      "path": "entities/OpenClaw.md",
-      "source": "raw/notes/openclaw.md",
+      "path": "OpenClaw.md",
+      "role": "knowledge_page",
       "title": "OpenClaw"
     },
     {
-      "directory": "concepts",
+      "directory": "pages",
       "headings": [
         "Agent Loop",
         "Summary",
-        "Answer",
-        "Key Points",
-        "Related Pages",
-        "Tags",
+        "Claims",
+        "Entities",
+        "Relations",
+        "Evidence",
+        "Synthesis",
         "Source"
       ],
       "outgoing_links": [
         "Missing Page"
       ],
-      "page_type": "concept",
-      "path": "concepts/Agent-Loop.md",
-      "source": "raw/notes/agent.md",
+      "path": "Agent-Loop.md",
+      "role": "knowledge_page",
       "title": "Agent Loop"
     }
   ],
   "stats": {
     "directories": {
-      "concepts": 1,
-      "entities": 1,
+      "pages": 2,
       "sources": 1
     },
     "error_count": 2,
-    "facets": {
-      "concept": 1,
-      "concepts": 1,
-      "entities": 1,
-      "entity": 1,
-      "source_digest": 1,
-      "sources": 1
-    },
     "graph_health": {
       "component_count": 2,
       "hub_pages": [
         {
           "degree": 1,
-          "path": "concepts/Agent-Loop.md"
+          "path": "Agent-Loop.md"
         },
         {
           "degree": 1,
@@ -462,11 +435,6 @@
       "record_count": 0
     },
     "page_count": 3,
-    "page_kinds": {
-      "concept": 1,
-      "entity": 1,
-      "source_digest": 1
-    },
     "roles": {
       "knowledge_page": 2,
       "source_digest": 1

@@ -2,13 +2,13 @@
   "candidates": {
     "candidates": [
       {
-        "candidate_id": "structural:concepts/Agent.md:broken_link:0",
+        "candidate_id": "structural:Agent.md:broken_link:0",
         "confidence": 0.9,
         "evidence": [
           {
             "kind": "scan_issue",
             "quote": "[[Missing Page]]",
-            "ref": "concepts/Agent.md"
+            "ref": "Agent.md"
           }
         ],
         "executor_hint": "deterministic_wiki_operation",
@@ -17,18 +17,15 @@
         "recommended_action": {
           "action": "replace_wikilink",
           "params": {
-            "new_target": "concepts/Agent Loop",
+            "new_target": "Agent Loop",
             "old_target": "Missing Page"
           }
         },
-        "related_pages": [
-          "concepts/Agent Loop.md"
-        ],
         "review_notes": "Verify target exists.",
         "risk_hint": "low",
         "severity": "high",
         "source": "structural",
-        "target_page": "concepts/Agent.md"
+        "target_page": "Agent.md"
       }
     ],
     "page_reviews": [],
@@ -47,20 +44,15 @@
         "confidence": 0.8,
         "entities": [],
         "evidence": [],
-        "facets": [
-          "source_digest"
-        ],
-        "legacy_paths": [],
-        "model_name": "unit",
+                "model_name": "unit",
         "model_provider": "fake",
         "operation_index": 0,
         "page_dir": "sources",
-        "page_kind": "source_digest",
-        "patches": [],
+                "patches": [],
         "question": "Source digest",
         "relations": [],
         "source_digest_ids": [],
-        "source_file": "raw/notes/Agent.md",
+        "source_file": "raw/inbox/notes/Agent.md",
         "subject_kind": "source_digest",
         "summary": "Source digest for Agent notes.",
         "synthesis": "This source describes Agent Loop.",

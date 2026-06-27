@@ -34,7 +34,7 @@ class IngestWritePolicyTests(unittest.TestCase):
 
 def _write_item(title: str, page_dir: str) -> WikiDraftBatchWriteItem:
     return WikiDraftBatchWriteItem(
-        source_file="raw/notes/source.md",
+        source_file="raw/inbox/notes/source.md",
         wiki_draft=WikiDraftInput(
             title=title,
             page_dir=page_dir,
@@ -43,7 +43,7 @@ def _write_item(title: str, page_dir: str) -> WikiDraftBatchWriteItem:
             claims=[f"C1: [[{title}]] is supported by the source."],
             entities=[f"[[{title}]]"],
             relations=[f"[[{title}]] | supported_by | [[Source]] | C1"],
-            evidence=["C1 | raw/notes/source.md | section:test | source supports the claim | high"],
+            evidence=["C1 | raw/inbox/notes/source.md | section:test | source supports the claim | high"],
             synthesis=f"{title} synthesis.",
             confidence=0.8,
             model_provider="test",

@@ -19,7 +19,7 @@ from knoarbor.services.chat_answer import parse_answer_draft
 from knoarbor.services.chat_agent import ChatAgentService
 from knoarbor.services.chat_sessions import ChatSessionStore
 from knoarbor.services.memory import MemoryService
-from knoarbor.services.wiki_pages import WikiPageBacklinksResponse, WikiPageDetail, WikiPageLink, WikiPageSummary, WikiPagesResponse
+from knoarbor.services.wiki_pages import WikiPageDetail, WikiPageRelation, WikiPageRelationsResponse, WikiPageSummary, WikiPagesResponse
 
 
 class FakeChatClient:
@@ -100,9 +100,7 @@ class FakeWikiSearch:
                 WikiSearchResult(
                     path="sources/Agent-Loop-Source.md",
                     title="Agent Loop Source",
-                    type="source",
-                    role="source",
-                    status="draft",
+                    page_role="source",
                     score=12.0,
                     relevance="high",
                     match_kind="direct",
@@ -113,41 +111,35 @@ class FakeWikiSearch:
                     vault_name="Agent Engineering",
                 ),
                 WikiSearchResult(
-                    path="concepts/Agent-Loop.md",
+                    path="Agent-Loop.md",
                     title="Agent Loop",
-                    type="concept",
-                    role="primary",
-                    status="draft",
+                    page_role="primary",
                     score=9.0,
                     relevance="high",
                     match_kind="direct",
                     reason="title match",
                     summary="Agent loop alternates reasoning, action, and observation.",
-                    key_points=["Use the maintained page as the main answer unit."],
                     content="Agent Loop full maintained page content.",
                     vault_id="agent-engineering",
                     vault_name="Agent Engineering",
                     atom_traces=[
                         WikiAtomTrace(
-                            atom_id="fact_agent_loop_cycle",
-                            atom_type="fact",
+                            atom_id="claim_agent_loop_cycle",
+                            atom_type="claim",
                             text="Agent loop alternates reasoning, action, and observation.",
                             source_digest_id="sd_agent_loop",
                         )
                     ],
                 ),
                 WikiSearchResult(
-                    path="concepts/Session-Memory-Architecture-for-Agent-Loops.md",
+                    path="Session-Memory-Architecture-for-Agent-Loops.md",
                     title="Session Memory Architecture for Agent Loops",
-                    type="concept",
-                    role="supporting",
-                    status="draft",
+                    page_role="supporting",
                     score=7.0,
                     relevance="medium",
                     match_kind="related",
                     reason="related implementation page",
                     summary="Session memory explains production support for agent loops.",
-                    key_points=["Memory recall and compaction support long-running agent loops."],
                     content="Session memory supporting page content for production agent loops.",
                     vault_id="agent-engineering",
                     vault_name="Agent Engineering",
@@ -159,13 +151,13 @@ class FakeWikiSearch:
             answer_scope=WikiAnswerScope(kind="broad", vault_ids=["agent-engineering"], reason="test"),
             answer_set=WikiAnswerSet(
                 kind="multi_page",
-                primary_paths=["concepts/Agent-Loop.md"],
-                supporting_paths=["concepts/Session-Memory-Architecture-for-Agent-Loops.md"],
+                primary_paths=["Agent-Loop.md"],
+                supporting_paths=["Session-Memory-Architecture-for-Agent-Loops.md"],
                 source_paths=["sources/Agent-Loop-Source.md"],
             ),
             evidence_coverage=WikiEvidenceCoverage(status="strong", primary_count=1, supporting_count=1, source_count=1),
             context_pack="Agent Loop context",
-            answer_guidance=[],
+            response_guidance=[],
             warnings=[],
         )
 
@@ -184,21 +176,17 @@ class FakeWikiPages:
             vault_name=vault_name,
             pages=[
                 WikiPageSummary(
-                    path="concepts/Agent-Loop.md",
-                    directory="concepts",
+                    path="Agent-Loop.md",
+                    directory="pages",
                     title="Agent Loop",
-                    page_type="concept",
                     summary="Agent loop alternates reasoning, action, and observation.",
-                    tags=["agent"],
                     headings=["Summary", "Control patterns"],
                 ),
                 WikiPageSummary(
-                    path="entities/OpenClaw.md",
-                    directory="entities",
+                    path="OpenClaw.md",
+                    directory="pages",
                     title="OpenClaw",
-                    page_type="entity",
                     summary="OpenClaw is an engineering agent platform.",
-                    tags=["agent"],
                     headings=["Summary"],
                 ),
             ],
@@ -221,18 +209,18 @@ class FakeWikiPages:
             ),
         )
 
-    def page_links(self, vault_path, relative_path, *, vault_id=None, vault_name=None):
+    def page_relations(self, vault_path, relative_path, *, vault_id=None, vault_name=None):
         self.link_paths.append(relative_path)
-        return WikiPageBacklinksResponse(
+        return WikiPageRelationsResponse(
             path=relative_path,
             vault_path=str(vault_path),
             vault_id=vault_id,
             vault_name=vault_name,
-            outbound_links=[
-                WikiPageLink(source=relative_path, target="OpenClaw", target_path="entities/OpenClaw.md", resolved=True),
+            outgoing_pages=[
+                WikiPageRelation(source=relative_path, target="OpenClaw", target_path="OpenClaw.md", resolved=True),
             ],
-            backlinks=[
-                WikiPageLink(source="concepts/Agent-Engineering.md", target="Agent Loop", target_path=relative_path, resolved=True),
+            incoming_pages=[
+                WikiPageRelation(source="Agent-Engineering.md", target="Agent Loop", target_path=relative_path, resolved=True),
             ],
         )
 
@@ -259,14 +247,14 @@ class FakeServices:
 
 
 class ChatAgentServiceTest(unittest.TestCase):
-    def test_answer_citation_page_types_are_normalized_to_page_kind(self) -> None:
+    def test_answer_citation_page_roles_are_preserved(self) -> None:
         draft = parse_answer_draft(
             json.dumps(
                 {
                     "answer": "Agent Loop answer.",
                     "citations": [
-                        {"kind": "concept", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"},
-                        {"kind": "entity", "path": "entities/OpenClaw.md", "title": "OpenClaw"},
+                        {"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"},
+                        {"kind": "page", "path": "OpenClaw.md", "title": "OpenClaw"},
                     ],
                 }
             )
@@ -279,7 +267,7 @@ class ChatAgentServiceTest(unittest.TestCase):
             [
                 {
                     "answer": "Agent Loop 是推理、行动和观察的循环。",
-                    "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}],
+                    "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}],
                 },
             ]
         )
@@ -298,21 +286,21 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(response.stats["total_tokens"], 30)
         self.assertEqual(response.stats["retrieval_strategy"], "model_planned_tools")
         self.assertEqual(response.stats["tool_plan"]["tool_calls"][0]["arguments"]["mode"], "balanced")
-        self.assertEqual(response.citations[0].path, "concepts/Agent-Loop.md")
+        self.assertEqual(response.citations[0].path, "Agent-Loop.md")
         evidence_pack = response.tool_trace[0].result["evidence_pack"]
         self.assertIn("synthesis_outline", evidence_pack)
-        self.assertEqual(evidence_pack["primary_page"]["path"], "concepts/Agent-Loop.md")
+        self.assertEqual(evidence_pack["primary_page"]["path"], "Agent-Loop.md")
         self.assertEqual(response.citations[0].vault_id, "agent-engineering")
         self.assertEqual(
             [citation.path for citation in response.citations],
             [
-                "concepts/Agent-Loop.md",
-                "concepts/Session-Memory-Architecture-for-Agent-Loops.md",
+                "Agent-Loop.md",
+                "Session-Memory-Architecture-for-Agent-Loops.md",
                 "sources/Agent-Loop-Source.md",
             ],
         )
         self.assertTrue(response.tool_trace[0].result["primary_page"])
-        self.assertEqual(response.tool_trace[0].result["primary_page"]["path"], "concepts/Agent-Loop.md")
+        self.assertEqual(response.tool_trace[0].result["primary_page"]["path"], "Agent-Loop.md")
         self.assertEqual(response.tool_trace[0].result["answer_scope"]["kind"], "broad")
         self.assertEqual(response.tool_trace[0].result["answer_set"]["kind"], "multi_page")
         self.assertEqual(response.citations[0].role, "primary")
@@ -320,14 +308,14 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(response.tool_trace[0].result["primary_page"]["atom_traces"][0]["atom_id"], "fact_agent_loop_cycle")
         self.assertEqual(evidence_pack["primary_page"]["atom_traces"][0]["atom_id"], "fact_agent_loop_cycle")
         self.assertEqual(evidence_pack["citation_pages"][0]["atom_traces"][0]["source_digest_id"], "sd_agent_loop")
-        self.assertEqual(response.tool_trace[0].result["supporting_pages"][0]["path"], "concepts/Session-Memory-Architecture-for-Agent-Loops.md")
+        self.assertEqual(response.tool_trace[0].result["supporting_pages"][0]["path"], "Session-Memory-Architecture-for-Agent-Loops.md")
         self.assertIn("production agent loops", response.tool_trace[0].result["supporting_pages"][0]["content"])
         self.assertEqual(response.tool_trace[0].result["evidence_pack"]["recommended_action"], "answer_from_evidence")
         self.assertEqual(
             [citation.path for citation in response.tool_trace[0].citations],
             [
-                "concepts/Agent-Loop.md",
-                "concepts/Session-Memory-Architecture-for-Agent-Loops.md",
+                "Agent-Loop.md",
+                "Session-Memory-Architecture-for-Agent-Loops.md",
                 "sources/Agent-Loop-Source.md",
             ],
         )
@@ -349,7 +337,7 @@ class ChatAgentServiceTest(unittest.TestCase):
             [
                 {
                     "answer": "Agent Loop 是推理、行动和观察的循环。",
-                    "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}],
+                    "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}],
                 },
             ]
         )
@@ -388,7 +376,7 @@ class ChatAgentServiceTest(unittest.TestCase):
             [
                 {
                     "answer": "Agent Loop 是推理、行动和观察的循环。",
-                    "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}],
+                    "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}],
                 },
             ]
         )
@@ -410,8 +398,8 @@ class ChatAgentServiceTest(unittest.TestCase):
                 {
                     "answer": "Agent Loop 是由维护页面说明的推理、行动和观察循环 [1]。",
                     "citations": [
-                        {"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"},
-                        {"kind": "page", "path": "concepts/fake.md", "title": "Fake"},
+                        {"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"},
+                        {"kind": "page", "path": "fake.md", "title": "Fake"},
                     ],
                 }
             ],
@@ -432,7 +420,7 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(
             [citation.path for citation in response.citations],
             [
-                "concepts/Agent-Loop.md",
+                "Agent-Loop.md",
             ],
         )
         self.assertIn("knowledge assistant", client.requests[-1].messages[0].content.lower())
@@ -469,12 +457,10 @@ class ChatAgentServiceTest(unittest.TestCase):
                         "pages": [
                             *response.pages,
                             WikiPageSummary(
-                                path="concepts/Agent-Engineering.md",
-                                directory="concepts",
+                                path="Agent-Engineering.md",
+                                directory="pages",
                                 title="Agent Engineering",
-                                page_type="concept",
                                 summary="Agent engineering covers agent loop, tools, and runtime design.",
-                                tags=["agent"],
                                 headings=["Summary"],
                             ),
                         ]
@@ -492,7 +478,7 @@ class ChatAgentServiceTest(unittest.TestCase):
                     "reason": "read a known page by title-like reference",
                     "confidence": 0.9,
                 },
-                {"answer": "Agent Engineering 页面已读取。", "citations": [{"kind": "page", "path": "concepts/Agent-Engineering.md", "title": "Agent Engineering"}]},
+                {"answer": "Agent Engineering 页面已读取。", "citations": [{"kind": "page", "path": "Agent-Engineering.md", "title": "Agent Engineering"}]},
             ]
         )
         services = PageReferenceServices()
@@ -501,9 +487,9 @@ class ChatAgentServiceTest(unittest.TestCase):
             services,  # type: ignore[arg-type]
         )
 
-        self.assertEqual(services.wiki_pages.read_paths, ["concepts/Agent-Engineering.md"])
+        self.assertEqual(services.wiki_pages.read_paths, ["Agent-Engineering.md"])
         self.assertIn("resolving requested page reference Agent-Engineering.md", response.tool_trace[0].summary)
-        self.assertEqual(response.citations[0].path, "concepts/Agent-Engineering.md")
+        self.assertEqual(response.citations[0].path, "Agent-Engineering.md")
 
     def test_provider_does_not_change_chat_retrieval_contract(self) -> None:
         client = FakeChatClient(
@@ -537,7 +523,7 @@ class ChatAgentServiceTest(unittest.TestCase):
                         "source_pages": [],
                         "results": [],
                         "answer_set": WikiAnswerSet(reason="No maintained answer page was selected.", stop_reason="no_results"),
-                        "evidence_coverage": WikiEvidenceCoverage(status="weak", gap_count=1, missing_facets=["unknown"]),
+                        "evidence_coverage": WikiEvidenceCoverage(status="weak", gap_count=1, missing_dimensions=["unknown"]),
                     }
                 )
 
@@ -570,7 +556,7 @@ class ChatAgentServiceTest(unittest.TestCase):
                         retrieval_mode=request.mode,
                         results=[],
                         answer_set=WikiAnswerSet(reason="No maintained answer page was selected.", stop_reason="no_results"),
-                        evidence_coverage=WikiEvidenceCoverage(status="weak", gap_count=1, missing_facets=["topic"]),
+                        evidence_coverage=WikiEvidenceCoverage(status="weak", gap_count=1, missing_dimensions=["topic"]),
                         context_pack="No results",
                         warnings=[],
                     )
@@ -592,7 +578,7 @@ class ChatAgentServiceTest(unittest.TestCase):
                     "reason": "current evidence is weak, refine the search",
                     "confidence": 0.85,
                 },
-                {"answer": "第二轮检索找到了 Agent Loop 维护页面。", "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}]},
+                {"answer": "第二轮检索找到了 Agent Loop 维护页面。", "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}]},
             ]
         )
         services = RefiningServices()
@@ -608,7 +594,7 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(response.stats["evidence_rounds"], 2)
         self.assertEqual(response.stats["evidence_stop_reason"], "evidence_sufficient")
         self.assertEqual(len(response.stats["tool_plans"]), 2)
-        self.assertEqual(response.citations[0].path, "concepts/Agent-Loop.md")
+        self.assertEqual(response.citations[0].path, "Agent-Loop.md")
         second_plan_messages = client.requests[1].messages
         planning_state = json.loads(second_plan_messages[-1].content)["planning_state"]
         current_context = planning_state["current_turn_evidence_context"]
@@ -635,9 +621,9 @@ class ChatAgentServiceTest(unittest.TestCase):
         client = FakeChatClient(
             [
                 {
-                    "answer": "可以先看 [Agent Loop 主页面](concepts/Agent-Loop.md)，它解释循环机制；再看来源摘要 `sources/Agent-Loop-Source.md`，它用于追踪原始材料。",
+                    "answer": "可以先看 [Agent Loop 主页面](Agent-Loop.md)，它解释循环机制；再看来源摘要 `sources/Agent-Loop-Source.md`，它用于追踪原始材料。",
                     "citations": [
-                        {"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"},
+                        {"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"},
                         {"kind": "page", "path": "sources/Agent-Loop-Source.md", "title": "Agent Loop Source"},
                     ],
                 },
@@ -652,13 +638,13 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertIn("它解释循环机制", response.answer)
         self.assertIn("Agent Loop 主页面", response.answer)
         self.assertNotIn("[Agent Loop 主页面](", response.answer)
-        self.assertNotIn("concepts/Agent-Loop.md", response.answer)
+        self.assertNotIn("Agent-Loop.md", response.answer)
         self.assertNotIn("sources/Agent-Loop-Source.md", response.answer)
         self.assertEqual(
             [citation.path for citation in response.citations],
             [
-                "concepts/Agent-Loop.md",
-                "concepts/Session-Memory-Architecture-for-Agent-Loops.md",
+                "Agent-Loop.md",
+                "Session-Memory-Architecture-for-Agent-Loops.md",
                 "sources/Agent-Loop-Source.md",
             ],
         )
@@ -667,8 +653,8 @@ class ChatAgentServiceTest(unittest.TestCase):
         client = FakeChatClient(
             [
                 {
-                    "answer": "页面路径是 `concepts/Agent-Loop.md`。",
-                    "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}],
+                    "answer": "页面路径是 `Agent-Loop.md`。",
+                    "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}],
                 },
             ]
         )
@@ -678,7 +664,7 @@ class ChatAgentServiceTest(unittest.TestCase):
             FakeServices(),  # type: ignore[arg-type]
         )
 
-        self.assertIn("concepts/Agent-Loop.md", response.answer)
+        self.assertIn("Agent-Loop.md", response.answer)
 
     def test_plain_markdown_answer_is_allowed(self) -> None:
         client = FakeChatClient(["not json"])
@@ -696,7 +682,7 @@ class ChatAgentServiceTest(unittest.TestCase):
             [
                 {
                     "answer": "Agent Loop 是推理、行动和观察的循环。",
-                    "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}],
+                    "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}],
                 },
             ]
         )
@@ -706,13 +692,13 @@ class ChatAgentServiceTest(unittest.TestCase):
                 ChatRequest(messages=[ChatMessageItem(role="user", content="Agent Loop")], vault_path=tmp),
                 FakeServices(),  # type: ignore[arg-type]
             )
-            ledger = Path(tmp) / "maintenance" / "token_ledger.jsonl"
+            ledger = Path(tmp) / ".knoarbor" / "ledgers" / "token.jsonl"
             records = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()]
 
         self.assertEqual(response.stats["model_calls"], 2)
         self.assertEqual(records[0]["flow"], "chat")
         self.assertEqual(records[0]["agent"], "wiki_chat_agent")
-        self.assertIn("concepts/Agent-Loop.md", records[0]["page_paths"])
+        self.assertIn("Agent-Loop.md", records[0]["page_paths"])
         self.assertIn("sources/Agent-Loop-Source.md", records[0]["page_paths"])
 
     def test_chat_persists_session_and_can_continue(self) -> None:
@@ -792,7 +778,7 @@ class ChatAgentServiceTest(unittest.TestCase):
                     ChatMessageItem(role="user", content="第一轮问题"),
                     ChatMessageItem(role="assistant", content="第一轮回答。"),
                 ],
-                citations=[ChatCitation(kind="page", path="concepts/First.md", title="First")],
+                citations=[ChatCitation(kind="page", path="First.md", title="First")],
             )
             second = ChatResponse(
                 session_id="chat_test1234",
@@ -803,15 +789,15 @@ class ChatAgentServiceTest(unittest.TestCase):
                     ChatMessageItem(role="user", content="第二轮问题"),
                     ChatMessageItem(role="assistant", content="第二轮回答。"),
                 ],
-                citations=[ChatCitation(kind="page", path="concepts/Second.md", title="Second")],
+                citations=[ChatCitation(kind="page", path="Second.md", title="Second")],
             )
             store.persist_response(tmp, response=first, request_messages=first.messages, vault_id="test", vault_name="Test")
             record = store.persist_response(tmp, response=second, request_messages=second.messages, vault_id="test", vault_name="Test")
 
         self.assertEqual(len(record.turns), 2)
-        self.assertEqual(record.turns[0].citations[0].path, "concepts/First.md")
-        self.assertEqual(record.turns[1].citations[0].path, "concepts/Second.md")
-        self.assertEqual(record.citations[0].path, "concepts/Second.md")
+        self.assertEqual(record.turns[0].citations[0].path, "First.md")
+        self.assertEqual(record.turns[1].citations[0].path, "Second.md")
+        self.assertEqual(record.citations[0].path, "Second.md")
 
     def test_session_title_can_be_updated(self) -> None:
         store = ChatSessionStore()
@@ -835,18 +821,18 @@ class ChatAgentServiceTest(unittest.TestCase):
     def test_followup_can_reuse_prior_evidence(self) -> None:
         client = FakeChatClient(
             [
-                {"answer": "Agent Loop 是推理、行动和观察的循环。", "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}]},
+                {"answer": "Agent Loop 是推理、行动和观察的循环。", "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}]},
                 {
                     "tool_calls": [
                         {
                             "name": "reuse_context",
-                            "arguments": {"page_paths": ["concepts/Agent-Loop.md"]},
+                            "arguments": {"page_paths": ["Agent-Loop.md"]},
                         }
                     ],
                     "reason": "follow-up can reuse prior evidence",
                     "confidence": 0.9,
                 },
-                {"answer": "它和 OpenClaw 的关系可以基于上一轮证据解释。", "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}]},
+                {"answer": "它和 OpenClaw 的关系可以基于上一轮证据解释。", "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}]},
             ]
         )
         service = ChatAgentService(client_factory=lambda _request: client)
@@ -866,14 +852,14 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(second.stats["tool_plan"]["tool_calls"][0]["name"], "reuse_context")
         second_plan_messages = client.requests[-2].messages
         prior_context = json.loads(second_plan_messages[-1].content)["planning_state"]["prior_evidence_context"]
-        self.assertEqual(prior_context["answer_page_paths"], ["concepts/Agent-Loop.md", "concepts/Session-Memory-Architecture-for-Agent-Loops.md"])
+        self.assertEqual(prior_context["answer_page_paths"], ["Agent-Loop.md", "Session-Memory-Architecture-for-Agent-Loops.md"])
         self.assertEqual(prior_context["source_page_paths"], ["sources/Agent-Loop-Source.md"])
-        self.assertEqual(prior_context["preferred_read_pages"], ["concepts/Agent-Loop.md", "concepts/Session-Memory-Architecture-for-Agent-Loops.md"])
+        self.assertEqual(prior_context["preferred_read_pages"], ["Agent-Loop.md", "Session-Memory-Architecture-for-Agent-Loops.md"])
 
     def test_synthesis_followup_overrides_new_search_to_reuse_session_evidence(self) -> None:
         client = FakeChatClient(
             [
-                {"answer": "Agent Loop 是推理、行动和观察的循环。", "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}]},
+                {"answer": "Agent Loop 是推理、行动和观察的循环。", "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}]},
                 {
                     "tool_calls": [
                         {
@@ -884,7 +870,7 @@ class ChatAgentServiceTest(unittest.TestCase):
                     "reason": "model tried a broad literal search",
                     "confidence": 0.8,
                 },
-                {"answer": "这是基于前面证据整理的设计文档大纲。", "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}]},
+                {"answer": "这是基于前面证据整理的设计文档大纲。", "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}]},
             ]
         )
         service = ChatAgentService(client_factory=lambda _request: client)
@@ -910,7 +896,7 @@ class ChatAgentServiceTest(unittest.TestCase):
     def test_followup_source_digest_read_prefers_prior_answer_page(self) -> None:
         client = FakeChatClient(
             [
-                {"answer": "Agent Loop 是推理、行动和观察的循环。", "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}]},
+                {"answer": "Agent Loop 是推理、行动和观察的循环。", "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}]},
                 {
                     "tool_calls": [
                         {
@@ -921,7 +907,7 @@ class ChatAgentServiceTest(unittest.TestCase):
                     "reason": "model picked the source digest by mistake",
                     "confidence": 0.8,
                 },
-                {"answer": "控制模式来自维护后的概念页面。", "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}]},
+                {"answer": "控制模式来自维护后的概念页面。", "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}]},
             ]
         )
         service = ChatAgentService(client_factory=lambda _request: client)
@@ -936,14 +922,14 @@ class ChatAgentServiceTest(unittest.TestCase):
                 services,  # type: ignore[arg-type]
             )
 
-        self.assertEqual(services.wiki_pages.read_paths, ["concepts/Agent-Loop.md"])
+        self.assertEqual(services.wiki_pages.read_paths, ["Agent-Loop.md"])
         self.assertIn("instead of source digest sources/Agent-Loop-Source.md", second.tool_trace[0].summary)
-        self.assertEqual(second.tool_trace[0].citations[0].path, "concepts/Agent-Loop.md")
+        self.assertEqual(second.tool_trace[0].citations[0].path, "Agent-Loop.md")
 
     def test_reference_question_keeps_source_digest_read(self) -> None:
         client = FakeChatClient(
             [
-                {"answer": "Agent Loop 是推理、行动和观察的循环。", "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}]},
+                {"answer": "Agent Loop 是推理、行动和观察的循环。", "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}]},
                 {
                     "tool_calls": [
                         {
@@ -980,7 +966,7 @@ class ChatAgentServiceTest(unittest.TestCase):
                     "tool_calls": [
                         {
                             "name": "read_wiki_page",
-                            "arguments": {"page_path": "concepts/Agent-Loop.md"},
+                            "arguments": {"page_path": "Agent-Loop.md"},
                         }
                     ],
                     "reason": "model picked an anchor page",
@@ -998,7 +984,7 @@ class ChatAgentServiceTest(unittest.TestCase):
                 },
                 {
                     "answer": "工程化 Agent 架构需要综合 Agent Loop、工具、记忆和监控页面。",
-                    "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}],
+                    "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}],
                 },
             ]
         )
@@ -1013,7 +999,7 @@ class ChatAgentServiceTest(unittest.TestCase):
         )
 
         self.assertEqual([item.tool for item in response.tool_trace], ["read_wiki_page", "query_wiki"])
-        self.assertEqual(services.wiki_pages.read_paths, ["concepts/Agent-Loop.md"])
+        self.assertEqual(services.wiki_pages.read_paths, ["Agent-Loop.md"])
         self.assertEqual(services.wiki_search.requests[0].mode, "deep")
         self.assertEqual(response.stats["plan_adjustments"][0]["kind"], "anchor_page_needs_supporting_evidence")
         self.assertEqual(response.stats["tool_plan"]["tool_calls"][0]["name"], "read_wiki_page")
@@ -1025,7 +1011,7 @@ class ChatAgentServiceTest(unittest.TestCase):
                     "tool_calls": [
                         {
                             "name": "read_wiki_page",
-                            "arguments": {"page_path": "concepts/Agent-Loop.md"},
+                            "arguments": {"page_path": "Agent-Loop.md"},
                         }
                     ],
                     "reason": "read a page first",
@@ -1043,7 +1029,7 @@ class ChatAgentServiceTest(unittest.TestCase):
                 },
                 {
                     "answer": "生产级 Agent 架构需要综合多个页面。",
-                    "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}],
+                    "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}],
                 },
             ]
         )
@@ -1059,7 +1045,7 @@ class ChatAgentServiceTest(unittest.TestCase):
         )
 
         self.assertEqual([item.tool for item in response.tool_trace], ["read_wiki_page", "query_wiki"])
-        self.assertEqual(services.wiki_pages.read_paths, ["concepts/Agent-Loop.md"])
+        self.assertEqual(services.wiki_pages.read_paths, ["Agent-Loop.md"])
         self.assertEqual(len(services.wiki_search.requests), 1)
         self.assertEqual(response.stats["plan_adjustments"][0]["kind"], "anchor_page_needs_supporting_evidence")
 
@@ -1161,7 +1147,7 @@ class ChatAgentServiceTest(unittest.TestCase):
         client = FakeChatClient(
             [
                 {
-                    "tool_calls": [{"name": "list_wiki_pages", "arguments": {"query": "Agent", "page_dirs": ["concepts"], "max_results": 10}}],
+                    "tool_calls": [{"name": "list_wiki_pages", "arguments": {"query": "Agent", "max_results": 10}}],
                     "reason": "user asks for available pages",
                     "confidence": 0.9,
                 },
@@ -1177,16 +1163,16 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(services.wiki_pages.list_calls, 1)
         self.assertEqual(response.tool_trace[0].tool, "list_wiki_pages")
         self.assertEqual(response.tool_trace[0].result["returned_pages"], 1)
-        self.assertEqual(response.tool_trace[0].result["pages"][0]["path"], "concepts/Agent-Loop.md")
+        self.assertEqual(response.tool_trace[0].result["pages"][0]["path"], "Agent-Loop.md")
         self.assertEqual(response.citations, [])
         self.assertEqual(response.hidden_evidence_count, 1)
         self.assertIn('"pages"', client.requests[-1].messages[-1].content)
 
-    def test_chat_can_inspect_wiki_links(self) -> None:
+    def test_chat_can_inspect_wiki_relations(self) -> None:
         client = FakeChatClient(
             [
                 {
-                    "tool_calls": [{"name": "inspect_wiki_links", "arguments": {"page_path": "concepts/Agent-Loop.md"}}],
+                    "tool_calls": [{"name": "inspect_wiki_relations", "arguments": {"page_path": "Agent-Loop.md"}}],
                     "reason": "user asks for page relationships",
                     "confidence": 0.9,
                 },
@@ -1199,12 +1185,12 @@ class ChatAgentServiceTest(unittest.TestCase):
             services,  # type: ignore[arg-type]
         )
 
-        self.assertEqual(services.wiki_pages.link_paths, ["concepts/Agent-Loop.md"])
-        self.assertEqual(response.tool_trace[0].tool, "inspect_wiki_links")
-        self.assertEqual(response.tool_trace[0].result["outbound_links"][0]["target_path"], "entities/OpenClaw.md")
+        self.assertEqual(services.wiki_pages.link_paths, ["Agent-Loop.md"])
+        self.assertEqual(response.tool_trace[0].tool, "inspect_wiki_relations")
+        self.assertEqual(response.tool_trace[0].result["outgoing_pages"][0]["target_path"], "OpenClaw.md")
         self.assertEqual(response.citations, [])
         self.assertEqual(response.hidden_evidence_count, 2)
-        self.assertIn('"outbound_links"', client.requests[-1].messages[-1].content)
+        self.assertIn('"outgoing_pages"', client.requests[-1].messages[-1].content)
 
     def test_chat_can_list_vaults(self) -> None:
         client = FakeChatClient(
@@ -1246,13 +1232,13 @@ class ChatAgentServiceTest(unittest.TestCase):
                 },
                 {
                     "answer": "Agent Loop 架构需要把循环控制、记忆和编排分层处理。",
-                    "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}],
+                    "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}],
                 },
                 {
                     "tool_calls": [
                         {
                             "name": "read_wiki_page",
-                            "arguments": {"page_path": "concepts/Session-Memory-Architecture-for-Agent-Loops.md"},
+                            "arguments": {"page_path": "Session-Memory-Architecture-for-Agent-Loops.md"},
                         }
                     ],
                     "reason": "follow-up asks for memory details from a known supporting page",
@@ -1263,7 +1249,7 @@ class ChatAgentServiceTest(unittest.TestCase):
                     "citations": [
                         {
                             "kind": "page",
-                            "path": "concepts/Session-Memory-Architecture-for-Agent-Loops.md",
+                            "path": "Session-Memory-Architecture-for-Agent-Loops.md",
                             "title": "Session Memory Architecture for Agent Loops",
                         }
                     ],
@@ -1271,8 +1257,8 @@ class ChatAgentServiceTest(unittest.TestCase):
                 {
                     "tool_calls": [
                         {
-                            "name": "inspect_wiki_links",
-                            "arguments": {"page_path": "concepts/Agent-Loop.md"},
+                            "name": "inspect_wiki_relations",
+                            "arguments": {"page_path": "Agent-Loop.md"},
                         }
                     ],
                     "reason": "user asks for related implementation pages",
@@ -1280,13 +1266,13 @@ class ChatAgentServiceTest(unittest.TestCase):
                 },
                 {
                     "answer": "Agent Loop 页面关联 OpenClaw 和 Agent Engineering，可作为实现参考。",
-                    "citations": [{"kind": "page", "path": "entities/OpenClaw.md", "title": "OpenClaw"}],
+                    "citations": [{"kind": "page", "path": "OpenClaw.md", "title": "OpenClaw"}],
                 },
                 {
                     "tool_calls": [
                         {
                             "name": "list_wiki_pages",
-                            "arguments": {"query": "Agent", "page_dirs": ["concepts", "entities"], "max_results": 20},
+                            "arguments": {"query": "Agent", "max_results": 20},
                         }
                     ],
                     "reason": "user asks for available agent pages before final synthesis",
@@ -1294,7 +1280,7 @@ class ChatAgentServiceTest(unittest.TestCase):
                 },
                 {
                     "answer": "可参考 Agent Loop 与 OpenClaw 两类页面组织方案。",
-                    "citations": [{"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"}],
+                    "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}],
                 },
                 {
                     "tool_calls": [
@@ -1309,10 +1295,10 @@ class ChatAgentServiceTest(unittest.TestCase):
                 {
                     "answer": "最终方案应分为入口层、循环控制层、工具层、记忆层和治理层，并基于前面页面证据综合。",
                     "citations": [
-                        {"kind": "page", "path": "concepts/Agent-Loop.md", "title": "Agent Loop"},
+                        {"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"},
                         {
                             "kind": "page",
-                            "path": "concepts/Session-Memory-Architecture-for-Agent-Loops.md",
+                            "path": "Session-Memory-Architecture-for-Agent-Loops.md",
                             "title": "Session Memory Architecture for Agent Loops",
                         },
                     ],
@@ -1346,9 +1332,9 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(first.tool_trace[0].tool, "query_wiki")
         self.assertEqual(first.tool_trace[0].arguments["mode"], "deep")
         self.assertEqual(second.tool_trace[0].tool, "read_wiki_page")
-        self.assertEqual(services.wiki_pages.read_paths, ["concepts/Session-Memory-Architecture-for-Agent-Loops.md"])
-        self.assertEqual(third.tool_trace[0].tool, "inspect_wiki_links")
-        self.assertEqual(services.wiki_pages.link_paths, ["concepts/Agent-Loop.md"])
+        self.assertEqual(services.wiki_pages.read_paths, ["Session-Memory-Architecture-for-Agent-Loops.md"])
+        self.assertEqual(third.tool_trace[0].tool, "inspect_wiki_relations")
+        self.assertEqual(services.wiki_pages.link_paths, ["Agent-Loop.md"])
         self.assertEqual(fourth.tool_trace[0].tool, "list_wiki_pages")
         self.assertEqual(services.wiki_pages.list_calls, 1)
         self.assertEqual(fifth.tool_trace[0].tool, "reuse_context")
@@ -1361,8 +1347,8 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(
             [citation.path for citation in fifth.citations],
             [
-                "concepts/Agent-Loop.md",
-                "concepts/Session-Memory-Architecture-for-Agent-Loops.md",
+                "Agent-Loop.md",
+                "Session-Memory-Architecture-for-Agent-Loops.md",
                 "sources/Agent-Loop-Source.md",
             ],
         )

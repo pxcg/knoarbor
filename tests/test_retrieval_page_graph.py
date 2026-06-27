@@ -12,55 +12,50 @@ from knoarbor.retrieval.page_graph import build_inbound_paths, graph_relevance_b
 
 class PageGraphRetrievalTests(unittest.TestCase):
     def test_related_candidate_paths_uses_outbound_links_and_backlinks(self) -> None:
-        seed = _page("concepts/A.md", related_pages=["concepts/B.md"])
-        inbound = {"concepts/A.md": ["concepts/C.md"], "concepts/B.md": ["concepts/A.md"]}
+        seed = _page("A.md", outbound_links=["B.md"])
+        inbound = {"A.md": ["C.md"], "B.md": ["A.md"]}
 
         candidates = related_candidate_paths(seed, inbound)
 
-        self.assertEqual(candidates, ["concepts/B.md", "concepts/C.md"])
+        self.assertEqual(candidates, ["B.md", "C.md"])
 
-    def test_graph_relevance_boost_explains_shared_source_and_type_affinity(self) -> None:
-        seed = _page("concepts/A.md", source="raw/a.md", directory="concepts", page_type="concept")
-        candidate = _page("concepts/B.md", source="raw/a.md", directory="concepts", page_type="concept")
+    def test_graph_relevance_boost_explains_outbound_link(self) -> None:
+        seed = _page("A.md", directory="pages", outbound_links=["B.md"])
+        candidate = _page("B.md", directory="pages")
 
         boost, reasons = graph_relevance_boost(seed, candidate, 10)
 
         self.assertGreater(boost, 0)
-        self.assertIn("shared_source", reasons)
-        self.assertIn("type_affinity", reasons)
+        self.assertIn("outbound_link", reasons)
 
     def test_build_inbound_paths_deduplicates_sources(self) -> None:
         pages = [
-            _page("concepts/A.md", related_pages=["concepts/B.md", "concepts/B.md"]),
-            _page("concepts/C.md", related_pages=["concepts/B.md"]),
+            _page("A.md", outbound_links=["B.md", "B.md"]),
+            _page("C.md", outbound_links=["B.md"]),
         ]
 
         inbound = build_inbound_paths(pages)
 
-        self.assertEqual(inbound["concepts/B.md"], ["concepts/A.md", "concepts/C.md"])
+        self.assertEqual(inbound["B.md"], ["A.md", "C.md"])
 
 
 def _page(
     relative_path: str,
     *,
     title: str | None = None,
-    source: str | None = None,
-    directory: str = "concepts",
-    page_type: str = "concept",
-    related_pages: list[str] | None = None,
+    directory: str = "pages",
+    outbound_links: list[str] | None = None,
 ):
     return SearchPage(
         path=Path("/tmp") / relative_path,
         relative_path=relative_path,
         directory=directory,
         title=title or Path(relative_path).stem,
-        page_type=page_type,
-        status="draft",
-        source=source,
-        tags=[],
+        role="knowledge_page",
+        entities=[],
         summary="",
-        key_points=[],
-        related_pages=related_pages or [],
+        claim_points=[],
+        outbound_links=outbound_links or [],
         headings=[],
         body="",
     )

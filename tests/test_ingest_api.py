@@ -33,7 +33,7 @@ class FakeIngestService:
                 IngestSourceResult(
                     connector="markdown",
                     source_id="source:1",
-                    source_file="raw/notes/source.md",
+                    source_file="raw/inbox/notes/source.md",
                     should_process=True,
                     mode="new",
                     reason="Test ingest run.",
@@ -156,7 +156,7 @@ class IngestApiTests(unittest.TestCase):
                         "origin": {
                             "connector": "markdown",
                             "uri": "file:///tmp/test.md",
-                            "raw_path": "raw/notes/test.md",
+                            "raw_path": "raw/inbox/notes/test.md",
                         },
                         "metadata": {"title": "Test"},
                         "content": {"format": "markdown", "text": "# Test\n\nBody."},

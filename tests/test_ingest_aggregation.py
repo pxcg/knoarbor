@@ -101,7 +101,7 @@ def _artifact(
             source_type="markdown",
             source_app="markdown",
             source_id="raw:agent",
-            source_path="raw/notes/agent.md",
+            source_path="raw/inbox/notes/agent.md",
             title=title,
         ),
         content_units=[
@@ -120,7 +120,7 @@ def _artifact(
     digest = build_source_digest_from_extract(extract, digest_id=f"sd_segment_{segment_index}")
     evidence = KnowledgeEvidenceSpan(
         source_digest_id=digest.digest_id,
-        source_path="raw/notes/agent.md",
+        source_path="raw/inbox/notes/agent.md",
         source_unit_index=0,
         excerpt=claim_text,
     )

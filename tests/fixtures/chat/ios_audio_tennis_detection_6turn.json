@@ -25,9 +25,9 @@
       "turn": 1,
       "question": "我想在 iPhone 上做网球击球声音检测，整体应该怎么做？",
       "expected_pages": [
-        "concepts/iOS端侧音频序列机器学习模型部署路线与选型.md",
-        "workflows/iOS-On-device-Audio-ML-Workflow-for-Tennis-Event-Detection.md",
-        "concepts/iOS-Edge-Audio-Event-Detection-Model-Architecture.md"
+        "iOS端侧音频序列机器学习模型部署路线与选型.md",
+        "iOS-On-device-Audio-ML-Workflow-for-Tennis-Event-Detection.md",
+        "iOS-Edge-Audio-Event-Detection-Model-Architecture.md"
       ],
       "expected_behavior": [
         "resolve the short request as an engineering roadmap rather than a generic iOS audio explanation",
@@ -39,11 +39,11 @@
       "turn": 2,
       "question": "SoundAnalysis、能量峰值、自定义 CNN/TCN 模型分别适合什么场景？我应该优先选哪个？",
       "expected_pages": [
-        "comparisons/SoundAnalysis-vs-Custom-Deep-Learning-Model-for-Audio-Event-Detection.md",
-        "comparisons/SoundAnalysis-vs-Energy-Peak-Baseline-for-Tennis-Hit-Detection.md",
-        "concepts/Apple-SoundAnalysis-(Concept).md",
-        "concepts/能量峰值基线评估.md",
-        "concepts/Log-Mel-+-轻量CNNTCN事件检测模型.md"
+        "SoundAnalysis-vs-Custom-Deep-Learning-Model-for-Audio-Event-Detection.md",
+        "SoundAnalysis-vs-Energy-Peak-Baseline-for-Tennis-Hit-Detection.md",
+        "Apple-SoundAnalysis-(Concept).md",
+        "能量峰值基线评估.md",
+        "Log-Mel-+-轻量CNNTCN事件检测模型.md"
       ],
       "expected_behavior": [
         "compare roles instead of treating the three options as equivalent alternatives",
@@ -56,10 +56,10 @@
       "turn": 3,
       "question": "如果我要训练这个模型，数据集和标注应该怎么准备？OpenSportsLab 和 SPOT Tennis 应该怎么选？",
       "expected_pages": [
-        "comparisons/Tennis-Datasets-for-Audio-Event-Detection-OpenSportsLab-vs-SPOT-Tennis.md",
-        "workflows/iOS-On-device-Audio-ML-Workflow-for-Tennis-Event-Detection.md",
-        "concepts/短瞬态声音事件时间点检测.md",
-        "concepts/Evaluation-Metrics-for-Audio-Event-Detection-in-Sports-Video.md"
+        "Tennis-Datasets-for-Audio-Event-Detection-OpenSportsLab-vs-SPOT-Tennis.md",
+        "iOS-On-device-Audio-ML-Workflow-for-Tennis-Event-Detection.md",
+        "短瞬态声音事件时间点检测.md",
+        "Evaluation-Metrics-for-Audio-Event-Detection-in-Sports-Video.md"
       ],
       "expected_behavior": [
         "inherit the tennis audio detection context from previous turns",
@@ -71,10 +71,10 @@
       "turn": 4,
       "question": "如果我不只想识别击球点，还想识别一回合的开始和结束，模型结构应该怎么设计？",
       "expected_pages": [
-        "concepts/网球击球点与轮次边界多任务模型.md",
-        "concepts/iOS-Edge-Audio-Event-Detection-Model-Architecture.md",
-        "concepts/Log-Mel-+-轻量CNNTCN事件检测模型.md",
-        "concepts/视频级隔离数据集模型选型与训练方案规划.md"
+        "网球击球点与轮次边界多任务模型.md",
+        "iOS-Edge-Audio-Event-Detection-Model-Architecture.md",
+        "Log-Mel-+-轻量CNNTCN事件检测模型.md",
+        "视频级隔离数据集模型选型与训练方案规划.md"
       ],
       "expected_behavior": [
         "move from single hit detection to a multi-task model",
@@ -87,11 +87,11 @@
       "turn": 5,
       "question": "怎么判断这个方案有没有效果？我应该设计哪些评估指标和实验对比？",
       "expected_pages": [
-        "concepts/Evaluation-Metrics-for-Audio-Event-Detection-in-Sports-Video.md",
-        "concepts/Apple-SoundAnalysis-Evaluation-Matrix-Methodology.md",
-        "comparisons/VidSep-Historical-vs-Current-Baseline-Results.md",
-        "entities/VidSep.md",
-        "workflows/iOS-Audio-Event-Detection-Test-Plan-and-Workflow.md"
+        "Evaluation-Metrics-for-Audio-Event-Detection-in-Sports-Video.md",
+        "Apple-SoundAnalysis-Evaluation-Matrix-Methodology.md",
+        "VidSep-Historical-vs-Current-Baseline-Results.md",
+        "VidSep.md",
+        "iOS-Audio-Event-Detection-Test-Plan-and-Workflow.md"
       ],
       "expected_behavior": [
         "separate event-level metrics from rally-level metrics",
@@ -104,13 +104,13 @@
       "turn": 6,
       "question": "现在把前面内容整理成一份可执行的 MVP 到生产级路线，要求包含技术选型、数据准备、模型训练、iOS 部署、评估指标和风险点。",
       "expected_pages": [
-        "concepts/iOS端侧音频序列机器学习模型部署路线与选型.md",
-        "workflows/iOS-On-device-Audio-ML-Workflow-for-Tennis-Event-Detection.md",
-        "workflows/iOS-Audio-Event-Detection-Test-Plan-and-Workflow.md",
-        "concepts/网球击球点与轮次边界多任务模型.md",
-        "comparisons/SoundAnalysis-vs-Custom-Deep-Learning-Model-for-Audio-Event-Detection.md",
-        "comparisons/Tennis-Datasets-for-Audio-Event-Detection-OpenSportsLab-vs-SPOT-Tennis.md",
-        "concepts/Evaluation-Metrics-for-Audio-Event-Detection-in-Sports-Video.md"
+        "iOS端侧音频序列机器学习模型部署路线与选型.md",
+        "iOS-On-device-Audio-ML-Workflow-for-Tennis-Event-Detection.md",
+        "iOS-Audio-Event-Detection-Test-Plan-and-Workflow.md",
+        "网球击球点与轮次边界多任务模型.md",
+        "SoundAnalysis-vs-Custom-Deep-Learning-Model-for-Audio-Event-Detection.md",
+        "Tennis-Datasets-for-Audio-Event-Detection-OpenSportsLab-vs-SPOT-Tennis.md",
+        "Evaluation-Metrics-for-Audio-Event-Detection-in-Sports-Video.md"
       ],
       "expected_behavior": [
         "reuse prior conversation context instead of starting from unrelated iOS search",

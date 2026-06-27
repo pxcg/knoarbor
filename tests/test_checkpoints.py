@@ -30,7 +30,7 @@ class CheckpointStoreTests(unittest.TestCase):
                 encoding="utf-8",
             )
             store = CheckpointStore()
-            state = store.read_state(vault / "maintenance" / "ingest_checkpoints.json")
+            state = store.read_state(vault / ".knoarbor" / "checkpoints" / "ingest_checkpoints.json")
 
             first = store.prepare_session_file(vault, state, session_path)
             pages = store.commit_session(
@@ -40,7 +40,7 @@ class CheckpointStoreTests(unittest.TestCase):
                 source_file=first.source_file,
                 last_processed_raw_index=first.to_raw_index or 0,
                 last_processed_content_hash=first.content_hash,
-                generated_pages=["concepts/Demo.md"],
+                generated_pages=["Demo.md"],
                 connector_version="chat@1",
                 parser_version="chat-parser@1",
             )
@@ -51,7 +51,7 @@ class CheckpointStoreTests(unittest.TestCase):
             third = store.prepare_session_file(vault, state, session_path)
 
         self.assertEqual(first.mode, "new_session")
-        self.assertEqual(pages, ["concepts/Demo.md"])
+        self.assertEqual(pages, ["Demo.md"])
         self.assertEqual(second.mode, "unchanged")
         self.assertFalse(second.should_process)
         self.assertEqual(third.mode, "incremental")
@@ -64,7 +64,7 @@ class CheckpointStoreTests(unittest.TestCase):
             source_path.parent.mkdir(parents=True)
             source_path.write_text("# Note\n", encoding="utf-8")
             store = CheckpointStore()
-            state = store.read_state(vault / "maintenance" / "source_ingest_checkpoints.json")
+            state = store.read_state(vault / ".knoarbor" / "checkpoints" / "source_ingest_checkpoints.json")
 
             first = store.prepare_source_file(vault, state, source_path)
             store.commit_source(
@@ -98,7 +98,7 @@ class CheckpointStoreTests(unittest.TestCase):
             }
             session_path.write_text(json.dumps(payload), encoding="utf-8")
             store = CheckpointStore()
-            state = store.read_state(vault / "maintenance" / "ingest_checkpoints.json")
+            state = store.read_state(vault / ".knoarbor" / "checkpoints" / "ingest_checkpoints.json")
 
             first = store.prepare_session_payload(
                 vault,
@@ -140,7 +140,7 @@ class CheckpointStoreTests(unittest.TestCase):
             source_path.parent.mkdir(parents=True)
             source_path.write_text("# Note\n", encoding="utf-8")
             store = CheckpointStore()
-            state = store.read_state(vault / "maintenance" / "source_ingest_checkpoints.json")
+            state = store.read_state(vault / ".knoarbor" / "checkpoints" / "source_ingest_checkpoints.json")
 
             first = store.prepare_source_file(
                 vault,

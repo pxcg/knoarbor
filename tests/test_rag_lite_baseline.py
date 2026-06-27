@@ -77,7 +77,7 @@ class RagLiteBaselineTests(unittest.TestCase):
                 {
                     "turn": 1,
                     "question": "Agent Loop 是什么？",
-                    "expected_pages": ["concepts/Agent-Loop.md"],
+                    "expected_pages": ["Agent-Loop.md"],
                     "retrieved_chunks": [
                         {
                             "source_path": "Agent.md",
@@ -94,7 +94,7 @@ class RagLiteBaselineTests(unittest.TestCase):
         self.assertIn("RAG-lite Baseline Report", report)
         self.assertIn("total_tokens: 12", report)
         self.assertIn("Agent.md", report)
-        self.assertIn("concepts/Agent-Loop.md", report)
+        self.assertIn("Agent-Loop.md", report)
 
 
 if __name__ == "__main__":

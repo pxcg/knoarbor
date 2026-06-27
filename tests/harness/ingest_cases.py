@@ -57,7 +57,7 @@ def long_markdown_source_document() -> SourceDocument:
     return SourceDocument(
         source_id="markdown:golden-long-note",
         source_type="markdown",
-        origin=SourceOrigin(connector="markdown", uri="file:///raw/notes/long-agent-loop.md", raw_path="raw/notes/long-agent-loop.md"),
+        origin=SourceOrigin(connector="markdown", uri="file:///raw/inbox/notes/long-agent-loop.md", raw_path="raw/inbox/notes/long-agent-loop.md"),
         content=SourceContent(format="markdown", text=long_markdown_text()),
         metadata={"title": "Long Agent Loop Note"},
         fingerprint=SourceFingerprint(content_hash="golden-long-note", connector_version="markdown@1"),
@@ -68,7 +68,7 @@ def codex_chat_source_document() -> SourceDocument:
     return SourceDocument(
         source_id="codex:golden-session",
         source_type="codex_chat",
-        origin=SourceOrigin(connector="codex", uri="file:///raw/chats/codex-golden-session.json", raw_path="raw/chats/codex-golden-session.json"),
+        origin=SourceOrigin(connector="codex", uri="file:///raw/normalized/chats/codex-golden-session.json", raw_path="raw/normalized/chats/codex-golden-session.json"),
         content=SourceContent(format="json", text=json.dumps(codex_chat_payload(), ensure_ascii=False, indent=2)),
         metadata={"title": "Codex Golden Session"},
         fingerprint=SourceFingerprint(content_hash="golden-codex-session", connector_version="codex@1"),
@@ -444,7 +444,7 @@ def _topic_for_title(title: str, *, is_chat: bool) -> dict[str, object]:
     title = title.lower()
     if "workflow" in title or "2-3" in title:
         return {
-            "page_dir": "workflows",
+            "page_dir": "pages",
             "title": "Workflow Boundary Design",
             "knowledge_object": "workflow boundary design",
             "decision_reason": "Workflow boundaries are a reusable process design object.",
@@ -462,12 +462,10 @@ def _topic_for_title(title: str, *, is_chat: bool) -> dict[str, object]:
                 "[[Workflow Boundary Design]] | separates | [[Semantic Step]] | C2",
             ],
             "synthesis": "Workflow boundary design keeps deterministic orchestration explicit while leaving semantic decisions inside reviewed contracts.",
-            "key_points": ["Use workflows for predictable execution.", "Keep semantic decisions inside explicit contracts."],
-            "tags": ["workflow", "architecture", "boundaries"],
         }
     if "harness" in title or "4-5" in title:
         return {
-            "page_dir": "concepts",
+            "page_dir": "pages",
             "title": "Golden Harness Evaluation",
             "knowledge_object": "golden harness evaluation",
             "decision_reason": "Golden harnesses are a reusable evaluation method.",
@@ -485,11 +483,9 @@ def _topic_for_title(title: str, *, is_chat: bool) -> dict[str, object]:
                 "[[Golden Harness Evaluation]] | stabilizes | [[Pipeline Output]] | C2",
             ],
             "synthesis": "Golden harness evaluation provides deterministic review coverage for semantic workflow changes without requiring live model calls.",
-            "key_points": ["Snapshot stable outputs.", "Use scripted semantic workflows for deterministic review."],
-            "tags": ["testing", "harness", "evaluation"],
         }
     return {
-        "page_dir": "queries" if is_chat else "concepts",
+        "page_dir": "pages",
         "title": "Agent Loop Control Pattern" if not is_chat else "Agent Loop In KnoArbor",
         "knowledge_object": "agent loop control pattern",
         "decision_reason": "Agent loop control is the durable object in this segment.",
@@ -507,6 +503,4 @@ def _topic_for_title(title: str, *, is_chat: bool) -> dict[str, object]:
             "[[Agent Loop Control Pattern]] | depends_on | [[Control Boundary]] | C2",
         ],
         "synthesis": "Agent loop control should be treated as a bounded execution pattern that ties reasoning, action, observation, and stopping conditions together.",
-        "key_points": ["Model decisions are looped through tool results.", "Control boundaries keep the loop auditable."],
-        "tags": ["agent-loop", "control", "ai-system"],
     }

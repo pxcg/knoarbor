@@ -20,7 +20,7 @@ def _assert_turns_well_formed(testcase: unittest.TestCase, data: dict, expected_
     for turn in turns:
         testcase.assertTrue(turn["question"].strip())
         for page in turn.get("expected_pages", []):
-            testcase.assertRegex(page, r"^(concepts|sources|entities|comparisons|workflows|queries)/.+\.md$")
+            testcase.assertRegex(page, r"^(?:pages/.+|sources/.+|[^/]+)\.md$")
 
 
 class ChatEvalFixtureTests(unittest.TestCase):

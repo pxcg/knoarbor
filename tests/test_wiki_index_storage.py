@@ -15,10 +15,9 @@ class WikiIndexStorageTests(unittest.TestCase):
     def test_update_index_catalogs_generated_pages(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "pages" / "concepts").mkdir(parents=True)
-            page = vault / "pages" / "concepts" / "Agent.md"
+            (vault / "wiki" / "pages").mkdir(parents=True)
+            page = vault / "wiki" / "pages" / "Agent.md"
             page.write_text(
-                "---\ntype: concept\nstatus: draft\ntags: agent, loop\n---\n"
                 "# Agent\n\n## Summary\n\nAgent loop notes.\n",
                 encoding="utf-8",
             )
@@ -32,18 +31,19 @@ class WikiIndexStorageTests(unittest.TestCase):
         self.assertEqual(manifest["schema_version"], "knoarbor_index.v1")
         self.assertGreaterEqual(manifest["page_count"], 1)
         self.assertEqual(graph["schema_version"], "knoarbor_graph_index.v1")
-        self.assertEqual(pages["pages"][0]["path"], "concepts/Agent.md")
+        self.assertEqual(pages["pages"][0]["path"], "Agent.md")
         self.assertEqual(search["entries"][0]["title"], "Agent")
 
     def test_machine_index_records_links_and_sources(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "pages" / "concepts").mkdir(parents=True)
-            (vault / "pages" / "sources").mkdir(parents=True)
-            (vault / "pages" / "sources" / "Source.md").write_text("# Source\n", encoding="utf-8")
-            (vault / "pages" / "concepts" / "Agent.md").write_text(
-                "---\ntype: concept\nsource: raw/notes/agent.md\n---\n"
-                "# Agent\n\n## Summary\n\nLinks to [[sources/Source|source]].\n",
+            (vault / "wiki" / "pages").mkdir(parents=True)
+            (vault / "wiki" / "sources").mkdir(parents=True)
+            (vault / "wiki" / "sources" / "Source.md").write_text("# Source\n", encoding="utf-8")
+            (vault / "wiki" / "pages" / "Agent.md").write_text(
+                "# Agent\n\n## Summary\n\nLinks to [[sources/Source|source]].\n\n"
+                "## Evidence\n\n| Claim | Source | Range | Basis | Confidence |\n|---|---|---|---|---|\n"
+                "| C1 | raw/inbox/notes/agent.md | unit:0 | Agent notes. | high |\n",
                 encoding="utf-8",
             )
 
@@ -52,13 +52,13 @@ class WikiIndexStorageTests(unittest.TestCase):
             sources = json.loads((machine_index_dir(vault) / "sources.json").read_text(encoding="utf-8"))
 
         self.assertEqual(links["links"][0]["target_path"], "sources/Source.md")
-        self.assertEqual(sources["sources"][0]["source"], "raw/notes/agent.md")
+        self.assertEqual(sources["sources"][0]["source"], "raw/inbox/notes/agent.md")
 
     def test_graph_index_records_entities_relations_and_evidence_sources(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "pages").mkdir()
-            (vault / "pages" / "Agent-Loop.md").write_text(
+            (vault / "wiki" / "pages").mkdir(parents=True)
+            (vault / "wiki" / "pages" / "Agent-Loop.md").write_text(
                 "---\ncreated: 2026-01-01 00:00:00\nupdated: 2026-01-01 00:00:00\ncontent_hash: abc\n---\n"
                 "# Agent Loop\n\n"
                 "## Summary\n\nAgent loop coordinates model and tool execution.\n\n"
@@ -89,17 +89,15 @@ class WikiIndexStorageTests(unittest.TestCase):
         self.assertEqual(graph["sources"][0]["source"], "sources/Agent-Loop-Source.md")
         self.assertEqual(graph["sources"][0]["pages"], ["Agent-Loop.md"])
 
-    def test_machine_index_emits_page_identity_fields_for_legacy_and_unified_pages(self) -> None:
+    def test_machine_index_emits_page_identity_fields_for_unified_pages(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "pages" / "concepts").mkdir(parents=True)
-            (vault / "pages" / "concepts" / "Agent-Loop.md").write_text(
-                "---\ntype: concept\ntags: agent, workflow\n---\n"
-                "# Agent Loop\n\n## Summary\n\nLegacy typed page.\n\n## Claims\n\n- Agent loops coordinate tools.\n",
+            (vault / "wiki" / "pages").mkdir(parents=True)
+            (vault / "wiki" / "pages" / "Agent-Loop.md").write_text(
+                "# Agent Loop\n\n## Summary\n\nUnified page.\n\n## Claims\n\n- Agent loops coordinate tools.\n\n## Entities\n\n- Agent Loop\n- Tool Execution\n",
                 encoding="utf-8",
             )
-            (vault / "pages" / "OpenClaw.md").write_text(
-                "---\npage_kind: entity\nfacets: agent_platform, workflow-pattern\nlegacy_paths: entities/OpenClaw.md\n---\n"
+            (vault / "wiki" / "pages" / "OpenClaw.md").write_text(
                 "# OpenClaw\n\n## Summary\n\nCanonical unified page.\n",
                 encoding="utf-8",
             )
@@ -109,31 +107,25 @@ class WikiIndexStorageTests(unittest.TestCase):
             records = {record["path"]: record for record in pages["pages"]}
 
         self.assertEqual(pages["schema_version"], "machine_pages.v2")
-        self.assertEqual(records["concepts/Agent-Loop.md"]["schema_version"], "machine_page.v2")
-        self.assertEqual(records["concepts/Agent-Loop.md"]["canonical_path"], "concepts/Agent-Loop.md")
-        self.assertEqual(records["concepts/Agent-Loop.md"]["page_kind"], "concept")
-        self.assertEqual(records["concepts/Agent-Loop.md"]["role"], "knowledge_page")
-        self.assertIn("claims", records["concepts/Agent-Loop.md"]["facets"])
+        self.assertEqual(records["Agent-Loop.md"]["schema_version"], "machine_page.v2")
+        self.assertEqual(records["Agent-Loop.md"]["canonical_path"], "Agent-Loop.md")
+        self.assertEqual(records["Agent-Loop.md"]["role"], "knowledge_page")
         self.assertEqual(records["OpenClaw.md"]["directory"], "pages")
         self.assertEqual(records["OpenClaw.md"]["canonical_path"], "OpenClaw.md")
-        self.assertEqual(records["OpenClaw.md"]["legacy_paths"], ["entities/OpenClaw.md"])
-        self.assertEqual(records["OpenClaw.md"]["page_kind"], "entity")
-        self.assertIn("agent_platform", records["OpenClaw.md"]["facets"])
+        self.assertEqual(records["OpenClaw.md"]["role"], "knowledge_page")
 
-    def test_update_index_keeps_generated_views_virtual(self) -> None:
+    def test_update_index_keeps_runtime_views_virtual(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            pages = vault / "pages"
-            sources = vault / "pages" / "sources"
+            pages = vault / "wiki" / "pages"
+            sources = vault / "wiki" / "sources"
             pages.mkdir(parents=True)
             sources.mkdir(parents=True)
             (pages / "Agent-Loop.md").write_text(
-                "---\ntype: page\npage_kind: concept\nfacets: [agent-loop]\n---\n"
                 "# Agent Loop\n\n## Summary\n\nAgent loop coordinates model and tool execution.\n",
                 encoding="utf-8",
             )
             (sources / "Agent-Loop-Source.md").write_text(
-                "---\ntype: source\npage_kind: source_digest\nrole: source_digest\n---\n"
                 "# Agent Loop Source\n\n## Summary\n\nSource digest for agent loop notes.\n",
                 encoding="utf-8",
             )
@@ -149,12 +141,12 @@ class WikiIndexStorageTests(unittest.TestCase):
     def test_machine_index_stale_detection_refreshes_after_page_write(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "concepts").mkdir()
-            (vault / "concepts" / "Agent.md").write_text("# Agent\n", encoding="utf-8")
+            (vault / "wiki" / "pages").mkdir(parents=True)
+            (vault / "wiki" / "pages" / "Agent.md").write_text("# Agent\n", encoding="utf-8")
 
             update_index(vault)
             self.assertFalse(is_machine_index_stale(vault))
-            (vault / "concepts" / "Agent.md").write_text("# Agent\n\n## Summary\n\nUpdated.", encoding="utf-8")
+            (vault / "wiki" / "pages" / "Agent.md").write_text("# Agent\n\n## Summary\n\nUpdated.", encoding="utf-8")
 
             self.assertTrue(is_machine_index_stale(vault))
             ensure_machine_index(vault)
@@ -181,15 +173,15 @@ class WikiIndexStorageTests(unittest.TestCase):
     def test_index_entry_and_wikilink_use_relative_paths(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "entities").mkdir()
-            page = vault / "entities" / "MiniMind.md"
+            (vault / "wiki" / "pages").mkdir(parents=True)
+            page = vault / "wiki" / "pages" / "MiniMind.md"
             page.write_text("# MiniMind\n\n## Summary\n\nA small model project.", encoding="utf-8")
 
             entry = index_entry(vault, page)
             link = wiki_link_for_path(vault, page, "MiniMind")
 
-        self.assertIn("[[entities/MiniMind|MiniMind]]", entry)
-        self.assertEqual(link, "[[entities/MiniMind|MiniMind]]")
+        self.assertIn("[[MiniMind|MiniMind]]", entry)
+        self.assertEqual(link, "[[MiniMind|MiniMind]]")
 
 
 if __name__ == "__main__":
