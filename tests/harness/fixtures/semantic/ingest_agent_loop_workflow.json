@@ -59,7 +59,7 @@
             "excerpt": "Agent loop is observe, decide, act, feedback.",
             "excerpt_hash": null,
             "source_digest_id": "sd_test_agent",
-            "source_path": "raw/notes/Agent.md",
+            "source_path": "raw/inbox/notes/Agent.md",
             "source_unit_index": 0
           }
         ],
@@ -90,7 +90,7 @@
         "excerpt": "Agent loop is observe, decide, act, feedback.",
         "excerpt_hash": null,
         "source_digest_id": "sd_test_agent",
-        "source_path": "raw/notes/Agent.md",
+        "source_path": "raw/inbox/notes/Agent.md",
         "source_unit_index": 0
       }
     ],
@@ -163,7 +163,7 @@
       "created_at": null,
       "source_app": "markdown",
       "source_id": "markdown:agent",
-      "source_path": "raw/notes/Agent.md",
+      "source_path": "raw/inbox/notes/Agent.md",
       "source_type": "markdown",
       "title": "Agent",
       "updated_at": null
@@ -183,23 +183,23 @@
         "excerpt": "Agent loop is observe, decide, act, feedback.",
         "excerpt_hash": "d5f063c8ad88ba402fe9b34c35e235479d9a6fb1",
         "source_digest_id": "sd_c8f296e5a816ca8d",
-        "source_path": "raw/notes/Agent.md",
+        "source_path": "raw/inbox/notes/Agent.md",
         "source_unit_index": 0
       }
     ],
-    "raw_source": "raw/notes/Agent.md",
+    "raw_source": "raw/inbox/notes/Agent.md",
     "schema_version": "source_digest.v1",
     "source": {
       "created_at": null,
       "source_app": "markdown",
       "source_id": "markdown:agent",
-      "source_path": "raw/notes/Agent.md",
+      "source_path": "raw/inbox/notes/Agent.md",
       "source_type": "markdown",
       "title": "Agent",
       "updated_at": null
     },
     "source_focus": "Agent",
-    "summary": "Audit record for Agent. Connector: markdown. Source units: 1. Warnings: 0. Raw pointer: raw/notes/Agent.md.",
+    "summary": "Audit record for Agent. Connector: markdown. Source units: 1. Warnings: 0. Raw pointer: raw/inbox/notes/Agent.md.",
     "units": [
       {
         "evidence": {
@@ -208,7 +208,7 @@
           "excerpt": "Agent loop is observe, decide, act, feedback.",
           "excerpt_hash": "d5f063c8ad88ba402fe9b34c35e235479d9a6fb1",
           "source_digest_id": "sd_c8f296e5a816ca8d",
-          "source_path": "raw/notes/Agent.md",
+          "source_path": "raw/inbox/notes/Agent.md",
           "source_unit_index": 0
         },
         "index": 0,
@@ -242,19 +242,11 @@
         "evidence": [
           "C1 | sd_test_agent | unit:0 | Agent loop is observe, decide, act, feedback. | high"
         ],
-        "facets": [
-          "agent_loop",
-          "agent_architecture"
-        ],
-        "legacy_paths": [
-          "concepts/Agent-Loop.md"
-        ],
-        "model_name": "unit",
+                "model_name": "unit",
         "model_provider": "fake",
         "operation_index": 0,
-        "page_dir": "concepts",
-        "page_kind": "concept",
-        "patches": [],
+        "page_dir": "pages",
+                "patches": [],
         "question": "Agent Loop",
         "relations": [
           "[[Agent Loop]] | includes | [[Agent Control]] | C1"
@@ -262,7 +254,7 @@
         "source_digest_ids": [
           "sd_test_agent"
         ],
-        "source_file": "raw/notes/Agent.md",
+        "source_file": "raw/inbox/notes/Agent.md",
         "subject_kind": "control_pattern",
         "summary": "Agent Loop is a basic control cycle for agents.",
         "synthesis": "Agent Loop is an observe, decide, act, feedback cycle.",
@@ -282,17 +274,8 @@
         "candidate_pages": [],
         "canonical_path": "Agent-Loop.md",
         "decision_reason": "The source defines a durable concept.",
-        "facets": [
-          "agent_loop",
-          "agent_architecture"
-        ],
-        "knowledge_object": "Agent Loop",
-        "legacy_paths": [
-          "concepts/Agent-Loop.md"
-        ],
-        "page_dir": "concepts",
-        "page_kind": "concept",
-        "related_pages": [],
+                "knowledge_object": "Agent Loop",
+        "page_dir": "pages",
         "selected_claim_ids": [
           "claim_agent_loop_control_pattern"
         ],
@@ -302,7 +285,6 @@
         "source_digest_ids": [
           "sd_test_agent"
         ],
-        "subject_kind": "control_pattern",
         "target_page": null,
         "title": "Agent Loop"
       }

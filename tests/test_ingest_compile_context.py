@@ -16,10 +16,9 @@ class IngestCompileContextTests(unittest.TestCase):
             operations=[
                 WikiPageOperation(
                     action="update",
-                    target_page="concepts/Agent.md",
-                    page_dir="concepts",
+                    target_page="Agent.md",
+                    page_dir="pages",
                     canonical_path="Agent.md",
-                    legacy_paths=["concepts/Agent.md"],
                     title="Agent",
                     knowledge_object="Agent",
                     selected_claim_ids=["claim_agent_loop_control_pattern"],
@@ -32,16 +31,17 @@ class IngestCompileContextTests(unittest.TestCase):
         candidate_page_context = {
             "pages": [
                 {
-                    "path": "concepts/Agent.md",
+                    "path": "Agent.md",
                     "exists": True,
                     "context_role": "target",
                     "content_kind": "full",
                     "title": "Agent",
                     "summary": "Agent summary.",
+                    "relations": [{"subject": "Agent Loop", "predicate": "uses", "object": "Tools", "claim": "C1"}],
                     "content": "# Agent\n\nBody.",
                 },
                 {
-                    "path": "concepts/Loop.md",
+                    "path": "Loop.md",
                     "exists": True,
                     "context_role": "related",
                     "content_kind": "excerpt",
@@ -50,7 +50,7 @@ class IngestCompileContextTests(unittest.TestCase):
                     "content": "Summary:\nLoop summary.",
                 },
                 {
-                    "path": "concepts/Candidate.md",
+                    "path": "Candidate.md",
                     "exists": True,
                     "context_role": "candidate",
                     "content_kind": "profile",
@@ -69,10 +69,13 @@ class IngestCompileContextTests(unittest.TestCase):
 
         self.assertEqual(context.schema_version, "ingest_compile_context.v1")
         self.assertEqual(context.current_content.title, "Agent")
-        self.assertEqual(context.operations[0].target_page, "concepts/Agent.md")
+        self.assertEqual(context.operations[0].target_page, "Agent.md")
         self.assertEqual(context.operations[0].canonical_path, "Agent.md")
-        self.assertEqual(context.operations[0].legacy_paths, ["concepts/Agent.md"])
         self.assertEqual(context.page_context.targets[0].content_kind, "full")
+        self.assertEqual(
+            context.page_context.targets[0].relations,
+            [{"subject": "Agent Loop", "predicate": "uses", "object": "Tools", "claim": "C1"}],
+        )
         self.assertEqual(context.page_context.related[0].content_kind, "excerpt")
         self.assertEqual(context.page_context.candidates[0].content_kind, "profile")
         self.assertEqual(context.stats["materialized_context_chars"], 35)

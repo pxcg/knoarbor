@@ -27,7 +27,7 @@ class KnowledgeAtomClosureTests(unittest.TestCase):
         self.assertEqual(len(closure.evidence_keys), 2)
         self.assertEqual(closure.issues, [])
 
-    def test_explicit_relation_reports_missing_source_claim(self) -> None:
+    def test_explicit_relation_without_local_source_claim_is_dropped(self) -> None:
         closure = close_operation_atoms(
             _batch(),
             _operation(selected_claim_ids=["claim_agent_loop"], selected_relation_ids=["rel_agent_loop_mentions_unselected"]),
@@ -35,9 +35,9 @@ class KnowledgeAtomClosureTests(unittest.TestCase):
 
         self.assertEqual(closure.claim_ids, ["claim_agent_loop"])
         self.assertEqual(closure.relation_ids, ["rel_agent_loop_depends_on_memory"])
-        self.assertEqual([issue.code for issue in closure.issues], ["relation_selected_without_source_claim"])
+        self.assertEqual(closure.issues, [])
 
-    def test_explicit_relation_can_reference_claim_selected_elsewhere_in_plan(self) -> None:
+    def test_explicit_relation_cannot_reference_claim_selected_elsewhere_in_plan(self) -> None:
         closure = close_operation_atoms(
             _batch(),
             _operation(selected_claim_ids=["claim_agent_loop"], selected_relation_ids=["rel_agent_loop_mentions_unselected"]),
@@ -47,7 +47,7 @@ class KnowledgeAtomClosureTests(unittest.TestCase):
         self.assertEqual(closure.claim_ids, ["claim_agent_loop"])
         self.assertEqual(
             closure.relation_ids,
-            ["rel_agent_loop_depends_on_memory", "rel_agent_loop_mentions_unselected"],
+            ["rel_agent_loop_depends_on_memory"],
         )
         self.assertEqual(closure.issues, [])
 
@@ -104,6 +104,24 @@ class KnowledgeAtomClosureTests(unittest.TestCase):
         self.assertIsNotNone(selected)
         assert selected is not None
         self.assertEqual([span.source_unit_index for span in selected.evidence], [0, 1])
+
+    def test_entity_mapping_canonicalizes_closure_names(self) -> None:
+        closure = close_operation_atoms(
+            _batch(),
+            _operation(
+                selected_claim_ids=["claim_agent_loop"],
+                entity_mappings=[
+                    {
+                        "source_name": "Memory",
+                        "canonical_name": "Session Memory",
+                        "aliases": ["Memory"],
+                        "reason": "Candidate profile uses the more precise name.",
+                    }
+                ],
+            ),
+        )
+
+        self.assertEqual(closure.entity_names, ["Agent Loop", "Session Memory"])
 
 
 def _batch() -> KnowledgeAtomBatch:
@@ -172,15 +190,17 @@ def _operation(
     *,
     selected_claim_ids: list[str],
     selected_relation_ids: list[str] | None = None,
+    entity_mappings: list[dict[str, object]] | None = None,
 ) -> WikiPageOperation:
     return WikiPageOperation(
         action="create",
-        page_dir="concepts",
+        page_dir="pages",
         title="Agent Loop",
         knowledge_object="Agent Loop",
         selected_claim_ids=selected_claim_ids,
         selected_relation_ids=selected_relation_ids or [],
         source_digest_ids=["sd_agent"],
+        entity_mappings=entity_mappings or [],
         decision_reason="Agent loop is a stable knowledge object.",
     )
 

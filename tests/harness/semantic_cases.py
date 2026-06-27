@@ -7,7 +7,7 @@ def markdown_source_document(
     *,
     source_id: str = "markdown:agent",
     title: str = "Agent",
-    raw_path: str = "raw/notes/Agent.md",
+    raw_path: str = "raw/inbox/notes/Agent.md",
     text: str = "# Agent\n\nAgent loop.",
 ) -> SourceDocument:
     return SourceDocument(
@@ -28,7 +28,7 @@ def source_normalize_output(*, title: str = "Agent", content: str = "Agent loop 
                 "source_type": "markdown",
                 "source_app": "markdown",
                 "source_id": "markdown:agent",
-                "source_path": "raw/notes/Agent.md",
+                "source_path": "raw/inbox/notes/Agent.md",
                 "title": title,
                 "created_at": None,
                 "updated_at": None,
@@ -64,18 +64,13 @@ def wiki_page_plan_output() -> dict[str, object]:
                 {
                     "action": "create",
                     "target_page": None,
-                    "page_dir": "concepts",
+                    "page_dir": "pages",
                     "canonical_path": "Agent-Loop.md",
-                    "legacy_paths": ["concepts/Agent-Loop.md"],
-                    "page_kind": "concept",
-                    "subject_kind": "control_pattern",
-                    "facets": ["agent_loop", "agent_architecture"],
                     "title": "Agent Loop",
                     "knowledge_object": "Agent Loop",
                     "selected_claim_ids": ["claim_agent_loop_control_pattern"],
                     "selected_relation_ids": ["rel_agent_loop_mentions_control"],
                     "source_digest_ids": ["sd_test_agent"],
-                    "related_pages": [],
                     "candidate_pages": [],
                     "decision_reason": "The source defines a durable concept.",
                 }
@@ -113,7 +108,7 @@ def wiki_atom_extract_output() -> dict[str, object]:
                     "evidence": [
                         {
                             "source_digest_id": "sd_test_agent",
-                            "source_path": "raw/notes/Agent.md",
+                            "source_path": "raw/inbox/notes/Agent.md",
                             "source_unit_index": 0,
                             "excerpt": "Agent loop is observe, decide, act, feedback.",
                         }
@@ -137,7 +132,7 @@ def wiki_atom_extract_output() -> dict[str, object]:
             "evidence": [
                 {
                     "source_digest_id": "sd_test_agent",
-                    "source_path": "raw/notes/Agent.md",
+                    "source_path": "raw/inbox/notes/Agent.md",
                     "source_unit_index": 0,
                     "excerpt": "Agent loop is observe, decide, act, feedback.",
                 }
@@ -155,15 +150,12 @@ def wiki_draft_batch_output() -> dict[str, object]:
                     "operation_index": 0,
                     "write_action": "create",
                     "target_page": None,
-                    "source_file": "raw/notes/Agent.md",
+                    "source_file": "raw/inbox/notes/Agent.md",
                     "title": "Agent Loop",
-                    "page_dir": "concepts",
+                    "page_dir": "pages",
                     "canonical_path": "Agent-Loop.md",
-                    "legacy_paths": ["concepts/Agent-Loop.md"],
-                    "page_kind": "concept",
-                    "subject_kind": "control_pattern",
-                    "facets": ["agent_loop", "agent_architecture"],
-                    "question": "Agent Loop",
+                                        "subject_kind": "control_pattern",
+                                        "question": "Agent Loop",
                     "summary": "Agent Loop is a basic control cycle for agents.",
                     "claims": ["C1. [[Agent Loop]] is an observe, decide, act, feedback cycle."],
                     "entities": ["[[Agent Loop]]"],
@@ -241,9 +233,9 @@ def lint_candidates_output() -> dict[str, object]:
             "schema_version": "maintenance_candidates.v1",
             "candidates": [
                 {
-                    "candidate_id": "structural:concepts/Agent.md:broken_link:0",
+                    "candidate_id": "structural:Agent.md:broken_link:0",
                     "source": "structural",
-                    "target_page": "concepts/Agent.md",
+                    "target_page": "Agent.md",
                     "issue_type": "broken_link",
                     "severity": "high",
                     "confidence": 0.9,
@@ -252,15 +244,14 @@ def lint_candidates_output() -> dict[str, object]:
                     "evidence": [
                         {
                             "kind": "scan_issue",
-                            "ref": "concepts/Agent.md",
+                            "ref": "Agent.md",
                             "quote": "[[Missing Page]]",
                         }
                     ],
                     "recommended_action": {
                         "action": "replace_wikilink",
-                        "params": {"old_target": "Missing Page", "new_target": "concepts/Agent Loop"},
+                        "params": {"old_target": "Missing Page", "new_target": "Agent Loop"},
                     },
-                    "related_pages": ["concepts/Agent Loop.md"],
                     "expected_effect": "Fix broken link.",
                     "review_notes": "Verify target exists.",
                 }
@@ -305,15 +296,12 @@ def lint_draft_batch_output() -> dict[str, object]:
                     "operation_index": 0,
                     "write_action": "create",
                     "target_page": None,
-                    "source_file": "raw/notes/Agent.md",
+                    "source_file": "raw/inbox/notes/Agent.md",
                     "title": "Agent Source Digest",
                     "page_dir": "sources",
                     "canonical_path": "sources/Agent-Source-Digest.md",
-                    "legacy_paths": [],
-                    "page_kind": "source_digest",
-                    "subject_kind": "source_digest",
-                    "facets": ["source_digest"],
-                    "question": "Source digest",
+                                        "subject_kind": "source_digest",
+                                        "question": "Source digest",
                     "summary": "Source digest for Agent notes.",
                     "synthesis": "This source describes Agent Loop.",
                     "patches": [],

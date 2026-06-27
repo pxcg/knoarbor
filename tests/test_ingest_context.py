@@ -72,7 +72,7 @@ class IngestContextProviderTests(unittest.TestCase):
                     evidence=[
                         KnowledgeEvidenceSpan(
                             source_digest_id="sd_query_policy",
-                            source_path="raw/notes/query-policy.md",
+                            source_path="raw/inbox/notes/query-policy.md",
                             excerpt="GraphSignalEntity appears here.",
                         )
                     ],
@@ -110,17 +110,15 @@ class IngestContextProviderTests(unittest.TestCase):
 
     def test_build_reuses_same_run_query_cache(self) -> None:
         page = SearchPage(
-            path=Path("/tmp/concepts/Agent.md"),
-            relative_path="concepts/Agent.md",
-            directory="concepts",
+            path=Path("/tmp/Agent.md"),
+            relative_path="Agent.md",
+            directory="pages",
             title="Agent",
-            page_type="concept",
-            status="draft",
-            source=None,
-            tags=["agent"],
+            role="knowledge_page",
+            entities=["agent"],
             summary="Agent summary.",
-            key_points=[],
-            related_pages=[],
+            claim_points=[],
+            outbound_links=[],
             headings=["Summary"],
             body="Agent body.",
         )
@@ -132,24 +130,26 @@ class IngestContextProviderTests(unittest.TestCase):
         second = provider.build(Path("/tmp/vaults/all"), extract)
 
         self.assertEqual(query_pipeline.calls, 1)
-        self.assertEqual(first.candidates[0].path, "concepts/Agent.md")
-        self.assertEqual(second.candidates[0].path, "concepts/Agent.md")
+        self.assertEqual(first.candidates[0].path, "Agent.md")
+        self.assertEqual(second.candidates[0].path, "Agent.md")
         self.assertFalse(first.stats["page_plan_candidate_body_included"])
         self.assertEqual(first.stats["page_plan_context_policy"], "graph_first_lightweight_page_profiles_without_page_body")
 
     def test_relation_candidates_are_profiles_without_body_or_field_slicing(self) -> None:
         page = SearchPage(
-            path=Path("/tmp/concepts/Agent.md"),
-            relative_path="concepts/Agent.md",
-            directory="concepts",
+            path=Path("/tmp/Agent.md"),
+            relative_path="Agent.md",
+            directory="pages",
             title="Agent",
-            page_type="concept",
-            status="draft",
-            source="raw/notes/agent.md",
-            tags=[f"tag-{index}" for index in range(16)],
+            role="knowledge_page",
+            entities=[f"entity-{index}" for index in range(16)],
             summary="Line one.\n\nLine two.",
-            key_points=[f"point {index}" for index in range(10)],
-            related_pages=[f"concepts/Related-{index}.md" for index in range(14)],
+            claim_points=[f"claim {index}" for index in range(10)],
+            relations=[
+                {"subject": "Agent Loop", "predicate": "uses", "object": "Tool Execution", "claim": "C1"},
+                {"subject": "Agent Loop", "predicate": "uses", "object": "Tool Execution", "claim": "C1"},
+            ],
+            outbound_links=[f"Linked-{index}.md" for index in range(14)],
             headings=["Summary"],
             body="Full page body must not enter relation wiki_context.",
         )
@@ -164,17 +164,18 @@ class IngestContextProviderTests(unittest.TestCase):
         self.assertNotIn("content", candidate)
         self.assertNotIn("answer", candidate)
         self.assertEqual(candidate["summary"], "Line one. Line two.")
-        self.assertEqual(candidate["entities"], page.tags)
-        self.assertEqual(candidate["claim_points"], page.key_points)
-        self.assertEqual(candidate["related_pages"], page.related_pages)
+        self.assertEqual(candidate["entities"], page.entities)
+        self.assertEqual(candidate["claim_points"], page.claim_points)
+        self.assertEqual(candidate["relations"], [{"subject": "Agent Loop", "predicate": "uses", "object": "Tool Execution", "claim": "C1"}])
+        self.assertEqual(candidate["outbound_links"], page.outbound_links)
         self.assertGreater(context.stats["page_plan_profile_chars"], 0)
 
     def test_graph_first_candidates_use_atom_entities_before_text_match(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "concepts").mkdir()
+            (vault / "wiki" / "pages").mkdir(parents=True)
             _write_page(
-                vault / "concepts" / "Graph-Candidate.md",
+                vault / "wiki" / "pages" / "Graph-Candidate.md",
                 "# Graph Candidate\n\n"
                 "## Summary\n\nA page that should be found through entity graph signals.\n\n"
                 "## Claims\n\n- C1: [[GraphOnlyEntity]] is represented in the graph.\n\n"
@@ -198,7 +199,7 @@ class IngestContextProviderTests(unittest.TestCase):
                         evidence=[
                             KnowledgeEvidenceSpan(
                                 source_digest_id="sd_graph_only",
-                                source_path="raw/notes/graph-only.md",
+                                source_path="raw/inbox/notes/graph-only.md",
                                 excerpt="GraphOnlyEntity appears in the source.",
                             )
                         ],
@@ -218,7 +219,7 @@ class IngestContextProviderTests(unittest.TestCase):
 
             context = IngestContextProvider().build(vault, extract, knowledge_atom_batch=atom_batch)
 
-        self.assertEqual(context.candidates[0].path, "concepts/Graph-Candidate.md")
+        self.assertEqual(context.candidates[0].path, "Graph-Candidate.md")
         self.assertEqual(context.stats["graph_first_candidate_count"], 1)
         self.assertEqual(context.stats["pre_rerank_candidate_count"], 1)
         self.assertIn("GraphOnlyEntity", context.query)
@@ -227,16 +228,16 @@ class IngestContextProviderTests(unittest.TestCase):
     def test_materialize_cache_is_local_and_clearable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "concepts").mkdir()
-            page = vault / "concepts" / "Agent.md"
+            (vault / "wiki" / "pages").mkdir(parents=True)
+            page = vault / "wiki" / "pages" / "Agent.md"
             page.write_text("# Agent\n\nOld content.", encoding="utf-8")
             provider = IngestContextProvider()
             page_plan = WikiPagePlan(
                 operations=[
                     WikiPageOperation(
                         action="update",
-                        target_page="concepts/Agent.md",
-                        page_dir="concepts",
+                        target_page="Agent.md",
+                        page_dir="pages",
                         title="Agent",
                         knowledge_object="Agent",
                         selected_claim_ids=["claim_agent"],
@@ -260,40 +261,37 @@ class IngestContextProviderTests(unittest.TestCase):
     def test_materialize_layers_target_related_and_candidate_context(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "concepts").mkdir()
+            (vault / "wiki" / "pages").mkdir(parents=True)
             _write_page(
-                vault / "concepts" / "Target.md",
-                "# Target\n\n## Summary\n\nTarget summary.\n\n## Answer\n\nExisting target body.",
+                vault / "wiki" / "pages" / "Target.md",
+                "# Target\n\n## Summary\n\nTarget summary.\n\n## Claims\n\n- C1: **Target** has existing body.\n\n## Synthesis\n\nExisting target body.",
             )
             _write_page(
-                vault / "concepts" / "Related.md",
-                "# Related\n\n## Summary\n\nRelated summary.\n\n## Key Points\n\n- Related point\n\n## Answer\n\nRelated body should not be passed in full.",
+                vault / "wiki" / "pages" / "Related.md",
+                "# Related\n\n## Summary\n\nRelated summary.\n\n## Claims\n\n- C1: **Related** provides context.\n\n## Synthesis\n\nRelated body should not be passed in full.",
             )
             _write_page(
-                vault / "concepts" / "Candidate.md",
-                "# Candidate\n\n## Summary\n\nCandidate summary.\n\n## Answer\n\nCandidate body should not enter context.",
+                vault / "wiki" / "pages" / "Candidate.md",
+                "# Candidate\n\n## Summary\n\nCandidate summary.\n\n## Claims\n\n- C1: **Candidate** is a broad match.\n\n## Synthesis\n\nCandidate body should not enter context.",
             )
             page_plan = WikiPagePlan(
                 operations=[
                     WikiPageOperation(
                         action="update",
-                        target_page="concepts/Target.md",
-                        page_dir="concepts",
+                        target_page="Target.md",
+                        page_dir="pages",
                         title="Target",
                         knowledge_object="Target",
                         selected_claim_ids=["claim_target"],
                         source_digest_ids=["sd_target"],
-                        related_pages=[
-                            {
-                                "path": "concepts/Related.md",
-                                "title": "Related",
-                                "relation": "background",
-                                "reason": "Related background.",
-                            }
-                        ],
                         candidate_pages=[
                             {
-                                "path": "concepts/Candidate.md",
+                                "path": "Related.md",
+                                "title": "Related",
+                                "match_reason": "Related background.",
+                            },
+                            {
+                                "path": "Candidate.md",
                                 "title": "Candidate",
                                 "match_reason": "Broad match.",
                             }
@@ -307,39 +305,39 @@ class IngestContextProviderTests(unittest.TestCase):
             context = IngestContextProvider().materialize(vault, page_plan)
 
         pages = {page.path: page for page in context.pages}
-        self.assertEqual(pages["concepts/Target.md"].context_role, "target")
-        self.assertEqual(pages["concepts/Target.md"].content_kind, "full")
-        self.assertIn("Existing target body", pages["concepts/Target.md"].content)
-        self.assertEqual(pages["concepts/Related.md"].context_role, "related")
-        self.assertEqual(pages["concepts/Related.md"].content_kind, "excerpt")
-        self.assertIn("Related summary", pages["concepts/Related.md"].content)
-        self.assertNotIn("Related body should not be passed in full", pages["concepts/Related.md"].content)
-        self.assertEqual(pages["concepts/Candidate.md"].context_role, "candidate")
-        self.assertEqual(pages["concepts/Candidate.md"].content_kind, "profile")
-        self.assertEqual(pages["concepts/Candidate.md"].content, "")
+        self.assertEqual(pages["Target.md"].context_role, "target")
+        self.assertEqual(pages["Target.md"].content_kind, "full")
+        self.assertIn("Existing target body", pages["Target.md"].content)
+        self.assertEqual(pages["Related.md"].context_role, "candidate")
+        self.assertEqual(pages["Related.md"].content_kind, "profile")
+        self.assertEqual(pages["Related.md"].summary, "Related summary.")
+        self.assertNotIn("Related body should not be passed in full", pages["Related.md"].content)
+        self.assertEqual(pages["Candidate.md"].context_role, "candidate")
+        self.assertEqual(pages["Candidate.md"].content_kind, "profile")
+        self.assertEqual(pages["Candidate.md"].content, "")
         self.assertEqual(context.stats["full_body_pages"], 1)
-        self.assertEqual(context.stats["excerpt_pages"], 1)
-        self.assertEqual(context.stats["profile_only_pages"], 1)
+        self.assertEqual(context.stats["excerpt_pages"], 0)
+        self.assertEqual(context.stats["profile_only_pages"], 2)
         self.assertEqual(context.stats["context_policy"], "target_full_related_excerpt_candidate_profile")
 
     def test_materialize_uses_highest_context_role_for_duplicate_paths(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "concepts").mkdir()
-            _write_page(vault / "concepts" / "Agent.md", "# Agent\n\n## Answer\n\nFull target body.")
+            (vault / "wiki" / "pages").mkdir(parents=True)
+            _write_page(vault / "wiki" / "pages" / "Agent.md", "# Agent\n\n## Summary\n\nAgent summary.\n\n## Synthesis\n\nFull target body.")
             page_plan = WikiPagePlan(
                 operations=[
                     WikiPageOperation(
                         action="update",
-                        target_page="concepts/Agent",
-                        page_dir="concepts",
+                        target_page="Agent",
+                        page_dir="pages",
                         title="Agent",
                         knowledge_object="Agent",
                         selected_claim_ids=["claim_agent"],
                         source_digest_ids=["sd_agent"],
                         candidate_pages=[
                             {
-                                "path": "concepts/Agent.md",
+                                "path": "Agent.md",
                                 "title": "Agent",
                                 "match_reason": "Duplicate candidate.",
                             }

@@ -49,7 +49,7 @@ class SemanticContractTests(unittest.TestCase):
                     "source_type": "markdown",
                     "source_app": "personal_vault",
                     "source_id": "markdown:abc",
-                    "source_path": "raw/notes/Agent.md",
+                    "source_path": "raw/inbox/notes/Agent.md",
                     "title": "Agent",
                     "created_at": None,
                     "updated_at": None,
@@ -94,7 +94,7 @@ class SemanticContractTests(unittest.TestCase):
                     "links": [
                         {"url": "https://example.com/wiki", "title": "Example"},
                         {"title": "Fallback title"},
-                        "raw/notes/LLM-Wiki.md",
+                        "raw/inbox/notes/LLM-Wiki.md",
                     ]
                 },
             }
@@ -102,7 +102,7 @@ class SemanticContractTests(unittest.TestCase):
 
         self.assertEqual(
             extract.compile_context.links,
-            ["https://example.com/wiki", "Fallback title", "raw/notes/LLM-Wiki.md"],
+            ["https://example.com/wiki", "Fallback title", "raw/inbox/notes/LLM-Wiki.md"],
         )
 
     def test_source_document_builds_stable_normalize_input(self) -> None:
@@ -112,7 +112,7 @@ class SemanticContractTests(unittest.TestCase):
             origin=SourceOrigin(
                 connector="markdown",
                 uri="file:///tmp/Agent.md",
-                raw_path="raw/notes/Agent.md",
+                raw_path="raw/inbox/notes/Agent.md",
             ),
             content=SourceContent(format="markdown", text="# Agent\n\nLoop notes."),
             metadata={"title": "Agent"},
@@ -123,7 +123,7 @@ class SemanticContractTests(unittest.TestCase):
 
         self.assertEqual(payload["source_hint"]["source_type"], "markdown")
         self.assertEqual(payload["source_hint"]["source_app"], "markdown")
-        self.assertEqual(payload["source_hint"]["source_path"], "raw/notes/Agent.md")
+        self.assertEqual(payload["source_hint"]["source_path"], "raw/inbox/notes/Agent.md")
         self.assertEqual(payload["source_document"]["schema_version"], "source_document.v1")
 
     def test_wiki_page_plan_schema_accepts_actionable_operations(self) -> None:
@@ -133,34 +133,55 @@ class SemanticContractTests(unittest.TestCase):
                     {
                         "action": "create",
                         "target_page": None,
-                        "page_dir": "concepts",
+                        "page_dir": "pages",
                         "canonical_path": "/Agent-Loop.md",
-                        "legacy_paths": ["concepts/Agent-Loop.md"],
                         "title": "Agent Loop",
                         "knowledge_object": "Agent Loop control pattern",
                         "selected_claim_ids": ["claim_agent_loop_pattern"],
                         "selected_relation_ids": ["rel_agent_loop_mentions_control"],
                         "source_digest_ids": ["sd_agent_loop"],
-                        "related_pages": [],
                         "candidate_pages": [],
+                        "entity_mappings": [
+                            {
+                                "source_name": "A2A",
+                                "canonical_name": "Agent-to-Agent Protocol",
+                                "aliases": ["A2A Protocol"],
+                                "target_page": "pages/Agent-to-Agent-Protocol.md",
+                                "atom_id": "entity_a2a",
+                                "reason": "The candidate profile uses the expanded protocol name.",
+                            }
+                        ],
+                        "relation_mappings": [
+                            {
+                                "relation_id": "rel_agent_loop_mentions_control",
+                                "canonical_subject": "Agent Loop",
+                                "predicate": "includes",
+                                "canonical_object": "Agent Control",
+                                "subject_page": "Agent-Loop.md",
+                                "object_page": "Agent-Control.md",
+                                "supporting_claim_ids": ["claim_agent_loop_pattern"],
+                                "reason": "The selected claim supports the relation.",
+                            }
+                        ],
+                        "cross_page_relations": [
+                            {
+                                "relation_id": "rel_agent_loop_mentions_control",
+                                "target_page": "Agent-Control.md",
+                                "direction": "outgoing",
+                                "supporting_claim_ids": ["claim_agent_loop_pattern"],
+                                "reason": "The relation connects the planned page to the control page.",
+                            }
+                        ],
                         "decision_reason": "The source contains a durable reusable concept.",
                     },
                     {
                         "action": "update",
-                        "target_page": "entities/OpenClaw.md",
-                        "page_dir": "entities",
+                        "target_page": "OpenClaw.md",
+                        "page_dir": "pages",
                         "title": "OpenClaw",
                         "knowledge_object": "OpenClaw engineering agent",
                         "selected_claim_ids": ["claim_openclaw_agent"],
                         "source_digest_ids": ["sd_agent_loop"],
-                        "related_pages": [
-                            {
-                                "path": "concepts/Agent Loop.md",
-                                "title": "Agent Loop",
-                                "relation": "implementation pattern",
-                                "reason": "OpenClaw uses an agent loop architecture.",
-                            }
-                        ],
                         "candidate_pages": [],
                         "decision_reason": "The existing page covers the same entity.",
                     },
@@ -173,10 +194,72 @@ class SemanticContractTests(unittest.TestCase):
 
         self.assertEqual(len(plan.operations), 2)
         self.assertEqual(plan.operations[0].canonical_path, "Agent-Loop.md")
-        self.assertEqual(plan.operations[0].legacy_paths, ["concepts/Agent-Loop.md"])
         self.assertEqual(plan.operations[0].selected_claim_ids, ["claim_agent_loop_pattern"])
         self.assertEqual(plan.operations[0].source_digest_ids, ["sd_agent_loop"])
-        self.assertEqual(plan.operations[1].target_page, "entities/OpenClaw.md")
+        self.assertEqual(plan.operations[0].entity_mappings[0].canonical_name, "Agent-to-Agent Protocol")
+        self.assertEqual(plan.operations[0].relation_mappings[0].predicate, "includes")
+        self.assertEqual(plan.operations[0].cross_page_relations[0].target_page, "Agent-Control.md")
+        self.assertEqual(plan.operations[1].target_page, "OpenClaw.md")
+
+    def test_wiki_page_plan_rejects_mapping_for_unselected_relation(self) -> None:
+        with self.assertRaises(ValueError):
+            WikiPagePlan.model_validate(
+                {
+                    "operations": [
+                        {
+                            "action": "create",
+                            "target_page": None,
+                            "page_dir": "pages",
+                            "canonical_path": "Agent-Loop.md",
+                            "title": "Agent Loop",
+                            "knowledge_object": "Agent Loop",
+                            "selected_claim_ids": ["claim_agent_loop_pattern"],
+                            "selected_relation_ids": [],
+                            "source_digest_ids": ["sd_agent_loop"],
+                            "candidate_pages": [],
+                            "relation_mappings": [
+                                {
+                                    "relation_id": "rel_agent_loop_mentions_control",
+                                    "canonical_subject": "Agent Loop",
+                                    "predicate": "includes",
+                                    "canonical_object": "Agent Control",
+                                    "supporting_claim_ids": ["claim_agent_loop_pattern"],
+                                    "reason": "The relation was not selected.",
+                                }
+                            ],
+                            "decision_reason": "Invalid unselected relation mapping.",
+                        }
+                    ],
+                    "overall_summary": "Invalid mapping.",
+                    "confidence": 0.8,
+                    "warnings": [],
+                }
+            )
+
+    def test_wiki_page_plan_rejects_unknown_extra_fields(self) -> None:
+        with self.assertRaises(ValueError):
+            WikiPagePlan.model_validate(
+                {
+                    "operations": [
+                        {
+                            "action": "create",
+                            "target_page": None,
+                            "page_dir": "pages",
+                            "canonical_path": "Agent-Loop.md",
+                            "title": "Agent Loop",
+                            "knowledge_object": "Agent Loop",
+                            "selected_claim_ids": ["claim_agent_loop_pattern"],
+                            "source_digest_ids": ["sd_agent_loop"],
+                            "candidate_pages": [],
+                            "subject_kind": "legacy",
+                            "decision_reason": "Legacy taxonomy field should not pass.",
+                        }
+                    ],
+                    "overall_summary": "Invalid legacy field.",
+                    "confidence": 0.8,
+                    "warnings": [],
+                }
+            )
 
     def test_wiki_page_plan_drops_redundant_mixed_skip(self) -> None:
         plan = WikiPagePlan.model_validate(
@@ -188,19 +271,17 @@ class SemanticContractTests(unittest.TestCase):
                         "page_dir": None,
                         "title": "Skip",
                         "knowledge_object": "low value source",
-                        "related_pages": [],
                         "candidate_pages": [],
                         "decision_reason": "No durable knowledge.",
                     },
                     {
                         "action": "create",
                         "target_page": None,
-                        "page_dir": "concepts",
+                        "page_dir": "pages",
                         "title": "Agent Loop",
                         "knowledge_object": "Agent Loop",
                         "selected_claim_ids": ["claim_agent_loop"],
                         "source_digest_ids": ["sd_agent"],
-                        "related_pages": [],
                         "candidate_pages": [],
                         "decision_reason": "Durable knowledge.",
                     },
@@ -225,7 +306,6 @@ class SemanticContractTests(unittest.TestCase):
                         "page_dir": None,
                         "title": None,
                         "knowledge_object": None,
-                        "related_pages": [],
                         "candidate_pages": [],
                         "decision_reason": "No durable knowledge.",
                     }
@@ -250,7 +330,6 @@ class SemanticContractTests(unittest.TestCase):
                             "page_dir": "sources",
                             "title": "Agent Source",
                             "knowledge_object": "Agent source digest",
-                            "related_pages": [],
                             "candidate_pages": [],
                             "decision_reason": "Source digest pages still require source trace.",
                         }
@@ -267,11 +346,10 @@ class SemanticContractTests(unittest.TestCase):
                         {
                             "action": "create",
                             "target_page": None,
-                            "page_dir": "concepts",
+                            "page_dir": "pages",
                             "title": "Agent Loop",
                             "knowledge_object": "Agent Loop",
                             "source_digest_ids": ["sd_agent"],
-                            "related_pages": [],
                             "candidate_pages": [],
                             "decision_reason": "Knowledge pages require selected claims.",
                         }
@@ -287,11 +365,10 @@ class SemanticContractTests(unittest.TestCase):
                     "operations": [
                         {
                             "action": "merge",
-                            "target_page": "concepts/Agent.md",
-                            "page_dir": "concepts",
+                            "target_page": "Agent.md",
+                            "page_dir": "pages",
                             "title": "Agent",
                             "knowledge_object": "Agent",
-                            "related_pages": [],
                             "candidate_pages": [],
                             "decision_reason": "Page consolidation belongs to lint maintenance.",
                         }
@@ -310,11 +387,10 @@ class SemanticContractTests(unittest.TestCase):
                         "operation_index": 0,
                         "write_action": "create",
                         "target_page": None,
-                        "source_file": "raw/notes/Agent.md",
+                        "source_file": "raw/inbox/notes/Agent.md",
                         "title": "Agent Loop",
-                        "page_dir": "concepts",
+                        "page_dir": "pages",
                         "canonical_path": "Agent-Loop.md",
-                        "legacy_paths": ["concepts/Agent-Loop.md"],
                         "question": "Agent Loop",
                         "summary": "Agent Loop is a control pattern.",
                         "synthesis": "Agent Loop coordinates tool use.",
@@ -333,12 +409,11 @@ class SemanticContractTests(unittest.TestCase):
         draft = batch.drafts[0]
         self.assertEqual(draft.source_digest_ids, ["sd_agent"])
         self.assertEqual(draft.canonical_path, "Agent-Loop.md")
-        self.assertEqual(draft.legacy_paths, ["concepts/Agent-Loop.md"])
         self.assertEqual(draft.atom_ids, ["claim_agent_loop_cycle"])
         self.assertEqual(draft.claims, ["C1. [[Agent Loop]] coordinates tool use."])
         self.assertEqual(draft.synthesis, "Agent Loop coordinates tool use.")
 
-    def test_wiki_draft_batch_normalizes_null_identity_hints(self) -> None:
+    def test_wiki_draft_batch_accepts_canonical_page_target_without_identity_hints(self) -> None:
         batch = WikiDraftBatch.model_validate(
             {
                 "drafts": [
@@ -346,11 +421,9 @@ class SemanticContractTests(unittest.TestCase):
                         "operation_index": 0,
                         "write_action": "create",
                         "target_page": None,
-                        "source_file": "raw/notes/RAG.md",
+                        "source_file": "raw/inbox/notes/RAG.md",
                         "title": "RAG 评估方法",
-                        "page_dir": "concepts",
-                        "page_kind": None,
-                        "subject_kind": None,
+                        "page_dir": "pages",
                         "question": "RAG 评估应该关注什么？",
                         "summary": "RAG 评估同时关注检索和生成。",
                         "synthesis": "RAG 评估需要同时覆盖检索质量与生成质量。",
@@ -364,8 +437,8 @@ class SemanticContractTests(unittest.TestCase):
         )
 
         draft = batch.drafts[0]
-        self.assertEqual(draft.page_kind, "")
-        self.assertEqual(draft.subject_kind, "")
+        self.assertEqual(draft.page_dir, "pages")
+        self.assertEqual(draft.title, "RAG 评估方法")
 
     def test_wiki_draft_batch_schema_accepts_create_and_update(self) -> None:
         batch = WikiDraftBatch.model_validate(
@@ -375,9 +448,9 @@ class SemanticContractTests(unittest.TestCase):
                         "operation_index": 0,
                         "write_action": "create",
                         "target_page": None,
-                        "source_file": "raw/notes/Agent.md",
+                        "source_file": "raw/inbox/notes/Agent.md",
                         "title": "Agent Loop",
-                        "page_dir": "concepts",
+                        "page_dir": "pages",
                         "question": "Agent Loop 是什么？",
                         "summary": "Agent Loop 是智能体执行任务的基本控制循环。",
                         "synthesis": "Agent Loop 是感知、决策、行动和反馈的循环。",
@@ -389,17 +462,17 @@ class SemanticContractTests(unittest.TestCase):
                     {
                         "operation_index": 1,
                         "write_action": "update",
-                        "target_page": "entities/OpenClaw.md",
-                        "source_file": "raw/notes/Agent.md",
+                        "target_page": "OpenClaw.md",
+                        "source_file": "raw/inbox/notes/Agent.md",
                         "title": "OpenClaw",
-                        "page_dir": "entities",
+                        "page_dir": "pages",
                         "question": "OpenClaw 如何使用 Agent Loop？",
                         "summary": "补充 OpenClaw 与 Agent Loop 的关系。",
                         "synthesis": "OpenClaw 使用消息总线和工具调用循环组织工程任务。",
                         "patches": [
                             {
                                 "operation": "merge_list",
-                                "section": "Related Pages",
+                                "section": "Claims",
                                 "items": None,
                                 "max_items": 0,
                             }
@@ -415,7 +488,7 @@ class SemanticContractTests(unittest.TestCase):
         )
 
         self.assertEqual(batch.drafts[0].write_action, "create")
-        self.assertEqual(batch.drafts[1].patches[0].section, "Related Pages")
+        self.assertEqual(batch.drafts[1].patches[0].section, "Claims")
         self.assertEqual(batch.drafts[1].patches[0].items, [])
         self.assertEqual(batch.drafts[1].patches[0].max_items, 0)
 
@@ -427,15 +500,13 @@ class SemanticContractTests(unittest.TestCase):
                         {
                             "operation_index": 0,
                             "write_action": "update",
-                            "target_page": "concepts/Agent Loop.md",
-                            "source_file": "raw/notes/Agent.md",
+                            "target_page": "Agent Loop.md",
+                            "source_file": "raw/inbox/notes/Agent.md",
                             "title": "Agent Loop",
-                            "page_dir": "concepts",
+                            "page_dir": "pages",
                             "question": "Agent Loop 是什么？",
                             "answer": "更新内容。",
                             "summary": "更新摘要。",
-                            "key_points": [],
-                            "tags": [],
                             "patches": [],
                             "confidence": 0.8,
                             "model_provider": "deepseek",
@@ -455,15 +526,13 @@ class SemanticContractTests(unittest.TestCase):
                         {
                             "operation_index": 0,
                             "write_action": "update",
-                            "target_page": "concepts/Agent Loop.md",
-                            "source_file": "raw/notes/Agent.md",
+                            "target_page": "Agent Loop.md",
+                            "source_file": "raw/inbox/notes/Agent.md",
                             "title": "Agent Loop",
-                            "page_dir": "concepts",
+                            "page_dir": "pages",
                             "question": "Agent Loop 是什么？",
                             "answer": "更新内容。",
                             "summary": "更新摘要。",
-                            "key_points": [],
-                            "tags": [],
                             "patches": [
                                 {
                                     "op": "replace",
@@ -547,9 +616,9 @@ class SemanticContractTests(unittest.TestCase):
                 "schema_version": "maintenance_candidates.v1",
                 "candidates": [
                     {
-                        "candidate_id": "structural:concepts/Agent.md:broken_link:0",
+                        "candidate_id": "structural:Agent.md:broken_link:0",
                         "source": "structural",
-                        "target_page": "concepts/Agent.md",
+                        "target_page": "Agent.md",
                         "issue_type": "broken_link",
                         "severity": "high",
                         "confidence": 0.92,
@@ -558,22 +627,21 @@ class SemanticContractTests(unittest.TestCase):
                         "evidence": [
                             {
                                 "kind": "scan_issue",
-                                "ref": "concepts/Agent.md",
+                                "ref": "Agent.md",
                                 "quote": "Broken wikilink: [[Missing Page]]",
                             }
                         ],
                         "recommended_action": {
                             "action": "replace_wikilink",
-                            "params": {"old_target": "Missing Page", "new_target": "concepts/Agent Loop"},
+                            "params": {"old_target": "Missing Page", "new_target": "Agent Loop"},
                         },
-                        "related_pages": ["concepts/Agent Loop.md"],
                         "expected_effect": "The broken link will point at an existing page.",
                         "review_notes": "Verify the replacement target is the intended concept.",
                     }
                 ],
                 "page_reviews": [
                     {
-                        "path": "concepts/Agent.md",
+                        "path": "Agent.md",
                         "verdict": "needs_maintenance",
                         "overall_score": 0.72,
                         "dimension_reviews": [

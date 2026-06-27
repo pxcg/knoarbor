@@ -35,11 +35,11 @@ class MarkdownRetrievalTests(unittest.TestCase):
     def test_collect_and_score_pages(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            concepts = vault / "concepts"
-            concepts.mkdir()
-            (concepts / "Attention.md").write_text(
-                "---\ntype: concept\nstatus: draft\ntags: attention, transformer\n---\n"
-                "# Attention\n\n## Summary\n\nAttention weights tokens.\n\n## Key Points\n\n- Transformer uses attention.\n",
+            pages_root = vault / "wiki" / "pages"
+            pages_root.mkdir(parents=True)
+            (pages_root / "Attention.md").write_text(
+                "---\n---\n"
+                "# Attention\n\n## Summary\n\nAttention weights tokens.\n\n## Claims\n\n- C1: [[Attention]] weights [[Token]] context.\n\n## Entities\n\n- [[Attention]]\n- [[Transformer]]\n",
                 encoding="utf-8",
             )
 
@@ -47,16 +47,37 @@ class MarkdownRetrievalTests(unittest.TestCase):
             scored = score_pages(pages, query_terms("attention transformer"), "attention transformer")
 
         self.assertEqual(len(pages), 1)
-        self.assertIn("concepts/Attention.md", scored)
-        self.assertIn("title", scored["concepts/Attention.md"].matched_fields)
+        self.assertIn("Attention.md", scored)
+        self.assertIn("title", scored["Attention.md"].matched_fields)
+
+    def test_collect_search_pages_extracts_relation_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            pages_root = vault / "wiki" / "pages"
+            pages_root.mkdir(parents=True)
+            (pages_root / "Agent-Loop.md").write_text(
+                "# Agent Loop\n\n"
+                "## Summary\n\nAgent Loop coordinates tool execution.\n\n"
+                "## Relations\n\n"
+                "| Subject | Predicate | Object | Based on |\n"
+                "|---|---|---|---|\n"
+                "| [[Agent Loop]] | coordinates | [[Tool Execution]] | C1 |\n",
+                encoding="utf-8",
+            )
+
+            pages = collect_search_pages(vault)
+
+        self.assertEqual(
+            pages[0].relations,
+            [{"subject": "Agent Loop", "predicate": "coordinates", "object": "Tool Execution", "claim": "C1"}],
+        )
 
     def test_collect_search_pages_supports_unified_root_pages(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            pages_root = vault / "pages"
-            pages_root.mkdir()
+            pages_root = vault / "wiki" / "pages"
+            pages_root.mkdir(parents=True)
             (pages_root / "Agent-Loop.md").write_text(
-                "---\npage_kind: concept\nfacets: agent_architecture\n---\n"
                 "# Agent Loop\n\n## Summary\n\nA unified root page about agent loops.\n",
                 encoding="utf-8",
             )
@@ -67,19 +88,20 @@ class MarkdownRetrievalTests(unittest.TestCase):
         self.assertEqual(len(pages), 1)
         self.assertEqual(pages[0].relative_path, "Agent-Loop.md")
         self.assertEqual(pages[0].directory, "pages")
-        self.assertEqual(pages[0].page_kind, "concept")
-        self.assertIn("agent_architecture", pages[0].facets)
+        self.assertEqual(pages[0].role, "knowledge_page")
         self.assertIn("Agent-Loop.md", scored)
 
     def test_bm25_prefers_page_identity_over_repeated_body_mentions(self) -> None:
         title_page = _page(
-            "concepts/Agent-Loop.md",
+            "Agent-Loop.md",
+            directory="pages",
             title="Agent Loop",
             summary="A maintained page about agent loop control.",
             body="Short canonical page.",
         )
         noisy_page = _page(
-            "concepts/Noisy.md",
+            "Noisy.md",
+            directory="pages",
             title="Misc Notes",
             summary="Loose notes.",
             body="agent loop " * 80,
@@ -88,14 +110,14 @@ class MarkdownRetrievalTests(unittest.TestCase):
         scored = score_pages([noisy_page, title_page], query_terms("agent loop"), "agent loop")
         ranked = sorted(scored.values(), key=lambda item: item.score, reverse=True)
 
-        self.assertEqual(ranked[0].page.relative_path, "concepts/Agent-Loop.md")
+        self.assertEqual(ranked[0].page.relative_path, "Agent-Loop.md")
         self.assertIn("title", ranked[0].matched_fields)
 
     def test_collect_search_pages_skips_maintenance_reports(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "maintenance").mkdir()
-            (vault / "maintenance" / "lint_run_report_20260521_123244.md").write_text(
+            (vault / "maintenance" / "reports" / "lint").mkdir(parents=True)
+            (vault / "maintenance" / "reports" / "lint" / "lint_run_report_20260521_123244.md").write_text(
                 "# Lint Run Report\n\nRuntime maintenance artifact.",
                 encoding="utf-8",
             )
@@ -108,10 +130,8 @@ def _page(
     relative_path: str,
     *,
     title: str | None = None,
-    source: str | None = None,
-    directory: str = "concepts",
-    page_type: str = "concept",
-    related_pages: list[str] | None = None,
+    directory: str = "pages",
+    outbound_links: list[str] | None = None,
     summary: str = "",
     body: str = "",
 ):
@@ -120,13 +140,11 @@ def _page(
         relative_path=relative_path,
         directory=directory,
         title=title or Path(relative_path).stem,
-        page_type=page_type,
-        status="draft",
-        source=source,
-        tags=[],
+        role="knowledge_page",
+        entities=[],
         summary=summary,
-        key_points=[],
-        related_pages=related_pages or [],
+        claim_points=[],
+        outbound_links=outbound_links or [],
         headings=[],
         body=body,
     )
