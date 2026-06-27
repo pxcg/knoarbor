@@ -33,7 +33,7 @@ Connector / Document Processor
   -> Deterministic Source-level Atom Aggregation
   -> Atom Validate / Deduplicate / Closure
   -> Graph + Text Candidate Retrieval
-  -> Wiki Page Plan Agent
+  -> Wiki Page Plan Agent + Page-level Graph Alignment
   -> Deterministic Page Assembly
   -> Deterministic Write Gate
   -> Conditional Semantic Review Agent
@@ -88,7 +88,7 @@ Boundaries:
 
 - this layer may parse source formats, normalize roles, remove empty or
   process-only records, and preserve source ranges;
-- this layer does not decide page identity, page type, claim importance,
+- this layer does not decide page identity, claim importance,
   relation meaning, create/update/skip actions, or wiki write policy;
 - hard splitting is a last-resort budget operation and must remain visible in
   segment warnings.
@@ -298,8 +298,7 @@ Code-owned deterministic work:
 - source digest structure, source units, raw pointers, evidence hashes, and
   contribution maps;
 - claim numbering, relation table formatting, evidence table formatting,
-  source digest ids, atom ids, canonical paths, legacy paths, page kind, facets,
-  and machine indexes;
+  source digest ids, atom ids, canonical targets, and machine indexes;
 - deterministic review gates such as missing evidence, unsupported relation
   claim ids, absent source trace, malformed patches, unsafe target paths, and
   schema violations.
@@ -363,7 +362,7 @@ Deterministic responsibilities:
 Boundary:
 
 - the agent produces `knowledge_extract.v1`;
-- it does not decide page identity, page type, write action, related pages, or
+- it does not decide page identity, write action, related pages, or
   final prose;
 - Markdown-only and clean structured sources may use deterministic pre-normalize
   paths before the agent is called.
@@ -456,6 +455,10 @@ Semantic responsibilities:
 - decide create, update, or skip operations;
 - choose the stable knowledge object and page identity;
 - select the claim and relation ids for each page operation;
+- map local entity names and aliases to canonical entity names visible in the
+  selected atoms or candidate page profiles;
+- place supported relation ids across current, existing, or newly planned page
+  targets when the relation strengthens graph connectivity;
 - decide whether a source supports one primary page or several independently
   reusable pages;
 - choose between updating an existing candidate and creating a new page.
@@ -467,19 +470,23 @@ Deterministic responsibilities:
 - add text/BM25 candidates as a supplemental retrieval path;
 - merge and rerank candidate pools;
 - enforce operation legality, target-page provenance, selected atom id validity,
-  source digest trace, canonical path rules, and skip semantics;
+  source digest trace, relation predicate vocabulary, canonical entity mapping,
+  cross-page relation support, canonical path rules, and skip semantics;
 - materialize only selected target, related, and candidate pages after planning.
 
 Boundary:
 
 - the agent consumes a compact `source_digest.v1`, `knowledge_atoms.v2`, and
   lightweight candidate profiles;
-- it does not read full candidate page bodies during planning;
-- it does not invent candidates outside the deterministic candidate pool;
-- it does not write page bodies or patches.
-- every actionable operation must carry `source_digest_ids`;
-- every non-source actionable operation must select claim atom ids; relation
-  atom ids are auxiliary and cannot replace the selected claim spine.
+- candidate profiles are routing and alignment context: page identity, summary,
+  claim points, entities, relation hints, matched fields, scores, and paths;
+- page planning output is operation metadata plus bounded normalization
+  decisions over existing atoms and candidate profiles;
+- every actionable operation carries `source_digest_ids`;
+- every non-source actionable operation selects claim atom ids; relation atom
+  ids are auxiliary to the selected claim spine;
+- page bodies, patches, new claims, new evidence, and raw relation facts remain
+  outside the page planning contract.
 
 ### Page Draft Compile Agent
 
@@ -506,8 +513,7 @@ Deterministic responsibilities:
 - derive entities from atom subjects, objects, and claim markers;
 - derive relation triples from selected relation atoms;
 - derive evidence rows from claim, relation, and source digest evidence;
-- preserve canonical paths, legacy paths, page kind, facets, and operation
-  identity from the page plan.
+- preserve canonical targets and operation identity from the page plan.
 
 Boundary:
 

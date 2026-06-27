@@ -12,7 +12,7 @@ so progress does not depend on conversation context.
 | 2 | Source Segmentation + Source Unitization | Frozen | `SourceSegmenter`, `SourceUnitizer` | Segmentation splits long sources for budget. Unitization produces source-native evidence spans for source digests and atoms. Neither boundary decides page boundaries or writes. |
 | 3 | Segment-level Semantic Extraction | Frozen | `source_normalize`, `wiki_atom_extract`, `knowledge_atoms.v2` | Extract claims, entities, relations, and evidence from each source or segment. This is where claims are created. |
 | 4 | Source-level Aggregation | Frozen | `AggregatedSemanticArtifacts` | Merge segment extracts, remap evidence ranges, deduplicate atoms, rebuild source-level digest audit data, and emit source-level atom quality. |
-| 5 | Page Planning | Frozen | `WikiPagePlan` | Decide create/update/skip and select claim ids per page. It should not retrieve, write, or assemble page bodies. |
+| 5 | Page Planning + Graph Alignment | Frozen | `WikiPagePlan` | Decide create/update/skip, select claim ids per page, reconcile entity names with candidate profiles, and place supported relation ids across page operations. Retrieval, writes, and page body assembly stay in their own stages. |
 | 6 | Claim / Relation / Evidence Closure | Frozen | `knowledge_atom_closure` | Given selected claims, deterministically close supported relations, entities, evidence, and source digest traces. |
 | 7 | Page Assembly / Draft Compile | Frozen | `PageAssemblyService` + page-local prose generation | Assemble identity, claims, relations, entities, evidence, and Markdown skeleton deterministically; use LLM mainly for summary, synthesis, and safe update prose. |
 | 8 | Review / Write Gate | Frozen | `IngestWriteGate`, draft review agent, ingest report renderer | Deterministic write gate is separate from semantic review; semantic review is conditional on risk signals, and reports expose both decisions independently. |
@@ -72,20 +72,50 @@ Step 4 does not call an LLM. It must preserve segment provenance, remap evidence
 unit indexes, deduplicate equivalent claims and relation triples, and expose
 pending source contributions without choosing target pages.
 
-Step 5 is frozen as claims-first page planning. It receives the source-level
-digest, source-level atoms, and deterministic lightweight candidate profiles,
-then emits only page operations:
+Step 5 is frozen as claims-first page planning with page-level graph alignment.
+It receives the source-level digest, source-level atoms, deterministic
+lightweight candidate profiles, and the schema-level relation vocabulary, then
+emits page operations plus bounded normalization decisions attached to those
+operations:
 
 | Substep | Name | Input | Output | Execution |
 | --- | --- | --- | --- | --- |
 | 5.1 | Build Candidate Profiles | source-level atoms + graph/text indexes | `IngestWikiContext` | Code |
-| 5.2 | Plan Page Operations | `SourceDigest` + `KnowledgeAtomBatch` + candidate profiles | `WikiPagePlan` | Model |
+| 5.2 | Plan Page Operations and Graph Alignment | `SourceDigest` + `KnowledgeAtomBatch` + candidate profiles + allowed predicates | `WikiPagePlan` | Model |
 | 5.3 | Validate Page Plan Contract | `WikiPagePlan` + atoms | validated `WikiPagePlan` | Schema / Code |
 
 Every actionable operation must carry `source_digest_ids`. Every non-source
 operation must select at least one claim atom id. Relation ids are auxiliary and
-cannot replace selected claims. Step 5 does not materialize full page bodies;
-full target, related, and candidate content is loaded only after planning.
+cannot replace selected claims. Step 5 may map local entity names to canonical
+entity names already visible in atoms or candidate profiles. Step 5 may attach
+selected relation ids to existing or newly planned page targets when the
+relation has supporting selected claims. Full target, related, and candidate
+content is loaded after planning.
+
+Graph alignment is implemented inside Step 5 rather than as a new model stage.
+The model decision is limited to page boundary, update target, atom selection,
+entity canonicalization choices, and relation placement. Deterministic services
+apply and verify those choices:
+
+| Check | Owner | Required behavior |
+| --- | --- | --- |
+| Predicate vocabulary | Schema / code | Relation predicates use the `KnowledgeRelationPredicate` vocabulary. |
+| Entity mapping | Code | Canonical names are selected from current atoms or candidate page profiles; aliases remain traceable. |
+| Cross-page relation support | Closure / write gate | Relation ids must bind to selected or explicitly carried supporting claim ids. |
+| Candidate page provenance | Schema / code | Candidate and target paths come from the deterministic candidate pool or the current create plan. |
+| Page body projection | Page assembly | Claims, entities, relations, and evidence rows are projected from validated atoms and mappings. |
+
+The Step 5 output contract should evolve without adding a new ingest stage:
+
+- `entity_mappings`: operation-local mapping from extracted names or aliases to
+  canonical entity names and optional existing page paths;
+- `relation_mappings`: operation-local mapping from selected relation ids to
+  canonical subject, predicate, object, and target page context;
+- `cross_page_relations`: operation-local relation placements that connect the
+  current page operation with another existing or newly planned page.
+
+These fields are planning metadata. Selected atom ids remain the durable
+knowledge trace and the atom extraction surface remains Step 3.
 
 Step 6 is frozen as deterministic claim closure. It receives the page plan and
 source-level atom batch, then produces only the atom subset that can safely
@@ -207,7 +237,7 @@ reports must preserve generated page paths even if a later index step fails.
 - [x] Require major page claims to reference atoms or source evidence.
 - [x] Add page metadata for source digest ids and atom ids.
 - [x] Update Markdown templates to expose Summary, Claims, Entities,
-  Relations, Evidence, and Synthesis instead of centering on legacy Answer
+  Relations, Evidence, and Synthesis instead of centering on old Answer
   prose.
 - [x] Pass selected claim, relation, and source digest ids through the
   shared ingest compile context.
@@ -234,7 +264,7 @@ reports must preserve generated page paths even if a later index step fails.
 - [x] Extract `IngestPostProcessor` so approved writes, atom-index updates, and
   scoped lint do not live inside source execution.
 - [x] Move checkpoint commit eligibility into `ingest_checkpoint`.
-- [x] Rename ingest agent-facing page profiles from legacy key-point/tag
+- [x] Rename ingest agent-facing page profiles from old key-point/tag
   language to claim/entity language.
 - [x] Enforce claims-first page planning and write-gate invariants for
   non-source pages.

@@ -111,31 +111,75 @@ Responsibilities:
 
 - decide which atoms belong to which page;
 - choose create/update/skip operations;
-- map atom sets to page types;
-- assign page identity metadata, such as `page_kind`, `subject_kind`,
-  `facets`, `canonical_path`, and `legacy_paths`;
+- map atom sets to durable wiki page targets;
+- assign page identity through the canonical target area (`pages` or
+  `sources`) and stable slug;
 - choose related pages and relation reasons;
 - expose rejected page candidates.
 - carry `source_digest_ids` for every actionable operation;
 - carry selected claim or relation atom ids for non-source page
   operations.
+- reconcile current source atoms with lightweight related-page profiles by
+  choosing canonical entity names, existing page targets, and approved relation
+  predicates when the candidate context is strong enough;
+- plan cross-page relation placement as part of page operation planning, using
+  selected claim ids and existing relation atom ids as the support trace.
 
 `WikiPagePlan` is the page write-planning contract. It selects page operations
 from source digests and knowledge atoms, while typed relations remain
 page-internal semantic edges rather than the name of the ingest planning stage.
 
 Page planning follows [ADR 0002](../../docs/adr/0002-unified-page-namespace.md):
-physical directories are not the canonical knowledge type boundary. The
-long-term target is a unified `pages/` namespace for knowledge pages, with
-`sources/` reserved for source digest and provenance views. Concept, entity,
-workflow, comparison, claim, and relation semantics are represented by metadata,
-page sections, atom indexes, and virtual facets.
+physical directories are storage boundaries, not knowledge type boundaries.
+Knowledge pages live in `wiki/pages/`; source digest and provenance audit pages
+live in `wiki/sources/`. Concept, entity, workflow, comparison, claim, and
+relation semantics are represented by page sections and graph indexes.
 
 Candidate retrieval is owned by deterministic context providers. The target
 direction is graph-first retrieval from atom objects, typed relations, source
 lineage, and machine indexes, with text/BM25 retrieval as a supplemental
 candidate path. The page planning agent receives lightweight candidate profiles
 and chooses among them.
+
+Page planning also owns graph alignment decisions at the page-operation level.
+This alignment is implemented inside Page Planning rather than as a separate
+semantic stage. The page planning agent receives
+source-level atoms plus lightweight candidate profiles containing page identity,
+summary, claim points, entities, relation hints, matched fields, and scores. It
+may map local entity names to canonical existing names, select existing page
+targets, and attach relation atoms to page operations when those choices improve
+page connectivity.
+
+The stable boundary is:
+
+```text
+source-level atoms
+  + lightweight related-page profiles
+  + allowed predicate vocabulary
+  -> WikiPagePlan operations
+  -> deterministic closure / assembly / write gate
+```
+
+Page planning scope excludes new claims, new evidence, page prose, and Markdown
+body content. Entity mappings, predicate choices, and cross-page relation
+placement are planning decisions over existing atoms and candidate profiles. The
+deterministic closure and write gate apply those decisions, verify selected
+claim support, and project the final entity and relation rows into the page
+assembly.
+
+Graph-aligned page planning follows these invariants:
+
+- non-source page operations remain claims-first and select claim atom ids as
+  the page spine;
+- relation ids are auxiliary selections attached to supported claims;
+- relation predicates come from the schema-level relation vocabulary;
+- entity names prefer canonical names already present in selected atoms or
+  candidate page profiles;
+- cross-page relations record the selected relation id, supporting claim ids,
+  and target page path;
+- candidate pages are chosen from the deterministic candidate pool;
+- full candidate page bodies are materialized after planning for draft and
+  review.
 
 ### Page Draft Layer
 
@@ -153,7 +197,7 @@ Responsibilities:
   not compiled by the page draft agent;
 - use `Synthesis` directly for readable prose. Ingest drafts expose no separate
   prose transport field;
-- attach source digest ids and atom ids in frontmatter or report metadata;
+- attach source digest ids and atom ids in page-body trace sections, index records, or report metadata;
 - reject page statements that cannot be linked to source evidence or approved
   atoms.
 - review high-risk drafts against the same page-plan evidence trace used by the
@@ -230,7 +274,7 @@ Section boundaries:
   is not a duplicate copy of all raw source text.
 - `Relations` are typed semantic edges with direction, target, support,
   confidence, and status.
-- Derived navigation such as related pages, tags, facets, or views belongs in
+- Derived navigation such as entity groups or topical projections belongs in
   machine indexes and frontend projections, not in the canonical Markdown page
   body.
 - Rich-document images are attachments, not ordinary claims. A page may show an
@@ -381,18 +425,16 @@ query, lint, and report workloads justify it.
 The target readable wiki layout is:
 
 ```text
-wiki/
-  pages/      # maintained knowledge pages
-  sources/    # source digest and provenance pages
-  raw/        # archived normalized inputs
-  .knoarbor/  # machine indexes, logs, ledgers, and runtime state
+<vault>/
+  raw/              # archived normalized inputs
+  wiki/
+    pages/          # maintained knowledge pages
+    sources/        # source digest and provenance pages
+  .knoarbor/        # machine indexes, logs, ledgers, and runtime state
 ```
 
-During migration, legacy paths such as `concepts/<slug>.md` or
-`entities/<slug>.md` may remain as aliases or existing pages. New schema and
-index work should avoid treating those path prefixes as the durable page type
-boundary. Generated browsing views and virtual facets are derived from machine
-indexes and UI projections; they are not written as canonical wiki directories.
+Generated browsing views are derived from machine indexes and UI projections;
+they are not written as canonical wiki directories.
 
 ## Prompt Boundary
 
