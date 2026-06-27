@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import {
+  deleteChatTurn,
   getPage,
+  ingestChatSession,
   ingestExcerpt,
   readChatSession,
   retryChatSession,
@@ -57,6 +59,10 @@ export function ChatPage({ context }: Props) {
   const [isSending, setIsSending] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [ingestingExcerptKey, setIngestingExcerptKey] = useState<string | null>(null);
+  const [selectedMessageIndices, setSelectedMessageIndices] = useState<Set<number>>(new Set());
+  const selectionActive = selectedMessageIndices.size > 0;
+  const [ingestingMessages, setIngestingMessages] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; messageIndex: number } | null>(null);
   const [requestStage, setRequestStage] = useState<ChatRequestStage>("idle");
   const [citationPreview, setCitationPreview] = useState<ChatCitationPreview | null>(null);
   const activeChatAbortRef = useRef<AbortController | null>(null);
@@ -108,6 +114,7 @@ export function ChatPage({ context }: Props) {
     setSessionId(null);
     setTurns([]);
     setInput("");
+    setSelectedMessageIndices(new Set());
   }
 
   async function restoreSession(nextSessionId: string) {
@@ -158,6 +165,56 @@ export function ChatPage({ context }: Props) {
       setIngestingExcerptKey(null);
     }
   }
+
+  function toggleMessageSelection(messageIndex: number) {
+    setSelectedMessageIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(messageIndex)) next.delete(messageIndex);
+      else next.add(messageIndex);
+      return next;
+    });
+  }
+
+  function clearMessageSelection() {
+    setSelectedMessageIndices(new Set());
+  }
+
+  async function ingestSelectedMessages() {
+    if (!sessionId || !selectedMessageIndices.size || !chatVaultReady) return;
+    const indices = Array.from(selectedMessageIndices).sort((a, b) => a - b);
+    const turnIndices = [...new Set(indices.map((i) => Math.floor(i / 2)))];
+    setIngestingMessages(true);
+    setContextMenu(null);
+    try {
+      const response = await ingestChatSession(context.activeVaultSelector, sessionId, { turn_indices: turnIndices });
+      context.setNotice({
+        message: response.run_id ? `${context.t("chatExcerptQueued")} ${response.run_id}` : context.t("chatExcerptQueued"),
+        actionLabel: context.t("viewRun"),
+        onAction: () => context.navigate("runs"),
+      });
+      await context.refreshAll();
+      context.navigate("runs");
+      setSelectedMessageIndices(new Set());
+    } catch (error) {
+      context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
+    } finally {
+      setIngestingMessages(false);
+    }
+  }
+
+  function closeContextMenu() {
+    setContextMenu(null);
+  }
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    document.addEventListener("click", close);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+    return () => {
+      document.removeEventListener("click", close);
+    };
+  }, [contextMenu]);
 
   async function submit(nextInput = input) {
     const content = nextInput.trim();
@@ -288,6 +345,80 @@ export function ChatPage({ context }: Props) {
     }
   }
 
+  async function deleteTurn(assistantIndex: number) {
+    if (isSending || assistantIndex < 1) return;
+    const userIndex = assistantIndex - 1;
+    if (turns[userIndex]?.role !== "user" || turns[assistantIndex]?.role !== "assistant") return;
+    const turnIndex = Math.floor(assistantIndex / 2);
+    const previousTurns = turns;
+    setTurns(turns.filter((_, i) => i !== userIndex && i !== assistantIndex));
+    if (sessionId) {
+      try {
+        await deleteChatTurn(context.activeVaultSelector, sessionId, turnIndex);
+      } catch (error) {
+        setTurns(previousTurns);
+        context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
+      }
+    }
+  }
+
+  async function regenerateTurn(assistantIndex: number) {
+    if (!sessionId || isSending || isRegenerating || !chatVaultReady) return;
+    const userIndex = assistantIndex - 1;
+    if (userIndex < 0 || turns[userIndex]?.role !== "user") return;
+    const userTurn = turns[userIndex];
+    const truncatedTurns = turns.slice(0, userIndex + 1);
+    const assistantPlaceholder: ChatTurn = { role: "assistant", content: "", streaming: true };
+    const nextTurns = [...truncatedTurns, assistantPlaceholder];
+    const previousTurns = turns;
+    setTurns(nextTurns);
+    setIsRegenerating(true);
+    setIsSending(true);
+    beginRequestStages("regenerating");
+    const truncatedMessages: ChatMessageItem[] = truncatedTurns
+      .filter((t) => t.role === "user" || t.role === "assistant")
+      .map((t) => ({ role: t.role, content: t.content }));
+    const controller = new AbortController();
+    activeChatAbortRef.current = controller;
+    try {
+      const response = await sendChatMessageStream(
+        context.activeVaultSelector,
+        truncatedMessages,
+        {
+          session_id: sessionId,
+          all_vaults: context.activeVaultId === "all",
+          max_turns: 6,
+          provider: activeChatProvider || undefined,
+        },
+        (event) => applyStreamEvent(event),
+        controller.signal,
+      );
+      setTurns((current) => replaceStreamingAssistant(current, {
+        role: "assistant",
+        content: response.answer,
+        citations: response.citations || [],
+        hiddenEvidenceCount: response.hidden_evidence_count || 0,
+        citationWarnings: response.citation_warnings || [],
+      }));
+    } catch (error) {
+      setTurns(previousTurns);
+      if (error instanceof DOMException && error.name === "AbortError") {
+        context.setNotice({ message: context.t("chatStopped") });
+        return;
+      }
+      const rawMessage = error instanceof Error ? error.message : String(error);
+      context.setNotice({ message: readableChatError(rawMessage, context), error: true });
+    } finally {
+      if (activeChatAbortRef.current === controller) {
+        activeChatAbortRef.current = null;
+      }
+      clearStageTimers();
+      setRequestStage("idle");
+      setIsSending(false);
+      setIsRegenerating(false);
+    }
+  }
+
   function beginRequestStages(initialStage: ChatRequestStage) {
     clearStageTimers();
     setRequestStage(initialStage);
@@ -326,7 +457,6 @@ export function ChatPage({ context }: Props) {
   }
 
   const hasConversation = turns.length > 0 || isSending;
-  const latestAssistantIndex = latestAssistantTurnIndex(turns);
   return (
     <section className="view active chat-page">
       <div className="chat-layout">
@@ -352,8 +482,28 @@ export function ChatPage({ context }: Props) {
                 </div>
               </div>
             )}
-            {turns.map((turn, index) => (
-              <div className={`chat-message ${turn.role}`} key={`${turn.role}-${index}`}>
+            {turns.map((turn, index) => {
+              const isSelected = selectedMessageIndices.has(index);
+              return (
+              <div
+                className={`chat-message ${turn.role}${isSelected ? " selected-for-ingest" : ""}`}
+                key={`${turn.role}-${index}`}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  if (isSending) return;
+                  setContextMenu({ x: e.clientX, y: e.clientY, messageIndex: index });
+                }}
+              >
+                {selectionActive && (
+                  <label className="chat-select-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleMessageSelection(index)}
+                      disabled={isSending || ingestingMessages}
+                    />
+                  </label>
+                )}
                 <div className="chat-bubble">
                   {turn.kind === "error" ? (
                     <ChatErrorMessage message={turn.content} context={context} />
@@ -366,24 +516,12 @@ export function ChatPage({ context }: Props) {
                   )}
                   {turn.role === "assistant" && turn.kind !== "error" && turn.kind !== "status" && (
                     <div className="chat-message-actions">
-                      <button
-                        type="button"
-                        onClick={() => void archiveExcerpt(turn, index)}
-                        disabled={isSending || ingestingExcerptKey !== null}
-                        title={context.t("chatIngestExcerptHint")}
-                      >
-                        {ingestingExcerptKey?.startsWith(`${index}:`) ? context.t("chatArchiving") : context.t("chatIngestExcerpt")}
+                      <button type="button" onClick={() => deleteTurn(index)} disabled={isSending}>
+                        {context.language === "zh" ? "删除此轮" : "Delete turn"}
                       </button>
-                      {index === latestAssistantIndex && (
-                      <button
-                        type="button"
-                        onClick={() => void regenerateLatestAnswer()}
-                        disabled={isSending || isRegenerating}
-                        title={context.t("chatRegenerate")}
-                      >
-                        {context.t("chatRegenerate")}
+                      <button type="button" onClick={() => regenerateTurn(index)} disabled={isSending || isRegenerating}>
+                        {context.language === "zh" ? "重新生成" : "Regenerate"}
                       </button>
-                      )}
                     </div>
                   )}
                   {(!!turn.citations?.length || !!turn.hiddenEvidenceCount) && (
@@ -404,7 +542,8 @@ export function ChatPage({ context }: Props) {
                   )}
                 </div>
               </div>
-            ))}
+            );
+            })}
             {isSending && (
               <div className="chat-message assistant">
                 <div className="chat-bubble">
@@ -415,6 +554,26 @@ export function ChatPage({ context }: Props) {
                     <p>{chatStageLabel(requestStage, context)}</p>
                   </div>
                 </div>
+              </div>
+            )}
+            {selectedMessageIndices.size > 0 && (
+              <div className="chat-ingest-floatbar">
+                <span>{context.language === "zh"
+                  ? `已选 ${selectedMessageIndices.size} 条消息`
+                  : `${selectedMessageIndices.size} message(s) selected`}</span>
+                <button className="button compact" type="button" onClick={clearMessageSelection}>
+                  {context.language === "zh" ? "清除" : "Clear"}
+                </button>
+                <button
+                  className="button primary compact"
+                  type="button"
+                  onClick={() => void ingestSelectedMessages()}
+                  disabled={ingestingMessages}
+                >
+                  {ingestingMessages
+                    ? (context.language === "zh" ? "摄入中..." : "Ingesting...")
+                    : context.t("chatIngestExcerpt")}
+                </button>
               </div>
             )}
           </div>
@@ -433,6 +592,24 @@ export function ChatPage({ context }: Props) {
                 rows={2}
               />
               <div className="chat-input-footer">
+                <div className="chat-input-left-tools">
+                  {!!context.vaultOptions.length && (
+                    <div className="chat-vault-toolbar" title={context.t("activeVault")}>
+                      <select
+                        value={context.activeVaultId}
+                        onChange={(event) => context.setActiveVaultId(event.target.value)}
+                        disabled={isSending}
+                        aria-label={context.t("activeVault")}
+                      >
+                        {context.vaultOptions.map((vault) => (
+                          <option value={vault.id} key={vault.id}>
+                            {vault.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
                 {!!chatModelProviders.length ? (
                   <div
                     className="chat-model-toolbar"
@@ -467,6 +644,22 @@ export function ChatPage({ context }: Props) {
             </div>
           </div>
         </article>
+        {contextMenu && (
+          <ChatContextMenu
+            contextMenu={contextMenu}
+            context={context}
+            turns={turns}
+            sessionId={sessionId}
+            selectedMessageIndices={selectedMessageIndices}
+            isSending={isSending}
+            ingestingMessages={ingestingMessages}
+            ingestingExcerptKey={ingestingExcerptKey}
+            onToggleMessage={toggleMessageSelection}
+            onCompileExcerpt={archiveExcerpt}
+            onIngestSelected={() => void ingestSelectedMessages()}
+            onClose={closeContextMenu}
+          />
+        )}
         {citationPreview && (
           <ChatCitationPreviewPanel
             context={context}
@@ -525,6 +718,87 @@ function replaceStreamingAssistant(turns: ChatTurn[], replacement: ChatTurn): Ch
 
 function ChatStatusMessage({ message }: { message: string }) {
   return <div className="chat-status-card">{message}</div>;
+}
+
+function ChatContextMenu({
+  contextMenu,
+  context,
+  turns,
+  sessionId,
+  selectedMessageIndices,
+  isSending,
+  ingestingMessages,
+  ingestingExcerptKey,
+  onToggleMessage,
+  onCompileExcerpt,
+  onIngestSelected,
+  onClose,
+}: {
+  contextMenu: { x: number; y: number; messageIndex: number };
+  context: AppContext;
+  turns: ChatTurn[];
+  sessionId: string | null;
+  selectedMessageIndices: Set<number>;
+  isSending: boolean;
+  ingestingMessages: boolean;
+  ingestingExcerptKey: string | null;
+  onToggleMessage: (index: number) => void;
+  onCompileExcerpt: (turn: ChatTurn, index: number) => void;
+  onIngestSelected: () => void;
+  onClose: () => void;
+}) {
+  const { messageIndex } = contextMenu;
+  const turn = turns[messageIndex];
+  const isSelected = selectedMessageIndices.has(messageIndex);
+  const hasTextSelection = (typeof window !== "undefined" && window.getSelection()?.toString().trim()) || false;
+  const isExcerptable = turn?.role === "assistant" && turn.kind !== "error" && turn.kind !== "status" && sessionId;
+  const zh = context.language === "zh";
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState<{ left: number; top: number }>({ left: contextMenu.x, top: contextMenu.y });
+
+  useLayoutEffect(() => {
+    const menu = menuRef.current;
+    if (!menu) return;
+    const rect = menu.getBoundingClientRect();
+    let left = contextMenu.x;
+    let top = contextMenu.y;
+    if (left + rect.width > window.innerWidth - 8) left = window.innerWidth - rect.width - 8;
+    if (top + rect.height > window.innerHeight - 8) top = window.innerHeight - rect.height - 8;
+    if (left < 4) left = 4;
+    if (top < 4) top = 4;
+    setMenuPos({ left, top });
+  }, [contextMenu.x, contextMenu.y]);
+
+  return (
+    <div ref={menuRef} className="chat-context-menu" style={{ left: menuPos.left, top: menuPos.top }}>
+      <button type="button" onClick={() => { onToggleMessage(messageIndex); onClose(); }}>
+        {isSelected ? (zh ? "取消选择此消息" : "Deselect this message") : (zh ? "选择此消息" : "Select this message")}
+      </button>
+      {isExcerptable && hasTextSelection && (
+        <button
+          type="button"
+          disabled={isSending || ingestingExcerptKey !== null}
+          onClick={() => { onCompileExcerpt(turn, messageIndex); onClose(); }}
+        >
+          {ingestingExcerptKey?.startsWith(`${messageIndex}:`) ? (zh ? "编译中..." : "Compiling...") : (zh ? "编译摘录" : "Compile excerpt")}
+        </button>
+      )}
+      {selectedMessageIndices.size > 0 && (
+        <>
+          <hr />
+          <button
+            type="button"
+            disabled={ingestingMessages}
+            onClick={() => { onIngestSelected(); }}
+          >
+            {ingestingMessages
+              ? (zh ? "摄入中..." : "Ingesting...")
+              : (zh ? `摄入选中 (${selectedMessageIndices.size})` : `Ingest selected (${selectedMessageIndices.size})`)}
+          </button>
+        </>
+      )}
+    </div>
+  );
 }
 
 function ChatErrorMessage({ message, context }: { message: string; context: AppContext }) {
@@ -670,6 +944,10 @@ function ChatMarkdownAnswer({
               );
             }
             return <a {...props} target="_blank" rel="noreferrer" />;
+          },
+          img: (props) => {
+            const resolvedSrc = resolveChatImageSrc(props.src, citations, context);
+            return <img {...props} src={resolvedSrc} alt={props.alt || ""} loading="lazy" />;
           },
         }}
       >
@@ -830,7 +1108,17 @@ function ChatCitationPreviewPanel({
             </button>
           </div>
           <div className="chat-preview-content">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{preview.page.content}</ReactMarkdown>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                img: (props) => {
+                  const resolvedSrc = resolveVaultAssetImageSrc(props.src, preview.citation.vault_path || context.activeVaultSelector.vault_path || context.vaultPath);
+                  return <img {...props} src={resolvedSrc} alt={props.alt || ""} loading="lazy" />;
+                },
+              }}
+            >
+              {preview.page.content}
+            </ReactMarkdown>
           </div>
         </>
       )}
@@ -954,6 +1242,27 @@ function openCitationTarget(citation: ChatCitation, context: AppContext) {
   if (citation.kind === "run") {
     context.navigate("runs");
   }
+}
+
+function resolveChatImageSrc(src: string | undefined, citations: ChatCitation[], context: AppContext): string | undefined {
+  const citationVaultPath = citations.find((citation) => citation.vault_path)?.vault_path;
+  return resolveVaultAssetImageSrc(src, citationVaultPath || context.activeVaultSelector.vault_path || context.vaultPath);
+}
+
+function resolveVaultAssetImageSrc(src: string | undefined, vaultPath: string | undefined): string | undefined {
+  if (!src || /^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//") || src.startsWith("/")) return src;
+  const assetPath = vaultAssetPathFromSrc(src);
+  if (!assetPath || !vaultPath) return src;
+  return `/ui/api/vault-assets/${encodeURIComponent(assetPath)}?vault_path=${encodeURIComponent(vaultPath)}`;
+}
+
+function vaultAssetPathFromSrc(src: string): string | null {
+  let cleaned = src.replace(/\\/g, "/").replace(/^\.\//, "");
+  if (cleaned.startsWith("../assets/")) cleaned = cleaned.slice("../assets/".length);
+  else if (cleaned.startsWith("raw/assets/")) cleaned = cleaned.slice("raw/assets/".length);
+  else if (cleaned.startsWith("assets/")) cleaned = cleaned.slice("assets/".length);
+  if (/^(images|media|pages|tables)\//.test(cleaned)) return cleaned;
+  return null;
 }
 
 function readableChatError(message: string, context: AppContext): string {

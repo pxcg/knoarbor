@@ -404,6 +404,5 @@ function localizeIssueCodeValue(code: string, chinese: boolean): string {
     adjacent_duplicate_heading: "相邻重复标题",
     broken_wikilink: "失效 Wiki 链接",
     duplicate_title: "重复标题",
-    source_section_mismatch: "来源字段不一致",
   }[code] || code;
 }

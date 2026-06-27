@@ -1,8 +1,8 @@
 import cytoscape, { type Core, type ElementDefinition, type NodeCollection, type NodeSingular } from "cytoscape";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { GraphNode, GraphResponse } from "../api/client";
-import { BarChart } from "../components/BarChart";
+import { getGraph, type GraphEdge, type GraphNode, type GraphResponse, type GraphView } from "../api/client";
 import { MetricCard } from "../components/MetricCard";
 import type { AppContext } from "../App";
 
@@ -13,51 +13,66 @@ type Props = {
 };
 
 const nodeColors: Record<string, string> = {
-  knowledge_page: "#dcfce7",
+  wiki_page: "#dcfce7",
   source_audit: "#eef2f7",
+  entity: "#ccfbf1",
 };
-
-type GraphDensity = "compact" | "balanced";
 
 export function GraphPage({ graph, context, embedded = false }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const cyRef = useRef<Core | null>(null);
-  const [typeFilter, setTypeFilter] = useState("");
   const [nodeSearch, setNodeSearch] = useState("");
-  const [density, setDensity] = useState<GraphDensity>("balanced");
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [graphView, setGraphView] = useState<GraphView>("entity");
   const t = context?.t ?? ((key: string) => key);
   const focusedPageId = context?.focusedPageId || null;
+  const pageGraphQuery = useQuery({
+    queryKey: ["graph-page-view", context?.activeVaultId || "default"],
+    queryFn: () => getGraph(context?.vaultPath || "", "page"),
+    enabled: graphView === "page" && Boolean(context?.vaultPath),
+    staleTime: 60_000,
+  });
+  const activeGraph = graphView === "page" ? pageGraphQuery.data || null : graph;
 
   useEffect(() => {
     if (!focusedPageId) return;
-    setTypeFilter("");
     setNodeSearch("");
   }, [focusedPageId]);
 
+  useEffect(() => {
+    setSelectedNode(null);
+    setNodeSearch("");
+  }, [graphView]);
+
   const visibleGraph = useMemo(() => {
-    if (!graph) return { nodes: [], edges: [] };
+    if (!activeGraph) return { nodes: [], edges: [] };
     const normalizedSearch = nodeSearch.trim().toLowerCase();
-    const nodes = graph.nodes.filter((node) => {
-      if (typeFilter && nodeViewOf(node) !== typeFilter) return false;
+    const nodes = activeGraph.nodes.filter((node) => {
       if (!normalizedSearch) return true;
-      return `${node.title} ${node.id} ${node.summary} ${node.tags.join(" ")} ${(node.facets || []).join(" ")}`.toLowerCase().includes(normalizedSearch);
+      return `${node.title} ${node.id} ${node.summary} ${node.entities.join(" ")}`.toLowerCase().includes(normalizedSearch);
     });
     const visibleIds = new Set(nodes.map((node) => node.id));
-    const edges = graph.edges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target));
+    const edges = activeGraph.edges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target));
     return { nodes, edges };
-  }, [graph, nodeSearch, typeFilter]);
+  }, [activeGraph, nodeSearch]);
 
-  const nodeById = useMemo(() => new Map((graph?.nodes || []).map((node) => [node.id, node])), [graph]);
-  const types = useMemo(() => Array.from(new Set((graph?.nodes || []).map(nodeViewOf))).sort(), [graph]);
+  const nodeById = useMemo(() => new Map((activeGraph?.nodes || []).map((node) => [node.id, node])), [activeGraph]);
+  const edgeByNodeId = useMemo(() => {
+    const map = new Map<string, GraphEdge[]>();
+    for (const edge of activeGraph?.edges || []) {
+      map.set(edge.source, [...(map.get(edge.source) || []), edge]);
+      map.set(edge.target, [...(map.get(edge.target) || []), edge]);
+    }
+    return map;
+  }, [activeGraph]);
   const typeCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const node of graph?.nodes || []) {
+    for (const node of activeGraph?.nodes || []) {
       const type = nodeViewOf(node);
       counts.set(type, (counts.get(type) || 0) + 1);
     }
     return counts;
-  }, [graph]);
+  }, [activeGraph]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -76,7 +91,7 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
         data: {
           id: node.id,
           label: node.title,
-          type: nodeKindOf(node),
+          type: nodeViewOf(node),
           view: nodeViewOf(node),
           degree: degree.get(node.id) || 0,
         },
@@ -86,6 +101,7 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
           id: `${edge.source}->${edge.target}:${index}`,
           source: edge.source,
           target: edge.target,
+          label: edge.label || "",
         },
       })),
     ];
@@ -123,6 +139,18 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
           },
         },
         {
+          selector: "edge[label]",
+          style: {
+            color: "#5b6b63",
+            "font-size": 8,
+            label: "data(label)",
+            "text-background-color": "#ffffff",
+            "text-background-opacity": 0.86,
+            "text-background-padding": "2px",
+            "text-rotation": "autorotate",
+          },
+        },
+        {
           selector: "node:selected",
           style: {
             "border-color": "#0f766e",
@@ -151,10 +179,10 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
       ],
     });
 
-    const layout = cy.layout(buildLayout(density));
+    const layout = cy.layout(buildLayout());
     layout.one("layoutstop", () => {
-      arrangeDisconnectedComponents(cy, density);
-      applyDensityViewport(cy, density);
+      arrangeDisconnectedComponents(cy);
+      applyViewport(cy);
     });
     layout.run();
 
@@ -184,69 +212,53 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
       setSelectedNode(visibleGraph.nodes[0] || null);
     }
     return () => cy.destroy();
-  }, [density, focusedPageId, nodeById, typeFilter, visibleGraph]);
+  }, [focusedPageId, nodeById, visibleGraph]);
 
-  if (!graph) {
+  if (!activeGraph && graphView === "entity") {
     return (
       <section className="view active">
         <article className="panel">{t("graphLoading")}</article>
       </section>
     );
   }
+  if (!activeGraph && graphView === "page") {
+    return (
+      <section className={embedded ? "embedded-section" : "view active"}>
+        <article className="panel">{t("graphLoading")}</article>
+      </section>
+    );
+  }
+
+  const graphData = activeGraph as GraphResponse;
 
   return (
     <section className={embedded ? "embedded-section" : "view active"}>
       <div className="metric-grid">
-        <MetricCard label={t("graphNodes")} value={graph.stats.page_count} hint={t("maintainedPages")} />
-        <MetricCard label={t("graphEdges")} value={graph.stats.edge_count} hint={t("resolvedWikilinks")} />
-        <MetricCard label={t("orphans")} value={graph.stats.orphan_count} hint={t("orphanHint")} />
-        <MetricCard label={t("unresolvedLinks")} value={graph.stats.unresolved_link_count} hint={t("unresolvedHint")} />
-      </div>
-
-      <div className="panel-grid graph-overview">
-        <article className="panel chart-panel">
-          <div className="panel-header compact">
-            <h2>{t("virtualViews")}</h2>
-          </div>
-          <BarChart data={viewCountsForGraph(graph, t)} emptyText={t("noData")} />
-        </article>
-        <article className="panel chart-panel">
-          <div className="panel-header compact">
-            <h2>{t("topTags")}</h2>
-          </div>
-          <BarChart data={graph.stats.tag_counts} emptyText={t("noData")} />
-        </article>
+        <MetricCard label={graphView === "entity" ? t("entityNodes") : t("graphNodes")} value={graphData.stats.page_count} hint={graphView === "entity" ? t("entityNodesHint") : t("maintainedPages")} />
+        <MetricCard label={graphView === "entity" ? t("relationEdges") : t("graphEdges")} value={graphData.stats.edge_count} hint={graphView === "entity" ? t("relationEdgesHint") : t("resolvedWikilinks")} />
+        <MetricCard label={t("orphans")} value={graphData.stats.orphan_count} hint={graphView === "entity" ? t("entityOrphanHint") : t("orphanHint")} />
+        <MetricCard label={t("unresolvedLinks")} value={graphData.stats.unresolved_link_count} hint={t("unresolvedHint")} />
       </div>
 
       <div className="panel-grid graph-workspace">
         <article className="panel graph-panel">
           <div className="panel-header">
             <div>
-              <h2>{t("pageLinkGraph")}</h2>
-              <p className="panel-copy">{t("graphSubtitle")}</p>
+              <h2>{graphView === "entity" ? t("entityRelationGraph") : t("pageLinkGraph")}</h2>
+              <p className="panel-copy">{graphView === "entity" ? t("entityGraphSubtitle") : t("pageGraphSubtitle")}</p>
             </div>
             <div className="graph-actions">
+              <div className="segmented-control compact" role="tablist" aria-label={t("graphMode")}>
+                <button className={graphView === "entity" ? "active" : ""} type="button" onClick={() => setGraphView("entity")}>
+                  {t("entityGraphMode")}
+                </button>
+                <button className={graphView === "page" ? "active" : ""} type="button" onClick={() => setGraphView("page")}>
+                  {t("pageGraphMode")}
+                </button>
+              </div>
               <label className="field graph-search">
                 <span>{t("graphSearch")}</span>
                 <input value={nodeSearch} onChange={(event) => setNodeSearch(event.target.value)} placeholder={t("graphSearchPlaceholder")} />
-              </label>
-              <label className="field graph-filter">
-                <span>{t("graphDensity")}</span>
-                <select value={density} onChange={(event) => setDensity(event.target.value as GraphDensity)}>
-                  <option value="compact">{t("graphDensityCompact")}</option>
-                  <option value="balanced">{t("graphDensityBalanced")}</option>
-                </select>
-              </label>
-              <label className="field graph-filter">
-                <span>{t("typeFilter")}</span>
-                <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
-                  <option value="">{t("allPages")}</option>
-                  {types.map((type) => (
-                    <option value={type} key={type}>
-                      {labelForGraphView(type, t)}
-                    </option>
-                  ))}
-                </select>
               </label>
               <button className="button secondary" onClick={() => cyRef.current?.fit(undefined, 42)}>
                 {t("fit")}
@@ -254,12 +266,17 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
             </div>
           </div>
           <div className="graph-legend" aria-label={t("graphLegend")}>
-            {types.map((type) => (
-              <span className={typeFilter === type ? "active" : ""} key={type}>
-                <i style={{ background: nodeColors[type] || "#ffffff" }} />
-                {labelForGraphView(type, t)} · {typeCounts.get(type) || 0}
+            {graphView === "entity" ? (
+              <span>
+                <i style={{ background: nodeColors.entity }} />
+                {t("entityNodes")} · {typeCounts.get("entity") || 0}
               </span>
-            ))}
+            ) : (
+              <span>
+                <i style={{ background: nodeColors.wiki_page }} />
+                {t("wikiPages")} · {typeCounts.get("wiki_page") || 0}
+              </span>
+            )}
           </div>
           <div className="graph-canvas" ref={containerRef}>
             {!visibleGraph.nodes.length && <div className="graph-empty">{t("noPagesToDisplay")}</div>}
@@ -268,19 +285,21 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
 
         <aside className="panel graph-side">
           <div className="panel-header">
-            <h2>{t("selectedPage")}</h2>
+            <h2>{graphView === "entity" ? t("selectedEntity") : t("selectedPage")}</h2>
           </div>
-          <NodeDetail node={selectedNode} t={t} onOpenPage={context?.openWikiPage} />
+          <NodeDetail node={selectedNode} edges={selectedNode ? edgeByNodeId.get(selectedNode.id) || [] : []} graphView={graphView} t={t} onOpenPage={context?.openWikiPage} />
         </aside>
       </div>
     </section>
   );
 }
 
-function NodeDetail({ node, t, onOpenPage }: { node: GraphNode | null; t: (key: string) => string; onOpenPage?: (path: string) => void }) {
+function NodeDetail({ node, edges, graphView, t, onOpenPage }: { node: GraphNode | null; edges: GraphEdge[]; graphView: GraphView; t: (key: string) => string; onOpenPage?: (path: string) => void }) {
   if (!node) {
     return <div className="node-detail">{t("selectNode")}</div>;
   }
+  const relatedPages = node.pages || [];
+  const openPath = graphView === "entity" ? relatedPages[0] : node.id;
   return (
     <div className="node-detail">
       <h3>{node.title}</h3>
@@ -289,24 +308,56 @@ function NodeDetail({ node, t, onOpenPage }: { node: GraphNode | null; t: (key: 
       </div>
       <p>{node.summary || t("noSummary")}</p>
       <div className="tag-list">
-        {node.tags.length ? node.tags.map((tag) => <span key={tag}>{tag}</span>) : <em>{t("noTags")}</em>}
+        {node.entities.length ? node.entities.map((entity) => <span key={entity}>{entity}</span>) : <em>{t("noEntities")}</em>}
       </div>
-      <dl className="mini-detail">
-        <div>
-          <dt>{t("pageRole")}</dt>
-          <dd>{node.role || "knowledge_page"}</dd>
-        </div>
-        <div>
-          <dt>{t("facets")}</dt>
-          <dd>{(node.facets || []).join(", ") || t("none")}</dd>
-        </div>
-        <div>
-          <dt>{t("source")}</dt>
-          <dd>{node.source || t("none")}</dd>
-        </div>
-      </dl>
-      {onOpenPage && (
-        <button className="button secondary full-width-button" type="button" onClick={() => onOpenPage(node.id)}>
+      {graphView === "entity" && (
+        <>
+          <div className="mini-section">
+            <h4>{t("relatedWikiPages")}</h4>
+            {relatedPages.length ? (
+              <div className="inline-list">
+                {relatedPages.slice(0, 8).map((page) => (
+                  <button key={page} type="button" onClick={() => onOpenPage?.(page)}>
+                    {page}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p>{t("none")}</p>
+            )}
+          </div>
+          <div className="mini-section">
+            <h4>{t("relations")}</h4>
+            {edges.length ? (
+              <ul className="relation-list">
+                {edges.slice(0, 8).map((edge, index) => (
+                  <li key={`${edge.source}-${edge.target}-${index}`}>
+                    <span>{edge.source}</span>
+                    <strong>{edge.label || edge.kind}</strong>
+                    <span>{edge.target}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>{t("none")}</p>
+            )}
+          </div>
+        </>
+      )}
+      {graphView === "page" && (
+        <dl className="mini-detail">
+          <div>
+            <dt>{t("pageRole")}</dt>
+            <dd>{node.role === "source_digest" ? t("sourceAudit") : t("wikiPages")}</dd>
+          </div>
+          <div>
+            <dt>{t("source")}</dt>
+            <dd>{node.source || t("none")}</dd>
+          </div>
+        </dl>
+      )}
+      {onOpenPage && openPath && (
+        <button className="button secondary full-width-button" type="button" onClick={() => onOpenPage(openPath)}>
           {t("openInWiki")}
         </button>
       )}
@@ -315,72 +366,37 @@ function NodeDetail({ node, t, onOpenPage }: { node: GraphNode | null; t: (key: 
 }
 
 
-function nodeKindOf(node: GraphNode) {
-  return node.page_kind || node.type || "page";
-}
-
 function nodeViewOf(node: GraphNode) {
-  const kind = nodeKindOf(node);
-  return node.role === "source_digest" || kind === "source_digest" || node.type === "source" || node.id.startsWith("sources/") ? "source_audit" : "knowledge_page";
+  if (node.type === "entity" || node.role === "entity") return "entity";
+  return node.role === "source_digest" || node.id.startsWith("sources/") ? "source_audit" : "wiki_page";
 }
 
 function labelForGraphView(value: string, t: (key: string) => string) {
+  if (value === "entity") return t("entity");
   if (value === "source_audit") return t("sourceAudit");
-  if (value === "knowledge_page") return t("wikiPages");
+  if (value === "wiki_page") return t("wikiPages");
   return value.replace(/_/g, " ");
 }
 
-function viewCountsForGraph(graph: GraphResponse, t: (key: string) => string) {
-  const counts: Record<string, number> = {};
-  for (const node of graph.nodes) {
-    const label = labelForGraphView(nodeViewOf(node), t);
-    counts[label] = (counts[label] || 0) + 1;
-  }
-  return counts;
-}
-
-function buildLayout(density: GraphDensity) {
-  const settings = {
-    compact: {
-      nodeRepulsion: 65000,
-      idealEdgeLength: 150,
-      gravity: 0.04,
-      componentSpacing: 130,
-      padding: 84,
-    },
-    balanced: {
-      nodeRepulsion: 26000,
-      idealEdgeLength: 82,
-      gravity: 0.12,
-      componentSpacing: 85,
-      padding: 64,
-    },
-  }[density];
+function buildLayout() {
   return {
     name: "cose",
     animate: false,
-    nodeRepulsion: settings.nodeRepulsion,
-    idealEdgeLength: settings.idealEdgeLength,
+    nodeRepulsion: 26000,
+    idealEdgeLength: 82,
     edgeElasticity: 60,
-    gravity: settings.gravity,
+    gravity: 0.12,
     numIter: 1400,
-    componentSpacing: settings.componentSpacing,
+    componentSpacing: 85,
     nodeOverlap: 18,
     fit: false,
-    padding: settings.padding,
+    padding: 64,
   };
 }
 
-function applyDensityViewport(cy: Core, density: GraphDensity) {
-  const padding = {
-    compact: 72,
-    balanced: 96,
-  }[density];
-  cy.fit(undefined, padding);
-  const zoomFactor = {
-    compact: 1.1,
-    balanced: 1.35,
-  }[density];
+function applyViewport(cy: Core) {
+  cy.fit(undefined, 96);
+  const zoomFactor = 1.35;
   const nextZoom = Math.min(cy.maxZoom(), Math.max(cy.minZoom(), cy.zoom() * zoomFactor));
   cy.zoom({
     level: nextZoom,
@@ -388,7 +404,7 @@ function applyDensityViewport(cy: Core, density: GraphDensity) {
   });
 }
 
-function arrangeDisconnectedComponents(cy: Core, density: GraphDensity) {
+function arrangeDisconnectedComponents(cy: Core) {
   const components = collectComponents(cy);
   if (components.length <= 1) return;
 
@@ -400,10 +416,7 @@ function arrangeDisconnectedComponents(cy: Core, density: GraphDensity) {
     x: mainBox.x1 + mainBox.w / 2,
     y: mainBox.y1 + mainBox.h / 2,
   };
-  const spacing = {
-    compact: 92,
-    balanced: 130,
-  }[density];
+  const spacing = 130;
   const radiusX = Math.max(mainBox.w / 2 + spacing, 180);
   const radiusY = Math.max(mainBox.h / 2 + spacing, 140);
 

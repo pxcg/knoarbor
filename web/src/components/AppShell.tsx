@@ -13,7 +13,6 @@ type AppShellProps = {
   t: (key: string) => string;
   onChangeView: (view: ViewName) => void;
   onPreloadView?: (view: ViewName) => void;
-  onSetLanguage: (language: Language) => void;
   onToggleSidebar: () => void;
   onOpenWorkspaceSettings: () => void;
   onOpenApiDocs?: () => void;
@@ -29,7 +28,6 @@ export function AppShell({
   t,
   onChangeView,
   onPreloadView,
-  onSetLanguage,
   onToggleSidebar,
   onOpenWorkspaceSettings,
   onOpenApiDocs,
@@ -58,14 +56,6 @@ export function AppShell({
             {activeView !== "chat" && <p className="topbar-subtitle">{viewSubtitles[language][activeView]}</p>}
           </div>
           <div className="topbar-actions">
-            <div className="language-switch" aria-label={t("language")}>
-              <button className={language === "en" ? "active" : ""} onClick={() => onSetLanguage("en")} type="button">
-                EN
-              </button>
-              <button className={language === "zh" ? "active" : ""} onClick={() => onSetLanguage("zh")} type="button">
-                中文
-              </button>
-            </div>
             <a className="button icon-button" href="https://github.com/pxcg/knoarbor" target="_blank" rel="noreferrer" aria-label="GitHub">
               <LineIcon name="github" />
             </a>

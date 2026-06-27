@@ -87,7 +87,7 @@ select option {
   border-right: 1px solid rgba(31, 54, 40, 0.08);
   padding: 18px 12px 14px;
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 12px;
   position: sticky;
   top: 0;
@@ -101,6 +101,7 @@ select option {
   gap: 9px;
   min-width: 0;
   padding: 0 4px 2px;
+  position: relative;
 }
 
 .brand-mark {
@@ -122,6 +123,7 @@ select option {
 }
 
 .brand-copy {
+  flex: 1;
   min-width: 0;
 }
 
@@ -292,25 +294,26 @@ select option {
 }
 
 .sidebar-toggle {
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #ffffff;
-  color: var(--muted-strong);
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
   cursor: pointer;
   display: grid;
   place-items: center;
+  flex: 0 0 auto;
 }
 
 .sidebar-toggle:hover {
-  border-color: var(--accent);
+  border-color: transparent;
   color: var(--accent-strong);
-  background: #f0fdfa;
+  background: #edf6f2;
 }
 
 .sidebar-toggle span {
-  font-size: 22px;
+  font-size: 21px;
   line-height: 1;
 }
 
@@ -321,6 +324,8 @@ select option {
 
 .sidebar.collapsed .brand {
   justify-content: center;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .sidebar.collapsed .brand-copy,
@@ -1439,6 +1444,11 @@ h2 {
   box-shadow: 0 1px 4px rgba(21, 32, 51, 0.08);
 }
 
+.segmented-control.compact button {
+  height: 32px;
+  padding: 0 11px;
+}
+
 .metric-card,
 .panel {
   background: var(--surface);
@@ -1925,7 +1935,6 @@ button.action-card {
   display: grid;
   grid-template-columns: minmax(320px, 0.62fr) minmax(0, 1.38fr);
   gap: 14px;
-  align-items: start;
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -2147,6 +2156,25 @@ button.action-card {
 
 .settings-card-grid.single {
   grid-template-columns: minmax(0, 1fr);
+}
+
+.settings-card {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 18px;
+}
+
+.settings-card h3 {
+  margin: 0 0 6px;
+}
+
+.settings-language-options {
+  display: inline-flex;
+  gap: 8px;
 }
 
 .settings-workspace {
@@ -3224,6 +3252,10 @@ blockquote {
   padding-right: 4px;
 }
 
+.wiki-list-panel {
+  overflow-y: auto;
+}
+
 .wiki-directory-panel,
 .wiki-list-panel,
 .wiki-preview-panel {
@@ -3280,7 +3312,6 @@ blockquote {
 }
 
 .wiki-page-list {
-  max-height: calc(100vh - 275px);
 }
 
 .wiki-preview-panel {
@@ -3393,13 +3424,6 @@ blockquote {
   width: 148px;
 }
 
-.wiki-link-grid {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  margin-top: 12px;
-}
-
 .wiki-meta {
   margin-bottom: 14px;
 }
@@ -3415,6 +3439,47 @@ blockquote {
 .wiki-link-section h3 {
   font-size: 13px;
   margin: 0 0 8px;
+}
+
+.wiki-related-page-list {
+  display: grid;
+  gap: 8px;
+}
+
+.wiki-related-page {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.wiki-related-page:hover {
+  background: #f7fbf8;
+  border-color: rgba(10, 148, 116, 0.35);
+}
+
+.wiki-related-page strong,
+.wiki-related-page code,
+.wiki-related-page small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wiki-related-page code {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.wiki-related-page small {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .page-path-links {
@@ -4010,15 +4075,6 @@ blockquote {
   -webkit-line-clamp: 2;
 }
 
-.compact-tags {
-  gap: 5px;
-}
-
-.compact-tags span {
-  font-size: 11px;
-  padding: 2px 6px;
-}
-
 .page-preview {
   min-width: 0;
   position: sticky;
@@ -4225,13 +4281,14 @@ blockquote {
   align-items: start;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
 }
 
 .graph-actions {
-  align-items: flex-end;
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(130px, 160px) minmax(130px, 160px) auto;
-  flex-wrap: nowrap;
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
   width: 100%;
 }
 
@@ -4241,8 +4298,21 @@ blockquote {
 }
 
 .graph-search {
-  width: 100%;
+  flex: 0 1 320px;
   margin: 0;
+}
+
+.graph-search span {
+  display: none;
+}
+
+.graph-actions .segmented-control {
+  flex: 0 0 auto;
+}
+
+.graph-actions .button {
+  flex: 0 0 auto;
+  min-height: 42px;
 }
 
 .graph-legend {
@@ -4324,19 +4394,19 @@ blockquote {
   }
 
   .graph-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    display: flex;
+    flex-wrap: wrap;
     width: 100%;
   }
 
   .graph-search,
-  .graph-filter,
-  .graph-actions .button {
-    width: 100%;
+  .graph-filter {
+    flex: 1 1 240px;
   }
 
   .graph-actions .button {
-    align-self: end;
+    flex: 0 0 auto;
   }
 }
 
@@ -4371,6 +4441,76 @@ blockquote {
   padding: 4px 8px;
   background: #ffffff;
   font-size: 12px;
+}
+
+.mini-section {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.mini-section h4 {
+  color: var(--text);
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+
+.mini-section p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.inline-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.inline-list button {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--muted-strong);
+  cursor: pointer;
+  font-size: 12px;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 5px 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relation-list {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.relation-list li {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  color: var(--muted-strong);
+  font-size: 12px;
+}
+
+.relation-list span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relation-list strong {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 6px;
+  white-space: nowrap;
 }
 
 .mini-detail {
@@ -4448,12 +4588,11 @@ blockquote {
   display: grid;
   grid-template-columns: minmax(230px, 0.32fr) minmax(0, 1fr);
   gap: 18px;
-  align-items: start;
+  height: 100%;
 }
 
 .docs-directory {
-  position: sticky;
-  top: 24px;
+  overflow-y: auto;
 }
 
 .docs-group {
@@ -4513,7 +4652,7 @@ blockquote {
 }
 
 .docs-preview-panel {
-  min-height: 760px;
+  overflow-y: auto;
 }
 
 .markdown-rendered {
@@ -4521,6 +4660,13 @@ blockquote {
   color: var(--muted-strong);
   line-height: 1.68;
   overflow-x: auto;
+}
+
+.markdown-rendered img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
 }
 
 .markdown-rendered h1,
@@ -4635,6 +4781,72 @@ blockquote {
   overflow-wrap: anywhere;
   white-space: normal;
   word-break: break-word;
+}
+
+.wiki-edit-modal {
+  height: min(680px, calc(100vh - 56px));
+  width: min(900px, calc(100vw - 56px));
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.wiki-delete-modal {
+  height: auto;
+  width: min(480px, calc(100vw - 56px));
+  grid-template-rows: auto 1fr auto;
+}
+
+.wiki-edit-content {
+  padding: 0;
+  min-height: 0;
+}
+
+.wiki-page-editor {
+  background: #f8fafc;
+  border: none;
+  border-radius: 0;
+  box-sizing: border-box;
+  color: var(--text);
+  display: block;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
+  font-size: 14px;
+  height: 100%;
+  line-height: 1.6;
+  min-height: 400px;
+  outline: none;
+  overflow: auto;
+  padding: 18px;
+  resize: none;
+  tab-size: 2;
+  width: 100%;
+}
+
+.wiki-page-editor:focus {
+  background: #fff;
+}
+
+.wiki-edit-actions {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 14px 20px;
+}
+
+.button.danger {
+  --button-text: #dc2626;
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+.button.danger:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.button.danger:active:not(:disabled) {
+  background: #fecaca;
 }
 
 .markdown-rendered blockquote {
@@ -5593,8 +5805,8 @@ blockquote {
 
 .global-chat-group {
   border-top: 1px solid rgba(31, 54, 40, 0.08);
-  margin-top: 4px;
-  padding-top: 8px;
+  margin-top: 6px;
+  padding-top: 10px;
 }
 
 .chat-session-group h3 {
@@ -5689,41 +5901,39 @@ blockquote {
 }
 
 .chat-session-menu {
-  position: relative;
-  justify-self: center;
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
   display: inline-grid;
   place-items: center;
+  z-index: 10;
 }
 
-.chat-session-menu summary {
+.chat-session-menu-trigger {
   width: 22px;
   height: 22px;
   display: inline-grid;
   place-items: center;
+  border: 0;
   border-radius: 999px;
+  background: transparent;
   color: var(--muted);
   cursor: pointer;
   font-size: 16px;
   font-weight: 900;
   letter-spacing: 0;
   line-height: 1;
-  list-style: none;
   opacity: 0;
   padding: 0 0 2px;
 }
 
-.chat-session-menu summary::-webkit-details-marker {
-  display: none;
-}
-
-.chat-session-row:hover .chat-session-menu summary,
-.chat-session-row:focus-within .chat-session-menu summary,
-.chat-session-menu[open] summary {
+.chat-session-row:hover .chat-session-menu-trigger,
+.chat-session-row:focus-within .chat-session-menu-trigger {
   opacity: 1;
 }
 
-.chat-session-menu summary:hover,
-.chat-session-menu[open] summary {
+.chat-session-menu-trigger:hover {
   background: #fff;
   color: #17311f;
 }
@@ -5935,6 +6145,88 @@ blockquote {
   margin-bottom: 0;
 }
 
+.chat-context-menu {
+  position: fixed;
+  z-index: 200;
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), 0 6px 20px rgba(0, 0, 0, 0.14);
+  min-width: 220px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-context-menu button {
+  background: none;
+  border: none;
+  padding: 8px 12px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 5px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #1a1a1a;
+  white-space: nowrap;
+}
+
+.chat-context-menu button:hover:not(:disabled) {
+  background: #f5f5f5;
+}
+
+.chat-context-menu button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.chat-context-menu hr {
+  margin: 4px 8px;
+  border: none;
+  border-top: 1px solid #e8e8e8;
+}
+
+.chat-message.selected-for-ingest {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+.chat-select-checkbox {
+  display: flex;
+  align-items: flex-start;
+  padding-top: 0.6rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding-right: 4px;
+}
+
+.chat-select-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--color-accent);
+}
+
+.chat-ingest-floatbar {
+  position: sticky;
+  bottom: 0;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 14px;
+  margin: 8px 0 0 0;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  z-index: 2;
+  font-size: 12px;
+  font-weight: 680;
+  color: var(--muted-strong);
+  width: fit-content;
+}
+
 .chat-message.user {
   max-width: min(680px, 78%);
   margin-left: auto;
@@ -6138,16 +6430,25 @@ blockquote {
   border-color: rgba(15, 104, 77, 0.32);
 }
 
+.chat-vault-toolbar,
 .chat-model-toolbar {
   display: inline-flex;
   align-items: center;
   min-width: 0;
-  max-width: min(240px, 34vw);
   padding: 0;
   background: transparent;
   color: var(--muted);
 }
 
+.chat-vault-toolbar {
+  max-width: min(260px, 30vw);
+}
+
+.chat-model-toolbar {
+  max-width: min(240px, 26vw);
+}
+
+.chat-vault-toolbar select,
 .chat-model-toolbar select {
   min-width: 0;
   max-width: 100%;
@@ -6162,6 +6463,7 @@ blockquote {
   cursor: pointer;
 }
 
+.chat-vault-toolbar select:hover:not(:disabled),
 .chat-model-toolbar select:hover:not(:disabled) {
   color: var(--text);
 }
@@ -6187,8 +6489,15 @@ blockquote {
 .chat-input-footer {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 10px;
+  min-width: 0;
+}
+
+.chat-input-left-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 

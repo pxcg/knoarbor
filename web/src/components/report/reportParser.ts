@@ -125,7 +125,7 @@ export function parseReportArtifacts(content: string): ReportArtifacts {
       collectPages = null;
     }
     const change = line.match(/page_change:\s+`([^`]+)`\s+action=([^\s]+)(?:\s+sections=(.+))?/);
-    const lintChange = line.match(/^-\s+`?((?:sources|entities|concepts|comparisons|queries|workflows)\/[^`\s]+?\.md)`?\s+action=([^\s]+)(?:\s+sections=(.+))?/);
+    const lintChange = line.match(/^-\s+`?((?:sources\/)?[^`\s]+?\.md)`?\s+action=([^\s]+)(?:\s+sections=(.+))?/);
     const matchedChange = change || lintChange;
     if (matchedChange) {
       const summary = matchedChange[3]?.trim();
@@ -206,7 +206,7 @@ export function getReportMetricNumber(content: string, key: string): number {
 
 export function extractWikiPagePaths(value: string): string[] {
   const paths = new Set<string>();
-  for (const match of value.matchAll(/\b(?:sources|entities|concepts|comparisons|queries|workflows)\/[^\s,`]+?\.md\b/g)) {
+  for (const match of value.matchAll(/\b(?:sources\/)?[^\s,`]+?\.md\b/g)) {
     paths.add(match[0].replace(/[.)\]}]+$/, ""));
   }
   return [...paths];

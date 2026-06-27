@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { getPage, type PageDetail, type PageLink, type PageSummary } from "../api/client";
+import { deletePage, getPage, updatePage, type PageDetail, type PageSummary } from "../api/client";
 import type { AppContext } from "../App";
 import { AsyncMarkdownPreview } from "../components/AsyncMarkdownPreview";
 import { DelayedTooltip } from "../components/DelayedTooltip";
 import { LoadingBlock } from "../components/LoadingBlock";
-import { PagePathLinks } from "../components/PagePathLinks";
+import { queryKeys } from "../queryKeys";
 
 type Props = {
   context: AppContext;
@@ -17,6 +18,41 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
   const [selectedDetail, setSelectedDetail] = useState<PageDetail | null>(null);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editContent, setEditContent] = useState("");
+  const [deleteConfirming, setDeleteConfirming] = useState(false);
+
+  const queryClient = useQueryClient();
+  const vaultId = context.activeVaultId || "default";
+
+  const editMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPath || !editContent.trim()) throw new Error("No page selected or content empty");
+      return updatePage(context.activeVaultSelector, selectedPath, editContent);
+    },
+    onSuccess: (detail) => {
+      setSelectedDetail(detail);
+      setEditing(false);
+      queryClient.invalidateQueries({ queryKey: queryKeys.pages(vaultId) });
+      context.setNotice({ message: `Page saved: ${detail.path}` });
+    },
+    onError: (error) => context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPath) throw new Error("No page selected");
+      return deletePage(context.activeVaultSelector, selectedPath);
+    },
+    onSuccess: (result) => {
+      setDeleteConfirming(false);
+      setSelectedPath(null);
+      setSelectedDetail(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.pages(vaultId) });
+      context.setNotice({ message: `Page archived: ${result.path}` });
+    },
+    onError: (error) => context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true }),
+  });
 
   const wikiPages = useMemo(() => context.pages.filter((page) => !isSourceDigestPage(page)), [context.pages]);
 
@@ -24,9 +60,14 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
     const query = search.trim().toLowerCase();
     return wikiPages.filter((page) => {
       if (!query) return true;
-      return `${page.title} ${page.path} ${page.summary} ${page.tags.join(" ")} ${facetsOf(page).join(" ")}`.toLowerCase().includes(query);
+      return `${page.title} ${page.path} ${page.summary} ${page.entities.join(" ")}`.toLowerCase().includes(query);
     });
   }, [search, wikiPages]);
+
+  const relatedPages = useMemo(() => {
+    if (!selectedDetail) return [];
+    return relatedPagesByEntities(selectedDetail, wikiPages);
+  }, [selectedDetail, wikiPages]);
 
   useEffect(() => {
     if (focusedPagePath) setSelectedPath(focusedPagePath);
@@ -103,6 +144,8 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
               <div className="button-row compact-row">
                 <button className="button secondary" type="button" onClick={() => askAboutPage(context, selectedDetail)}>{context.t("askInChat")}</button>
                 <button className="button secondary" type="button" onClick={() => context.openPageInGraph(selectedDetail.path)}>{context.t("openInGraph")}</button>
+                <button className="button secondary" type="button" onClick={() => { setEditContent(selectedDetail.content); setEditing(true); }}>Edit</button>
+                <button className="button danger" type="button" onClick={() => setDeleteConfirming(true)}>Delete</button>
               </div>
             )}
           </div>
@@ -110,16 +153,68 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
           {!loading && selectedDetail ? (
             <>
               <WikiStructuredPreview detail={selectedDetail} context={context} />
-              <div className="wiki-link-grid">
-                <LinkSection title={context.t("backlinks")} links={selectedDetail.backlinks} direction="backlinks" onOpen={context.openWikiPage} emptyText={context.t("none")} />
-                <LinkSection title={context.t("outboundLinks")} links={selectedDetail.outbound_links} direction="outbound" onOpen={context.openWikiPage} emptyText={context.t("none")} />
-              </div>
+              <RelatedPagesSection title={context.t("relatedWikiPages")} pages={relatedPages} onOpen={context.openWikiPage} emptyText={context.t("none")} />
             </>
           ) : (
             !loading && <p className="panel-copy">{context.t("wikiNoSelection")}</p>
           )}
         </aside>
       </div>
+
+      {editing && selectedDetail && (
+        <div className="settings-modal-backdrop" onClick={() => setEditing(false)}>
+          <section className="settings-modal wiki-edit-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <header className="settings-modal-header">
+              <h2>Edit: {selectedDetail.summary.title}</h2>
+              <button className="icon-button subtle settings-modal-close" type="button" onClick={() => setEditing(false)}>✕</button>
+            </header>
+            <div className="settings-modal-content wiki-edit-content">
+              <textarea
+                className="wiki-page-editor"
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                spellCheck={false}
+              />
+            </div>
+            <div className="wiki-edit-actions">
+              <button className="button secondary" type="button" onClick={() => setEditing(false)}>Cancel</button>
+              <button
+                className="button primary"
+                type="button"
+                disabled={editMutation.isPending || !editContent.trim()}
+                onClick={() => editMutation.mutate()}
+              >
+                {editMutation.isPending ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {deleteConfirming && selectedDetail && (
+        <div className="settings-modal-backdrop" onClick={() => setDeleteConfirming(false)}>
+          <section className="settings-modal wiki-delete-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <header className="settings-modal-header">
+              <h2>Archive Page</h2>
+              <button className="icon-button subtle settings-modal-close" type="button" onClick={() => setDeleteConfirming(false)}>✕</button>
+            </header>
+            <div className="settings-modal-content">
+              <p>Archive <strong>{selectedDetail.path}</strong> to deleted_pages? The page can be restored from the maintenance directory.</p>
+            </div>
+            <div className="wiki-edit-actions">
+              <button className="button secondary" type="button" onClick={() => setDeleteConfirming(false)}>Cancel</button>
+              <button
+                className="button danger"
+                type="button"
+                disabled={deleteMutation.isPending}
+                onClick={() => deleteMutation.mutate()}
+              >
+                {deleteMutation.isPending ? "Archiving..." : "Archive"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </section>
   );
 }
@@ -141,10 +236,60 @@ function askAboutPage(context: AppContext, detail: PageDetail) {
   context.openChatWithPrompt(`请阅读并解释「${title}」（${detail.path}），并回答我的后续问题。`, context.activeVaultId);
 }
 
+type RelatedPage = {
+  page: PageSummary;
+  sharedEntities: string[];
+};
+
+function relatedPagesByEntities(detail: PageDetail, pages: PageSummary[]): RelatedPage[] {
+  const currentEntities = pageEntitySet(detail);
+  if (!currentEntities.size) return [];
+  return pages
+    .filter((page) => page.path !== detail.path)
+    .map((page) => {
+      const sharedEntities = page.entities
+        .map(normalizeEntity)
+        .filter((entity) => entity && currentEntities.has(entity));
+      return { page, sharedEntities: uniqueStrings(sharedEntities) };
+    })
+    .filter((item) => item.sharedEntities.length)
+    .sort((left, right) => {
+      if (right.sharedEntities.length !== left.sharedEntities.length) return right.sharedEntities.length - left.sharedEntities.length;
+      return left.page.title.localeCompare(right.page.title);
+    })
+    .slice(0, 8);
+}
+
+function pageEntitySet(detail: PageDetail) {
+  const entities = new Set<string>();
+  for (const entity of detail.summary.entities || []) {
+    const normalized = normalizeEntity(entity);
+    if (normalized) entities.add(normalized);
+  }
+  for (const section of extractWikiSections(detail.content)) {
+    if (!["claims", "entities", "relations"].includes(section.key)) continue;
+    for (const match of section.content.matchAll(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g)) {
+      const normalized = normalizeEntity(match[1]);
+      if (normalized) entities.add(normalized);
+    }
+  }
+  return entities;
+}
+
+function normalizeEntity(value: string) {
+  return value
+    .replace(/^\[\[/, "")
+    .replace(/\]\]$/, "")
+    .split("|")
+    .pop()
+    ?.trim()
+    .toLowerCase() || "";
+}
+
 function WikiStructuredPreview({ detail, context }: { detail: PageDetail; context: AppContext }) {
   const sections = extractWikiSections(detail.content);
   if (!sections.length) {
-    return <AsyncMarkdownPreview content={detail.content} className="wiki-markdown-preview" stripFrontmatter onOpenWikiPage={context.openWikiPage} />;
+    return <AsyncMarkdownPreview content={detail.content} className="wiki-markdown-preview" stripFrontmatter onOpenWikiPage={context.openWikiPage} vaultPath={context.vaultPath} />;
   }
   const ordered = orderWikiSections(sections);
   return (
@@ -192,6 +337,7 @@ function WikiSectionContent({ section, context }: { section: WikiSection; contex
       content={section.content}
       className="wiki-markdown-preview wiki-section-markdown"
       onOpenWikiPage={context.openWikiPage}
+      vaultPath={context.vaultPath}
     />
   );
 }
@@ -220,41 +366,45 @@ function plainCellText(value: string) {
     .trim();
 }
 
-function facetsOf(page: PageSummary) {
-  return page.facets || [];
+function uniqueStrings(values: string[]) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
 }
 
 function isSourceDigestPage(page: PageSummary) {
-  return page.role === "source_digest" || page.page_kind === "source_digest" || page.page_type === "source" || page.directory === "sources";
+  return page.role === "source_digest" || page.directory === "sources";
 }
 
-function LinkSection({
+function RelatedPagesSection({
   title,
-  links,
-  direction,
+  pages,
   onOpen,
   emptyText,
 }: {
   title: string;
-  links: PageLink[];
-  direction: "backlinks" | "outbound";
+  pages: RelatedPage[];
   onOpen: (path: string) => void;
   emptyText: string;
 }) {
-  const resolved = links
-    .map((link) => ({
-      label: direction === "backlinks" ? link.source : (link.target_path || link.target),
-      path: direction === "backlinks" ? link.source : link.target_path,
-    }))
-    .filter((link): link is { label: string; path: string } => Boolean(link.path));
   return (
     <section className="wiki-link-section">
       <h3>{title}</h3>
-      {resolved.length ? (
-        <PagePathLinks
-          links={resolved}
-          onOpenPage={onOpen}
-        />
+      {pages.length ? (
+        <div className="wiki-related-page-list">
+          {pages.map(({ page, sharedEntities }) => (
+            <button className="wiki-related-page" type="button" key={page.path} onClick={() => onOpen(page.path)}>
+              <strong>{page.title}</strong>
+              <code>{page.path}</code>
+              <small>{sharedEntities.slice(0, 4).join(" / ")}</small>
+            </button>
+          ))}
+        </div>
       ) : (
         <p className="panel-copy">{emptyText}</p>
       )}
@@ -269,7 +419,7 @@ type WikiSection = {
   index: number;
 };
 
-const WIKI_SECTION_ORDER = ["summary", "claims", "relations", "synthesis", "entities", "evidence", "attachments", "source", "sources"];
+const WIKI_SECTION_ORDER = ["summary", "claims", "relations", "synthesis", "entities", "evidence", "attachments"];
 
 function extractWikiSections(content: string): WikiSection[] {
   const body = stripPageChrome(content);
@@ -322,8 +472,6 @@ function wikiSectionLabel(key: string, title: string, language: AppContext["lang
     entities: "实体",
     evidence: "证据",
     attachments: "附件",
-    source: "来源",
-    sources: "来源",
   };
   return labels[key] || title;
 }

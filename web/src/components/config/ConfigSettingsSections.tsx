@@ -276,7 +276,7 @@ export function ConfigInputsSection({ form, setForm, t }: SectionProps) {
           </label>
         </ConnectorCard>
         <ConnectorCard title={t("nonMarkdownConnector")} checked={form.mineru_enabled} onChange={(checked) => setForm({ ...form, mineru_enabled: checked })}>
-          <PathField label={t("nonMarkdownInputDir")} value={form.mineru_input_dir} onChange={(value) => setForm({ ...form, mineru_input_dir: value })} placeholder="./vaults/all/raw/documents/originals" selectDirectoryTitle={t("chooseSourceFolder")} t={t} />
+          <PathField label={t("nonMarkdownInputDir")} value={form.mineru_input_dir} onChange={(value) => setForm({ ...form, mineru_input_dir: value })} placeholder="./vaults/all/raw/inbox/documents" selectDirectoryTitle={t("chooseSourceFolder")} t={t} />
           <p className="panel-copy compact-copy">{t("nonMarkdownInputCopy")}</p>
         </ConnectorCard>
         <section className="settings-subcard chat-source-card">

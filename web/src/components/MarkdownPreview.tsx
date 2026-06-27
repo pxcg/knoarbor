@@ -6,6 +6,7 @@ export type MarkdownPreviewProps = {
   className?: string;
   stripFrontmatter?: boolean;
   currentDocPath?: string;
+  vaultPath?: string;
   onOpenDocLink?: (path: string) => void;
   onOpenWikiPage?: (path: string) => void;
 };
@@ -15,6 +16,7 @@ export function MarkdownPreview({
   className,
   stripFrontmatter = false,
   currentDocPath,
+  vaultPath,
   onOpenDocLink,
   onOpenWikiPage,
 }: MarkdownPreviewProps) {
@@ -33,12 +35,48 @@ export function MarkdownPreview({
               onOpenWikiPage={onOpenWikiPage}
             />
           ),
+          img: (props) => (
+            <MarkdownImage {...props} currentDocPath={currentDocPath} vaultPath={vaultPath} />
+          ),
         }}
       >
         {renderedContent}
       </ReactMarkdown>
     </div>
   );
+}
+
+function MarkdownImage(
+  props: React.ImgHTMLAttributes<HTMLImageElement> & {
+    currentDocPath?: string;
+    vaultPath?: string;
+  },
+) {
+  const { currentDocPath, vaultPath, src, alt, ...rest } = props;
+  const resolvedSrc = resolveImageSrc(src, currentDocPath, vaultPath);
+  return <img src={resolvedSrc} alt={alt || ""} {...rest} loading="lazy" />;
+}
+
+function resolveImageSrc(src: string | undefined, currentDocPath: string | undefined, vaultPath?: string): string | undefined {
+  if (!src || /^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//") || src.startsWith("/")) {
+    return src;
+  }
+  const assetPath = vaultAssetPathFromSrc(src);
+  if (assetPath && vaultPath) {
+    return `/ui/api/vault-assets/${encodeURIComponent(assetPath)}?vault_path=${encodeURIComponent(vaultPath)}`;
+  }
+  const docDir = currentDocPath?.includes("/") ? currentDocPath.split("/").slice(0, -1).join("/") + "/" : "";
+  const resolved = docDir + src.replace(/\\/g, "/");
+  return `/ui/api/docs-assets/${collapsePath(resolved)}`;
+}
+
+function vaultAssetPathFromSrc(src: string): string | null {
+  let cleaned = src.replace(/\\/g, "/").replace(/^\.\//, "");
+  if (cleaned.startsWith("../assets/")) cleaned = cleaned.slice("../assets/".length);
+  else if (cleaned.startsWith("raw/assets/")) cleaned = cleaned.slice("raw/assets/".length);
+  else if (cleaned.startsWith("assets/")) cleaned = cleaned.slice("assets/".length);
+  if (/^(images|media|pages|tables)\//.test(cleaned)) return cleaned;
+  return null;
 }
 
 function MarkdownLink(
@@ -82,7 +120,7 @@ function renderWikiLinks(content: string) {
 
 function normalizeWikiPath(target: string) {
   const clean = target.trim();
-  if (/^(sources|entities|concepts|comparisons|queries|workflows)\//.test(clean)) {
+  if (/^sources\//.test(clean)) {
     return clean.endsWith(".md") ? clean : `${clean}.md`;
   }
   return clean.endsWith(".md") ? clean : `${clean}.md`;

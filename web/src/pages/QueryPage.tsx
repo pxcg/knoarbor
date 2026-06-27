@@ -102,7 +102,7 @@ export function QueryPage({ context, embedded = false }: Props) {
           </label>
           <label className="field">
             <span>{context.t("initialPageDirs")}</span>
-            <input value={pageDirs} onChange={(event) => setPageDirs(event.target.value)} placeholder="concepts, entities" />
+            <input value={pageDirs} onChange={(event) => setPageDirs(event.target.value)} placeholder="pages" />
             <small>{context.t("initialPageDirsHint")}</small>
           </label>
         </div>
@@ -184,9 +184,9 @@ export function QueryPage({ context, embedded = false }: Props) {
                 </div>
                 {result.reason && <p className="result-reason">{result.reason}</p>}
                 <p>{result.summary || context.t("noSummary")}</p>
-                {!!result.key_points?.length && (
+                {!!result.claims?.length && (
                   <ul className="compact-list">
-                    {result.key_points.slice(0, 3).map((point) => (
+                    {result.claims.slice(0, 3).map((point) => (
                       <li key={point}>{point}</li>
                     ))}
                   </ul>

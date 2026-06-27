@@ -68,10 +68,10 @@ export function Sidebar({ activeView, collapsed, serviceOnline, language, t, onC
           <div className="brand-title">KnoArbor</div>
           <div className="brand-subtitle">{t("appTagline")}</div>
         </div>
+        <button className="sidebar-toggle" type="button" onClick={onToggleCollapsed} title={collapsed ? t("expandSidebar") : t("collapseSidebar")} aria-label={collapsed ? t("expandSidebar") : t("collapseSidebar")}>
+          <span aria-hidden="true">{collapsed ? "›" : "‹"}</span>
+        </button>
       </div>
-      <button className="sidebar-toggle" type="button" onClick={onToggleCollapsed} title={collapsed ? t("expandSidebar") : t("collapseSidebar")} aria-label={collapsed ? t("expandSidebar") : t("collapseSidebar")}>
-        <span aria-hidden="true">{collapsed ? "›" : "‹"}</span>
-      </button>
       <nav className="nav" aria-label="Main navigation">
         <button
           className={`nav-item ${activeView === "chat" ? "active" : ""}`}

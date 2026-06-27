@@ -743,7 +743,6 @@ export function App() {
       t={t}
       onChangeView={setActiveView}
       onPreloadView={preloadView}
-      onSetLanguage={setLanguage}
       onToggleSidebar={toggleSidebar}
       onOpenWorkspaceSettings={() => setWorkspaceSettingsOpen(true)}
       onOpenApiDocs={window.knoarborDesktop ? () => void window.knoarborDesktop?.openApiDocs() : undefined}

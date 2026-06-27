@@ -292,11 +292,10 @@ export type GraphNode = {
   id: string;
   title: string;
   type: string;
-  page_kind?: string | null;
   role?: string | null;
-  facets?: string[];
   summary: string;
-  tags: string[];
+  entities: string[];
+  pages?: string[];
   source?: string | null;
 };
 
@@ -304,10 +303,16 @@ export type GraphEdge = {
   source: string;
   target: string;
   kind: string;
+  label?: string | null;
+  page?: string | null;
+  claim?: string | null;
 };
+
+export type GraphView = "entity" | "page";
 
 export type GraphResponse = {
   vault_path: string;
+  graph_kind?: GraphView;
   nodes: GraphNode[];
   edges: GraphEdge[];
   stats: {
@@ -316,10 +321,8 @@ export type GraphResponse = {
     orphan_count: number;
     unresolved_link_count: number;
     directory_counts: Record<string, number>;
-    page_kind_counts: Record<string, number>;
     role_counts: Record<string, number>;
-    facet_counts: Record<string, number>;
-    tag_counts: Record<string, number>;
+    entity_counts: Record<string, number>;
   };
 };
 
@@ -339,12 +342,12 @@ export type QueryResult = {
   matched_terms: Record<string, string[]>;
   reason: string;
   summary: string;
-  key_points: string[];
+  claims: string[];
   excerpts: Array<{ path: string; page_title: string; heading: string; section: string; content: string; score: number }>;
   content?: string | null;
   source?: string | null;
-  tags: string[];
-  related_pages: string[];
+  entities: string[];
+  outbound_links: string[];
 };
 
 export type QueryGapSuggestion = {
@@ -535,17 +538,11 @@ export type ChatSessionWorkflowResponse = {
 export type PageSummary = {
   path: string;
   canonical_path?: string | null;
-  legacy_paths?: string[];
   directory: string;
   title: string;
-  page_type?: string | null;
-  page_kind?: string | null;
   role?: string | null;
-  facets?: string[];
-  status?: string | null;
   updated?: string | null;
-  source?: string | null;
-  tags: string[];
+  entities: string[];
   summary: string;
   headings: string[];
 };
@@ -555,11 +552,11 @@ export type PageDetail = {
   content: string;
   metadata: Record<string, string>;
   summary: PageSummary;
-  outbound_links: PageLink[];
-  backlinks: PageLink[];
+  outgoing_pages: PageRelation[];
+  incoming_pages: PageRelation[];
 };
 
-export type PageLink = {
+export type PageRelation = {
   source: string;
   target: string;
   target_path?: string | null;
@@ -760,8 +757,8 @@ export async function getStatus(vaultPath: string): Promise<UiStatusResponse> {
   return requestJson(`/ui/api/status?vault_path=${encodeURIComponent(vaultPath)}`);
 }
 
-export async function getGraph(vaultPath: string): Promise<GraphResponse> {
-  return requestJson(`/ui/api/graph?vault_path=${encodeURIComponent(vaultPath)}`);
+export async function getGraph(vaultPath: string, view: GraphView = "entity"): Promise<GraphResponse> {
+  return requestJson(`/ui/api/graph?vault_path=${encodeURIComponent(vaultPath)}&view=${encodeURIComponent(view)}`);
 }
 
 export async function getPages(selector: VaultSelector): Promise<{ vault_path: string; pages: PageSummary[] }> {
@@ -772,8 +769,36 @@ export async function getPage(selector: VaultSelector, path: string): Promise<Pa
   return requestJson(`/wiki/pages/content?${singleVaultQuery(selector)}&path=${encodeURIComponent(path)}`);
 }
 
-export async function getPageLinks(selector: VaultSelector, path: string): Promise<{ path: string; outbound_links: PageLink[]; backlinks: PageLink[] }> {
-  return requestJson(`/wiki/pages/links?${singleVaultQuery(selector)}&path=${encodeURIComponent(path)}`);
+export async function getPageRelations(selector: VaultSelector, path: string): Promise<{ path: string; outgoing_pages: PageRelation[]; incoming_pages: PageRelation[] }> {
+  return requestJson(`/wiki/pages/relations?${singleVaultQuery(selector)}&path=${encodeURIComponent(path)}`);
+}
+
+export async function updatePage(selector: VaultSelector, path: string, content: string): Promise<PageDetail> {
+  return requestJson("/wiki/pages/content", {
+    method: "PATCH",
+    body: { path, content, ...selectorToBody(selector) },
+  });
+}
+
+export type PageDeleteResponse = {
+  deleted: boolean;
+  path: string;
+  archived_path: string;
+};
+
+export async function deletePage(selector: VaultSelector, path: string): Promise<PageDeleteResponse> {
+  return requestJson("/wiki/pages/content", {
+    method: "DELETE",
+    body: { path, ...selectorToBody(selector) },
+  });
+}
+
+function selectorToBody(selector: VaultSelector): Record<string, unknown> {
+  return {
+    config_path: selector.config_path ?? undefined,
+    vault_id: selector.vault_id ?? undefined,
+    vault_path: selector.vault_id ? undefined : selector.vault_path ?? undefined,
+  };
 }
 
 export type VaultScopedListOptions = {
@@ -904,7 +929,7 @@ export async function searchWiki(
   supporting_pages?: QueryResult[];
   source_pages?: QueryResult[];
   context_pack: string;
-  answer_guidance: string[];
+  response_guidance: string[];
   gap_suggestions: QueryGapSuggestion[];
   gaps: string[];
   warnings: string[];
@@ -1066,7 +1091,11 @@ export async function updateChatSession(selector: VaultSelector, sessionId: stri
   });
 }
 
-export async function ingestChatSession(selector: VaultSelector, sessionId: string): Promise<WorkflowResponse> {
+export async function ingestChatSession(
+  selector: VaultSelector,
+  sessionId: string,
+  opts: { turn_indices?: number[] } = {},
+): Promise<WorkflowResponse> {
   return requestJson(`/chat/sessions/${encodeURIComponent(sessionId)}/ingest`, {
     method: "POST",
     body: {
@@ -1078,6 +1107,7 @@ export async function ingestChatSession(selector: VaultSelector, sessionId: stri
       append_ledger: true,
       auto_scoped_lint: true,
       auto_apply_safe_lint_fixes: true,
+      turn_indices: opts.turn_indices ?? null,
     },
   });
 }
@@ -1105,6 +1135,14 @@ export async function retryChatSession(
       provider: options.provider || undefined,
     },
   });
+}
+
+export async function deleteChatTurn(selector: VaultSelector, sessionId: string, turnIndex: number): Promise<ChatSessionRecord> {
+  const params = new URLSearchParams();
+  if (selector.config_path) params.set("config_path", selector.config_path);
+  if (selector.vault_id) params.set("vault_id", selector.vault_id);
+  if (!selector.vault_id && selector.vault_path) params.set("vault_path", selector.vault_path);
+  return requestJson(`/chat/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnIndex)}?${params.toString()}`, { method: "DELETE" });
 }
 
 export async function closeChatSession(selector: VaultSelector, sessionId: string): Promise<ChatSessionWorkflowResponse> {

@@ -203,6 +203,7 @@ export function ConfigPage({ context, embedded = false }: Props) {
                 reloading={formQuery.isFetching || diagnosticsQuery.isFetching}
               />
               {activeSection === "basic" && <ConfigBasicSection form={form} setForm={setForm} t={context.t} />}
+              {activeSection === "general" && <ConfigGeneralSection context={context} />}
               {activeSection === "inputs" && <ConfigInputsSection form={form} setForm={setForm} t={context.t} />}
               {activeSection === "preprocessing" && <ConfigPreprocessingSection form={form} setForm={setForm} t={context.t} />}
               {activeSection === "runtime" && <ConfigRuntimeSection form={form} setForm={setForm} t={context.t} />}
@@ -235,7 +236,7 @@ export function ConfigPage({ context, embedded = false }: Props) {
   );
 }
 
-type ConfigSectionId = "basic" | "inputs" | "preprocessing" | "runtime" | "models" | "diagnostics" | "advanced";
+type ConfigSectionId = "general" | "basic" | "inputs" | "preprocessing" | "runtime" | "models" | "diagnostics" | "advanced";
 
 type DesktopDiagnosticsView = {
   appData?: {
@@ -274,6 +275,7 @@ function modelActionKey(
 }
 
 const CONFIG_SECTIONS: Array<{ id: ConfigSectionId; titleKey: string; copyKey: string }> = [
+  { id: "general", titleKey: "settingsSectionGeneral", copyKey: "settingsSectionGeneralCopy" },
   { id: "basic", titleKey: "settingsSectionBasic", copyKey: "settingsSectionBasicCopy" },
   { id: "inputs", titleKey: "settingsSectionInputs", copyKey: "settingsSectionInputsCopy" },
   { id: "preprocessing", titleKey: "settingsSectionPreprocessing", copyKey: "settingsSectionPreprocessingCopy" },
@@ -284,6 +286,7 @@ const CONFIG_SECTIONS: Array<{ id: ConfigSectionId; titleKey: string; copyKey: s
 ];
 
 const CONFIG_SECTION_GROUPS: Array<{ titleKey: string; items: ConfigSectionId[] }> = [
+  { titleKey: "settingsGroupGeneral", items: ["general"] },
   { titleKey: "settingsGroupKnowledgeBase", items: ["basic", "inputs", "preprocessing"] },
   { titleKey: "settingsGroupRuntime", items: ["runtime", "models", "diagnostics"] },
   { titleKey: "settingsGroupAdvanced", items: ["advanced"] },
@@ -307,7 +310,7 @@ function SettingsSectionIntro({
   reloading: boolean;
 }) {
   const item = CONFIG_SECTIONS.find((candidate) => candidate.id === section) || CONFIG_SECTIONS[0];
-  const canSaveSection = section !== "diagnostics" && section !== "advanced";
+  const canSaveSection = section !== "general" && section !== "diagnostics" && section !== "advanced";
   return (
     <div className="settings-section-intro">
       <div>
@@ -343,6 +346,25 @@ function SettingsLoadingState({ t }: { t: (key: string) => string }) {
           <div className="skeleton-field" />
           <div className="skeleton-field" />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfigGeneralSection({ context }: { context: AppContext }) {
+  return (
+    <div className="settings-card">
+      <div>
+        <h3>{context.t("language")}</h3>
+        <p className="panel-copy">{context.t("settingsLanguageCopy")}</p>
+      </div>
+      <div className="settings-language-options" role="group" aria-label={context.t("language")}>
+        <button className={`button ${context.language === "zh" ? "primary" : "secondary"}`} type="button" onClick={() => context.setLanguage("zh")}>
+          中文
+        </button>
+        <button className={`button ${context.language === "en" ? "primary" : "secondary"}`} type="button" onClick={() => context.setLanguage("en")}>
+          EN
+        </button>
       </div>
     </div>
   );

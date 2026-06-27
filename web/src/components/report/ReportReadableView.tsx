@@ -498,17 +498,13 @@ function localizeOperationAction(value: string, t: (key: string) => string) {
   if (!isChinese(t)) return normalized.replace(/_/g, " ");
   return {
     add_missing_section: "补充缺失章节",
-    attach_related_pages: "补充关联页面",
-    attach_source_digest: "补充来源摘要链接",
+    record_source_digest: "记录来源审计关联",
     deduplicate_section_items: "去重章节条目",
     deterministic_wiki_operation: "确定性维护操作",
     normalize_wikilink: "规范 Wiki 链接",
     remove_adjacent_duplicate_headings: "移除相邻重复标题",
-    remove_related_links: "移除关联链接",
     replace_wikilink: "替换 Wiki 链接",
     report_only: "仅报告",
-    update_frontmatter: "更新元数据",
-    update_source_field: "同步来源字段",
   }[normalized] || normalized.replace(/_/g, " ");
 }
 
@@ -519,7 +515,6 @@ function localizeIssueCode(value: string, t: (key: string) => string) {
     adjacent_duplicate_heading: "相邻重复标题",
     broken_wikilink: "失效 Wiki 链接",
     duplicate_title: "重复标题",
-    source_section_mismatch: "来源字段不一致",
   }[normalized] || normalized;
 }
 
@@ -527,14 +522,11 @@ function localizeReportSentence(value: string, t: (key: string) => string) {
   if (!isChinese(t)) return value;
   const normalized = value.trim();
   const known: Record<string, string> = {
-    "Frontmatter source and Source section are not synchronized.": "页面元数据中的 source 与正文 Source 章节不一致。",
     "No deterministic issues.": "没有确定性问题。",
     "No semantic candidates.": "没有语义候选项。",
     "No review decisions.": "没有评审决策。",
     "No queued report-only or refresh-request actions.": "没有排队的仅报告或刷新请求。",
     "No reviewed changes applied.": "没有应用评审通过的修改。",
-    "The proposed update_source_field only syncs the frontmatter to the first source, but the Source section contains an extra source that is not addressed. The operation is incomplete; manual review or alternative action (remove extra source or use a list) is required.":
-      "提议的来源字段同步只会把元数据同步到第一个来源，但 Source 章节还有额外来源没有处理。该操作不完整，需要人工检查，或改用移除额外来源/支持来源列表的维护方式。",
   };
   return known[normalized] || normalized;
 }
