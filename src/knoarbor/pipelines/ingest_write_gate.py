@@ -53,6 +53,15 @@ class IngestWriteGate:
             for claim_id in operation.selected_claim_ids
         ]
         materialized_paths = {page.path for page in candidate_page_context.pages if page.exists}
+        planned_paths = {
+            path
+            for path in (
+                operation.canonical_path or operation.target_page
+                for operation in semantic_result.wiki_page_plan.operations
+                if operation.action != "skip"
+            )
+            if path
+        }
         issues: list[IngestWriteGateIssue] = []
         atom_batch = semantic_result.knowledge_atom_batch
         atom_quality = evaluate_knowledge_atoms(semantic_result.knowledge_atom_batch)
@@ -87,6 +96,14 @@ class IngestWriteGate:
                 )
 
             closure = close_operation_atoms(atom_batch, operation, available_claim_ids=plan_claim_ids)
+            issues.extend(
+                _graph_alignment_issues(
+                    operation_index,
+                    operation,
+                    closure_relation_ids=set(closure.relation_ids),
+                    allowed_target_paths={*materialized_paths, *planned_paths},
+                )
+            )
             requires_atom_trace = operation.page_dir != "sources" and draft.page_dir != "sources"
             if requires_atom_trace:
                 for closure_issue in closure.issues:
@@ -289,6 +306,80 @@ def _assembly_projection_issues(
                 )
             )
     return issues
+
+
+def _graph_alignment_issues(
+    operation_index: int,
+    operation: object,
+    *,
+    closure_relation_ids: set[str],
+    allowed_target_paths: set[str],
+) -> list[IngestWriteGateIssue]:
+    issues: list[IngestWriteGateIssue] = []
+    allowed_path_keys = _path_keys(allowed_target_paths)
+    for mapping in getattr(operation, "relation_mappings", []):
+        relation_id = str(getattr(mapping, "relation_id", "") or "")
+        if relation_id and relation_id not in closure_relation_ids:
+            issues.append(
+                _issue(
+                    operation_index,
+                    "relation_mapping_not_in_closure",
+                    f"Relation mapping references relation outside the deterministic atom closure: {relation_id}.",
+                )
+            )
+        for page_attr in ("subject_page", "object_page"):
+            page_path = str(getattr(mapping, page_attr, "") or "").strip()
+            if page_path and not _path_allowed(page_path, allowed_path_keys):
+                issues.append(
+                    _issue(
+                        operation_index,
+                        "relation_mapping_target_not_materialized",
+                        f"Relation mapping {page_attr} is not an existing candidate or planned page: {page_path}.",
+                    )
+                )
+    for relation in getattr(operation, "cross_page_relations", []):
+        relation_id = str(getattr(relation, "relation_id", "") or "")
+        if relation_id and relation_id not in closure_relation_ids:
+            issues.append(
+                _issue(
+                    operation_index,
+                    "cross_page_relation_not_in_closure",
+                    f"Cross-page relation references relation outside the deterministic atom closure: {relation_id}.",
+                )
+            )
+        target_page = str(getattr(relation, "target_page", "") or "").strip()
+        if target_page and not _path_allowed(target_page, allowed_path_keys):
+            issues.append(
+                _issue(
+                    operation_index,
+                    "cross_page_relation_target_not_materialized",
+                    f"Cross-page relation target is not an existing candidate or planned page: {target_page}.",
+                )
+            )
+    return issues
+
+
+def _path_keys(paths: set[str]) -> set[str]:
+    keys: set[str] = set()
+    for path in paths:
+        text = str(path).strip().lstrip("/")
+        if not text:
+            continue
+        keys.add(text)
+        if text.startswith("pages/"):
+            keys.add(text.removeprefix("pages/"))
+        if text.startswith("sources/"):
+            keys.add(text.removeprefix("sources/"))
+    return keys
+
+
+def _path_allowed(path: str, allowed_keys: set[str]) -> bool:
+    text = path.strip().lstrip("/")
+    if text in allowed_keys:
+        return True
+    if not text.startswith(("pages/", "sources/")):
+        return f"pages/{text}" in allowed_keys or f"sources/{text}" in allowed_keys
+    return False
 
 
 def _dict_list(value: object) -> list[dict[str, Any]]:

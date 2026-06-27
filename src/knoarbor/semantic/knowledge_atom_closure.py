@@ -10,7 +10,7 @@ from knoarbor.core.schemas.knowledge_atoms import (
     KnowledgeEvidenceSpan,
     KnowledgeRelation,
 )
-from knoarbor.core.schemas.wiki_page_plan import WikiPageOperation, WikiPagePlan
+from knoarbor.core.schemas.wiki_page_plan import WikiEntityMapping, WikiPageOperation, WikiPagePlan
 
 
 @dataclass(frozen=True)
@@ -82,25 +82,16 @@ def close_operation_atoms(
             )
             continue
         missing_claims = sorted(set(relation.source_claim_ids).difference(selected_claim_ids))
-        unavailable_claims = sorted(set(relation.source_claim_ids).difference(available_claim_id_set))
         if missing_claims:
-            if unavailable_claims:
-                issues.append(
-                    KnowledgeAtomClosureIssue(
-                        code="relation_selected_without_source_claim",
-                        atom_id=relation_id,
-                        message=(
-                            f"Selected relation atom {relation_id} references claim atom ids "
-                            f"not selected by the same page plan: {', '.join(unavailable_claims)}."
-                        ),
-                    )
-                )
-                continue
+            # Relations are auxiliary to the page's selected claims. If a model
+            # explicitly selects a relation that belongs to another page's claim
+            # spine, drop it deterministically instead of blocking the source.
+            continue
         selected_relation_ids.append(relation_id)
 
     selected_claims = [claims_by_id[claim_id] for claim_id in selected_claim_ids if claim_id in claims_by_id]
     selected_relations = [relations_by_id[relation_id] for relation_id in _dedupe(selected_relation_ids) if relation_id in relations_by_id]
-    entity_names = _closed_entity_names(selected_claims, selected_relations, batch.entities)
+    entity_names = _closed_entity_names(selected_claims, selected_relations, batch.entities, operation.entity_mappings)
     evidence_spans = _closed_evidence_spans(batch, selected_claims, selected_relations)
     source_digest_ids = _dedupe(operation.source_digest_ids)
     if not source_digest_ids:
@@ -174,6 +165,7 @@ def _closed_entity_names(
     claims: list[KnowledgeClaim],
     relations: list[KnowledgeRelation],
     entities: list[KnowledgeAtomObject],
+    entity_mappings: list[WikiEntityMapping] | None = None,
 ) -> list[str]:
     names = _dedupe(
         [
@@ -183,7 +175,18 @@ def _closed_entity_names(
         ]
     )
     known = {entity.name.casefold(): entity.name for entity in entities}
-    return _dedupe(known.get(name.casefold(), name) for name in names)
+    canonical = _entity_canonical_map(entity_mappings or [])
+    return _dedupe(canonical.get(name.casefold(), known.get(name.casefold(), name)) for name in names)
+
+
+def _entity_canonical_map(mappings: list[WikiEntityMapping]) -> dict[str, str]:
+    canonical: dict[str, str] = {}
+    for mapping in mappings:
+        for value in [mapping.source_name, *mapping.aliases]:
+            key = value.casefold()
+            if key:
+                canonical[key] = mapping.canonical_name
+    return canonical
 
 
 def _closed_evidence_spans(

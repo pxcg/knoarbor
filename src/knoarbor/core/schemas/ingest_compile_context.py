@@ -26,10 +26,6 @@ class CompileOperationContext(BaseModel):
     target_page: str | None = None
     page_dir: str | None = None
     canonical_path: str | None = None
-    legacy_paths: list[str] = Field(default_factory=list)
-    page_kind: str | None = None
-    subject_kind: str | None = None
-    facets: list[str] = Field(default_factory=list)
     title: str | None = None
     knowledge_object: str | None = None
     selected_claim_ids: list[str] = Field(default_factory=list)
@@ -47,6 +43,7 @@ class CompilePageContext(BaseModel):
     summary: str = ""
     claim_points: list[str] = Field(default_factory=list)
     entities: list[str] = Field(default_factory=list)
+    relations: list[dict[str, str]] = Field(default_factory=list)
     headings: list[str] = Field(default_factory=list)
     source: str | None = None
     content: str = ""
@@ -67,6 +64,7 @@ class IngestCompileContext(BaseModel):
     current_content: CompileCurrentContent
     operations: list[CompileOperationContext] = Field(default_factory=list)
     page_context: CompilePageContextGroups = Field(default_factory=CompilePageContextGroups)
+    attachments: list[dict[str, object]] = Field(default_factory=list)
     context_policy: str = "target_full_related_excerpt_candidate_profile"
     stats: dict[str, object] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)

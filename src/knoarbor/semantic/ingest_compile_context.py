@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any, cast
 
 from knoarbor.core.schemas.ingest_compile_context import (
@@ -33,6 +34,7 @@ def build_ingest_compile_context(
             content_unit_count=len(knowledge_extract.content_units),
             warnings=list(knowledge_extract.warnings),
         ),
+        attachments=_compile_attachments(knowledge_extract.attachments),
         operations=[
             CompileOperationContext(
                 operation_index=index,
@@ -40,10 +42,6 @@ def build_ingest_compile_context(
                 target_page=operation.target_page,
                 page_dir=operation.page_dir,
                 canonical_path=operation.canonical_path,
-                legacy_paths=list(operation.legacy_paths),
-                page_kind=operation.page_kind,
-                subject_kind=operation.subject_kind,
-                facets=list(operation.facets),
                 title=operation.title,
                 knowledge_object=operation.knowledge_object,
                 selected_claim_ids=list(operation.selected_claim_ids),
@@ -75,6 +73,7 @@ def _page_groups(candidate_page_context: dict[str, Any]) -> CompilePageContextGr
             summary=str(raw_page.get("summary") or ""),
             claim_points=[str(item) for item in raw_page.get("claim_points", []) or []],
             entities=[str(item) for item in raw_page.get("entities", []) or []],
+            relations=_relation_rows(raw_page.get("relations")),
             headings=[str(item) for item in raw_page.get("headings", []) or []],
             source=raw_page.get("source") if isinstance(raw_page.get("source"), str) else None,
             content=str(raw_page.get("content") or ""),
@@ -101,3 +100,79 @@ def _content_kind(value: object) -> CompilePageContentKind:
     if value in {"full", "excerpt", "profile", "missing"}:
         return cast(CompilePageContentKind, value)
     return "missing"
+
+
+def _relation_rows(value: object) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        return []
+    rows: list[dict[str, str]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        subject = str(item.get("subject") or "").strip()
+        predicate = str(item.get("predicate") or "").strip()
+        obj = str(item.get("object") or "").strip()
+        claim = str(item.get("claim") or "").strip().upper()
+        if subject and predicate and obj:
+            rows.append({"subject": subject, "predicate": predicate, "object": obj, "claim": claim})
+    return rows
+
+
+def _compile_attachments(raw_attachments: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Build a lightweight attachment summary for the compile context.
+
+    The LLM receives name, attachment_type, readable topic, caption, and path so it
+    can generate human-readable descriptions. Raw MinerU content and binary
+    hashes are excluded to keep the prompt compact.
+    """
+    items: list[dict[str, object]] = []
+    for item in raw_attachments:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        caption = _attachment_text(item.get("caption") or metadata.get("caption") or metadata.get("image_caption") or metadata.get("table_caption"))
+        topic = _attachment_text(item.get("topic") or item.get("title") or caption)
+        summary: dict[str, object] = {
+            "name": name,
+            "attachment_type": str(item.get("attachment_type") or "file"),
+            "relative_path": str(item.get("relative_path") or ""),
+        }
+        if topic:
+            summary["topic"] = topic
+        if caption:
+            summary["caption"] = caption
+        desc = _attachment_text(item.get("description"))
+        if desc:
+            summary["mineru_description"] = desc
+        sub_type = str(metadata.get("sub_type") or "").strip()
+        if sub_type:
+            summary["sub_type"] = sub_type
+        items.append(summary)
+    return items
+
+
+def _attachment_text(value: object, *, limit: int = 180) -> str:
+    if isinstance(value, list):
+        text = " ".join(str(part).strip() for part in value if str(part).strip())
+    else:
+        text = str(value or "").strip()
+    if not text:
+        return ""
+    if re.search(r"<\s*(table|tr|td|th)\b", text, flags=re.IGNORECASE):
+        return ""
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if _looks_like_hash_filename(text):
+        return ""
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "..."
+
+
+def _looks_like_hash_filename(value: str) -> bool:
+    path_name = value.strip().rsplit("/", 1)[-1]
+    stem = path_name.rsplit(".", 1)[0]
+    return bool(re.fullmatch(r"[0-9a-fA-F]{24,}", stem))

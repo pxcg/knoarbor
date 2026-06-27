@@ -59,11 +59,8 @@ from knoarbor.core.schemas.ingest_run import (
 from knoarbor.core.schemas.maintenance import MaintenanceScope, MaintenanceScopeSource
 from knoarbor.core.schemas.memory import MemoryCandidate, MemoryEvent, MemoryRecallResult, MemoryRecord
 from knoarbor.core.schemas.page_identity import (
-    PageFacet,
     PageIdentity,
-    PageKind,
     PageRole,
-    normalize_facet,
     normalize_identity_path,
 )
 from knoarbor.core.schemas.sources import RawSource, SourceDocument, SourceRef
@@ -101,11 +98,13 @@ from knoarbor.core.schemas.wiki_write import (
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch, WikiDraftBatchItem
 from knoarbor.core.schemas.wiki_page_plan import (
     WikiCandidatePage,
+    WikiCrossPageRelation,
+    WikiEntityMapping,
     WikiPageDir,
-    WikiRelatedPage,
     WikiPagePlanAction,
     WikiPageOperation,
     WikiPagePlan,
+    WikiRelationMapping,
 )
 from knoarbor.core.schemas.wiki_operation import (
     WikiOperationAction,
@@ -186,11 +185,8 @@ __all__ = [
     "MemoryEvent",
     "MemoryRecallResult",
     "MemoryRecord",
-    "PageFacet",
     "PageIdentity",
-    "PageKind",
     "PageRole",
-    "normalize_facet",
     "normalize_identity_path",
     "LintPolicyDecision",
     "LintRunMode",
@@ -214,11 +210,14 @@ __all__ = [
     "WikiPatchOperation",
     "WikiWriteAction",
     "WikiCandidatePage",
+    "WikiCrossPageRelation",
+    "WikiEntityMapping",
     "WikiPageDir",
     "WikiRelatedPage",
     "WikiPagePlanAction",
     "WikiPageOperation",
     "WikiPagePlan",
+    "WikiRelationMapping",
     "WikiOperationAction",
     "WikiOperationApplyRequest",
     "WikiOperationApplyResponse",

@@ -6,20 +6,17 @@ from pathlib import Path
 from typing import Protocol
 
 from knoarbor.core.markdown import extract_list_items, extract_section
-from knoarbor.core.wiki_schema import PAGE_TYPE_ORDER
-from knoarbor.retrieval.markdown import SearchPage, collect_search_pages, strip_frontmatter
+from knoarbor.retrieval.markdown import SearchPage, _extract_entities, collect_search_pages, strip_frontmatter
 from knoarbor.retrieval.wiki_links import resolve_wikilink_target
 from knoarbor.storage import ensure_machine_index, machine_index_dir
-from knoarbor.storage.wiki_paths import content_root
+from knoarbor.storage.wiki_paths import content_path
 
 
 @dataclass(frozen=True)
 class IndexRequest:
     vault_path: Path
     page_dirs: list[str] = field(default_factory=list)
-    page_kinds: list[str] = field(default_factory=list)
     page_roles: list[str] = field(default_factory=list)
-    facets: list[str] = field(default_factory=list)
 
 
 class IndexProvider(Protocol):
@@ -68,8 +65,8 @@ def _record_to_search_page(vault_path: Path, record: dict[str, object]) -> Searc
     relative_path = str(record.get("path") or "")
     if not relative_path:
         return None
-    root = content_root(vault_path)
-    path = (root / relative_path).resolve()
+    path = content_path(vault_path, relative_path).resolve()
+    root = vault_path.expanduser().resolve()
     try:
         path.relative_to(root)
     except ValueError:
@@ -85,20 +82,15 @@ def _record_to_search_page(vault_path: Path, record: dict[str, object]) -> Searc
         relative_path=relative_path,
         directory=str(record.get("directory") or path.parent.name),
         title=str(record.get("title") or path.stem),
-        page_type=str(record.get("type") or _default_page_type(path.parent.name)),
-        status=_optional_string(record.get("status")),
-        source=_optional_string(record.get("source")),
-        tags=[str(tag) for tag in record.get("tags", []) if isinstance(tag, str)] or _extract_entities(content),
+        entities=[str(entity) for entity in record.get("entities", []) if isinstance(entity, str)] or _extract_entities(content),
         summary=str(record.get("summary") or extract_section(content, "Summary")),
-        key_points=extract_list_items(extract_section(content, "Key Points")) or extract_list_items(extract_section(content, "Claims")),
-        related_pages=_resolve_related_paths(vault_path, record.get("outbound_links", [])),
+        claim_points=extract_list_items(extract_section(content, "Claims")),
+        outbound_links=_resolve_related_paths(vault_path, record.get("outbound_links", [])),
         headings=[str(heading) for heading in record.get("headings", []) if isinstance(heading, str)],
         body=strip_frontmatter(content),
         canonical_path=str(record.get("canonical_path") or relative_path),
-        legacy_paths=[str(path) for path in record.get("legacy_paths", []) if isinstance(path, str)],
-        page_kind=str(record.get("page_kind") or _default_page_type(path.parent.name)),
         role=str(record.get("role") or "knowledge_page"),
-        facets=[str(facet) for facet in record.get("facets", []) if isinstance(facet, str)],
+        relations=_record_relations(record.get("relations", [])),
     )
 
 
@@ -117,54 +109,31 @@ def _resolve_related_paths(vault_path: Path, links: object) -> list[str]:
     return paths
 
 
-def _extract_entities(content: str) -> list[str]:
-    entities: list[str] = []
-    for item in extract_list_items(extract_section(content, "Entities")):
-        text = item.strip()
-        if not text or text.startswith("暂无"):
+def _record_relations(value: object) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        return []
+    rows: list[dict[str, str]] = []
+    for item in value:
+        if not isinstance(item, dict):
             continue
-        text = text.removeprefix("[[").removesuffix("]]")
-        if "|" in text:
-            text = text.split("|", 1)[-1]
-        if text and text not in entities:
-            entities.append(text)
-    return entities[:24]
-
-
-def _optional_string(value: object) -> str | None:
-    if value is None:
-        return None
-    text = str(value)
-    return text if text and text != "unknown" else None
-
-
-def _default_page_type(directory: str) -> str:
-    if directory in PAGE_TYPE_ORDER:
-        return directory.rstrip("s")
-    return "page"
+        subject = str(item.get("subject") or "").strip()
+        predicate = str(item.get("predicate") or "").strip()
+        obj = str(item.get("object") or "").strip()
+        claim = str(item.get("claim") or "").strip().upper()
+        if subject and predicate and obj:
+            rows.append({"subject": subject, "predicate": predicate, "object": obj, "claim": claim})
+    return rows
 
 
 def _page_matches_request(page: SearchPage, request: IndexRequest) -> bool:
-    allowed_dirs_or_facets = _normalized_set(request.page_dirs)
-    allowed_kinds = _normalized_set(request.page_kinds)
+    allowed_dirs = _normalized_set(request.page_dirs)
     allowed_roles = _normalized_set(request.page_roles)
-    allowed_facets = _normalized_set(request.facets)
     page_directory = _normalize_value(page.directory)
-    page_kind = _normalize_value(page.page_kind)
     page_role = _normalize_value(page.role)
-    page_facets = {_normalize_value(item) for item in page.facets if item.strip()}
 
-    if allowed_dirs_or_facets and not (
-        page_directory in allowed_dirs_or_facets
-        or page_kind in allowed_dirs_or_facets
-        or bool(page_facets.intersection(allowed_dirs_or_facets))
-    ):
+    if allowed_dirs and page_directory not in allowed_dirs:
         return False
-    if allowed_kinds and page_kind not in allowed_kinds:
-        return False
-    if allowed_roles and page_role not in allowed_roles:
-        return False
-    return not (allowed_facets and not page_facets.intersection(allowed_facets))
+    return not (allowed_roles and page_role not in allowed_roles)
 
 
 def _normalized_set(values: list[str]) -> set[str]:

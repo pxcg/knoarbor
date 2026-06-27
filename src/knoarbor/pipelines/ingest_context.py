@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from knoarbor.core.markdown import compact_inline_text, extract_heading, extract_list_items, extract_section, extract_tags, parse_frontmatter
+from knoarbor.core.markdown import compact_inline_text, extract_heading, extract_list_items, extract_section
 from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch, KnowledgeAtomObject
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
@@ -25,16 +25,15 @@ class IngestCandidatePage(BaseModel):
     path: str
     title: str
     page_dir: str
-    type: str
-    status: str | None = None
-    source: str | None = None
+    role: str | None = None
     score: float
     relevance: str
     matched_fields: list[str] = Field(default_factory=list)
     summary: str = ""
     claim_points: list[str] = Field(default_factory=list)
     entities: list[str] = Field(default_factory=list)
-    related_pages: list[str] = Field(default_factory=list)
+    relations: list[dict[str, str]] = Field(default_factory=list)
+    outbound_links: list[str] = Field(default_factory=list)
 
 
 class IngestWikiContext(BaseModel):
@@ -54,6 +53,7 @@ class IngestCandidatePageContent(BaseModel):
     summary: str = ""
     claim_points: list[str] = Field(default_factory=list)
     entities: list[str] = Field(default_factory=list)
+    relations: list[dict[str, str]] = Field(default_factory=list)
     headings: list[str] = Field(default_factory=list)
     source: str | None = None
     content: str = ""
@@ -116,16 +116,15 @@ class IngestContextProvider:
                 path=item.page.relative_path,
                 title=item.page.title,
                 page_dir=item.page.directory,
-                type=item.page.page_type,
-                status=item.page.status,
-                source=item.page.source,
+                role=item.page.role,
                 score=round(item.score, 3),
                 relevance=_relevance_label(item.score),
                 matched_fields=sorted(item.matched_fields),
                 summary=_inline_text(item.page.summary),
-                claim_points=[_inline_text(point) for point in item.page.key_points],
-                entities=item.page.tags,
-                related_pages=item.page.related_pages,
+                claim_points=[_inline_text(point) for point in item.page.claim_points],
+                entities=item.page.entities,
+                relations=_relation_profile_rows(item.page.relations),
+                outbound_links=item.page.outbound_links,
             )
             for item in matches
         ]
@@ -298,12 +297,8 @@ def rerank_ingest_candidates(extract: KnowledgeExtract, matches: list[ScoredPage
             boost += min(len(overlap_hits) * 0.75, 3.0)
             item.matched_fields.add("source_overlap")
             item.matched_terms["source_overlap"] = overlap_hits[:12]
-        if item.page.source and extract.source.source_path and _same_source(item.page.source, extract.source.source_path):
-            boost += 12.0
-            item.matched_fields.add("same_source")
-            item.matched_terms["same_source"] = [extract.source.source_path]
-        if item.page.related_pages:
-            boost += min(len(item.page.related_pages) * 0.15, 1.0)
+        if item.page.outbound_links:
+            boost += min(len(item.page.outbound_links) * 0.15, 1.0)
             item.matched_fields.add("graph_context")
         item.score += boost
     return sorted(matches, key=lambda item: item.score, reverse=True)
@@ -332,30 +327,11 @@ def _overlap_hits(item: ScoredPage, terms: list[str]) -> list[str]:
         [
             item.page.title,
             item.page.relative_path,
-            item.page.source or "",
-            " ".join(item.page.tags),
+            " ".join(item.page.entities),
             item.page.summary,
         ]
     ).lower()
     return [term for term in terms if term and term in haystack]
-
-
-def _same_source(page_source: str, extract_source_path: str) -> bool:
-    left = _normalize_source_identity(page_source)
-    right = _normalize_source_identity(extract_source_path)
-    return bool(left and right and left == right)
-
-
-def _normalize_source_identity(value: str) -> str:
-    text = value.strip()
-    if not text:
-        return ""
-    if text.startswith("/") or text.startswith("~"):
-        try:
-            return Path(text).expanduser().resolve(strict=False).as_posix().strip("/")
-        except OSError:
-            return text.strip("/")
-    return text.strip("/")
 
 
 def selected_page_plan_paths(page_plan: WikiPagePlan) -> list[str]:
@@ -389,9 +365,7 @@ def _query_cache_key(request: GraphLedRetrievalRequest, index_provider_name: str
         tuple(getattr(signals, "source_terms", [])),
         request.limit,
         tuple(request.page_dirs),
-        tuple(getattr(request, "page_kinds", [])),
         tuple(getattr(request, "page_roles", [])),
-        tuple(getattr(request, "facets", [])),
         request.include_related,
     )
 
@@ -420,10 +394,6 @@ def _operation_path_roles(operation: object) -> list[tuple[str, MaterializedCont
     target_page = getattr(operation, "target_page", None)
     if target_page:
         paths.append((target_page, "target"))
-    for related in getattr(operation, "related_pages", []):
-        path = getattr(related, "path", "")
-        if path:
-            paths.append((path, "related"))
     for candidate in getattr(operation, "candidate_pages", []):
         path = getattr(candidate, "path", "")
         if path:
@@ -462,13 +432,13 @@ def _materialized_page_content(
             error=error,
         )
 
-    metadata = parse_frontmatter(content)
     title = extract_heading(content, Path(path).stem)
     summary = _inline_text(extract_section(content, "Summary"))
     claim_points = [_inline_text(item) for item in extract_list_items(extract_section(content, "Claims"))]
-    entities = _extract_entities(content) or extract_tags(content, metadata)
+    entities = _extract_entities(content)
+    relations = _relation_profile_rows(_extract_relation_rows(content))
     headings = extract_headings(content)
-    source = metadata.get("source")
+    source = _first_page_source(content)
     if role == "target":
         return IngestCandidatePageContent(
             path=path,
@@ -479,6 +449,7 @@ def _materialized_page_content(
             summary=summary,
             claim_points=claim_points,
             entities=entities,
+            relations=relations,
             headings=headings,
             source=source,
             content=content,
@@ -496,6 +467,7 @@ def _materialized_page_content(
             summary=summary,
             claim_points=claim_points,
             entities=entities,
+            relations=relations,
             headings=headings,
             source=source,
             content=excerpt,
@@ -511,6 +483,7 @@ def _materialized_page_content(
         summary=summary,
         claim_points=claim_points,
         entities=entities,
+        relations=relations,
         headings=headings,
         source=source,
         content="",
@@ -545,6 +518,78 @@ def _extract_entities(content: str) -> list[str]:
         if text and text not in entities:
             entities.append(text)
     return entities[:24]
+
+
+def _extract_relation_rows(content: str) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for cells in _markdown_table_rows(extract_section(content, "Relations")):
+        if len(cells) < 4:
+            continue
+        subject, predicate, obj, claim = cells[:4]
+        if subject.lower() == "subject" or not subject or not predicate or not obj:
+            continue
+        rows.append(
+            {
+                "subject": _clean_graph_object(subject),
+                "predicate": predicate.strip(),
+                "object": _clean_graph_object(obj),
+                "claim": claim.strip().upper(),
+            }
+        )
+    return rows
+
+
+def _relation_profile_rows(relations: list[dict[str, str]], *, limit: int = 16) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for relation in relations:
+        subject = _inline_text(relation.get("subject", ""))
+        predicate = _inline_text(relation.get("predicate", ""))
+        obj = _inline_text(relation.get("object", ""))
+        claim = _inline_text(relation.get("claim", "")).upper()
+        key = (subject.lower(), predicate.lower(), obj.lower(), claim)
+        if not subject or not predicate or not obj or key in seen:
+            continue
+        seen.add(key)
+        rows.append({"subject": subject, "predicate": predicate, "object": obj, "claim": claim})
+        if len(rows) >= limit:
+            break
+    return rows
+
+
+def _clean_graph_object(value: str) -> str:
+    text = value.strip()
+    if text.startswith("[[") and text.endswith("]]"):
+        text = text[2:-2]
+    if "|" in text:
+        text = text.split("|", 1)[-1]
+    return text.strip()
+
+
+def _first_page_source(content: str) -> str | None:
+    for item in extract_list_items(extract_section(content, "Source")):
+        source = item.strip().strip("`")
+        if source and not source.startswith("暂无"):
+            return source
+    for cells in _markdown_table_rows(extract_section(content, "Evidence")):
+        if len(cells) < 2 or cells[0].strip().lower() == "claim":
+            continue
+        source = cells[1].strip().strip("`")
+        if source:
+            return source
+    return None
+
+
+def _markdown_table_rows(section: str) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for line in section.splitlines():
+        text = line.strip()
+        if not text.startswith("|") or text.startswith("|---"):
+            continue
+        cells = [cell.strip() for cell in text.strip("|").split("|")]
+        if cells:
+            rows.append(cells)
+    return rows
 
 
 def _relevance_label(score: float) -> str:

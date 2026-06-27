@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from knoarbor.core.markdown import extract_heading, extract_list_items, extract_section, parse_frontmatter
-from knoarbor.core.wiki_schema import INDEX_EXCLUDED_DIRS, INDEX_PAGE_DIRS, UNIFIED_KNOWLEDGE_PAGE_DIR, is_index_excluded_file
+from knoarbor.core.wiki_schema import INDEX_EXCLUDED_DIRS, UNIFIED_KNOWLEDGE_PAGE_DIR, is_index_excluded_file
 from knoarbor.retrieval.bm25 import BM25Document, BM25Field, score_bm25_documents
 from knoarbor.retrieval.wiki_links import resolve_wikilink_target
 from knoarbor.storage import relative_wiki_path
@@ -14,9 +14,9 @@ from knoarbor.storage.wiki_paths import SOURCE_DIGEST_ROOT_DIR, content_root, so
 
 FIELD_WEIGHTS: dict[str, float] = {
     "title": 5.0,
-    "tags": 3.0,
     "summary": 3.0,
-    "key_points": 2.5,
+    "entities": 3.0,
+    "claims": 2.5,
     "headings": 2.0,
     "path": 1.0,
     "body": 0.8,
@@ -75,20 +75,15 @@ class SearchPage:
     relative_path: str
     directory: str
     title: str
-    page_type: str
-    status: str | None
-    source: str | None
-    tags: list[str]
+    entities: list[str]
     summary: str
-    key_points: list[str]
-    related_pages: list[str]
+    claim_points: list[str]
+    outbound_links: list[str]
     headings: list[str]
     body: str
     canonical_path: str = ""
-    legacy_paths: list[str] = field(default_factory=list)
-    page_kind: str = ""
     role: str = "knowledge_page"
-    facets: list[str] = field(default_factory=list)
+    relations: list[dict[str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -111,29 +106,23 @@ def collect_search_pages(vault_path: Path) -> list[SearchPage]:
         except UnicodeDecodeError:
             continue
         metadata = parse_frontmatter(content)
-        page_type = metadata.get("type") or _default_type_for_directory(page_dir)
-        page_kind = metadata.get("page_kind") or _default_page_kind(page_dir, page_type)
         relative_path = relative_wiki_path(vault_path, md_path)
+        entities = _extract_entities(content)
         pages.append(
             SearchPage(
                 path=md_path,
                 relative_path=relative_path,
                 directory=page_dir,
                 title=extract_heading(content, md_path.stem),
-                page_type=page_type,
-                status=metadata.get("status"),
-                source=metadata.get("source"),
-                tags=extract_tags_from_page(content, metadata) or _extract_entities(content),
+                entities=entities,
                 summary=extract_section(content, "Summary"),
-                key_points=extract_list_items(extract_section(content, "Key Points")) or extract_list_items(extract_section(content, "Claims")),
-                related_pages=extract_related_page_paths(vault_path, extract_section(content, "Related Pages")),
+                claim_points=extract_list_items(extract_section(content, "Claims")),
+                relations=_extract_relation_rows(extract_section(content, "Relations")),
+                outbound_links=_extract_wikilink_paths(vault_path, content),
                 headings=extract_headings(content),
                 body=strip_frontmatter(content),
-                canonical_path=metadata.get("canonical_path") or relative_path,
-                legacy_paths=_metadata_list(metadata.get("legacy_paths")),
-                page_kind=page_kind,
-                role=_page_role(page_dir, page_kind),
-                facets=_page_facets(metadata, page_dir, page_kind),
+                canonical_path=relative_path,
+                role=_page_role(page_dir),
             )
         )
     return pages
@@ -141,7 +130,12 @@ def collect_search_pages(vault_path: Path) -> list[SearchPage]:
 
 def _iter_search_page_paths(root: Path) -> list[Path]:
     paths: list[Path] = []
-    vault = root.parent if root.name == "pages" else root
+    if root.name == "pages" and root.parent.name == "wiki":
+        vault = root.parent.parent
+    elif root.name == "pages":
+        vault = root.parent
+    else:
+        vault = root
     source_root = source_digest_root(vault)
     for md_path in sorted(root.glob("*.md")):
         if not is_index_excluded_file(md_path.name):
@@ -150,14 +144,48 @@ def _iter_search_page_paths(root: Path) -> list[Path]:
         for md_path in sorted(source_root.glob("*.md")):
             if not is_index_excluded_file(md_path.name):
                 paths.append(md_path)
-    for page_dir in INDEX_PAGE_DIRS:
-        directory_path = root / page_dir
-        if not directory_path.exists():
-            continue
-        for md_path in sorted(directory_path.glob("*.md")):
-            if not is_index_excluded_file(md_path.name):
-                paths.append(md_path)
     return paths
+
+
+def _extract_relation_rows(section: str) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for cells in _markdown_table_rows(section):
+        if len(cells) < 4:
+            continue
+        subject, predicate, obj, claim = cells[:4]
+        if subject.lower() == "subject" or not subject or not predicate or not obj:
+            continue
+        rows.append(
+            {
+                "subject": _clean_graph_object(subject),
+                "predicate": predicate.strip(),
+                "object": _clean_graph_object(obj),
+                "claim": claim.strip().upper(),
+            }
+        )
+    return rows
+
+
+def _markdown_table_rows(section: str) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for line in section.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|") or not stripped.endswith("|"):
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if cells and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells):
+            continue
+        rows.append(cells)
+    return rows
+
+
+def _clean_graph_object(value: str) -> str:
+    text = value.strip()
+    if text.startswith("[[") and text.endswith("]]"):
+        text = text[2:-2]
+    if "|" in text:
+        text = text.split("|", 1)[-1]
+    return text.strip()
 
 
 def _page_directory(vault_path: Path, md_path: Path) -> str:
@@ -225,9 +253,9 @@ def _page_to_bm25_document(page: SearchPage) -> BM25Document:
         id=page.relative_path,
         fields=[
             BM25Field("title", page.title, FIELD_WEIGHTS["title"]),
-            BM25Field("tags", " ".join(page.tags), FIELD_WEIGHTS["tags"]),
             BM25Field("summary", page.summary, FIELD_WEIGHTS["summary"]),
-            BM25Field("key_points", " ".join(page.key_points), FIELD_WEIGHTS["key_points"]),
+            BM25Field("entities", " ".join(page.entities), FIELD_WEIGHTS["entities"]),
+            BM25Field("claims", " ".join(page.claim_points), FIELD_WEIGHTS["claims"]),
             BM25Field("headings", " ".join(page.headings), FIELD_WEIGHTS["headings"]),
             BM25Field("path", page.relative_path, FIELD_WEIGHTS["path"]),
             BM25Field("body", page.body, FIELD_WEIGHTS["body"]),
@@ -265,21 +293,10 @@ def strip_frontmatter(content: str) -> str:
     return re.sub(r"^---\s*\n.*?^---\s*$\n?", "", content, count=1, flags=re.MULTILINE | re.DOTALL).strip()
 
 
-def extract_tags_from_page(content: str, metadata: dict[str, str]) -> list[str]:
-    raw_tags = metadata.get("tags", "")
-    tags = [tag.strip().strip("[]'\"") for tag in raw_tags.split(",") if tag.strip()]
-    if tags:
-        return tags[:12]
-    return extract_list_items(extract_section(content, "Tags"))[:12]
-
-
-def extract_related_page_paths(vault_path: Path, related_section: str) -> list[str]:
+def _extract_wikilink_paths(vault_path: Path, content: str) -> list[str]:
     paths: list[str] = []
     seen: set[str] = set()
-    for item in extract_list_items(related_section):
-        match = re.search(r"\[\[([^\]|#]+)", item)
-        if not match:
-            continue
+    for match in re.finditer(r"\[\[([^\]|#]+)", content):
         resolved = resolve_wikilink_target(vault_path, match.group(1))
         if not resolved or resolved in seen:
             continue
@@ -288,39 +305,10 @@ def extract_related_page_paths(vault_path: Path, related_section: str) -> list[s
     return paths
 
 
-def _default_page_kind(directory: str, page_type: str) -> str:
-    if directory == "sources" or page_type == "source":
-        return "source_digest"
-    if page_type == "page":
-        return "unknown"
-    return page_type
-
-
-def _default_type_for_directory(directory: str) -> str:
-    if directory == UNIFIED_KNOWLEDGE_PAGE_DIR:
-        return "page"
-    return directory.rstrip("s")
-
-
-def _page_role(directory: str, page_kind: str) -> str:
-    if directory == "sources" or page_kind == "source_digest":
+def _page_role(directory: str) -> str:
+    if directory == "sources":
         return "source_digest"
     return "knowledge_page"
-
-
-def _page_facets(metadata: dict[str, str], directory: str, page_kind: str) -> list[str]:
-    values: list[str] = []
-    values.extend(_metadata_list(metadata.get("facets")))
-    values.extend(_metadata_list(metadata.get("tags")))
-    values.extend([directory, page_kind])
-    facets: list[str] = []
-    seen: set[str] = set()
-    for value in values:
-        text = value.strip().lower().replace(" ", "_").replace("-", "_")
-        if text and text not in seen:
-            facets.append(text)
-            seen.add(text)
-    return facets
 
 
 def _metadata_list(value: object) -> list[str]:
