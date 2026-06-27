@@ -5,37 +5,20 @@ from fnmatch import fnmatch
 from knoarbor.core.errors import PolicyRejection
 
 
-PAGE_TYPE_RULES = {
-    "sources": ("来源", "资料", "原文", "source", "reference", "provenance"),
-    "comparisons": ("对比", "比较", "区别", "vs", "versus", "compare", "comparison"),
-    "queries": ("查询", "问题", "回答", "如何", "为什么", "怎么", "query", "question"),
-    "entities": ("公司", "组织", "产品", "人物", "团队", "project", "product", "company"),
-    "concepts": ("概念", "原则", "模式", "架构", "方法", "技术", "concept", "pattern", "architecture"),
-    "timelines": ("时间线", "历史", "演进", "路线图", "timeline", "history", "roadmap"),
-    "workflows": ("流程", "步骤", "操作", "workflow", "playbook", "procedure"),
-}
-
-CONTENT_PAGE_DIRS = ("sources", "entities", "concepts", "comparisons", "queries", "timelines", "workflows")
-SYSTEM_PAGE_DIRS = ("maintenance",)
-PAGE_TYPE_ORDER = CONTENT_PAGE_DIRS
+# Physical write-location directories for AI-writable wiki content.
+# ``sources`` holds source digest audit pages; the unified ``pages`` namespace
+# holds flat knowledge pages.
+SOURCE_DIGEST_DIR = "sources"
 UNIFIED_KNOWLEDGE_PAGE_DIR = "pages"
-GENERATED_VIEW_DIR = "_views"
-INDEX_PAGE_DIRS = CONTENT_PAGE_DIRS
 
-FRONTMATTER_TYPES = {
-    "pages": "page",
-    "sources": "source",
-    "entities": "entity",
-    "concepts": "concept",
-    "comparisons": "comparison",
-    "queries": "query",
-    "timelines": "timeline",
-    "workflows": "workflow",
-    "maintenance": "maintenance",
-}
+# Directories that may contain AI-writable content. ``sources`` is the source
+# digest root; flat files under ``pages`` are the unified namespace.
+CONTENT_PAGE_DIRS = (SOURCE_DIGEST_DIR, UNIFIED_KNOWLEDGE_PAGE_DIR)
+SYSTEM_PAGE_DIRS = ("maintenance",)
+AI_WRITABLE_DIRS = set(CONTENT_PAGE_DIRS)
 
 INDEX_EXCLUDED_DIRS = {"raw"}
-INDEX_EXCLUDED_FILES = {"SCHEMA.md", "index.md", "log.md"}
+INDEX_EXCLUDED_FILES = {"index.md", "log.md", "SCHEMA.md"}
 INDEX_EXCLUDED_FILE_PATTERNS = (
     "ingest_report_*.md",
     "lint_report_*.md",
@@ -43,11 +26,6 @@ INDEX_EXCLUDED_FILE_PATTERNS = (
     "quality_report_*.md",
     "freshness_report_*.md",
 )
-AI_WRITABLE_DIRS = set(CONTENT_PAGE_DIRS)
-
-
-def frontmatter_type(page_dir: str) -> str:
-    return FRONTMATTER_TYPES[page_dir]
 
 
 def is_index_excluded_file(filename: str) -> bool:
@@ -59,13 +37,8 @@ def normalize_page_dir(value: str | None) -> str:
         raise PolicyRejection("page_dir is required")
     normalized = value.strip().lower().replace(" ", "_")
     aliases = {
-        "source": "sources",
-        "entity": "entities",
-        "concept": "concepts",
-        "comparison": "comparisons",
-        "query": "queries",
-        "timeline": "timelines",
-        "workflow": "workflows",
+        "source": SOURCE_DIGEST_DIR,
+        "page": UNIFIED_KNOWLEDGE_PAGE_DIR,
     }
     normalized = aliases.get(normalized, normalized)
     if normalized not in AI_WRITABLE_DIRS:

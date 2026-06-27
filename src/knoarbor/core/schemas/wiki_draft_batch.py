@@ -18,10 +18,6 @@ class WikiDraftBatchItem(BaseModel):
     title: str = Field(..., min_length=1)
     page_dir: WikiPageDir
     canonical_path: str = ""
-    legacy_paths: list[str] = Field(default_factory=list)
-    page_kind: str = ""
-    subject_kind: str = ""
-    facets: list[str] = Field(default_factory=list)
     question: str = Field(..., min_length=1)
     summary: str = Field(..., min_length=1)
     claims: list[str] = Field(default_factory=list)
@@ -46,14 +42,14 @@ class WikiDraftBatchItem(BaseModel):
         text = value.strip()
         return text or None
 
-    @field_validator("canonical_path", "page_kind", "subject_kind", mode="before")
+    @field_validator("canonical_path", mode="before")
     @classmethod
     def null_identity_text_to_empty_string(cls, value: Any) -> str:
         if value is None:
             return ""
         return str(value).strip().lstrip("/")
 
-    @field_validator("legacy_paths", "facets", "source_digest_ids", "atom_ids", mode="before")
+    @field_validator("source_digest_ids", "atom_ids", mode="before")
     @classmethod
     def normalize_id_list(cls, value: object) -> list[str]:
         if value is None:

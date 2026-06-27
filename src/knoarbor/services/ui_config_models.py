@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-DEFAULT_CHAT_RAW_OUTPUT_DIR = "./vaults/default/raw/chats"
-DEFAULT_MARKDOWN_RAW_OUTPUT_DIR = "./vaults/default/raw/notes"
-DEFAULT_MINERU_MARKDOWN_OUTPUT_DIR = "./vaults/default/raw/documents/markdown"
+DEFAULT_CHAT_RAW_OUTPUT_DIR = "./vaults/default/raw/normalized/chats"
+DEFAULT_MARKDOWN_RAW_OUTPUT_DIR = "./vaults/default/raw/inbox/notes"
+DEFAULT_MINERU_MARKDOWN_OUTPUT_DIR = "./vaults/default/raw/normalized/markdown"
 MINERU_ADVANCED_FIELD_KEYS = {
     "backend",
     "return_md",

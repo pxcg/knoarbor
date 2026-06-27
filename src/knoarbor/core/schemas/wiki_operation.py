@@ -9,16 +9,11 @@ WikiOperationAction = Literal[
     "rename_page",
     "merge_pages",
     "delete_page",
-    "update_frontmatter",
     "replace_wikilink",
     "normalize_wikilink",
-    "attach_related_pages",
-    "attach_source_digest",
-    "remove_related_links",
     "deduplicate_section_items",
     "remove_adjacent_duplicate_headings",
     "add_missing_section",
-    "update_source_field",
     "redact_sensitive_text",
 ]
 
@@ -32,7 +27,6 @@ class WikiOperationInput(BaseModel):
     confidence: float = Field(..., ge=0, le=1)
     expected_effect: str = Field(..., min_length=1)
     before_hash: str | None = None
-    related_pages: list[str] = Field(default_factory=list)
     new_path: str | None = None
     new_title: str | None = None
     old_target: str | None = None
@@ -57,7 +51,7 @@ class WikiOperationInput(BaseModel):
 class WikiOperationApplyRequest(BaseModel):
     vault_path: str = Field(..., min_length=1)
     operations: list[WikiOperationInput] = Field(..., min_length=1)
-    ledger_path: str = "maintenance/operation_ledger.jsonl"
+    ledger_path: str = ".knoarbor/ledgers/operation.jsonl"
 
 
 class WikiOperationApplyResult(BaseModel):

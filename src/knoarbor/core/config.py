@@ -123,7 +123,7 @@ class MinerUDocumentProcessingConfig(BaseModel):
     enabled: bool = False
     endpoint: str | None = None
     input_dir: Path | None = None
-    output_dir: Path = DEFAULT_VAULT_PATH / "raw/documents/markdown"
+    output_dir: Path = DEFAULT_VAULT_PATH / "raw/normalized/markdown"
     recursive: bool = True
     patterns: list[str] = Field(default_factory=lambda: ["*.pdf", "*.docx", "*.pptx"])
     mode: str | None = "auto"
@@ -204,7 +204,7 @@ class IngestSegmentationConfig(BaseModel):
 
 class IngestRecoveryConfig(BaseModel):
     enabled: bool = True
-    execution_ledger_path: str = "maintenance/ingest_execution_ledger.jsonl"
+    execution_ledger_path: str = ".knoarbor/ledgers/ingest_execution.jsonl"
 
 
 class IngestConcurrencyConfig(BaseModel):

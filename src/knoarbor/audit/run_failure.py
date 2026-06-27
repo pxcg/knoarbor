@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from knoarbor.audit.contracts import LEDGER_PATHS, LEDGER_SCHEMA_VERSIONS
 from knoarbor.audit.reports import write_maintenance_report
 from knoarbor.core.errors import error_info
 from knoarbor.core.schemas.run_monitor import RunFlow
@@ -12,10 +13,11 @@ from knoarbor.storage.wiki_index import relative_wiki_path
 
 
 DEFAULT_FAILURE_LEDGER_PATHS: dict[RunFlow, str] = {
-    "ingest": "maintenance/ingest_ledger.jsonl",
-    "lint": "maintenance/lint_run_ledger.jsonl",
-    "query": "maintenance/query_ledger.jsonl",
+    "ingest": LEDGER_PATHS["ingest"],
+    "lint": LEDGER_PATHS["lint"],
+    "query": LEDGER_PATHS["query"],
 }
+RUN_FAILURE_SCHEMA_VERSION = LEDGER_SCHEMA_VERSIONS["run_failure"]
 
 
 def write_run_failure_artifacts(
@@ -37,7 +39,7 @@ def write_run_failure_artifacts(
     record = build_run_failure_record(flow=flow, request=request, exc=exc, run_id=run_id, stage=stage)
     effective_ledger_path = ledger_path or DEFAULT_FAILURE_LEDGER_PATHS[flow]
     written_ledger = append_jsonl_ledger(vault_path, effective_ledger_path, record) if append_ledger else None
-    effective_report_path = report_path or f"maintenance/{flow}_run_report_{run_id}.md"
+    effective_report_path = report_path or f"maintenance/reports/run-failure/{flow}_run_report_{run_id}.md"
     written_report = (
         write_maintenance_report(vault_path, f"{flow}_run", render_run_failure_report(record), effective_report_path)
         if write_report
@@ -60,7 +62,7 @@ def build_run_failure_record(
     info = error_info(exc)
     info.pop("http_status", None)
     return {
-        "schema_version": "run_failure_record.v1",
+        "schema_version": RUN_FAILURE_SCHEMA_VERSION,
         "run_id": run_id,
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "flow": flow,

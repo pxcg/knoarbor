@@ -27,7 +27,7 @@ class WikiLintRequest(BaseModel):
     write_report: bool = True
     report_path: str | None = None
     apply_safe_fixes: bool = False
-    safe_fix_ledger_path: str = "maintenance/lint_safe_fixes_ledger.jsonl"
+    safe_fix_ledger_path: str = ".knoarbor/ledgers/lint_safe_fixes.jsonl"
     scope_pages: list[str] = Field(default_factory=list)
     include_related: bool = True
 
@@ -78,7 +78,7 @@ class LintRunRequest(BaseModel):
     write_report: bool = True
     report_path: str | None = None
     append_ledger: bool = True
-    ledger_path: str = "maintenance/lint_run_ledger.jsonl"
+    ledger_path: str = ".knoarbor/ledgers/lint_run.jsonl"
     max_candidates: int = Field(default=8, ge=1, le=30)
     max_chars_per_page: int = Field(default=2500, ge=0, le=30000)
     max_tokens: int | None = Field(default=None, ge=1)
@@ -121,12 +121,10 @@ class WikiScanPage(BaseModel):
     path: str
     directory: str
     title: str
-    page_type: str | None = None
-    status: str | None = None
+    role: str | None = None
     updated: str | None = None
-    source: str | None = None
     content_hash: str | None = None
-    tags: list[str] = Field(default_factory=list)
+    entities: list[str] = Field(default_factory=list)
     summary: str = ""
     headings: list[str] = Field(default_factory=list)
     outgoing_links: list[str] = Field(default_factory=list)
@@ -162,11 +160,10 @@ class WikiLintCandidatePage(BaseModel):
     path: str
     directory: str
     title: str
-    page_type: str | None = None
+    role: str | None = None
     updated: str | None = None
-    source: str | None = None
     summary: str = ""
-    tags: list[str] = Field(default_factory=list)
+    entities: list[str] = Field(default_factory=list)
     headings: list[str] = Field(default_factory=list)
     outgoing_links: list[str] = Field(default_factory=list)
     content_preview: str = ""

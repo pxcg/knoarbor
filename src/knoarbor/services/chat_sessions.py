@@ -45,6 +45,26 @@ class ChatSessionStore:
         path.unlink()
         return True
 
+    def remove_turn(self, vault_path: str | Path, session_id: str, turn_index: int) -> ChatSessionRecord:
+        record = self.read_session(vault_path, session_id)
+        if turn_index < 0 or turn_index >= len(record.turns):
+            raise UserInputError(f"Turn index out of range: {turn_index}")
+        if record.status != "active":
+            raise UserInputError("Only active chat sessions can have turns removed.")
+        turn = record.turns[turn_index]
+        messages = _trim_turn_messages(record.messages, turn)
+        turns = [t for t in record.turns if t.index != turn_index]
+        for i, t in enumerate(turns):
+            t.index = i
+        updated = record.model_copy(update={
+            "messages": messages,
+            "turns": turns,
+            "updated_at": current_timestamp(),
+            "ingest_candidate": None,
+        })
+        self._write_record(vault_path, updated)
+        return updated
+
     def update_title(self, vault_path: str | Path, session_id: str, title: str) -> ChatSessionRecord:
         record = self.read_session(vault_path, session_id)
         clean_title = _compact_title(title)
@@ -163,11 +183,13 @@ class ChatSessionStore:
     def restore_record(self, vault_path: str | Path, record: ChatSessionRecord) -> None:
         self._write_record(vault_path, record)
 
-    def to_source_document(self, vault_path: str | Path, session_id: str) -> SourceDocument:
+    def to_source_document(self, vault_path: str | Path, session_id: str, *, turn_indices: list[int] | None = None) -> SourceDocument:
         record = self.read_session(vault_path, session_id)
         path = _session_path(vault_path, session_id)
         raw_text = path.read_text(encoding="utf-8")
-        payload = _source_payload(record)
+        selected_messages = _filter_messages_by_turns(record, turn_indices) if turn_indices is not None else record.messages
+        selected_turns = [turn for turn in record.turns if turn.index in turn_indices] if turn_indices is not None else list(record.turns)
+        payload = _source_payload(record, selected_messages=selected_messages, selected_turns=selected_turns)
         return SourceDocument(
             source_id=f"knoarbor_chat:{record.session_id}",
             source_type="knoarbor_chat",
@@ -191,14 +213,15 @@ class ChatSessionStore:
                         "content": message.content,
                         "tool_name": message.tool_name,
                     }
-                    for index, message in enumerate(record.messages)
+                    for index, message in enumerate(selected_messages)
                 ],
             ),
             metadata={
                 "title": record.title,
                 "session_id": record.session_id,
                 "source_app": "knoarbor",
-                "message_count": len(record.messages),
+                "message_count": len(selected_messages),
+                "total_message_count": len(record.messages),
                 "status": record.status,
                 "closed_at": record.closed_at,
                 "vault_id": record.vault_id,
@@ -269,6 +292,23 @@ def _trim_latest_turn_messages(messages: list[ChatMessageItem], turn: ChatTurnRe
     raise UserInputError("Could not locate the latest chat turn in session messages.")
 
 
+def _trim_turn_messages(messages: list[ChatMessageItem], turn: ChatTurnRecord) -> list[ChatMessageItem]:
+    user_key = _message_key(turn.user_message)
+    assistant_key = _message_key(turn.assistant_message)
+    result: list[ChatMessageItem] = []
+    skip_next = False
+    for message in messages:
+        key = _message_key(message)
+        if key == user_key and not skip_next:
+            skip_next = True
+            continue
+        if skip_next and key == assistant_key:
+            skip_next = False
+            continue
+        result.append(message)
+    return result
+
+
 def _title_from_messages(messages: list[ChatMessageItem]) -> str:
     for message in messages:
         if message.role == "user":
@@ -282,7 +322,25 @@ def _compact_title(text: str) -> str:
     return cleaned[:80] or "message"
 
 
-def _source_payload(record: ChatSessionRecord) -> dict[str, object]:
+def _filter_messages_by_turns(record: ChatSessionRecord, turn_indices: list[int] | None) -> list[ChatMessageItem]:
+    if not turn_indices:
+        return list(record.messages)
+    allowed_keys: set[tuple[str, str, str | None]] = set()
+    for turn in record.turns:
+        if turn.index in turn_indices:
+            allowed_keys.add(_message_key(turn.user_message))
+            allowed_keys.add(_message_key(turn.assistant_message))
+    return [message for message in record.messages if _message_key(message) in allowed_keys]
+
+
+def _source_payload(
+    record: ChatSessionRecord,
+    *,
+    selected_messages: list[ChatMessageItem] | None = None,
+    selected_turns: list[ChatTurnRecord] | None = None,
+) -> dict[str, object]:
+    messages = selected_messages if selected_messages is not None else record.messages
+    turns = selected_turns if selected_turns is not None else record.turns
     return {
         "schema_version": "knoarbor_chat_extract.v1",
         "source_app": "knoarbor",
@@ -291,7 +349,7 @@ def _source_payload(record: ChatSessionRecord) -> dict[str, object]:
         "session_start": record.created_at,
         "last_updated": record.updated_at,
         "closed_at": record.closed_at,
-        "message_count": len(record.messages),
+        "message_count": len(messages),
         "messages": [
             {
                 "index": index,
@@ -300,7 +358,7 @@ def _source_payload(record: ChatSessionRecord) -> dict[str, object]:
                 "content": message.content,
                 "tool_name": message.tool_name,
             }
-            for index, message in enumerate(record.messages)
+            for index, message in enumerate(messages)
         ],
         "turns": [
             {
@@ -311,7 +369,7 @@ def _source_payload(record: ChatSessionRecord) -> dict[str, object]:
                 "citations": [citation.model_dump(mode="json") for citation in turn.citations],
                 "warnings": turn.warnings,
             }
-            for turn in record.turns
+            for turn in turns
         ],
         "citations": [citation.model_dump(mode="json") for citation in record.citations],
         "run_links": [link.model_dump(mode="json") for link in record.run_links],

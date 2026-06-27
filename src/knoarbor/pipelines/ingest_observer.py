@@ -6,6 +6,25 @@ from typing import Any, Literal
 from knoarbor.runtime import RunReporter
 
 
+INGEST_OBSERVATION_STEPS = (
+    "input",
+    "segment",
+    "normalize_agent",
+    "atom_agent",
+    "retrieval",
+    "plan_agent",
+    "draft_agent",
+    "review_agent",
+    "write_gate",
+    "write",
+)
+
+INGEST_OBSERVATION_EVENT_TYPES = (
+    "ingest_step_started",
+    "ingest_step_finished",
+    "ingest_step_skipped",
+)
+
 IngestObservationStep = Literal[
     "input",
     "segment",

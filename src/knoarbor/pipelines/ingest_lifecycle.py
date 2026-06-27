@@ -49,7 +49,6 @@ def source_lifecycle_candidate(source_id: str, source_file: str, page: str, issu
             action="review_source_lifecycle",
             params={"source_id": source_id, "source_file": source_file, "target_page": page},
         ),
-        related_pages=[page],
         expected_effect="Keeps generated knowledge pages stable while routing missing or moved source provenance to lint/maintenance.",
         review_notes="Ingest reports the lifecycle event only; deletion, archive, relink, or refresh decisions belong to lint/maintenance.",
     )

@@ -7,10 +7,10 @@ Use query as candidate discovery, not as the final answer shape.
 1. Rewrite the user request into a short standalone search query.
 2. Start with `scripts/knoarbor.py query ...` using default `--auto` unless the
    user requested exact settings.
-3. Inspect `results`, `excerpts`, `context_pack`, `answer_guidance`,
+3. Inspect `results`, `excerpts`, `context_pack`, `response_guidance`,
    `gap_suggestions`, and `gaps`.
 4. If one or a few results clearly answer the question, answer from summaries,
-   key points, and excerpts. Cite concise page paths.
+   claims, and excerpts. Cite concise page paths.
 5. If evidence is relevant but thin, run a deeper compact query or read only the
    1-2 strongest pages with `page read`.
 6. If the user asks for a broad summary, overview, or comparison, aggregate the
@@ -52,11 +52,11 @@ Do not automatically read many pages in full. When more than 2-3 pages may be
 needed, list candidates first and let the user pick a scope.
 
 When a query result includes `vault_id`, pass that same vault ID to `page read`
-or `page links`:
+or `page relations`:
 
 ```bash
 python3 scripts/knoarbor.py --vault-id <result.vault_id> page read <result.path>
-python3 scripts/knoarbor.py --vault-id <result.vault_id> page links <result.path>
+python3 scripts/knoarbor.py --vault-id <result.vault_id> page relations <result.path>
 ```
 
 This keeps follow-up reads in the same knowledge base as the selected result.
@@ -66,7 +66,7 @@ This keeps follow-up reads in the same knowledge base as the selected result.
 - `results[].path`: stable page path for citation or `page read`.
 - `results[].vault_id`, `vault_name`, `vault_path`: selected result provenance
   for multi-vault follow-up reads.
-- `results[].summary`, `key_points`, `excerpts`, `source`: local evidence.
+- `results[].summary`, `claims`, `excerpts`, `source`: local evidence.
 - `results[].match_kind`: retrieval origin only; judge relevance yourself.
 - `context_pack`: compact evidence bundle for synthesis.
 - `gaps` and `gap_suggestions`: weak or missing local context signals.
@@ -83,14 +83,14 @@ Recommended sequence:
 
 1. Query with `--all-vaults` or repeated `--query-vault-id`.
 2. Present candidate titles with `vault_name` and `path`.
-3. When the user selects a candidate, call `page read` or `page links` with the
+3. When the user selects a candidate, call `page read` or `page relations` with the
    selected result's `vault_id`.
 
 Example:
 
 ```bash
 python3 scripts/knoarbor.py query "iOS 音频检测" --all-vaults
-python3 scripts/knoarbor.py --vault-id work page read concepts/iOS-Audio-Detection.md
+python3 scripts/knoarbor.py --vault-id work page read iOS-Audio-Detection.md
 ```
 
 ## Evidence Synthesis
@@ -100,5 +100,5 @@ python3 scripts/knoarbor.py --vault-id work page read concepts/iOS-Audio-Detecti
   sources can override older wiki pages.
 - If wiki evidence conflicts with current sources or with another wiki page,
   state the conflict instead of silently merging both.
-- Use source digest pages as provenance, not as a replacement for generated
-  concept/entity/comparison/query pages.
+- Use source digest pages as provenance. Maintained wiki knowledge lives in
+  `wiki/pages`, while source audit material lives in `wiki/sources`.

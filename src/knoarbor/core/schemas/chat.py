@@ -13,7 +13,7 @@ ChatToolName = Literal[
     "query_wiki",
     "list_wiki_pages",
     "read_wiki_page",
-    "inspect_wiki_links",
+    "inspect_wiki_relations",
     "list_vaults",
     "reuse_context",
     "answer_directly",
@@ -302,6 +302,7 @@ class ChatSessionIngestRequest(BaseModel):
     auto_scoped_lint: bool | None = None
     auto_apply_safe_lint_fixes: bool | None = None
     scoped_lint_include_related: bool | None = None
+    turn_indices: list[int] | None = Field(default=None, description="Selected 0-based turn indices to ingest. When null, all turns are ingested.")
 
 
 class ChatSessionRetryRequest(BaseModel):

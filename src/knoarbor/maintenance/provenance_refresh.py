@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import ast
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from knoarbor.core.markdown import extract_list_items, extract_section, parse_frontmatter
+from knoarbor.core.markdown import extract_list_items, extract_section
 from knoarbor.core.schemas.wiki_write import WikiDraftBatchWriteItem, WikiDraftBatchWriteRequest, WikiDraftBatchWriteResponse, WikiDraftInput
 from knoarbor.pipelines.write import WikiWritePipeline
 from knoarbor.storage.wiki_index import relative_wiki_path, update_index
@@ -24,7 +23,7 @@ class ProvenanceRefreshExecutor:
 
     The executor owns the refresh-request architecture boundary: semantic lint
     can request a provenance refresh, but concrete source digest creation and
-    bidirectional related-page repair stay deterministic.
+    source-digest association recording stay deterministic.
     """
 
     def __init__(self, write_pipeline: WikiWritePipeline | None = None) -> None:
@@ -112,14 +111,11 @@ class ProvenanceRefreshExecutor:
         write_response = self.write_pipeline.run(
             WikiDraftBatchWriteRequest(
                 vault_path=str(vault_path),
-                auto_related_links=False,
-                provenance_related_links=False,
                 drafts=[
                     WikiDraftBatchWriteItem(
                         wiki_draft=draft,
                         write_action="create",
                         source_file=source,
-                        expected_related_pages=target_pages,
                     )
                 ],
             )
@@ -137,7 +133,7 @@ class ProvenanceRefreshExecutor:
                     "action": "create_source_digest",
                     "target_page": digest_page,
                     "source_file": source,
-                    "related_pages": target_pages,
+                    "target_pages": target_pages,
                     "status": "applied",
                     "reason": "Created missing source digest from approved refresh_request.",
                     "write_details": detail.get("write_details", {}),
@@ -155,7 +151,7 @@ class ProvenanceRefreshExecutor:
             applied.append(
                 {
                     "operation_id": f"refresh:{source}:knowledge_source_digest_association:{target_page}",
-                    "action": "attach_source_digest",
+                    "action": "record_source_digest",
                     "source_file": source,
                     "target_page": target_page,
                     "source_digest_page": digest_page,
@@ -163,7 +159,6 @@ class ProvenanceRefreshExecutor:
                     "reason": "Recorded source digest association without mutating wiki page body.",
                     "write_details": {
                         "patched_sections": [],
-                        "semantic_related_links": {"added_count": 0, "added": [], "missing": []},
                         "diff": "",
                         "diff_truncated": False,
                     },
@@ -179,8 +174,7 @@ def _source_digest_by_source(vault_path: Path) -> dict[str, str]:
         return mapping
     for page_path in sorted(sources_dir.glob("*.md")):
         content = page_path.read_text(encoding="utf-8")
-        metadata = parse_frontmatter(content)
-        candidates = [*_source_values(metadata.get("source")), *_source_values_from_section(content), *_source_values_from_evidence(content)]
+        candidates = [*_source_values_from_section(content), *_source_values_from_raw_source(content), *_source_values_from_evidence(content), *_source_values_from_identity(content)]
         for source in candidates:
             digest_page = relative_wiki_path(vault_path, page_path)
             for alias in _source_aliases(source):
@@ -190,13 +184,14 @@ def _source_digest_by_source(vault_path: Path) -> dict[str, str]:
 
 def _raw_sources_for_action(vault_path: Path, target_path: Path, action: dict[str, object]) -> list[str]:
     content = target_path.read_text(encoding="utf-8")
-    metadata = parse_frontmatter(content)
     params = action.get("params") if isinstance(action.get("params"), dict) else {}
     candidates = [
         _optional_str(params.get("source_file")) if isinstance(params, dict) else None,
         _optional_str(params.get("source")) if isinstance(params, dict) else None,
-        *_source_values(metadata.get("source")),
         *_source_values_from_section(content),
+        *_source_values_from_raw_source(content),
+        *_source_values_from_evidence(content),
+        *_source_values_from_identity(content),
     ]
     seen: set[str] = set()
     sources: list[str] = []
@@ -222,13 +217,13 @@ def _source_aliases(source: str) -> list[str]:
         aliases.append(name)
     if stem:
         aliases.append(stem)
-        aliases.append(f"raw/notes/{stem}.md")
-        aliases.append(f"raw/documents/markdown/{stem}.md")
-        aliases.append(f"raw/chats/{stem}.json")
-        aliases.append(f"raw/chats/{stem}.jsonl")
+        aliases.append(f"raw/inbox/notes/{stem}.md")
+        aliases.append(f"raw/normalized/markdown/{stem}.md")
+        aliases.append(f"raw/normalized/chats/{stem}.json")
+        aliases.append(f"raw/normalized/chats/{stem}.jsonl")
     if suffix and stem:
-        aliases.append(f"raw/notes/{stem}{suffix}")
-        aliases.append(f"raw/chats/{stem}{suffix}")
+        aliases.append(f"raw/inbox/notes/{stem}{suffix}")
+        aliases.append(f"raw/normalized/chats/{stem}{suffix}")
 
     normalized: list[str] = []
     seen: set[str] = set()
@@ -240,26 +235,30 @@ def _source_aliases(source: str) -> list[str]:
     return normalized
 
 
-def _source_values(value: object) -> list[str]:
-    if isinstance(value, list):
-        return [str(item).strip() for item in value if str(item).strip()]
-    if not isinstance(value, str):
-        return []
-    text = value.strip()
-    if not text:
-        return []
-    if text.startswith("[") and text.endswith("]"):
-        try:
-            parsed = ast.literal_eval(text)
-        except (SyntaxError, ValueError):
-            parsed = None
-        if isinstance(parsed, list):
-            return [str(item).strip() for item in parsed if str(item).strip()]
-    return [text]
-
-
 def _source_values_from_section(content: str) -> list[str]:
     return [item.strip("`").strip() for item in extract_list_items(extract_section(content, "Source")) if item.strip()]
+
+
+def _source_values_from_raw_source(content: str) -> list[str]:
+    values: list[str] = []
+    for item in extract_list_items(extract_section(content, "Raw Source")):
+        text = item.strip().strip("`")
+        lowered = text.lower().replace("_", " ")
+        if lowered.startswith("raw source:"):
+            text = text.split(":", 1)[1].strip().strip("`")
+        if text:
+            values.append(text)
+    return values
+
+
+def _source_values_from_identity(content: str) -> list[str]:
+    values: list[str] = []
+    for item in extract_list_items(extract_section(content, "Source Identity")):
+        text = item.strip().strip("`")
+        lowered = text.lower().replace("_", " ")
+        if lowered.startswith("raw source:"):
+            values.append(text.split(":", 1)[1].strip().strip("`"))
+    return values
 
 
 def _source_values_from_evidence(content: str) -> list[str]:

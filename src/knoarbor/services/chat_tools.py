@@ -10,7 +10,7 @@ from knoarbor.core.vaults import VIRTUAL_ALL_VAULT_ID
 from knoarbor.entrypoints.vault_selection import resolve_single_vault, resolve_vault_group
 from knoarbor.retrieval.answer_selection import query_prefers_source_page
 from knoarbor.services.chat_context import latest_user_text
-from knoarbor.services.chat_evidence import ChatEvidencePlanner, search_result_to_chat_payload
+from knoarbor.services.chat_evidence import CHAT_EVIDENCE_PACK_SCHEMA_VERSION, ChatEvidencePlanner, search_result_to_chat_payload
 
 if TYPE_CHECKING:
     from knoarbor.services import ApplicationServices
@@ -45,8 +45,8 @@ class ChatToolExecutor:
                     observation = self._list_wiki_pages(call.arguments)
                 elif tool_name == "read_wiki_page":
                     observation = self._read_wiki_page(call.arguments)
-                elif tool_name == "inspect_wiki_links":
-                    observation = self._inspect_wiki_links(call.arguments)
+                elif tool_name == "inspect_wiki_relations":
+                    observation = self._inspect_wiki_relations(call.arguments)
                 elif tool_name == "list_vaults":
                     observation = self._list_vaults(call.arguments)
                 elif tool_name == "reuse_context":
@@ -234,17 +234,17 @@ class ChatToolExecutor:
             summary = f"Read wiki page {page.path} after resolving requested page reference {original_page_path}."
         return ChatToolTraceItem(tool="read_wiki_page", arguments=arguments, summary=summary, citations=[citation], result=result)
 
-    def _inspect_wiki_links(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
+    def _inspect_wiki_relations(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
         page_path = str(arguments.get("page_path") or arguments.get("path") or "").strip()
         if not page_path:
-            raise UserInputError("inspect_wiki_links requires page_path")
+            raise UserInputError("inspect_wiki_relations requires page_path")
         requested_vault_id = _concrete_argument_vault_id(arguments, self.request.vault_id)
         if requested_vault_id is None:
             requested_vault_id = _vault_id_for_prior_page(page_path, self.existing_session)
         vault = resolve_single_vault(self.request.vault_path, requested_vault_id, self.request.config_path)
-        links = self.services.wiki_pages.page_links(vault.path, page_path, vault_id=vault.vault_id, vault_name=vault.vault_name)
-        outbound = [_link_payload(link) for link in links.outbound_links]
-        backlinks = [_link_payload(link) for link in links.backlinks]
+        relations = self.services.wiki_pages.page_relations(vault.path, page_path, vault_id=vault.vault_id, vault_name=vault.vault_name)
+        outgoing = [_link_payload(link) for link in relations.outgoing_pages]
+        incoming = [_link_payload(link) for link in relations.incoming_pages]
         citations = [
             ChatCitation(
                 kind="page",
@@ -256,21 +256,21 @@ class ChatToolExecutor:
                 vault_path=str(vault.path),
                 reason="Linked page discovered from page relationship inspection.",
             )
-            for path in _unique_strings([str(item.get("target_path") or item.get("source") or "") for item in [*outbound, *backlinks]])
+            for path in _unique_strings([str(item.get("target_path") or item.get("source") or "") for item in [*outgoing, *incoming]])
             if path
         ]
         result = {
-            "path": links.path,
+            "path": relations.path,
             "vault_id": vault.vault_id,
             "vault_name": vault.vault_name,
             "vault_path": str(vault.path),
-            "outbound_links": outbound,
-            "backlinks": backlinks,
+            "outgoing_pages": outgoing,
+            "incoming_pages": incoming,
         }
         return ChatToolTraceItem(
-            tool="inspect_wiki_links",
+            tool="inspect_wiki_relations",
             arguments=arguments,
-            summary=f"Inspected links for {links.path}: {len(outbound)} outbound, {len(backlinks)} backlinks.",
+            summary=f"Inspected page relations for {relations.path}: {len(outgoing)} outgoing, {len(incoming)} incoming.",
             citations=citations,
             result=result,
         )
@@ -312,7 +312,13 @@ class ChatToolExecutor:
             arguments=arguments,
             summary=str(arguments.get("reason") or "No wiki lookup requested."),
             status="skipped",
-            result={"evidence_pack": {"schema_version": "chat_evidence_pack.v1", "kind": "direct_answer", "warnings": ["No wiki evidence was requested by the planner."]}},
+            result={
+                "evidence_pack": {
+                    "schema_version": CHAT_EVIDENCE_PACK_SCHEMA_VERSION,
+                    "kind": "direct_answer",
+                    "warnings": ["No wiki evidence was requested by the planner."],
+                }
+            },
         )
 
     def _resolve_tool_vaults(self, arguments: dict[str, Any]):
@@ -510,15 +516,12 @@ def _chat_supporting_page_payload(item: WikiSearchResult) -> dict[str, object]:
     return {
         "path": item.path,
         "title": item.title,
-        "type": item.type,
-        "page_kind": item.page_kind,
         "page_role": item.page_role,
-        "facets": item.facets,
         "role": item.role,
         "score": item.score,
         "relevance": item.relevance,
         "summary": item.summary,
-        "key_points": item.key_points[:6],
+        "claims": item.claims[:6],
         "content": item.content or "",
         "content_truncated": item.content_truncated,
         "vault_id": item.vault_id,
@@ -531,15 +534,12 @@ def _chat_primary_page_payload(item: WikiSearchResult) -> dict[str, object]:
     return {
         "path": item.path,
         "title": item.title,
-        "type": item.type,
-        "page_kind": item.page_kind,
         "page_role": item.page_role,
-        "facets": item.facets,
         "role": item.role,
         "score": item.score,
         "relevance": item.relevance,
         "summary": item.summary,
-        "key_points": item.key_points[:8],
+        "claims": item.claims[:8],
         "content": item.content or "",
         "content_truncated": item.content_truncated,
         "vault_id": item.vault_id,
@@ -552,17 +552,11 @@ def _page_summary_payload(page) -> dict[str, object]:
     return {
         "path": page.path,
         "canonical_path": page.canonical_path,
-        "legacy_paths": page.legacy_paths,
         "directory": page.directory,
         "title": page.title,
-        "type": page.page_type,
-        "page_kind": page.page_kind,
         "page_role": page.role,
-        "facets": page.facets,
-        "status": page.status,
         "updated": page.updated,
-        "source": page.source,
-        "tags": page.tags,
+        "entities": page.entities,
         "summary": page.summary,
         "headings": page.headings,
     }
@@ -572,8 +566,6 @@ def _is_source_result(result: WikiSearchResult) -> bool:
     return (
         result.role == "source"
         or result.page_role == "source_digest"
-        or result.page_kind == "source_digest"
-        or result.type == "source"
         or _path_looks_like_source_digest(result.path)
     )
 
@@ -581,14 +573,10 @@ def _is_source_result(result: WikiSearchResult) -> bool:
 def _is_source_page_payload(page: dict[str, Any]) -> bool:
     answer_role = str(page.get("role") or "")
     page_role = str(page.get("page_role") or "")
-    page_kind = str(page.get("page_kind") or "")
-    page_type = str(page.get("type") or "")
     path = str(page.get("path") or "")
     return (
         answer_role == "source"
         or page_role == "source_digest"
-        or page_kind == "source_digest"
-        or page_type == "source"
         or _path_looks_like_source_digest(path)
     )
 
@@ -607,11 +595,8 @@ def _with_vault_identity(page: dict[str, object], vault) -> dict[str, object]:
 
 def _page_matches(page: dict[str, object], *, query: str, page_dirs: set[str]) -> bool:
     normalized_page_dirs = {_normalize_page_filter_value(item) for item in page_dirs}
-    page_facets = {_normalize_page_filter_value(item) for item in page.get("facets", []) if isinstance(item, str)}
     page_identity = {
         _normalize_page_filter_value(page.get("directory")),
-        _normalize_page_filter_value(page.get("page_kind")),
-        *page_facets,
     }
     if normalized_page_dirs and not page_identity.intersection(normalized_page_dirs):
         return False
@@ -622,7 +607,7 @@ def _page_matches(page: dict[str, object], *, query: str, page_dirs: set[str]) -
             str(page.get("path") or ""),
             str(page.get("title") or ""),
             str(page.get("summary") or ""),
-            " ".join(str(tag) for tag in page.get("tags", []) if isinstance(tag, str)),
+            " ".join(str(entity) for entity in page.get("entities", []) if isinstance(entity, str)),
             " ".join(str(heading) for heading in page.get("headings", []) if isinstance(heading, str)),
         ]
     ).lower()

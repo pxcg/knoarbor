@@ -27,9 +27,7 @@ class GraphLedRetrievalRequest:
     signals: GraphRecallSignals = field(default_factory=GraphRecallSignals)
     limit: int = 8
     page_dirs: list[str] = field(default_factory=list)
-    page_kinds: list[str] = field(default_factory=list)
     page_roles: list[str] = field(default_factory=list)
-    facets: list[str] = field(default_factory=list)
     include_related: bool = True
 
 
@@ -52,13 +50,11 @@ class GraphLedRetriever:
             IndexRequest(
                 vault_path=vault_path,
                 page_dirs=request.page_dirs,
-                page_kinds=request.page_kinds,
                 page_roles=request.page_roles,
-                facets=request.facets,
             )
         )
         graph_pages = scoped_pages
-        if request.include_related and (request.page_dirs or request.page_kinds or request.page_roles or request.facets):
+        if request.include_related and (request.page_dirs or request.page_roles):
             graph_pages = self.index_provider.collect(IndexRequest(vault_path=vault_path))
 
         signals = normalize_recall_signals(request.query, request.signals)
@@ -87,17 +83,11 @@ class GraphLedRetriever:
                 "direct_page_count": len(scoped_pages),
                 "graph_page_count": len(graph_pages),
                 "page_dirs": request.page_dirs,
-                "page_kinds": request.page_kinds,
                 "page_roles": request.page_roles,
-                "facets": request.facets,
                 "initial_scope_dirs": request.page_dirs or sorted({page.directory for page in scoped_pages}),
                 "expanded_scope_dirs": sorted({page.directory for page in graph_pages}),
-                "initial_scope_page_kinds": request.page_kinds or sorted({page.page_kind for page in scoped_pages if page.page_kind}),
-                "expanded_scope_page_kinds": sorted({page.page_kind for page in graph_pages if page.page_kind}),
                 "initial_scope_roles": request.page_roles or sorted({page.role for page in scoped_pages if page.role}),
                 "expanded_scope_roles": sorted({page.role for page in graph_pages if page.role}),
-                "initial_scope_facets": request.facets or sorted({facet for page in scoped_pages for facet in page.facets}),
-                "expanded_scope_facets": sorted({facet for page in graph_pages for facet in page.facets}),
                 "query_terms": terms,
                 "graph_signal_terms": signals.entities,
                 "graph_candidate_count": len(graph_scored),
@@ -280,9 +270,7 @@ def _recall_from_page_identity(scores: dict[str, dict[str, object]], pages: list
         fields = [
             ("title", page.title, 4.0),
             ("path", page.relative_path, 2.0),
-            ("entity", " ".join(page.tags), 3.0),
-            ("facet", " ".join(page.facets), 2.0),
-            ("kind", page.page_kind, 1.5),
+            ("entity", " ".join(page.entities), 3.0),
         ]
         for field_name, value, score in fields:
             key = _graph_key(value)
@@ -303,7 +291,7 @@ def _expand_related_graph_candidates(scores: dict[str, dict[str, object]], pages
         if not seed:
             continue
         seed_score = float(scores[seed_path].get("score", 0.0))
-        candidate_paths = [*seed.related_pages, *inbound_paths.get(seed.relative_path, [])]
+        candidate_paths = [*seed.outbound_links, *inbound_paths.get(seed.relative_path, [])]
         for related_path in candidate_paths:
             if related_path == seed.relative_path:
                 continue

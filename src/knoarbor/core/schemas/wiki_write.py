@@ -46,11 +46,8 @@ class WikiDraftInput(BaseModel):
     title: str = Field(..., min_length=1)
     page_dir: str = Field(..., min_length=1)
     canonical_path: str | None = None
-    legacy_paths: list[str] = Field(default_factory=list)
-    page_kind: str = ""
     subject_kind: str = ""
     role: str = ""
-    facets: list[str] = Field(default_factory=list)
     question: str = Field(..., min_length=1)
     summary: str = Field(..., min_length=1)
     claims: list[str] = Field(default_factory=list)
@@ -75,7 +72,7 @@ class WikiDraftInput(BaseModel):
             raise ValueError("wiki draft text fields cannot be empty")
         return text
 
-    @field_validator("legacy_paths", "facets", "source_digest_ids", "atom_ids", mode="before")
+    @field_validator("source_digest_ids", "atom_ids", mode="before")
     @classmethod
     def normalize_id_list(cls, value: Any) -> list[str]:
         if value is None:
@@ -117,14 +114,11 @@ class WikiDraftBatchWriteItem(BaseModel):
     source_file: str | None = None
     display_source_file: str | None = None
     operation_index: int | None = None
-    expected_related_pages: list[str] = Field(default_factory=list)
 
 
 class WikiDraftBatchWriteRequest(BaseModel):
     drafts: list[WikiDraftBatchWriteItem] = Field(..., min_length=1)
     vault_path: str = Field(..., min_length=1)
-    auto_related_links: bool = True
-    provenance_related_links: bool | None = None
 
 
 class WikiDraftBatchWriteResponse(BaseModel):
@@ -137,13 +131,9 @@ class WikiDraft(BaseModel):
 
     title: str
     page_dir: str
-    page_type: str
     canonical_path: str = ""
-    legacy_paths: list[str] = Field(default_factory=list)
-    page_kind: str = ""
     subject_kind: str = ""
     role: str = "knowledge_page"
-    facets: list[str] = Field(default_factory=list)
     question: str
     summary: str
     claims: list[str] = Field(default_factory=list)
@@ -165,12 +155,8 @@ class VaultWriteResult(BaseModel):
     path: Path
     content: str
     created: bool
-    related_links: list[str]
     content_hash: str
     canonical_path: str = ""
-    legacy_paths: list[str] = Field(default_factory=list)
-    page_kind: str = ""
     subject_kind: str = ""
     role: str = ""
-    facets: list[str] = Field(default_factory=list)
     write_details: dict[str, Any] = Field(default_factory=dict)

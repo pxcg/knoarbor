@@ -15,12 +15,12 @@ _MARKDOWN_IMAGE_RE = re.compile(r"!\[(?P<alt>[^\]]*)\]\((?P<target>[^)\s]+)(?:\s
 
 
 def attachment_sidecar_path(markdown_path: Path) -> Path:
-    return markdown_path.with_name(f"{markdown_path.stem}.attachments.json")
+    return _canonical_sidecar_path(markdown_path) or markdown_path.with_name(f"{markdown_path.stem}.attachments.json")
 
 
 def read_attachment_sidecar(markdown_path: Path) -> list[dict[str, Any]]:
-    sidecar = attachment_sidecar_path(markdown_path)
-    if not sidecar.exists() or not sidecar.is_file():
+    sidecar = next((path for path in _sidecar_candidates(markdown_path) if path.exists() and path.is_file()), None)
+    if sidecar is None:
         return []
     try:
         payload = json.loads(sidecar.read_text(encoding="utf-8"))
@@ -36,6 +36,7 @@ def read_attachment_sidecar(markdown_path: Path) -> list[dict[str, Any]]:
 
 def write_attachment_sidecar(markdown_path: Path, attachments: list[dict[str, Any]], *, source: str) -> None:
     sidecar = attachment_sidecar_path(markdown_path)
+    sidecar.parent.mkdir(parents=True, exist_ok=True)
     sidecar.write_text(
         json.dumps(
             {
@@ -50,7 +51,7 @@ def write_attachment_sidecar(markdown_path: Path, attachments: list[dict[str, An
     )
 
 
-def discover_markdown_image_attachments(markdown_path: Path, markdown: str | None = None) -> list[dict[str, Any]]:
+def discover_markdown_image_attachments(markdown_path: Path, markdown: str | None = None, *, base_dir: Path | None = None) -> list[dict[str, Any]]:
     text = markdown if markdown is not None else markdown_path.read_text(encoding="utf-8")
     attachments: list[dict[str, Any]] = []
     for match in _MARKDOWN_IMAGE_RE.finditer(text):
@@ -63,7 +64,7 @@ def discover_markdown_image_attachments(markdown_path: Path, markdown: str | Non
         attachments.append(
             normalize_attachment(
                 target_path,
-                base_dir=markdown_path.parent,
+                base_dir=base_dir or markdown_path.parent,
                 name=target_path.name,
                 description=match.group("alt").strip(),
                 source="markdown_image_link",
@@ -142,3 +143,32 @@ def _file_hash(path: Path) -> str | None:
         return hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError:
         return None
+
+
+def _sidecar_candidates(markdown_path: Path) -> list[Path]:
+    adjacent = markdown_path.with_name(f"{markdown_path.stem}.attachments.json")
+    canonical = _canonical_sidecar_path(markdown_path)
+    if canonical and canonical != adjacent:
+        return [canonical, adjacent]
+    return [adjacent]
+
+
+def _canonical_sidecar_path(markdown_path: Path) -> Path | None:
+    try:
+        resolved = markdown_path.expanduser().resolve()
+    except OSError:
+        resolved = markdown_path.expanduser()
+    raw_root = _raw_root_for_normalized_path(resolved)
+    if raw_root is None:
+        return None
+    return raw_root / "sidecars" / "sources" / f"{resolved.stem}.attachments.json"
+
+
+def _raw_root_for_normalized_path(path: Path) -> Path | None:
+    parts = path.parts
+    for index, part in enumerate(parts):
+        if part != "raw":
+            continue
+        if index + 1 < len(parts) and parts[index + 1] == "normalized":
+            return Path(*parts[: index + 1])
+    return None

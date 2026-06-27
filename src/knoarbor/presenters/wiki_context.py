@@ -20,7 +20,7 @@ from knoarbor.core.schemas.wiki_query import (
     WikiSearchResult,
 )
 from knoarbor.pipelines.query import QueryPipeline, QueryPipelineRequest
-from knoarbor.retrieval.answer_selection import AnswerSetSelector, query_prefers_source_page, result_facets
+from knoarbor.retrieval.answer_selection import AnswerSetSelector, query_prefers_source_page, result_dimensions
 from knoarbor.retrieval.markdown import (
     ScoredPage,
     SearchPage,
@@ -50,9 +50,7 @@ def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
             mode=request.mode,
             limit=max(request.max_pages_to_read, request.max_results),
             page_dirs=request.page_dirs,
-            page_kinds=request.page_kinds,
             page_roles=request.page_roles,
-            facets=request.facets,
             include_related=request.include_related,
         )
     )
@@ -73,12 +71,12 @@ def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
 
     gap_suggestions = build_gap_suggestions(request.query, results, pipeline_result.gaps)
     evidence_coverage = build_evidence_coverage(terms, answer_scope, primary_pages, supporting_pages, source_pages, pipeline_result.gaps)
-    answer_guidance = build_answer_guidance(results, gap_suggestions, primary_pages=primary_pages)
+    response_guidance = build_response_guidance(results, gap_suggestions, primary_pages=primary_pages)
     context_pack = build_context_pack(
         request.query,
         order_results_for_context(results),
         request.max_context_chars,
-        answer_guidance,
+        response_guidance,
         gap_suggestions,
     )
     stats = {
@@ -104,7 +102,7 @@ def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
         evidence_coverage=evidence_coverage,
         rejected_candidates=selection.rejected_candidates,
         context_pack=context_pack,
-        answer_guidance=answer_guidance,
+        response_guidance=response_guidance,
         gap_suggestions=gap_suggestions,
         gaps=pipeline_result.gaps,
         warnings=pipeline_result.warnings,
@@ -129,9 +127,7 @@ def build_wiki_context(request: WikiContextRequest) -> WikiContextResponse:
             mode="balanced",
             limit=request.limit,
             page_dirs=request.page_dirs,
-            page_kinds=request.page_kinds,
             page_roles=request.page_roles,
-            facets=request.facets,
             include_related=request.include_related,
         )
     )
@@ -164,13 +160,8 @@ def build_result(item: ScoredPage, terms: list[str], request: WikiSearchRequest)
     return WikiSearchResult(
         path=page.relative_path,
         canonical_path=page.canonical_path or page.relative_path,
-        legacy_paths=page.legacy_paths,
         title=page.title,
-        type=page.page_type,
-        page_kind=page.page_kind,
         page_role=page.role,
-        facets=page.facets,
-        status=page.status,
         score=score,
         relevance=relevance_label(score),
         match_kind="related" if {"related_graph", "graph_related"}.intersection(item.matched_fields) else "direct",
@@ -178,12 +169,11 @@ def build_result(item: ScoredPage, terms: list[str], request: WikiSearchRequest)
         matched_terms={key: sorted(set(value)) for key, value in sorted(item.matched_terms.items())},
         reason=match_reason(item),
         summary=compact_inline_text(page.summary, 500),
-        key_points=[compact_inline_text(point, 240) for point in page.key_points[:6]],
+        claims=[compact_inline_text(point, 240) for point in page.claim_points[:6]],
         excerpts=excerpts,
         content=None,
-        source=page.source,
-        tags=page.tags,
-        related_pages=page.related_pages[:10],
+        entities=page.entities,
+        outbound_links=page.outbound_links[:10],
         content_truncated=False,
     )
 
@@ -257,19 +247,13 @@ def build_context_match(item: ScoredPage, terms: list[str], request: WikiContext
     return WikiContextMatch(
         path=page.relative_path,
         canonical_path=page.canonical_path or page.relative_path,
-        legacy_paths=page.legacy_paths,
         title=page.title,
         page_dir=page.directory,
-        type=page.page_type,
-        page_kind=page.page_kind,
         page_role=page.role,
-        facets=page.facets,
-        status=page.status,
-        source=page.source,
         summary=compact_inline_text(page.summary, 500),
-        tags=page.tags,
-        key_points=[compact_inline_text(point, 240) for point in page.key_points[:6]],
-        related_pages=page.related_pages[:10],
+        entities=page.entities,
+        claims=[compact_inline_text(point, 240) for point in page.claim_points[:6]],
+        outbound_links=page.outbound_links[:10],
         score=round(item.score, 3),
         relevance=relevance_label(item.score),
         matched_fields=sorted(item.matched_fields),
@@ -294,7 +278,7 @@ def select_excerpts(page: SearchPage, terms: list[str], max_excerpts: int, max_c
 
     candidates: list[WikiSearchExcerpt] = []
     for heading, body in extract_sections(page.body):
-        if heading in {"Tags", "Related Pages", "Source"}:
+        if heading in {"Source"}:
             continue
         score = section_score(f"{heading}\n{body}", terms)
         if score <= 0:
@@ -448,8 +432,8 @@ def build_evidence_coverage(
         source_count=len(source_pages),
         gap_count=len(gaps),
         covered_terms=covered_terms[:12],
-        covered_facets=sorted({facet for page in selected_pages for facet in result_facets(page)})[:12],
-        missing_facets=missing_terms[:8],
+        covered_dimensions=sorted({dimension for page in selected_pages for dimension in result_dimensions(page)})[:12],
+        missing_dimensions=missing_terms[:8],
     )
 
 
@@ -484,9 +468,9 @@ def _primary_result_path(query: str, results: list[WikiSearchResult]) -> str:
 
 
 def _is_source_result(result: WikiSearchResult) -> bool:
-    return result.page_role == "source_digest" or result.page_kind == "source_digest" or result.type == "source"
+    return result.page_role == "source_digest" or result.path.startswith("sources/")
 
-def build_answer_guidance(
+def build_response_guidance(
     results: list[WikiSearchResult],
     gaps: list[WikiQueryGapSuggestion],
     *,
@@ -537,7 +521,7 @@ def build_context_pack(
     query: str,
     results: list[WikiSearchResult],
     max_chars: int,
-    answer_guidance: list[str],
+    response_guidance: list[str],
     gap_suggestions: list[WikiQueryGapSuggestion],
 ) -> str:
     lines = [
@@ -545,9 +529,9 @@ def build_context_pack(
         f"Query: {query}",
         "",
     ]
-    if answer_guidance:
-        lines.append("Answer guidance:")
-        lines.extend(f"- {item}" for item in answer_guidance)
+    if response_guidance:
+        lines.append("Response guidance:")
+        lines.extend(f"- {item}" for item in response_guidance)
         lines.append("")
     if gap_suggestions:
         lines.append("Query gap signals:")
@@ -662,9 +646,9 @@ def build_result_context_block(index: int, result: WikiSearchResult, *, full: bo
         f"Match origin: {result.match_kind}",
         f"Summary: {result.summary or 'No summary.'}",
     ]
-    if result.key_points:
-        lines.append("Key points:")
-        lines.extend(f"- {point}" for point in result.key_points[:4])
+    if result.claims:
+        lines.append("Claims:")
+        lines.extend(f"- {point}" for point in result.claims[:4])
     if result.excerpts:
         lines.append("Relevant excerpts:")
         for excerpt in result.excerpts if full else result.excerpts[:2]:
@@ -689,7 +673,7 @@ def build_context_summary(query: str, matches: list[WikiContextMatch]) -> str:
         lines.append(f"{index}. {match.title} ({match.path}, {match.relevance}, score {match.score})")
         if match.summary:
             lines.append(f"   Summary: {match.summary}")
-        if match.tags:
-            lines.append(f"   Tags: {', '.join(match.tags[:8])}")
+        if match.entities:
+            lines.append(f"   Entities: {', '.join(match.entities[:8])}")
         lines.append(f"   Reason: {match.reason}")
     return "\n".join(lines).strip()

@@ -10,15 +10,15 @@ from knoarbor.core.redaction import detect_sensitive_text
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatchItem
 from knoarbor.core.schemas.wiki_write import WikiDraftWriteResponse
 from knoarbor.maintenance.operation_verification_models import LintPostFixVerification
-from knoarbor.retrieval.wiki_links import canonical_wiki_list_item_identity, resolve_wikilink_target
+from knoarbor.retrieval.wiki_links import canonical_wiki_list_item_identity
 from knoarbor.storage import resolve_wiki_page
 from knoarbor.storage.wiki_index import relative_wiki_path
 
 LEGAL_PLACEHOLDERS_BY_SECTION = {
     "Evidence": {"暂无证据", "No evidence."},
-    "Related Pages": {"暂无关联知识", "No related pages."},
-    "Tags": {"暂无标签", "No tags."},
-    "Source": {"暂无来源", "No source."},
+    "Entities": {"暂无实体", "No entities."},
+    "Attachments": {"暂无附件", "No attachments."},
+    "Raw Source": {"暂无来源", "No source.", "Raw source: unknown"},
 }
 CHATTY_SUMMARY_PATTERN = re.compile(
     r"如果(你|您)(还)?需要|可以告诉我|欢迎继续|我可以继续|希望我继续|let me know|if you need",
@@ -45,24 +45,13 @@ def verify_wiki_operation(
         return _failed(action, target_page, operation_id, "Operation output page does not exist.")
     content = path.read_text(encoding="utf-8")
 
-    if action in {"attach_related_pages", "attach_source_digest"}:
-        expected = _string_list(details.get("related_pages")) or _string_list(operation.get("related_pages"))
-        return _verify_related_links(vault_path, content, expected, action, target_page, operation_id)
-
-    if action == "remove_related_links":
-        expected = _string_list(details.get("related_pages")) or _string_list(operation.get("related_pages"))
-        return _verify_related_links_removed(vault_path, content, expected, action, target_page, operation_id)
-
     if action in {"replace_wikilink", "normalize_wikilink"}:
         old_target = _optional_str(details.get("old_target"))
         new_target = _optional_str(details.get("new_target"))
         return _verify_wikilink_replacement(content, old_target, new_target, action, target_page, operation_id)
 
-    if action == "update_frontmatter":
-        return _verify_frontmatter_updates(content, _as_dict(details.get("frontmatter")), action, target_page, operation_id)
-
     if action == "deduplicate_section_items":
-        section = _optional_str(details.get("section")) or "Related Pages"
+        section = _optional_str(details.get("section")) or "Entities"
         return _verify_deduplicated_section(vault_path, content, section, action, target_page, operation_id)
 
     if action == "remove_adjacent_duplicate_headings":
@@ -71,10 +60,6 @@ def verify_wiki_operation(
     if action == "add_missing_section":
         section = _optional_str(details.get("section"))
         return _verify_added_wiki_operation_section(content, action, target_page, operation_id, section)
-
-    if action == "update_source_field":
-        source_file = _optional_str(details.get("source_file"))
-        return _verify_source_field(content, source_file, action, target_page, operation_id)
 
     if action == "redact_sensitive_text":
         return _verify_sensitive_text_redacted(content, action, target_page, operation_id, privacy_config)
@@ -117,8 +102,7 @@ def verify_draft_write(
 
     if action == "create_source_digest":
         source_file = _optional_str(result.stats.get("source_file")) or _optional_str(getattr(draft, "source_file", None))
-        related_pages = list(getattr(candidate, "related_pages", []) or [])
-        return _verify_source_digest_page(content, source_file, related_pages, action, target_page)
+        return _verify_source_digest_page(content, source_file, action, target_page)
 
     if draft and draft.write_action in {"update", "merge"}:
         patch_sections = {patch.section.strip() for patch in draft.patches if patch.section.strip()}
@@ -259,108 +243,6 @@ def _verify_added_wiki_operation_section(
         operation_id=operation_id,
         reason="Declared missing section now exists and contains allowed local content.",
         evidence={"section": section},
-    )
-
-
-def _verify_related_links(
-    vault_path: Path,
-    content: str,
-    expected_pages: list[str],
-    action: str,
-    target_page: str,
-    operation_id: str | None,
-) -> LintPostFixVerification:
-    if not expected_pages:
-        return _failed(action, target_page, operation_id, "Related link verification requires expected related_pages.")
-    identities = {
-        canonical_wiki_list_item_identity(vault_path, item)
-        for item in extract_list_items(extract_section(content, "Related Pages"))
-    }
-    missing = [
-        page
-        for page in expected_pages
-        if _expected_link_identity(vault_path, page) not in identities
-    ]
-    duplicate_count = len(identities) != len(extract_list_items(extract_section(content, "Related Pages")))
-    if missing or duplicate_count:
-        return _failed(
-            action,
-            target_page,
-            operation_id,
-            "Related Pages verification failed.",
-            {"missing": missing, "has_duplicate_related_items": duplicate_count},
-        )
-    return LintPostFixVerification(
-        action=action,
-        status="verified",
-        target_page=target_page,
-        operation_id=operation_id,
-        reason="Expected related pages are present and canonical list items are unique.",
-        evidence={"expected_pages": expected_pages},
-    )
-
-
-def _verify_related_links_removed(
-    vault_path: Path,
-    content: str,
-    expected_pages: list[str],
-    action: str,
-    target_page: str,
-    operation_id: str | None,
-) -> LintPostFixVerification:
-    if not expected_pages:
-        return _failed(action, target_page, operation_id, "Related link removal verification requires related_pages.")
-    identities = {
-        canonical_wiki_list_item_identity(vault_path, item)
-        for item in extract_list_items(extract_section(content, "Related Pages"))
-    }
-    still_present = [
-        page
-        for page in expected_pages
-        if _expected_link_identity(vault_path, page) in identities
-    ]
-    if still_present:
-        return _failed(
-            action,
-            target_page,
-            operation_id,
-            "Related Pages still contains links that should have been removed.",
-            {"still_present": still_present},
-        )
-    return LintPostFixVerification(
-        action=action,
-        status="verified",
-        target_page=target_page,
-        operation_id=operation_id,
-        reason="Requested related page links are absent.",
-        evidence={"removed_pages": expected_pages},
-    )
-
-
-def _verify_frontmatter_updates(
-    content: str,
-    expected: dict[str, Any],
-    action: str,
-    target_page: str,
-    operation_id: str | None,
-) -> LintPostFixVerification:
-    if not expected:
-        return _failed(action, target_page, operation_id, "Frontmatter verification requires expected key/value updates.")
-    metadata = parse_frontmatter(content)
-    mismatches = {
-        str(key): {"expected": str(value), "actual": metadata.get(str(key))}
-        for key, value in expected.items()
-        if metadata.get(str(key)) != str(value)
-    }
-    if mismatches:
-        return _failed(action, target_page, operation_id, "Frontmatter values do not match expected updates.", {"mismatches": mismatches})
-    return LintPostFixVerification(
-        action=action,
-        status="verified",
-        target_page=target_page,
-        operation_id=operation_id,
-        reason="Frontmatter values match the approved updates.",
-        evidence={"frontmatter": {str(key): str(value) for key, value in expected.items()}},
     )
 
 
@@ -531,7 +413,7 @@ def _verify_adjacent_duplicate_headings_removed(
     )
 
 
-def _verify_source_field(
+def _verify_source_trace(
     content: str,
     source_file: str | None,
     action: str,
@@ -539,24 +421,25 @@ def _verify_source_field(
     operation_id: str | None,
 ) -> LintPostFixVerification:
     if not source_file:
-        return _failed(action, target_page, operation_id, "Source field verification requires source_file.")
-    metadata = parse_frontmatter(content)
-    source_section = extract_section(content, "Source")
-    ok = metadata.get("source") == source_file and source_file in source_section
-    if not ok:
+        return _failed(action, target_page, operation_id, "Source trace verification requires source_file.")
+    raw_source = extract_section(content, "Raw Source")
+    source_identity = extract_section(content, "Source Identity")
+    evidence = extract_section(content, "Evidence")
+    trace_text = "\n".join([raw_source, source_identity, evidence])
+    if source_file not in trace_text:
         return _failed(
             action,
             target_page,
             operation_id,
-            "Frontmatter source and Source section do not match expected source_file.",
-            {"frontmatter_source": metadata.get("source"), "expected_source": source_file},
+            "Source trace does not contain expected raw source reference.",
+            {"expected_source": source_file},
         )
     return LintPostFixVerification(
         action=action,
         status="verified",
         target_page=target_page,
         operation_id=operation_id,
-        reason="Frontmatter source and Source section match expected source_file.",
+        reason="Source trace contains expected raw source reference.",
         evidence={"source_file": source_file},
     )
 
@@ -589,24 +472,18 @@ def _verify_sensitive_text_redacted(
 def _verify_source_digest_page(
     content: str,
     source_file: str | None,
-    related_pages: list[str],
     action: str,
     target_page: str,
 ) -> LintPostFixVerification:
-    source_check = _verify_source_field(content, source_file, action, target_page, None)
+    source_check = _verify_source_trace(content, source_file, action, target_page, None)
     if source_check.status != "verified":
         return source_check
-    metadata = parse_frontmatter(content)
-    if metadata.get("type") != "source":
-        return _failed(action, target_page, None, "Created source digest page does not have type: source.", {"frontmatter_type": metadata.get("type")})
-    if related_pages and not extract_list_items(extract_section(content, "Related Pages")):
-        return _failed(action, target_page, None, "Created source digest page does not link back to related knowledge pages.", {"expected_related_pages": related_pages})
     return LintPostFixVerification(
         action=action,
         status="verified",
         target_page=target_page,
-        reason="Created source digest has source frontmatter, Source section, source type, and related page section.",
-        evidence={"source_file": source_file, "related_pages": related_pages},
+        reason="Created source digest has a raw source trace.",
+        evidence={"source_file": source_file},
     )
 
 
@@ -616,16 +493,9 @@ def _markdown_pollution(content: str) -> list[str]:
         pollution.append("multiple_frontmatter_delimiters")
     if len(re.findall(r"^#\s+\S+", content, flags=re.MULTILINE)) > 1:
         pollution.append("multiple_h1_headings")
-    if len(re.findall(r"^##\s+Source\s*$", content, flags=re.MULTILINE)) > 1:
-        pollution.append("multiple_source_sections")
     if has_unclosed_fenced_code_blocks(content):
         pollution.append("unclosed_fenced_code_block")
     return pollution
-
-
-def _expected_link_identity(vault_path: Path, page: str) -> str:
-    resolved = resolve_wikilink_target(vault_path, page)
-    return resolved or wiki_target_key(page)
 
 
 def _candidate_action(candidate: Any) -> str | None:

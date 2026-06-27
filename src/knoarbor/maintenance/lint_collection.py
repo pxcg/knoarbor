@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Any
 
 from knoarbor.core.markdown import extract_heading, extract_list_items, extract_section, parse_frontmatter
-from knoarbor.core.schemas.page_identity import PageIdentity, normalize_facet
+from knoarbor.core.schemas.page_identity import PageIdentity
 from knoarbor.core.schemas.wiki_lint import WikiLintIssue
-from knoarbor.core.wiki_schema import FRONTMATTER_TYPES, INDEX_PAGE_DIRS, UNIFIED_KNOWLEDGE_PAGE_DIR, is_index_excluded_file
+from knoarbor.core.wiki_schema import UNIFIED_KNOWLEDGE_PAGE_DIR, is_index_excluded_file
 from knoarbor.maintenance.lint_models import LintPage
 from knoarbor.storage.wiki_paths import SOURCE_DIGEST_ROOT_DIR, content_relative_path, content_root, source_digest_root
 
@@ -45,10 +45,7 @@ def collect_pages(vault_path: Path) -> list[LintPage]:
                 relation_nodes=extract_relation_nodes(content),
                 sources=extract_page_sources(content, metadata),
                 canonical_path=identity.canonical_path,
-                legacy_paths=identity.legacy_paths,
-                page_kind=identity.page_kind,
                 role=identity.role,
-                facets=identity.facets,
             )
         )
     return pages
@@ -58,13 +55,6 @@ def _iter_lint_page_paths(root: Path, source_root: Path) -> list[Path]:
     paths: list[Path] = []
     if root.exists():
         for md_path in sorted(root.glob("*.md")):
-            if not is_index_excluded_file(md_path.name):
-                paths.append(md_path)
-    for directory in INDEX_PAGE_DIRS:
-        page_dir = root / directory
-        if not page_dir.exists():
-            continue
-        for md_path in sorted(page_dir.glob("*.md")):
             if not is_index_excluded_file(md_path.name):
                 paths.append(md_path)
     if source_root.exists():
@@ -80,61 +70,20 @@ def _page_directory(root: Path, source_root: Path, md_path: Path) -> str:
         return SOURCE_DIGEST_ROOT_DIR
     except ValueError:
         pass
-    if md_path.parent.resolve() == root.resolve():
-        return UNIFIED_KNOWLEDGE_PAGE_DIR
-    return md_path.parent.name
+    return UNIFIED_KNOWLEDGE_PAGE_DIR
 
 
 def _page_identity(relative_path: str, directory: str, metadata: dict[str, str], title: str, content: str) -> PageIdentity:
-    page_kind = _infer_page_kind(directory, metadata)
-    role = "source_digest" if directory == "sources" or page_kind == "source_digest" else "knowledge_page"
+    role = "source_digest" if directory == "sources" else "knowledge_page"
     return PageIdentity(
-        canonical_path=metadata.get("canonical_path") or relative_path,
-        legacy_paths=_metadata_list(metadata.get("legacy_paths")),
+        canonical_path=relative_path,
         title=title,
-        page_kind=page_kind,
         subject_kind=metadata.get("subject_kind", ""),
         role=role,
-        facets=_lint_facets(directory, page_kind, metadata, content),
         atom_ids=_metadata_list(metadata.get("atom_ids")) + _metadata_list(metadata.get("claim_ids")),
         relation_ids=_metadata_list(metadata.get("relation_ids")),
         source_digest_ids=_metadata_list(metadata.get("source_digest_ids")),
     )
-
-
-def _infer_page_kind(directory: str, metadata: dict[str, str]) -> str:
-    raw_kind = metadata.get("page_kind") or metadata.get("kind")
-    if raw_kind:
-        return _normalize_page_kind(raw_kind)
-    raw_type = metadata.get("type") or FRONTMATTER_TYPES.get(directory, "unknown")
-    if directory == "sources" or raw_type == "source":
-        return "source_digest"
-    if raw_type == "page":
-        return "unknown"
-    return _normalize_page_kind(raw_type)
-
-
-def _normalize_page_kind(value: str) -> str:
-    normalized = normalize_facet(value)
-    aliases = {"source": "source_digest", "question": "query", "qa": "query", "page": "unknown"}
-    allowed = {"concept", "entity", "workflow", "comparison", "timeline", "query", "note", "source_digest", "generated_view", "unknown"}
-    normalized = aliases.get(normalized, normalized or "unknown")
-    return normalized if normalized in allowed else "unknown"
-
-
-def _lint_facets(directory: str, page_kind: str, metadata: dict[str, str], content: str) -> list[str]:
-    values = [directory, page_kind]
-    values.extend(_metadata_list(metadata.get("facets")))
-    values.extend(_metadata_list(metadata.get("tags")))
-    for heading, facet in {
-        "Claims": "claims",
-        "Relations": "relations",
-        "Synthesis": "synthesis",
-        "Definition": "definition",
-    }.items():
-        if has_section(content, heading):
-            values.append(facet)
-    return [facet for facet in (normalize_facet(value) for value in values) if facet]
 
 
 def _metadata_list(value: object) -> list[str]:
@@ -273,10 +222,8 @@ def extract_relation_nodes(content: str) -> list[str]:
 def extract_page_sources(content: str, metadata: dict[str, object]) -> list[str]:
     sources: list[str] = []
     for source in [
-        *_metadata_sources(metadata.get("source")),
         *_source_identity_values(content),
         *_evidence_sources(content),
-        *extract_list_items(extract_section(content, "Source")),
         *extract_list_items(extract_section(content, "Raw Source")),
     ]:
         text = _normalize_source_value(source)
@@ -322,7 +269,7 @@ def page_lookup_maps(
     pages_by_stem: dict[str, list[LintPage]] = defaultdict(list)
     pages_by_title: dict[str, list[LintPage]] = defaultdict(list)
     for page in pages:
-        for path in [page.relative_path, page.relative_path.removesuffix(".md"), page.canonical_path, page.canonical_path.removesuffix(".md"), *page.legacy_paths]:
+        for path in [page.relative_path, page.relative_path.removesuffix(".md"), page.canonical_path, page.canonical_path.removesuffix(".md")]:
             if path:
                 pages_by_relative[path] = page
                 pages_by_relative[path.removesuffix(".md")] = page
@@ -476,15 +423,6 @@ def _connect(adjacency: dict[str, set[str]], source_path: str, target_path: str)
     adjacency[target_path].add(source_path)
 
 
-def _metadata_sources(value: object) -> list[str]:
-    if isinstance(value, str):
-        text = value.strip()
-        return [text] if text else []
-    if isinstance(value, list):
-        return [str(item).strip() for item in value if str(item).strip()]
-    return []
-
-
 def _evidence_sources(content: str) -> list[str]:
     sources: list[str] = []
     for cells in _markdown_table_rows(extract_section(content, "Evidence")):
@@ -503,7 +441,7 @@ def _source_identity_values(content: str) -> list[str]:
     values: list[str] = []
     for item in extract_list_items(extract_section(content, "Source Identity")):
         text = item.strip().strip("`")
-        lowered = text.lower()
+        lowered = text.lower().replace("_", " ")
         if lowered.startswith("raw source:"):
             values.append(text.split(":", 1)[1].strip().strip("`"))
         elif lowered.startswith("source digest ids:"):
@@ -514,7 +452,7 @@ def _source_identity_values(content: str) -> list[str]:
 
 def _normalize_source_value(value: str) -> str:
     text = value.strip().strip("`")
-    lowered = text.lower()
+    lowered = text.lower().replace("_", " ")
     if lowered.startswith("raw source:"):
         return text.split(":", 1)[1].strip().strip("`")
     if lowered.startswith(("content hash:", "atom ids:", "source digest ids:")):

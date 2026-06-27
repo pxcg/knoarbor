@@ -58,31 +58,26 @@ class DraftCanonicalizer:
             changes.append("normalized_body_headings")
 
         patches = self._canonicalize_patches(draft.patches, changes)
-        claims = [str(item).strip() for item in draft.claims if str(item).strip()][:12]
-        entities = [str(item).strip() for item in draft.entities if str(item).strip()][:24]
-        relations = [str(item).strip() for item in draft.relations if str(item).strip()][:12]
-        evidence = [str(item).strip() for item in draft.evidence if str(item).strip()][:24]
-        page_kind = _page_kind_from_draft(draft.page_kind, page_dir)
-        page_role = _page_role_from_draft(draft.role, page_kind)
-        subject_kind = _subject_kind_from_draft(draft.subject_kind, page_kind)
-        facets = _identity_facets(draft.facets, page_dir, page_kind)
+        claims = [str(item).strip() for item in draft.claims if str(item).strip()]
+        entities = [str(item).strip() for item in draft.entities if str(item).strip()]
+        relations = [str(item).strip() for item in draft.relations if str(item).strip()]
+        evidence = [str(item).strip() for item in draft.evidence if str(item).strip()]
+        page_role = _page_role_from_draft(getattr(draft, "role", ""), page_dir)
+        subject_kind = _subject_kind_from_draft(getattr(draft, "subject_kind", ""))
 
         canonical = WikiDraft(
             title=title,
             page_dir=page_dir,
-            page_type="source" if page_role == "source_digest" else "page",
             canonical_path=draft.canonical_path or "",
-            legacy_paths=draft.legacy_paths,
-            page_kind=page_kind,
             subject_kind=subject_kind,
             role=page_role,
-            facets=facets,
             question=question,
             summary=summary,
             claims=claims,
             entities=entities,
             relations=relations,
             evidence=evidence,
+            attachments=list(draft.attachments),
             synthesis=synthesis,
             unresolved_items=list(draft.unresolved_items),
             confidence=draft.confidence,
@@ -140,48 +135,18 @@ class DraftCanonicalizer:
         return canonical
 
 
-def _page_kind_from_draft(value: str, page_dir: str) -> str:
-    text = _normalize_identity_value(value)
-    if text:
-        return text
-    mapping = {
-        "sources": "source_digest",
-        "entities": "entity",
-        "concepts": "concept",
-        "comparisons": "comparison",
-        "queries": "query",
-        "timelines": "timeline",
-        "workflows": "workflow",
-    }
-    return mapping.get(page_dir, "unknown")
-
-
-def _page_role_from_draft(value: str, page_kind: str) -> str:
-    text = _normalize_identity_value(value)
-    if text:
-        return text
-    if page_kind == "source_digest":
+def _page_role_from_draft(value: str, page_dir: str) -> str:
+    if value:
+        return _normalize_identity_value(value)
+    if page_dir == "sources":
         return "source_digest"
-    if page_kind == "generated_view":
-        return "generated_view"
     return "knowledge_page"
 
 
-def _subject_kind_from_draft(value: str, page_kind: str) -> str:
-    text = _normalize_identity_value(value)
-    if text:
-        return text
-    return page_kind
-
-
-def _identity_facets(explicit: list[str], page_dir: str, page_kind: str) -> list[str]:
-    values = [*explicit, page_dir, page_kind]
-    facets: list[str] = []
-    for value in values:
-        text = _normalize_identity_value(value)
-        if text and text not in facets:
-            facets.append(text)
-    return facets
+def _subject_kind_from_draft(value: str) -> str:
+    if value:
+        return _normalize_identity_value(value)
+    return ""
 
 
 def _normalize_identity_value(value: object) -> str:

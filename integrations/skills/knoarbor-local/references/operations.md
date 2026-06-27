@@ -27,7 +27,7 @@ Use these examples to map user phrasing to the smallest useful operation:
 | "深入一点，比较 Agent Loop 和控制模式" | `python3 scripts/knoarbor.py query "Agent Loop 控制模式比较" --mode deep --max-results 8` |
 | "列出 Agent Loop 相关页面" | `python3 scripts/knoarbor.py page list --contains "Agent Loop"` |
 | "打开刚才那个页面全文" | `python3 scripts/knoarbor.py --vault-id <result.vault_id> page read <result.path>` |
-| "这个页面有哪些关联？" | `python3 scripts/knoarbor.py --vault-id <result.vault_id> page links <result.path>` |
+| "这个页面有哪些关联？" | `python3 scripts/knoarbor.py --vault-id <result.vault_id> page relations <result.path>` |
 | "在所有知识库里查 iOS 音频检测" | `python3 scripts/knoarbor.py query "iOS 音频检测" --all-vaults` |
 | "只查学习知识库和工程知识库" | `python3 scripts/knoarbor.py query "主题" --query-vault-id rag-llm-learning --query-vault-id agent-engineering` |
 | "刚才查到的 team 知识库页面展开一下" | `python3 scripts/knoarbor.py --vault-id team page read <result.path>` |
@@ -57,7 +57,7 @@ python3 scripts/knoarbor.py query "Agent Loop 是什么"
 python3 scripts/knoarbor.py query "Agent Loop 控制模式" --mode deep --max-results 8
 python3 scripts/knoarbor.py query "Agent Loop" --all-vaults
 python3 scripts/knoarbor.py query "Agent Loop" --query-vault-id personal --query-vault-id team
-python3 scripts/knoarbor.py page read concepts/Agent-Loop.md
+python3 scripts/knoarbor.py page read Agent-Loop.md
 ```
 
 Progressive retrieval behavior:
@@ -91,22 +91,22 @@ python3 scripts/knoarbor.py query "Agent Loop 和控制模式的设计取舍" --
 python3 scripts/knoarbor.py page list --contains "Agent Loop"
 
 # User selects a page or asks for the full page.
-python3 scripts/knoarbor.py page read concepts/Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py page read Agent-Loop-and-Control-Patterns.md
 
 # User selects a result from a multi-vault query.
-python3 scripts/knoarbor.py --vault-id personal page read concepts/Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py --vault-id personal page read Agent-Loop-and-Control-Patterns.md
 ```
 
 ## Page Reading
 
 ```bash
 python3 scripts/knoarbor.py page list
-python3 scripts/knoarbor.py page list --dir concepts
+python3 scripts/knoarbor.py page list --dir pages
 python3 scripts/knoarbor.py page list --contains "Agent Loop"
-python3 scripts/knoarbor.py page read concepts/Agent-Loop-and-Control-Patterns.md
-python3 scripts/knoarbor.py page links concepts/Agent-Loop-and-Control-Patterns.md
-python3 scripts/knoarbor.py --vault-id personal page read concepts/Agent-Loop-and-Control-Patterns.md
-python3 scripts/knoarbor.py --vault-id personal page links concepts/Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py page read Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py page relations Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py --vault-id personal page read Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py --vault-id personal page relations Agent-Loop-and-Control-Patterns.md
 ```
 
 Use `page read` after query when the user asks to expand a specific result. Do
@@ -169,7 +169,7 @@ python3 scripts/knoarbor.py lint --mode deterministic --no-apply-safe-fixes --no
 python3 scripts/knoarbor.py lint --mode deterministic
 python3 scripts/knoarbor.py lint --mode semantic_structural
 python3 scripts/knoarbor.py lint --mode semantic_full --profile deep
-python3 scripts/knoarbor.py lint --scope-page concepts/Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py lint --scope-page Agent-Loop-and-Control-Patterns.md
 python3 scripts/knoarbor.py --vault-id personal lint --mode semantic_structural
 ```
 
@@ -192,7 +192,7 @@ python3 scripts/knoarbor.py runs events RUN_ID
 python3 scripts/knoarbor.py runs cancel RUN_ID
 python3 scripts/knoarbor.py report list
 python3 scripts/knoarbor.py report list --all-vaults
-python3 scripts/knoarbor.py report read maintenance/ingest_report_YYYYMMDD_HHMMSS.md
+python3 scripts/knoarbor.py report read maintenance/reports/ingest/ingest_report_YYYYMMDD_HHMMSS.md
 ```
 
 Use these when the user asks what happened, where a task is stuck, what changed,

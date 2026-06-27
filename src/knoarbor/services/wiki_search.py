@@ -103,7 +103,7 @@ class WikiSearchService:
             evidence_coverage=evidence_coverage,
             rejected_candidates=rejected_candidates,
             context_pack=context_pack,
-            answer_guidance=_merge_unique([item for response in responses for item in response.answer_guidance]),
+            response_guidance=_merge_unique([item for response in responses for item in response.response_guidance]),
             gap_suggestions=[item for response in responses for item in response.gap_suggestions],
             gaps=_merge_unique([item for response in responses for item in response.gaps]),
             warnings=_merge_unique(warnings),
@@ -267,8 +267,8 @@ def _merge_evidence_coverage(
     statuses = {response.evidence_coverage.status for response in responses}
     status = "strong" if "strong" in statuses else "adequate" if "adequate" in statuses else "weak"
     covered_terms = _merge_unique([term for response in responses for term in response.evidence_coverage.covered_terms])
-    covered_facets = _merge_unique([facet for response in responses for facet in response.evidence_coverage.covered_facets])
-    missing_facets = _merge_unique([facet for response in responses for facet in response.evidence_coverage.missing_facets if facet not in set(covered_terms)])
+    covered_dimensions = _merge_unique([dimension for response in responses for dimension in response.evidence_coverage.covered_dimensions])
+    missing_dimensions = _merge_unique([dimension for response in responses for dimension in response.evidence_coverage.missing_dimensions if dimension not in set(covered_terms)])
     return WikiEvidenceCoverage(
         status=status,
         primary_count=len(primary_pages),
@@ -276,8 +276,8 @@ def _merge_evidence_coverage(
         source_count=len(source_pages),
         gap_count=sum(response.evidence_coverage.gap_count for response in responses),
         covered_terms=covered_terms[:12],
-        covered_facets=covered_facets[:12],
-        missing_facets=missing_facets[:8],
+        covered_dimensions=covered_dimensions[:12],
+        missing_dimensions=missing_dimensions[:8],
     )
 
 

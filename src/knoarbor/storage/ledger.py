@@ -8,7 +8,7 @@ from knoarbor.runtime import vault_write_lock
 
 
 def append_jsonl_ledger(vault_path: Path, ledger_path: str, record: dict[str, object]) -> Path:
-    relative = Path(ledger_path.strip())
+    relative = _ledger_relative_path(ledger_path)
     if relative.is_absolute() or ".." in relative.parts:
         raise VaultPathError(f"Invalid ledger path: {ledger_path}")
     path = (vault_path / relative).resolve()
@@ -24,7 +24,7 @@ def append_jsonl_ledger(vault_path: Path, ledger_path: str, record: dict[str, ob
 def append_jsonl_records(vault_path: Path, ledger_path: str, records: list[dict[str, object]]) -> Path | None:
     if not records:
         return None
-    relative = Path(ledger_path.strip())
+    relative = _ledger_relative_path(ledger_path)
     if relative.is_absolute() or ".." in relative.parts:
         raise VaultPathError(f"Invalid ledger path: {ledger_path}")
     path = (vault_path / relative).resolve()
@@ -43,7 +43,7 @@ def append_operation_ledger(vault_path: Path, ledger_path: str, record: dict[str
 
 
 def read_jsonl_ledger(vault_path: Path, ledger_path: str, *, limit: int | None = None) -> list[dict[str, object]]:
-    relative = Path(ledger_path.strip())
+    relative = _ledger_relative_path(ledger_path)
     if relative.is_absolute() or ".." in relative.parts:
         raise VaultPathError(f"Invalid ledger path: {ledger_path}")
     path = (vault_path / relative).resolve()
@@ -65,3 +65,8 @@ def read_jsonl_ledger(vault_path: Path, ledger_path: str, *, limit: int | None =
             if isinstance(item, dict):
                 records.append(item)
     return records[-limit:] if limit is not None else records
+
+
+def _ledger_relative_path(ledger_path: str) -> Path:
+    normalized = ledger_path.strip().replace("\\", "/").lstrip("/")
+    return Path(normalized)

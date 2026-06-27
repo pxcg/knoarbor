@@ -322,15 +322,9 @@ def source_unitization_from_document(document: SourceDocument) -> SourceUnitizat
 def apply_source_units_to_extract(document: SourceDocument, extract: KnowledgeExtract) -> KnowledgeExtract:
     """Make model-normalized extracts respect deterministic source units."""
 
-    payload = document.metadata.get("source_unitization") if isinstance(document.metadata, dict) else None
-    if not isinstance(payload, dict):
-        return extract
-    try:
-        unitization = SourceUnitizationResult.model_validate(payload)
-    except Exception:
-        return extract
+    unitization = source_unitization_from_document(document)
     if not unitization.units:
-        return extract
+        return extract.model_copy(update={"attachments": list(document.content.attachments)})
     units = [
         ContentUnit(
             index=index,

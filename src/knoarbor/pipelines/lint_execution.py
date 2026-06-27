@@ -9,7 +9,6 @@ from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
 from knoarbor.core.schemas.wiki_lint import LintRunRequest
 from knoarbor.core.schemas.wiki_operation import WikiOperationApplyRequest, WikiOperationInput
 from knoarbor.core.schemas.wiki_write import WikiDraftBatchWriteItem, WikiDraftBatchWriteRequest, WikiDraftBatchWriteResponse, WikiDraftInput
-from knoarbor.maintenance.graph_repair import GraphRepairExecutor, GraphRepairResult
 from knoarbor.maintenance.provenance_refresh import ProvenanceRefreshExecutor, ProvenanceRefreshResult
 from knoarbor.pipelines.operation import WikiOperationPipeline
 from knoarbor.pipelines.write import WikiWritePipeline
@@ -25,14 +24,12 @@ class LintExecutionRouter:
         operation_pipeline: WikiOperationPipeline | None = None,
         write_pipeline: WikiWritePipeline | None = None,
         provenance_refresh: ProvenanceRefreshExecutor | None = None,
-        graph_repair: GraphRepairExecutor | None = None,
         privacy_config: PrivacyConfig | None = None,
     ) -> None:
         self.privacy_config = privacy_config or PrivacyConfig()
         self.operation_pipeline = operation_pipeline or WikiOperationPipeline(privacy_config=self.privacy_config)
         self.write_pipeline = write_pipeline or WikiWritePipeline()
         self.provenance_refresh = provenance_refresh or ProvenanceRefreshExecutor(self.write_pipeline)
-        self.graph_repair = graph_repair or GraphRepairExecutor()
 
     def apply_wiki_operations(
         self,
@@ -76,8 +73,6 @@ class LintExecutionRouter:
         return self.write_pipeline.run(
             WikiDraftBatchWriteRequest(
                 vault_path=request.vault_path,
-                auto_related_links=False,
-                provenance_related_links=False,
                 drafts=[
                     WikiDraftBatchWriteItem(
                         wiki_draft=WikiDraftInput.model_validate(draft.model_dump()),
@@ -112,8 +107,6 @@ class LintExecutionRouter:
                 continue
             candidate = candidates.candidates[decision.operation_index]
             queue_type = "refresh_request" if decision.executor_fit == "supported_by_refresh_request" else "report_only"
-            if queue_type == "report_only" and _is_safe_graph_repair_candidate(candidate, decision):
-                queue_type = "graph_repair"
             queued.append(
                 {
                     "operation_index": decision.operation_index,
@@ -128,7 +121,6 @@ class LintExecutionRouter:
                     "evidence": [item.model_dump() for item in candidate.evidence],
                     "expected_effect": candidate.expected_effect,
                     "params": dict(candidate.recommended_action.params),
-                    "related_pages": list(candidate.related_pages),
                     "required_followups": list(decision.required_followups),
                 }
             )
@@ -140,16 +132,6 @@ class LintExecutionRouter:
         queued_actions: list[dict[str, object]],
     ) -> ProvenanceRefreshResult:
         return self.provenance_refresh.apply(
-            vault_path=Path(request.vault_path).expanduser().resolve(),
-            queued_actions=queued_actions,
-        )
-
-    def apply_graph_repairs(
-        self,
-        request: LintRunRequest,
-        queued_actions: list[dict[str, object]],
-    ) -> GraphRepairResult:
-        return self.graph_repair.apply(
             vault_path=Path(request.vault_path).expanduser().resolve(),
             queued_actions=queued_actions,
         )
@@ -195,16 +177,11 @@ _WIKI_OPERATION_ACTIONS = {
     "rename_page",
     "merge_pages",
     "delete_page",
-    "update_frontmatter",
     "replace_wikilink",
     "normalize_wikilink",
-    "attach_related_pages",
-    "attach_source_digest",
-    "remove_related_links",
     "deduplicate_section_items",
     "remove_adjacent_duplicate_headings",
     "add_missing_section",
-    "update_source_field",
     "redact_sensitive_text",
 }
 
@@ -221,7 +198,6 @@ def _supported_draft_write_decisions(candidates: MaintenanceCandidates, review: 
         "rewrite_section",
         "improve_summary",
         "remove_chatty_content",
-        "add_contextual_links",
         "strengthen_provenance",
     }
     decisions: list[LintMaintenanceReviewDecision] = []
@@ -250,17 +226,6 @@ def _candidate_to_wiki_operation(
     return _build_wiki_operation(request, candidate, decision, action)
 
 
-def _is_safe_graph_repair_candidate(
-    candidate: MaintenanceCandidate,
-    decision: LintMaintenanceReviewDecision,
-) -> bool:
-    if candidate.issue_type not in {"weak_link_graph", "source_without_knowledge_links"}:
-        return False
-    if candidate.recommended_action.action not in {"queue_graph_review", "report_only"}:
-        return False
-    return decision.risk_level in {"safe", "low"} and candidate.risk_hint in {"safe", "low"}
-
-
 def _build_wiki_operation(
     request: LintRunRequest,
     candidate: MaintenanceCandidate,
@@ -278,7 +243,6 @@ def _build_wiki_operation(
         confidence=min(candidate.confidence, decision.confidence),
         expected_effect=candidate.expected_effect,
         before_hash=_optional_str(params.get("before_hash")),
-        related_pages=_string_list(params.get("related_pages")) or candidate.related_pages,
         new_path=_optional_str(params.get("new_path")),
         new_title=_optional_str(params.get("new_title")),
         old_target=_optional_str(params.get("old_target")),

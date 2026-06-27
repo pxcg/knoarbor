@@ -549,7 +549,7 @@ def _current_evidence_context(observations: list[ChatToolTraceItem], *, query: s
     primary_paths: list[str] = []
     coverage_statuses: list[str] = []
     recommended_actions: list[str] = []
-    missing_facets: list[str] = []
+    missing_dimensions: list[str] = []
     executed_queries: list[str] = []
     failed_tools: list[str] = []
     for item in observations[-6:]:
@@ -564,7 +564,7 @@ def _current_evidence_context(observations: list[ChatToolTraceItem], *, query: s
         if isinstance(coverage, dict) and coverage.get("status"):
             coverage_statuses.append(str(coverage["status"]))
         if isinstance(coverage, dict):
-            missing_facets.extend(str(facet) for facet in coverage.get("missing_facets", []) if str(facet).strip())
+            missing_dimensions.extend(str(dimension) for dimension in coverage.get("missing_dimensions", []) if str(dimension).strip())
         if isinstance(pack, dict) and pack.get("recommended_action"):
             recommended_actions.append(str(pack["recommended_action"]))
         if item.tool == "query_wiki" and item.arguments.get("query"):
@@ -587,7 +587,7 @@ def _current_evidence_context(observations: list[ChatToolTraceItem], *, query: s
             "primary_paths": _unique_strings(primary_paths),
             "coverage_statuses": _unique_strings(coverage_statuses),
             "recommended_actions": _unique_strings(recommended_actions),
-            "missing_facets": _unique_strings(missing_facets),
+            "missing_dimensions": _unique_strings(missing_dimensions),
             "executed_queries": _unique_strings(executed_queries),
             "failed_tools": _unique_strings(failed_tools),
             "needs_more_evidence": not assessment.sufficient,
@@ -711,15 +711,11 @@ def _evidence_page_roles(pack: object) -> tuple[list[str], list[str]]:
 
 def _is_source_page_payload(page: dict[str, object]) -> bool:
     page_role = str(page.get("page_role") or "")
-    page_kind = str(page.get("page_kind") or "")
-    page_type = str(page.get("type") or "")
     answer_role = str(page.get("role") or "")
     path = str(page.get("path") or "")
     return (
         answer_role == "source"
         or page_role == "source_digest"
-        or page_kind == "source_digest"
-        or page_type == "source"
         or path.startswith("sources/")
     )
 

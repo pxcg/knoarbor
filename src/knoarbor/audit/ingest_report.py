@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from knoarbor.audit.contracts import LEDGER_PATHS, LEDGER_SCHEMA_VERSIONS
 from knoarbor.audit.reports import write_maintenance_report
 from knoarbor.audit.report_formatting import as_dict, as_list, cache_metric_lines, fmt_number, format_list, semantic_token_report_lines
 from knoarbor.audit.token_ledger import append_ingest_token_records
@@ -11,7 +12,8 @@ from knoarbor.storage.ledger import append_jsonl_ledger, read_jsonl_ledger
 from knoarbor.storage.wiki_index import relative_wiki_path
 
 
-INGEST_LEDGER_PATH = "maintenance/ingest_ledger.jsonl"
+INGEST_LEDGER_PATH = LEDGER_PATHS["ingest"]
+INGEST_RUN_SCHEMA_VERSION = LEDGER_SCHEMA_VERSIONS["ingest"]
 
 
 def write_ingest_run_artifacts(
@@ -33,7 +35,12 @@ def write_ingest_run_artifacts(
     if append_ledger:
         append_ingest_token_records(vault_path, record)
     report_path = (
-        write_maintenance_report(vault_path, "ingest", render_ingest_report(record), f"maintenance/ingest_report_{run_id}.md")
+        write_maintenance_report(
+            vault_path,
+            "ingest",
+            render_ingest_report(record),
+            f"maintenance/reports/ingest/ingest_report_{run_id}.md",
+        )
         if write_report
         else None
     )
@@ -45,7 +52,7 @@ def write_ingest_run_artifacts(
 
 def build_ingest_run_record(result: Any, *, run_id: str, started_at: str, finished_at: str) -> dict[str, object]:
     return {
-        "schema_version": "ingest_run.v1",
+        "schema_version": INGEST_RUN_SCHEMA_VERSION,
         "run_id": run_id,
         "started_at": started_at,
         "finished_at": finished_at,
@@ -535,7 +542,7 @@ def _context_strategy_lines(context: dict[str, Any]) -> list[str]:
         lines.append(
             "- compile_context_pages: "
             f"targets={compile_context.get('target_pages', 'n/a')}, "
-            f"related={compile_context.get('related_pages', 'n/a')}, "
+            f"context={compile_context.get('context_pages', 'n/a')}, "
             f"candidates={compile_context.get('candidate_pages', 'n/a')}"
         )
     return lines
@@ -553,7 +560,6 @@ def _page_plan_operations(semantic_result: Any | None) -> list[dict[str, object]
                 "target_page": operation.target_page,
                 "page_dir": operation.page_dir,
                 "canonical_path": operation.canonical_path,
-                "legacy_paths": list(operation.legacy_paths),
                 "title": operation.title,
                 "knowledge_object": operation.knowledge_object,
                 "selected_claim_ids": list(operation.selected_claim_ids),

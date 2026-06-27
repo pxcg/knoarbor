@@ -10,16 +10,13 @@ from knoarbor.core.markdown import adjacent_duplicate_headings, extract_list_ite
 from knoarbor.core.redaction import detect_sensitive_text
 from knoarbor.core.schemas.wiki_lint import WikiLintIssue
 from knoarbor.core.wiki_schema import (
-    FRONTMATTER_TYPES,
-    GENERATED_VIEW_DIR,
+    CONTENT_PAGE_DIRS,
     INDEX_EXCLUDED_DIRS,
     SYSTEM_PAGE_DIRS,
     UNIFIED_KNOWLEDGE_PAGE_DIR,
     is_index_excluded_file,
 )
 from knoarbor.maintenance.lint_collection import (
-    extract_headings,
-    extract_wiki_links,
     graph_health_stats,
     has_section,
     normalize_link_target,
@@ -31,11 +28,10 @@ from knoarbor.maintenance.lint_collection import (
 )
 from knoarbor.maintenance.lint_models import LintPage
 from knoarbor.maintenance.lint_rules import (
+    KNOWLEDGE_PAGE_SECTIONS,
     OVERDENSE_LINK_THRESHOLD,
-    OVERDENSE_RELATED_THRESHOLD,
     REQUIRED_FRONTMATTER_KEYS,
-    REQUIRED_SECTIONS_BY_DIR,
-    WEAK_GRAPH_DIRS,
+    REQUIRED_SECTIONS_BY_ROLE,
 )
 from knoarbor.storage.wiki_paths import content_root
 from knoarbor.storage.knowledge_atom_index import KnowledgeAtomRecord, read_knowledge_atom_records
@@ -58,9 +54,7 @@ def lint_collected_pages(
     issues.extend(_lint_duplicate_identity(pages))
     issues.extend(_lint_links(pages))
     issues.extend(_lint_graph_shape(pages))
-    issues.extend(_lint_related_page_lists(pages))
     issues.extend(_lint_repeated_list_sections(pages))
-    issues.extend(_lint_specialized_page_contracts(pages))
     issues.extend(_lint_source_pages(vault_path, pages))
     atom_issues, atom_stats = _lint_knowledge_atom_index(vault_path, pages)
     issues.extend(atom_issues)
@@ -75,9 +69,7 @@ def lint_collected_pages(
         "warning_count": severity_counts.get("warning", 0),
         "info_count": severity_counts.get("info", 0),
         "directories": dict(Counter(page.directory for page in pages)),
-        "page_kinds": dict(Counter(page.page_kind for page in pages)),
         "roles": dict(Counter(page.role for page in pages)),
-        "facets": dict(Counter(facet for page in pages for facet in page.facets)),
         "graph_health": graph_health,
         "knowledge_atom_index": atom_stats,
     }
@@ -85,7 +77,7 @@ def lint_collected_pages(
 
 
 def _lint_unexpected_markdown(vault_path: Path) -> list[WikiLintIssue]:
-    allowed_dirs = set(FRONTMATTER_TYPES) | set(SYSTEM_PAGE_DIRS) | INDEX_EXCLUDED_DIRS | {GENERATED_VIEW_DIR}
+    allowed_dirs = set(SYSTEM_PAGE_DIRS) | INDEX_EXCLUDED_DIRS | set(CONTENT_PAGE_DIRS) | {UNIFIED_KNOWLEDGE_PAGE_DIR}
     issues: list[WikiLintIssue] = []
     root = content_root(vault_path)
     for md_path in sorted(root.rglob("*.md")):
@@ -113,33 +105,16 @@ def _lint_page_structure(pages: list[LintPage]) -> list[WikiLintIssue]:
             issues.append(_issue("missing_frontmatter_keys", "warning", page.relative_path, "Page frontmatter is missing expected generated-page keys.", {"missing": missing_keys}))
         if not re.search(r"^#\s+.+$", page.content, flags=re.MULTILINE):
             issues.append(_issue("missing_h1", "warning", page.relative_path, "Page is missing a top-level title."))
-        expected_type = FRONTMATTER_TYPES.get(page.directory)
-        actual_type = page.metadata.get("type")
-        if page.directory != UNIFIED_KNOWLEDGE_PAGE_DIR and expected_type and actual_type and actual_type != expected_type:
-            issues.append(_issue("frontmatter_type_mismatch", "error", page.relative_path, "Frontmatter type does not match the containing directory.", {"expected": expected_type, "actual": actual_type}))
-        if page.is_source_digest and page.directory != "sources":
-            issues.append(_issue("source_digest_wrong_location", "warning", page.relative_path, "Source digest pages should stay under the sources directory.", {"role": page.role, "page_kind": page.page_kind}))
         for section in _required_sections_for_page(page):
             if not has_section(page.content, section):
-                issues.append(_issue("missing_required_section", "info", page.relative_path, f"Page is missing required {page.directory} section: {section}.", {"directory": page.directory, "page_type": expected_type, "section": section}))
+                issues.append(_issue("missing_required_section", "info", page.relative_path, f"Page is missing required section: {section}.", {"directory": page.directory, "role": page.role, "section": section}))
     return issues
 
 
 def _required_sections_for_page(page: LintPage) -> tuple[str, ...]:
     if page.is_source_digest:
-        return REQUIRED_SECTIONS_BY_DIR.get("sources", ())
-    if page.directory != UNIFIED_KNOWLEDGE_PAGE_DIR:
-        return REQUIRED_SECTIONS_BY_DIR.get(page.directory, ())
-    page_kind_to_legacy_dir = {
-        "entity": "entities",
-        "concept": "concepts",
-        "comparison": "comparisons",
-        "query": "queries",
-        "timeline": "timelines",
-        "workflow": "workflows",
-    }
-    legacy_dir = page_kind_to_legacy_dir.get(page.page_kind)
-    return REQUIRED_SECTIONS_BY_DIR.get(legacy_dir, ())
+        return REQUIRED_SECTIONS_BY_ROLE.get("source_digest", ())
+    return KNOWLEDGE_PAGE_SECTIONS
 
 
 def _lint_markdown_integrity(pages: list[LintPage]) -> list[WikiLintIssue]:
@@ -238,13 +213,12 @@ def _lint_graph_shape(pages: list[LintPage]) -> list[WikiLintIssue]:
 
     for page in pages:
         page_edges = adjacency.get(page.relative_path, set())
-        if (page.is_knowledge_page or page.directory in WEAK_GRAPH_DIRS) and not page_edges:
+        if page.is_knowledge_page and not page_edges:
             issues.append(_issue("weak_link_graph", "info", page.relative_path, "Generated knowledge page has no resolved incoming or outgoing wiki links.", {"incoming_count": 0, "outgoing_count": 0}))
 
-        related_count = len(extract_wiki_links(extract_section(page.content, "Related Pages")))
         outgoing_count = len(page_edges)
-        if related_count > OVERDENSE_RELATED_THRESHOLD or outgoing_count > OVERDENSE_LINK_THRESHOLD:
-            issues.append(_issue("overdense_link_graph", "info", page.relative_path, "Page has a dense link graph that may need relationship pruning or section organization.", {"related_count": related_count, "resolved_outgoing_count": outgoing_count, "related_threshold": OVERDENSE_RELATED_THRESHOLD, "outgoing_threshold": OVERDENSE_LINK_THRESHOLD}))
+        if outgoing_count > OVERDENSE_LINK_THRESHOLD:
+            issues.append(_issue("overdense_link_graph", "info", page.relative_path, "Page has a dense link graph that may need relationship pruning or section organization.", {"resolved_outgoing_count": outgoing_count, "outgoing_threshold": OVERDENSE_LINK_THRESHOLD}))
     return issues
 
 
@@ -268,11 +242,6 @@ def _lint_source_pages(vault_path: Path, pages: list[LintPage]) -> list[WikiLint
         sources = page.sources
         raw_sources = [source for source in sources if source.startswith("raw/")]
         provenance_sources = [source for source in sources if _is_provenance_source_key(source)]
-        if page.metadata.get("source") and has_section(page.content, "Source"):
-            section_sources = extract_list_items(extract_section(page.content, "Source"))
-            for source in _metadata_sources(page.metadata.get("source")):
-                if source.startswith("raw/") and source not in section_sources:
-                    issues.append(_issue("source_section_mismatch", "info", page.relative_path, "Frontmatter source is missing from the Source section.", {"source": source, "section_sources": section_sources}))
 
         if page.is_source_digest:
             for source in raw_sources:
@@ -297,15 +266,6 @@ def _lint_source_pages(vault_path: Path, pages: list[LintPage]) -> list[WikiLint
 
 def _is_provenance_source_key(source: str) -> bool:
     return source.startswith(("raw/", "sd_")) or source.startswith("/")
-
-
-def _metadata_sources(value: object) -> list[str]:
-    if isinstance(value, str):
-        text = value.strip()
-        return [text] if text else []
-    if isinstance(value, list):
-        return [str(item).strip() for item in value if str(item).strip()]
-    return []
 
 
 def _lint_sensitive_content(pages: list[LintPage], config: PrivacyConfig) -> list[WikiLintIssue]:
@@ -450,55 +410,14 @@ def _object_name(value: object) -> str:
     return str(value.get("name") or "").strip()
 
 
-def _lint_related_page_lists(pages: list[LintPage]) -> list[WikiLintIssue]:
-    pages_by_relative, pages_by_stem, pages_by_title = page_lookup_maps(pages)
-    issues: list[WikiLintIssue] = []
-    for page in pages:
-        related_links = extract_wiki_links(extract_section(page.content, "Related Pages"))
-        if not related_links:
-            continue
-        by_target: dict[str, list[str]] = defaultdict(list)
-        for raw_link in related_links:
-            target = normalize_link_target(raw_link)
-            resolved = resolve_link(target, pages_by_relative, pages_by_stem, pages_by_title)
-            key = resolved[0].relative_path if len(resolved) == 1 else target
-            by_target[key].append(raw_link)
-        duplicates = {target: links for target, links in by_target.items() if len(links) > 1}
-        for target, links in duplicates.items():
-            issues.append(_issue("duplicate_related_target", "info", page.relative_path, "Related Pages contains multiple list items pointing to the same wiki target.", {"section": "Related Pages", "target": target, "links": links}))
-    return issues
-
-
 def _lint_repeated_list_sections(pages: list[LintPage]) -> list[WikiLintIssue]:
     issues: list[WikiLintIssue] = []
     for page in pages:
-        for section in ("Key Points", "Tags", "Source"):
+        for section in ("Entities", "Source"):
             items = [item for item in extract_list_items(extract_section(page.content, section)) if _is_meaningful_list_item(item)]
             duplicates = _duplicate_items(items)
             if duplicates:
                 issues.append(_issue("duplicate_section_item", "info", page.relative_path, f"{section} contains duplicate list items.", {"section": section, "duplicates": duplicates}))
-    return issues
-
-
-def _lint_specialized_page_contracts(pages: list[LintPage]) -> list[WikiLintIssue]:
-    issues: list[WikiLintIssue] = []
-    for page in pages:
-        headings = {heading.strip().lower() for heading in extract_headings(page.content)}
-        if page.directory == "timelines":
-            if len(_date_tokens(_markdown_body(page.content))) < 2:
-                issues.append(_issue("timeline_missing_chronology", "info", page.relative_path, "Timeline page does not expose at least two date-like chronology markers."))
-        elif page.directory == "workflows":
-            workflow_step_state = _workflow_step_state(page.content, headings)
-            if not workflow_step_state["has_canonical_steps"]:
-                issues.append(
-                    _issue(
-                        "workflow_missing_steps",
-                        "info",
-                        page.relative_path,
-                        "Workflow page lacks a canonical Steps section with actionable steps.",
-                        workflow_step_state,
-                    )
-                )
     return issues
 
 
@@ -527,48 +446,6 @@ def _duplicate_items(items: list[str]) -> list[str]:
 
 def _normalize_list_item(item: str) -> str:
     return re.sub(r"\s+", " ", item.strip()).strip("- ").lower()
-
-
-def _date_tokens(content: str) -> list[str]:
-    return re.findall(r"\b(?:19|20)\d{2}(?:[-/年.]\d{1,2}(?:[-/月.]\d{1,2}日?)?)?\b", content)
-
-
-def _markdown_body(content: str) -> str:
-    return re.sub(r"^---\s*\n.*?^---\s*$\n?", "", content, count=1, flags=re.MULTILINE | re.DOTALL).strip()
-
-
-def _has_workflow_steps(content: str, headings: set[str]) -> bool:
-    return bool(_workflow_step_state(content, headings)["has_canonical_steps"])
-
-
-def _workflow_step_state(content: str, headings: set[str]) -> dict[str, bool]:
-    step_heading_found = False
-    for section in ("Steps", "Procedure", "流程", "步骤", "操作步骤"):
-        if section.lower() not in headings:
-            continue
-        step_heading_found = True
-        if _section_has_workflow_steps(extract_section(content, section)):
-            return {
-                "has_canonical_steps": True,
-                "canonical_section_present": True,
-                "steps_detected_elsewhere": True,
-            }
-    return {
-        "has_canonical_steps": False,
-        "canonical_section_present": step_heading_found,
-        "steps_detected_elsewhere": _section_has_workflow_steps(content),
-    }
-
-
-def _section_has_workflow_steps(content: str) -> bool:
-    ordered_items = re.findall(r"^\s*\d+[\.)、]\s+\S+", content, flags=re.MULTILINE)
-    task_items = re.findall(r"^\s*-\s+\[[ xX]\]\s+\S+", content, flags=re.MULTILINE)
-    meaningful_bullets = [
-        item
-        for item in re.findall(r"^\s*[-*]\s+(.+)$", content, flags=re.MULTILINE)
-        if _is_meaningful_list_item(item)
-    ]
-    return len(ordered_items) >= 2 or len(task_items) >= 2 or len(meaningful_bullets) >= 2
 
 
 def _issue(code: str, severity: str, path: str, message: str, details: dict[str, Any] | None = None) -> WikiLintIssue:

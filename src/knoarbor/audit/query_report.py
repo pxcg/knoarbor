@@ -14,7 +14,7 @@ def write_query_report(vault_path: Path, request: WikiSearchRequest, response: W
         vault_path,
         "query",
         render_query_report(request, response, timestamp),
-        f"maintenance/query_report_{timestamp}.md",
+        f"maintenance/reports/query/query_report_{timestamp}.md",
     )
     return relative_wiki_path(vault_path, report_path)
 
@@ -43,7 +43,6 @@ def render_query_report(request: WikiSearchRequest, response: WikiSearchResponse
                 f"### {index}. {item.title}",
                 "",
                 f"- path: {item.path}",
-                f"- type: {item.type}",
                 f"- match_kind: {item.match_kind}",
                 f"- relevance: {item.relevance}",
                 f"- score: {item.score}",
@@ -60,11 +59,11 @@ def render_query_report(request: WikiSearchRequest, response: WikiSearchResponse
                 lines.append(f"- {excerpt.section}: {excerpt.content}")
             lines.append("")
 
-    lines.extend(["## Answer Guidance", ""])
-    if response.answer_guidance:
-        lines.extend(f"- {item}" for item in response.answer_guidance)
+    lines.extend(["## Response Guidance", ""])
+    if response.response_guidance:
+        lines.extend(f"- {item}" for item in response.response_guidance)
     else:
-        lines.append("- No answer guidance.")
+        lines.append("- No response guidance.")
     lines.append("")
 
     lines.extend(["## Gap Signals", ""])

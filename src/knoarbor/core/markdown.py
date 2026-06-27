@@ -80,23 +80,6 @@ def extract_list_items(section_body: str) -> list[str]:
     return items
 
 
-def extract_tags(content: str, metadata: dict[str, str], max_tags: int = 8) -> list[str]:
-    raw_tags = metadata.get("tags", "")
-    tags = [tag.strip().strip("[]'\"") for tag in raw_tags.split(",") if tag.strip()]
-    if tags:
-        return tags[:max_tags]
-
-    section = extract_section(content, "Tags")
-    extracted: list[str] = []
-    for line in section.splitlines():
-        if not line.startswith("- "):
-            continue
-        tag = line[2:].strip()
-        if tag and tag != "暂无标签":
-            extracted.append(tag)
-    return extracted[:max_tags]
-
-
 def normalize_list_item(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip().lower()
 

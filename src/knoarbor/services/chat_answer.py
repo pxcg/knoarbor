@@ -196,7 +196,7 @@ def _normalize_answer_payload(payload: dict[str, Any]) -> dict[str, Any]:
             continue
         item = dict(citation)
         kind = str(item.get("kind") or "").strip().lower()
-        if kind in {"concept", "entity", "comparison", "query", "workflow", "source_digest"}:
+        if kind == "source_digest":
             item["kind"] = "page"
         normalized.append(item)
     return {**payload, "citations": normalized}

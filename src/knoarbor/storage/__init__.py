@@ -1,13 +1,5 @@
 """Storage adapters for vault files, state, ledgers, and object stores."""
 from knoarbor.storage.vault import VaultPage, VaultStore
-from knoarbor.storage.knowledge_atom_index import (
-    KnowledgeAtomPageRef,
-    KnowledgeAtomRecord,
-    knowledge_atom_index_path,
-    read_knowledge_atom_records,
-    upsert_knowledge_atom_batch,
-    upsert_knowledge_atom_batches,
-)
 from knoarbor.storage.ledger import append_jsonl_ledger, append_operation_ledger
 from knoarbor.storage.wiki_index import (
     append_ingest_log,
@@ -46,8 +38,6 @@ __all__ = [
     "VaultPage",
     "VaultStore",
     "CONTENT_ROOT_DIR",
-    "KnowledgeAtomPageRef",
-    "KnowledgeAtomRecord",
     "append_ingest_log",
     "append_jsonl_ledger",
     "append_operation_log",
@@ -62,14 +52,12 @@ __all__ = [
     "index_entry",
     "is_machine_index_stale",
     "is_pages_layout",
-    "knowledge_atom_index_path",
     "machine_index_dir",
     "normalize_page_title",
     "normalize_source_digest_title",
     "normalize_wiki_page_path",
     "page_record",
     "relative_wiki_path",
-    "read_knowledge_atom_records",
     "resolve_existing_by_hash",
     "resolve_existing_target",
     "resolve_required_target",
@@ -77,8 +65,6 @@ __all__ = [
     "slugify_title",
     "update_machine_index",
     "update_index",
-    "upsert_knowledge_atom_batch",
-    "upsert_knowledge_atom_batches",
     "vault_relative_path",
     "wiki_link_for_path",
 ]

@@ -18,7 +18,7 @@ Return the JSON object without markdown fences or explanatory prose.
 
 - `canonical_path` is the durable page path relative to the wiki content root. New non-source knowledge pages should use `pages/<Title>.md`; source digest pages should use `sources/<Title>.md`.
 - `page_dir` is the physical write-location field. Use `"sources"` for source digest audit pages and `"pages"` for all non-source knowledge pages, or null for skip.
-- Page identity is the page title plus its selected claims. Entities and relations are page body elements rather than concept/entity/workflow/comparison/query/timeline page categories.
+- Page identity is the page title plus its selected claims. Entities and relations are page body elements in the unified `pages` namespace.
 
 ## Output Shape
 

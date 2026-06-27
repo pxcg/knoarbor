@@ -35,8 +35,7 @@ from knoarbor.semantic import (
     build_semantic_runner as build_configured_semantic_runner,
     load_semantic_contract,
 )
-from knoarbor.storage.page_namespace_migration import migrate_page_namespace
-from knoarbor.storage.wiki_init import init_wiki_vault, migrate_wiki_pages_layout
+from knoarbor.storage.wiki_init import init_wiki_vault
 from knoarbor.storage.wiki_paths import content_root
 from knoarbor.cli_utils import (
     count_raw_sources,
@@ -290,7 +289,6 @@ def run_status(args: argparse.Namespace) -> int:
         "info": scan.stats.get("info_count", 0),
         "directories": scan.stats.get("directories", {}),
         "raw_sources": count_raw_sources(vault_path),
-        "has_schema": (content_root(vault_path) / "SCHEMA.md").exists(),
         "has_index": (machine_index_dir(vault_path) / "manifest.json").exists() and (machine_index_dir(vault_path) / "graph_index.json").exists(),
         "has_log": (content_root(vault_path) / "log.md").exists(),
         "has_ignore": (vault_path / ".knoarborignore").exists(),
@@ -304,52 +302,11 @@ def run_status(args: argparse.Namespace) -> int:
     print(f"pages: {status['pages']}")
     print(f"raw_sources: {status['raw_sources']}")
     print(f"issues: {status['issues']} ({status['errors']} errors, {status['warnings']} warnings, {status['info']} info)")
-    print(f"schema/index/log/ignore: {status['has_schema']}/{status['has_index']}/{status['has_log']}/{status['has_ignore']}")
+    print(f"index/log/ignore: {status['has_index']}/{status['has_log']}/{status['has_ignore']}")
     return 0
 
 
 def run_vaults(args: argparse.Namespace) -> int:
-    if getattr(args, "vaults_command", None) == "migrate-layout":
-        config = resolve_config(args)
-        vault_path = resolve_vault_path(args, config)
-        result = migrate_wiki_pages_layout(vault_path)
-        if args.json:
-            print_json(result.model_dump())
-            return 0
-        print(f"vault: {result.vault_path}")
-        print(f"content_root: {result.content_root}")
-        print(f"moved: {len(result.moved_paths)}")
-        print(f"skipped: {len(result.skipped_paths)}")
-        for path in result.moved_paths:
-            print(f"- moved {path}")
-        return 0
-
-    if getattr(args, "vaults_command", None) == "migrate-namespace":
-        config = resolve_config(args)
-        vault_path = resolve_vault_path(args, config)
-        result = migrate_page_namespace(vault_path, dirs=args.dir, apply=args.apply)
-        if args.json:
-            print_json(result.model_dump())
-            return 0 if result.can_apply or args.apply else 1
-        print(f"vault: {result.vault_path}")
-        print(f"content_root: {result.content_root}")
-        print(f"mode: {'apply' if args.apply else 'dry-run'}")
-        print(f"selected_dirs: {', '.join(result.selected_dirs) or '-'}")
-        print(f"planned_moves: {len(result.planned_moves)}")
-        print(f"moved: {len(result.moved_paths)}")
-        print(f"link_rewrites: {sum(item.replacements for item in result.link_rewrites)}")
-        print(f"conflicts: {len(result.conflicts)}")
-        for conflict in result.conflicts[:20]:
-            print(f"- conflict {conflict.source_path} -> {conflict.target_path}: {conflict.reason}")
-        for move in (result.moved_paths if args.apply else result.planned_moves)[:40]:
-            prefix = "moved" if args.apply else "plan"
-            print(f"- {prefix} {move.source_path} -> {move.target_path} [{move.page_kind}]")
-        if result.warnings:
-            print("warnings:")
-            for warning in result.warnings:
-                print(f"- {warning}")
-        return 0 if result.can_apply or args.apply else 1
-
     response = VaultRegistryService().list_vaults(config_path=args.config)
     if args.json:
         print_json(response.model_dump())
@@ -459,17 +416,17 @@ def run_pages(args: argparse.Namespace) -> int:
         print(response.content)
         return 0
 
-    if args.pages_command == "links":
-        response = service.page_links(vault_path, args.path, vault_id=vault_id, vault_name=vault_name)
+    if args.pages_command == "relations":
+        response = service.page_relations(vault_path, args.path, vault_id=vault_id, vault_name=vault_name)
         if args.json:
             print_json(response.model_dump())
             return 0
         print(f"page: {response.path}")
-        print("outbound_links:")
-        for link in response.outbound_links:
+        print("outgoing_pages:")
+        for link in response.outgoing_pages:
             print(f"- {link.target_path or link.target} ({'resolved' if link.resolved else 'unresolved'})")
-        print("backlinks:")
-        for link in response.backlinks:
+        print("incoming_pages:")
+        for link in response.incoming_pages:
             print(f"- {link.source}")
         return 0
 

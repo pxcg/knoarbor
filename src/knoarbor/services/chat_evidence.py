@@ -8,6 +8,22 @@ from knoarbor.core.schemas.chat import ChatToolTraceItem
 from knoarbor.core.schemas.wiki_query import WikiSearchResult
 
 
+CHAT_EVIDENCE_PACK_SCHEMA_VERSION = "chat_evidence_pack.v1"
+
+CHAT_EVIDENCE_PACK_KEYS = (
+    "kind",
+    "query",
+    "answer_scope",
+    "answer_set",
+    "evidence_coverage",
+    "primary_pages",
+    "supporting_pages",
+    "source_pages",
+    "citation_pages",
+    "further_results",
+)
+
+
 @dataclass(frozen=True)
 class ChatEvidencePack:
     """Model-facing evidence pack derived from a wiki search result."""
@@ -50,7 +66,7 @@ class ChatEvidencePlanner:
             if page.get("path"):
                 evidence_paths.add(str(page["path"]))
         payload = {
-            "schema_version": "chat_evidence_pack.v1",
+            "schema_version": CHAT_EVIDENCE_PACK_SCHEMA_VERSION,
             "kind": "wiki_search_evidence",
             "query": query,
             "result_count": result_count,
@@ -87,7 +103,7 @@ class ChatEvidencePlanner:
                     "score": None,
                     "relevance": "high",
                     "summary": item.result.get("summary"),
-                    "key_points": [],
+                    "claims": [],
                     "content": item.result.get("content") or "",
                     "content_truncated": item.result.get("truncated", False),
                     "vault_id": item.result.get("vault_id"),
@@ -117,7 +133,7 @@ class ChatEvidencePlanner:
         supporting_paths = [str(page["path"]) for page in supporting_pages if page.get("path")]
         source_paths = [str(page["path"]) for page in source_pages if page.get("path")]
         payload = {
-            "schema_version": "chat_evidence_pack.v1",
+            "schema_version": CHAT_EVIDENCE_PACK_SCHEMA_VERSION,
             "kind": "session_evidence",
             "query": " / ".join(_unique_strings(queries[-4:])) or "prior session evidence",
             "result_count": len(primary_pages) + len(supporting_pages) + len(source_pages),
@@ -210,14 +226,14 @@ class ChatEvidencePlanner:
                 "total_pages": result.get("total_pages"),
                 "returned_pages": result.get("returned_pages"),
             }
-        if tool == "inspect_wiki_links":
+        if tool == "inspect_wiki_relations":
             return {
                 "tool": tool,
                 "status": status,
                 "summary": summary,
                 "path": result.get("path"),
-                "outbound_links": result.get("outbound_links", []),
-                "backlinks": result.get("backlinks", []),
+                "outgoing_pages": result.get("outgoing_pages", []),
+                "incoming_pages": result.get("incoming_pages", []),
             }
         if tool == "list_vaults":
             return {
@@ -262,8 +278,8 @@ class ChatEvidencePlanner:
             instructions.append("Local evidence is weak or missing; state the gap clearly before giving any tentative answer.")
         if action == "read_primary_if_detail_needed" and primary_page:
             instructions.append(f"If the user needs more detail, call read_wiki_page for {primary_page.get('path')}.")
-        if evidence_coverage.get("missing_facets"):
-            instructions.append(f"Potential missing facets: {', '.join(str(item) for item in evidence_coverage.get('missing_facets', []))}.")
+        if evidence_coverage.get("missing_dimensions"):
+            instructions.append(f"Potential missing evidence dimensions: {', '.join(str(item) for item in evidence_coverage.get('missing_dimensions', []))}.")
         return instructions
 
     def _synthesis_outline(
@@ -311,18 +327,15 @@ class ChatEvidencePlanner:
             return [
                 "Start with a direct definition or answer from the primary page.",
                 "Explain the core mechanism or decision points from that maintained page.",
-                "Use supporting pages for extensions, comparisons, implementation details, and missing facets.",
+                "Use supporting pages for extensions, comparisons, implementation details, and missing evidence dimensions.",
                 "End with concise related topics when they help the user continue.",
             ]
-        support_types = sorted({str(page.get("type") or "") for page in supporting_pages if page.get("type")})
         outline = [
             "Start with the main thesis from the primary page.",
-            "Group supporting pages by the role they play: concepts, implementations, comparisons, workflows, or sources.",
+            "Group supporting pages by their evidence role: background, implementation detail, comparison, source provenance, or follow-up material.",
             "Synthesize across pages into a coherent structure instead of listing raw matches.",
             "Call out where source pages provide provenance rather than the main answer.",
         ]
-        if support_types:
-            outline.append(f"Available supporting page types: {', '.join(support_types)}.")
         return outline
 
     def _evidence_policy(
@@ -362,7 +375,7 @@ class ChatEvidencePlanner:
             "score": page.get("score"),
             "relevance": page.get("relevance"),
             "summary": page.get("summary"),
-            "key_points": page.get("key_points", []),
+            "claims": page.get("claims", []),
             "content": compact_inline_text(str(page.get("content") or ""), 22000),
             "content_truncated": bool(page.get("content_truncated")),
             "vault_id": page.get("vault_id"),
@@ -381,7 +394,7 @@ class ChatEvidencePlanner:
             "score": page.get("score"),
             "relevance": page.get("relevance"),
             "summary": page.get("summary"),
-            "key_points": page.get("key_points", []),
+            "claims": page.get("claims", []),
             "content": compact_inline_text(str(page.get("content") or ""), 18000),
             "content_truncated": bool(page.get("content_truncated")),
             "vault_id": page.get("vault_id"),
@@ -421,11 +434,10 @@ def search_result_to_chat_payload(item: WikiSearchResult) -> dict[str, Any]:
     return {
         "path": item.path,
         "title": item.title,
-        "type": item.type,
         "role": item.role,
         "score": item.score,
         "summary": item.summary,
-        "key_points": item.key_points[:5],
+        "claims": item.claims[:5],
         "vault_id": item.vault_id,
         "vault_name": item.vault_name,
         "atom_traces": [trace.model_dump() for trace in item.atom_traces],
@@ -507,7 +519,6 @@ def _infer_answer_type(*, query: str, answer_scope: dict[str, Any]) -> str:
 
 def _role_rationale(page: dict[str, Any], role: str, answer_type: str, index: int) -> str:
     title = str(page.get("title") or page.get("path") or "page")
-    page_type = str(page.get("type") or "")
     if role == "primary":
         if answer_type == "definition":
             return f"Primary answer anchor for defining {title}."
@@ -521,12 +532,6 @@ def _role_rationale(page: dict[str, Any], role: str, answer_type: str, index: in
             return "Primary prior evidence for the synthesized artifact."
         return "Primary maintained wiki page for the answer."
     if role == "supporting":
-        if page_type == "comparison":
-            return "Supporting comparison page for tradeoffs and boundaries."
-        if page_type == "entity":
-            return "Supporting entity page for implementation context or case evidence."
-        if page_type == "workflow":
-            return "Supporting workflow page for concrete procedure details."
         return "Supporting maintained page for mechanisms, caveats, adjacent concepts, or implementation details."
     if role == "source":
         return "Source page for provenance and raw-source traceability; use as a citation only when provenance matters."

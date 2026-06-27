@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import json
+import os
 from pathlib import Path
+import shutil
 import uuid
 from urllib import error, request
 
@@ -99,7 +102,6 @@ class MinerUDocumentProcessor:
                 "MinerU completed but no Markdown output was found. Configure "
                 "response_markdown_field/response_path_field or ensure the service writes <stem>.md."
             )
-        _materialize_payload_images(output_path, response)
         attachments = _discover_output_attachments(path, output_path, output_dir, response)
         write_attachment_sidecar(output_path, attachments, source=self.name)
         return DocumentProcessingItem(
@@ -276,15 +278,27 @@ def _discover_output_attachments(
     output_dir: Path,
     response: MinerUResponse,
 ) -> list[dict[str, object]]:
-    _materialize_payload_images(markdown_path, response)
+    assets_root = _raw_assets_root_for_output_dir(output_dir)
+    link_rewrites: dict[str, str] = {}
+    link_rewrites.update(_materialize_payload_images(input_path, markdown_path, response, assets_root))
+    output_attachments, output_rewrites = _output_directory_image_attachments(input_path, markdown_path, output_dir, assets_root)
+    link_rewrites.update(output_rewrites)
+    if link_rewrites:
+        _rewrite_markdown_image_links(markdown_path, link_rewrites)
+
     attachments: list[dict[str, object]] = []
-    attachments.extend(_payload_image_attachments(markdown_path, response))
-    attachments.extend(discover_markdown_image_attachments(markdown_path))
-    attachments.extend(_output_directory_image_attachments(input_path, markdown_path, output_dir))
-    return dedupe_attachments(attachments)
+    attachments.extend(_payload_image_attachments(markdown_path, response, assets_root))
+    attachments.extend(discover_markdown_image_attachments(markdown_path, base_dir=assets_root))
+    attachments.extend(output_attachments)
+    return _enrich_materialized_attachments(dedupe_attachments(attachments), response)
 
 
-def _output_directory_image_attachments(input_path: Path, markdown_path: Path, output_dir: Path) -> list[dict[str, object]]:
+def _output_directory_image_attachments(
+    input_path: Path,
+    markdown_path: Path,
+    output_dir: Path,
+    assets_root: Path,
+) -> tuple[list[dict[str, object]], dict[str, str]]:
     candidate_dirs = [
         markdown_path.parent / "images",
         markdown_path.parent / input_path.stem / "images",
@@ -295,28 +309,36 @@ def _output_directory_image_attachments(input_path: Path, markdown_path: Path, o
         output_dir / input_path.stem / "vlm-engine" / "images",
     ]
     attachments: list[dict[str, object]] = []
+    rewrites: dict[str, str] = {}
     for directory in candidate_dirs:
         if not directory.exists() or not directory.is_dir():
             continue
         for image_path in sorted(path for path in directory.rglob("*") if path.is_file()):
+            asset_path = _copy_to_raw_assets(input_path, image_path, assets_root)
+            rewrites[image_path.name] = _markdown_link_to_asset(markdown_path, asset_path)
+            try:
+                rewrites[image_path.relative_to(markdown_path.parent).as_posix()] = _markdown_link_to_asset(markdown_path, asset_path)
+            except ValueError:
+                pass
             attachments.append(
                 normalize_attachment(
-                    image_path,
-                    base_dir=markdown_path.parent,
-                    name=image_path.name,
-                    source="mineru_output_dir",
+                    asset_path,
+                    base_dir=assets_root,
+                    name=asset_path.name,
+                    source="mineru",
                 )
             )
-    return attachments
+    return attachments, rewrites
 
 
-def _materialize_payload_images(markdown_path: Path, response: MinerUResponse) -> None:
+def _materialize_payload_images(input_path: Path, markdown_path: Path, response: MinerUResponse, assets_root: Path) -> dict[str, str]:
     payload = _json_payload(response)
     if payload is None:
-        return
+        return {}
     results = payload.get("results")
     if not isinstance(results, dict):
-        return
+        return {}
+    rewrites: dict[str, str] = {}
     for result in results.values():
         if not isinstance(result, dict):
             continue
@@ -332,9 +354,12 @@ def _materialize_payload_images(markdown_path: Path, response: MinerUResponse) -
             image_bytes = _decode_image_payload(value)
             if not image_bytes:
                 continue
-            image_path = (markdown_path.parent / "images" / name).resolve()
+            image_path = _raw_asset_image_path(input_path, name, image_bytes, assets_root)
             image_path.parent.mkdir(parents=True, exist_ok=True)
             image_path.write_bytes(image_bytes)
+            rewrites[name] = _markdown_link_to_asset(markdown_path, image_path)
+            rewrites[f"images/{name}"] = _markdown_link_to_asset(markdown_path, image_path)
+    return rewrites
 
 
 def _decode_image_payload(value: str) -> bytes | None:
@@ -347,7 +372,7 @@ def _decode_image_payload(value: str) -> bytes | None:
         return None
 
 
-def _payload_image_attachments(markdown_path: Path, response: MinerUResponse) -> list[dict[str, object]]:
+def _payload_image_attachments(markdown_path: Path, response: MinerUResponse, assets_root: Path) -> list[dict[str, object]]:
     payload = _json_payload(response)
     if payload is None:
         return []
@@ -364,18 +389,62 @@ def _payload_image_attachments(markdown_path: Path, response: MinerUResponse) ->
         attachments.append(
             normalize_attachment(
                 image_path,
-                base_dir=markdown_path.parent,
+                base_dir=assets_root,
                 name=str(item.get("name") or image_path.name),
                 description=_payload_image_description(item),
-                source="mineru_response",
+                source="mineru",
                 metadata={key: value for key, value in item.items() if key not in {"path", "image_path", "img_path", "url", "src"}},
             )
         )
     return attachments
 
 
+def _raw_assets_root_for_output_dir(output_dir: Path) -> Path:
+    resolved = output_dir.expanduser().resolve()
+    for candidate in (resolved, *resolved.parents):
+        if candidate.name == "raw":
+            return candidate / "assets"
+    return resolved.parent / "assets"
+
+
+def _raw_asset_image_path(input_path: Path, name: str, image_bytes: bytes, assets_root: Path) -> Path:
+    suffix = Path(name).suffix.lower() or ".png"
+    stem = _safe_asset_stem(input_path.stem)
+    name_stem = _safe_asset_stem(Path(name).stem)
+    digest = hashlib.sha256(image_bytes).hexdigest()[:12]
+    return (assets_root / "images" / f"{stem}-{name_stem}-{digest}{suffix}").resolve()
+
+
+def _copy_to_raw_assets(input_path: Path, image_path: Path, assets_root: Path) -> Path:
+    data = image_path.read_bytes()
+    target = _raw_asset_image_path(input_path, image_path.name, data, assets_root)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if not target.exists():
+        shutil.copy2(image_path, target)
+    return target
+
+
+def _safe_asset_stem(value: str) -> str:
+    cleaned = "".join(char.lower() if char.isalnum() else "-" for char in value.strip())
+    while "--" in cleaned:
+        cleaned = cleaned.replace("--", "-")
+    return cleaned.strip("-") or "asset"
+
+
+def _markdown_link_to_asset(markdown_path: Path, asset_path: Path) -> str:
+    return Path(os.path.relpath(asset_path, markdown_path.parent)).as_posix()
+
+
+def _rewrite_markdown_image_links(markdown_path: Path, rewrites: dict[str, str]) -> None:
+    content = markdown_path.read_text(encoding="utf-8")
+    for old_target, new_target in sorted(rewrites.items(), key=lambda item: len(item[0]), reverse=True):
+        content = content.replace(f"]({old_target})", f"]({new_target})")
+        content = content.replace(f"]({old_target.replace(' ', '%20')})", f"]({new_target})")
+    markdown_path.write_text(content, encoding="utf-8")
+
+
 def _payload_image_description(item: dict[str, object]) -> str:
-    for key in ("caption", "description", "alt", "image_caption"):
+    for key in ("caption", "description", "alt", "image_caption", "table_caption"):
         value = item.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()
@@ -385,11 +454,64 @@ def _payload_image_description(item: dict[str, object]) -> str:
                 return " ".join(parts)
     content = item.get("content")
     if isinstance(content, str) and content.strip():
-        subtype = str(item.get("sub_type") or "").strip()
-        if subtype:
-            return f"{subtype} extraction is available in attachment metadata."
-        return "Image extraction is available in attachment metadata."
+        return _compact_attachment_content(content)
+    table_body = item.get("table_body")
+    if isinstance(table_body, str) and table_body.strip():
+        return _compact_attachment_content(table_body)
     return ""
+
+
+def _payload_image_details_by_name(response: MinerUResponse) -> dict[str, dict[str, object]]:
+    payload = _json_payload(response)
+    if payload is None:
+        return {}
+    details: dict[str, dict[str, object]] = {}
+    for item in _iter_payload_image_items(payload):
+        path_value = _payload_path_value(item)
+        if not path_value:
+            continue
+        name = Path(path_value).name
+        description = _payload_image_description(item)
+        metadata = {key: value for key, value in item.items() if key not in {"path", "image_path", "img_path", "url", "src"}}
+        details[name] = {"description": description, "metadata": metadata}
+    return details
+
+
+def _enrich_materialized_attachments(
+    attachments: list[dict[str, object]],
+    response: MinerUResponse,
+) -> list[dict[str, object]]:
+    details = _payload_image_details_by_name(response)
+    if not details:
+        return attachments
+    for attachment in attachments:
+        if not isinstance(attachment, dict):
+            continue
+        attachment_name = str(attachment.get("name") or "")
+        for original_name, detail in details.items():
+            original_stem = _safe_asset_stem(Path(original_name).stem)
+            if original_stem and original_stem not in _safe_asset_stem(attachment_name):
+                continue
+            description = detail.get("description")
+            if isinstance(description, str) and description.strip():
+                attachment["description"] = description.strip()
+            metadata = detail.get("metadata")
+            if isinstance(metadata, dict) and metadata:
+                existing = attachment.get("metadata")
+                merged = dict(existing) if isinstance(existing, dict) else {}
+                merged.update(metadata)
+                attachment["metadata"] = merged
+            if str(attachment.get("source") or "").startswith("mineru_") or attachment.get("source") == "markdown_image_link":
+                attachment["source"] = "mineru"
+            break
+    return attachments
+
+
+def _compact_attachment_content(value: str, *, limit: int = 220) -> str:
+    text = " ".join(value.split())
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "..."
 
 
 def _iter_payload_image_items(value: object) -> list[dict[str, object]]:

@@ -32,8 +32,8 @@ class AnswerSelectionPolicy:
     exploratory_supporting_limit: int = 5
     primary_min_relative_score: float = 0.68
     related_primary_min_relative_score: float = 0.9
-    primary_min_facet_novelty: float = 0.35
-    supporting_min_facet_novelty: float = 0.2
+    primary_min_dimension_novelty: float = 0.35
+    supporting_min_dimension_novelty: float = 0.2
     broad_supporting_min_score: float = 0.8
     narrow_supporting_min_score: float = 1.2
 
@@ -114,7 +114,7 @@ class AnswerSetSelector:
             kind="multi_page" if len(selected_primary) + len(selected_supporting) > 1 and scope.kind in {"broad", "exploratory"} else "single_page",
             primary_paths=[page.path for page in selected_primary],
             supporting_paths=[page.path for page in selected_supporting],
-            source_paths=[],
+            source_paths=provenance_source_paths,
             further_reading_paths=further_reading,
             rejected_candidates=rejected,
             reason=selection_reason(scope.kind, selected_primary, selected_supporting, provenance_source_paths),
@@ -137,7 +137,7 @@ class AnswerSetSelector:
         if scope_kind == "narrow":
             return selected, rejected
 
-        seen_facets = result_facets(strongest)
+        seen_dimensions = result_dimensions(strongest)
         max_primary = self.policy.primary_limit(scope_kind)
         for candidate in candidates[1:]:
             if len(selected) >= max_primary:
@@ -149,13 +149,13 @@ class AnswerSetSelector:
             if candidate.match_kind != "direct" and candidate.score < strongest.score * self.policy.related_primary_min_relative_score:
                 rejected.append(_reject(candidate, "related_not_primary", role_hint="supporting"))
                 continue
-            facets = result_facets(candidate)
-            novelty = facet_novelty(facets, seen_facets)
-            if novelty < self.policy.primary_min_facet_novelty:
-                rejected.append(_reject(candidate, "redundant_facet", role_hint="supporting"))
+            dimensions = result_dimensions(candidate)
+            novelty = dimension_novelty(dimensions, seen_dimensions)
+            if novelty < self.policy.primary_min_dimension_novelty:
+                rejected.append(_reject(candidate, "redundant_dimension", role_hint="supporting"))
                 continue
             selected.append(candidate)
-            seen_facets.update(facets)
+            seen_dimensions.update(dimensions)
         return selected, rejected
 
     def _select_supporting_pages(
@@ -169,7 +169,7 @@ class AnswerSetSelector:
         primary_paths = {page.path for page in primary_pages}
         if not primary_pages:
             return selected, rejected
-        seen_facets = {facet for page in primary_pages for facet in result_facets(page)}
+        seen_dimensions = {dimension for page in primary_pages for dimension in result_dimensions(page)}
         max_supporting = self.policy.supporting_limit(scope_kind)
         for candidate in candidates:
             if candidate.path in primary_paths:
@@ -177,8 +177,8 @@ class AnswerSetSelector:
             if len(selected) >= max_supporting:
                 rejected.append(_reject(candidate, "outside_answer_budget", role_hint="further_reading"))
                 continue
-            facets = result_facets(candidate)
-            novelty = facet_novelty(facets, seen_facets)
+            dimensions = result_dimensions(candidate)
+            novelty = dimension_novelty(dimensions, seen_dimensions)
             relation = candidate.match_kind == "direct" or any(
                 reason in candidate.reason for reason in ["shared_source", "outbound_link", "backlink", "type_affinity"]
             )
@@ -186,11 +186,11 @@ class AnswerSetSelector:
             if candidate.score < minimum_score and not relation:
                 rejected.append(_reject(candidate, "weak_score", role_hint="further_reading"))
                 continue
-            if novelty < self.policy.supporting_min_facet_novelty:
-                rejected.append(_reject(candidate, "redundant_facet", role_hint="further_reading"))
+            if novelty < self.policy.supporting_min_dimension_novelty:
+                rejected.append(_reject(candidate, "redundant_dimension", role_hint="further_reading"))
                 continue
             selected.append(candidate)
-            seen_facets.update(facets)
+            seen_dimensions.update(dimensions)
         return selected, rejected
 
 
@@ -210,31 +210,29 @@ def query_prefers_source_page(query: str) -> bool:
     return any(term in text for term in source_terms)
 
 
-def result_facets(result: WikiSearchResult) -> set[str]:
-    facets = {result.type, result.page_kind or "", result.page_role or "", *result.facets}
+def result_dimensions(result: WikiSearchResult) -> set[str]:
+    dimensions = {result.page_role or ""}
     if "/" in result.path:
-        facets.add(result.path.split("/", 1)[0])
-    facets.update(result.tags[:8])
-    facets.update(result.matched_fields)
-    facets.update(result.matched_terms.get("graph_reasons", []))
-    facets.update(normalize_text(excerpt.heading)[:40] for excerpt in result.excerpts[:3] if excerpt.heading)
-    return {facet for facet in facets if facet}
+        dimensions.add(result.path.split("/", 1)[0])
+    dimensions.update(result.entities[:8])
+    dimensions.update(result.matched_fields)
+    dimensions.update(result.matched_terms.get("graph_reasons", []))
+    dimensions.update(normalize_text(excerpt.heading)[:40] for excerpt in result.excerpts[:3] if excerpt.heading)
+    return {dimension for dimension in dimensions if dimension}
 
 
 def _is_source_result(result: WikiSearchResult) -> bool:
     return (
         result.role == "source"
         or result.page_role == "source_digest"
-        or result.page_kind == "source_digest"
-        or result.type == "source"
         or result.path.startswith("sources/")
     )
 
 
-def facet_novelty(facets: set[str], seen_facets: set[str]) -> float:
-    if not facets:
+def dimension_novelty(dimensions: set[str], seen_dimensions: set[str]) -> float:
+    if not dimensions:
         return 0.0
-    return len(facets - seen_facets) / len(facets)
+    return len(dimensions - seen_dimensions) / len(dimensions)
 
 
 def selection_reason(
@@ -250,7 +248,7 @@ def selection_reason(
         return f"The query is narrow enough to anchor on {primary_pages[0].path}.{source_note}"
     return (
         f"The query is {scope_kind}; selected {len(primary_pages)} primary page(s) "
-        f"and {len(supporting_pages)} supporting page(s) that add complementary facets."
+        f"and {len(supporting_pages)} supporting page(s) that add complementary evidence dimensions."
     )
 
 

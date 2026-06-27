@@ -4,20 +4,11 @@ import re
 from pathlib import Path
 
 from knoarbor.core.markdown import (
-    extract_heading,
-    extract_list_items,
-    extract_section,
     format_wikilink,
     normalize_list_item,
-    render_list_section,
-    replace_section,
     wiki_target_key,
 )
-from knoarbor.core.wiki_lists import merge_unique_items
-from knoarbor.core.wiki_schema import INDEX_EXCLUDED_DIRS, is_index_excluded_file
 from knoarbor.retrieval.page_resolver import resolve_page_reference_path
-from knoarbor.storage.wiki_index import wiki_link_for_path
-from knoarbor.storage.wiki_paths import content_root, resolve_existing_target
 
 
 def normalize_title_key(value: str) -> str:
@@ -94,50 +85,3 @@ def sanitize_unresolved_wikilinks(vault_path: Path, content: str) -> tuple[str, 
     updated = re.sub(r"\[\[(?P<target>[^\]|]+)(?:\|(?P<alias>[^\]]+))?\]\]", replace, content)
     return updated, removed
 
-
-def find_related_links(vault_path: Path, source_focus: str, current_path: Path | None = None) -> list[str]:
-    words = {word for word in re.findall(r"[\w\u4e00-\u9fff]{2,}", source_focus) if len(word) >= 2}
-    related: list[str] = []
-
-    root = content_root(vault_path)
-    for md_path in root.rglob("*.md"):
-        relative_parts = md_path.relative_to(root).parts
-        if current_path and md_path.resolve() == current_path.resolve():
-            continue
-        if any(part in INDEX_EXCLUDED_DIRS for part in relative_parts):
-            continue
-        if is_index_excluded_file(md_path.name):
-            continue
-        try:
-            content = md_path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            continue
-        score = sum(1 for word in words if word in content or word in md_path.stem)
-        if score > 0:
-            title = extract_heading(content, md_path.stem)
-            related.append(wiki_link_for_path(vault_path, md_path, title))
-        if len(related) >= 5:
-            break
-
-    return related
-
-
-def add_related_links(content: str, links: list[str]) -> tuple[str, bool]:
-    existing = extract_list_items(extract_section(content, "Related Pages"))
-    merged = merge_unique_items(existing, links, 30)
-    if merged == existing:
-        return content, False
-    return replace_section(content, "Related Pages", render_list_section(merged, "暂无关联知识")).rstrip() + "\n", True
-
-
-def related_links_for_page_paths(vault_path: Path, page_paths: list[str]) -> tuple[list[str], list[str]]:
-    links: list[str] = []
-    missing: list[str] = []
-    for raw_path in page_paths:
-        target_path = resolve_existing_target(vault_path, raw_path)
-        if not target_path:
-            missing.append(raw_path)
-            continue
-        title = extract_heading(target_path.read_text(encoding="utf-8"), target_path.stem)
-        links.append(wiki_link_for_path(vault_path, target_path, title))
-    return links, missing

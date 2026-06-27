@@ -35,5 +35,5 @@ Read a returned page path:
 
 ```bash
 python3 ~/.codex/skills/knoarbor-local/scripts/knoarbor.py page read \
-  concepts/Agent-Loop-and-Control-Patterns.md
+  Agent-Loop-and-Control-Patterns.md
 ```

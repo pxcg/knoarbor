@@ -4,12 +4,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from knoarbor.audit.contracts import LEDGER_PATHS, LEDGER_SCHEMA_VERSIONS
 from knoarbor.core.schemas.wiki_lint import LintRunResult
 from knoarbor.audit.reports import write_maintenance_report
 from knoarbor.audit.report_formatting import as_dict, as_list, cache_metric_lines, fmt_number, format_list, semantic_token_report_lines
 from knoarbor.audit.token_ledger import append_lint_token_records
 from knoarbor.storage.ledger import append_jsonl_ledger, read_jsonl_ledger
 from knoarbor.storage.wiki_index import relative_wiki_path
+
+
+LINT_RUN_SCHEMA_VERSION = LEDGER_SCHEMA_VERSIONS["lint"]
 
 
 def write_lint_run_artifacts(
@@ -20,7 +24,7 @@ def write_lint_run_artifacts(
     append_ledger: bool = True,
     write_report: bool = True,
     report_path: str | None = None,
-    ledger_path: str = "maintenance/lint_run_ledger.jsonl",
+    ledger_path: str = LEDGER_PATHS["lint"],
 ) -> tuple[str | None, str | None]:
     """Write compact lint run report and append-only ledger entry."""
 
@@ -30,7 +34,7 @@ def write_lint_run_artifacts(
     written_ledger = append_jsonl_ledger(vault_path, ledger_path, record) if append_ledger else None
     if append_ledger:
         append_lint_token_records(vault_path, record)
-    effective_report_path = report_path or f"maintenance/lint_run_report_{run_id}.md"
+    effective_report_path = report_path or f"maintenance/reports/lint/lint_run_report_{run_id}.md"
     written_report = (
         write_maintenance_report(vault_path, "lint_run", render_lint_run_report(record), effective_report_path)
         if write_report
@@ -50,7 +54,7 @@ def build_lint_run_record(result: LintRunResult, *, run_id: str, previous_record
     issue_summary = _issue_summary(deterministic.issues, rescan.issues if rescan else None)
     trend_summary = _trend_summary(previous_records or [], issue_summary)
     return {
-        "schema_version": "lint_run_record.v1",
+        "schema_version": LINT_RUN_SCHEMA_VERSION,
         "run_id": run_id,
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "scope": result.scope.model_dump(),
@@ -330,7 +334,6 @@ def _semantic_candidates_record(payload: dict[str, Any]) -> dict[str, object] | 
                 "risk_hint": candidate.get("risk_hint"),
                 "executor_hint": candidate.get("executor_hint"),
                 "recommended_action": as_dict(candidate.get("recommended_action")).get("action"),
-                "related_pages": as_list(candidate.get("related_pages")),
                 "expected_effect": candidate.get("expected_effect"),
             }
             for candidate in candidates

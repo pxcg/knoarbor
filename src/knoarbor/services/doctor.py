@@ -11,7 +11,8 @@ from knoarbor.connectors.selection import selected_connector_configs
 from knoarbor.core.config import KnoArborConfig, ModelProviderConfig, default_config_path, load_config
 from knoarbor.core.schemas.doctor import DoctorCheck, DoctorReport, DoctorStatus
 from knoarbor.core.wiki_schema import is_index_excluded_file
-from knoarbor.storage.wiki_paths import LEGACY_KNOWLEDGE_PAGE_DIRS, content_root, source_digest_root
+from knoarbor.storage.vault_layout import wiki_root
+from knoarbor.storage.wiki_paths import content_root, source_digest_root
 from knoarbor.storage.wiki_index import machine_index_dir
 from knoarbor.runtime.run_monitor import list_runs
 from knoarbor.semantic.llm import ModelGateway, ProviderHealthCheck, is_local_or_private_model_endpoint
@@ -147,9 +148,8 @@ class DoctorService:
                 )
             ]
         checks.append(DoctorCheck(name="vault.exists", status="ok", message="Vault directory exists.", details={"vault_path": str(vault)}))
-        page_root = content_root(vault)
-        required = ["SCHEMA.md", "log.md"]
-        missing = [f"pages/{name}" for name in required if not (page_root / name).exists()]
+        required = ["log.md"]
+        missing = [f"wiki/{name}" for name in required if not (wiki_root(vault) / name).exists()]
         index_dir = machine_index_dir(vault)
         for name in ("manifest.json", "graph_index.json"):
             if not (index_dir / name).exists():
@@ -163,7 +163,7 @@ class DoctorService:
                 message="Vault is missing initialization files." if missing else "Vault initialization files are present.",
                 details={
                     "missing": missing,
-                    "required": [f"pages/{name}" for name in required]
+                    "required": [f"wiki/{name}" for name in required]
                     + [".knoarbor/index/manifest.json", ".knoarbor/index/graph_index.json", ".knoarborignore"],
                 },
             )
@@ -179,12 +179,6 @@ class DoctorService:
             "pages": len([path for path in page_root.glob("*.md") if path.is_file() and not is_index_excluded_file(path.name)]),
             "sources": len([path for path in source_digest_root(vault).glob("*.md") if path.is_file()]),
         }
-        counts.update(
-            {
-                page_dir: len([path for path in (page_root / page_dir).glob("*.md") if path.is_file()]) if (page_root / page_dir).exists() else 0
-                for page_dir in LEGACY_KNOWLEDGE_PAGE_DIRS
-            }
-        )
         page_count = sum(counts.values())
         return [
             DoctorCheck(

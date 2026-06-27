@@ -16,9 +16,7 @@ class PageResolution:
     status: str
     resolved_path: str | None = None
     canonical_path: str | None = None
-    legacy_paths: list[str] = field(default_factory=list)
     title: str | None = None
-    page_kind: str | None = None
     role: str | None = None
     matched_by: str | None = None
     conflicts: list[str] = field(default_factory=list)
@@ -29,7 +27,7 @@ class PageResolution:
 
 
 def resolve_page_reference(vault_path: Path, reference: str, *, directory: str | None = None) -> PageResolution:
-    """Resolve canonical paths, legacy paths, wikilinks, titles, and aliases."""
+    """Resolve paths, wikilinks, titles, and aliases."""
 
     query = _normalize_reference(reference)
     if not query:
@@ -93,7 +91,7 @@ def _fallback_page_records(vault_path: Path) -> list[dict[str, object]]:
     for md_path in [*sorted(root.rglob("*.md")), *sorted(source_root.rglob("*.md"))]:
         if not md_path.is_file():
             continue
-        records.append({"path": relative_wiki_path(vault_path, md_path), "title": md_path.stem, "legacy_paths": []})
+        records.append({"path": relative_wiki_path(vault_path, md_path), "title": md_path.stem})
     return records
 
 
@@ -119,9 +117,6 @@ def _record_keys(record: dict[str, object]) -> set[str]:
     keys.update(_path_variants(canonical_path))
     keys.add(_key(Path(path).stem))
     keys.add(_key(title))
-    for legacy_path in record.get("legacy_paths", []):
-        if isinstance(legacy_path, str):
-            keys.update(_path_variants(legacy_path))
     return {key for key in keys if key}
 
 
@@ -137,12 +132,9 @@ def _path_variants(path: str) -> set[str]:
 def _resolved(query: str, record: dict[str, object]) -> PageResolution:
     path = str(record.get("path") or "")
     canonical_path = str(record.get("canonical_path") or path)
-    legacy_paths = [str(item) for item in record.get("legacy_paths", []) if isinstance(item, str)]
     matched_by = "path"
     if _key(query) == _key(str(record.get("title") or "")):
         matched_by = "title"
-    elif query in {_path_key(path) for path in legacy_paths}:
-        matched_by = "legacy_path"
     elif _path_key(query) == _path_key(canonical_path):
         matched_by = "canonical_path"
     return PageResolution(
@@ -150,9 +142,7 @@ def _resolved(query: str, record: dict[str, object]) -> PageResolution:
         status="resolved",
         resolved_path=path,
         canonical_path=canonical_path,
-        legacy_paths=legacy_paths,
         title=str(record.get("title") or Path(path).stem),
-        page_kind=str(record.get("page_kind") or record.get("type") or ""),
         role=str(record.get("role") or ""),
         matched_by=matched_by,
     )

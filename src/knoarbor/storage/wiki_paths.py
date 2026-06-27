@@ -5,40 +5,30 @@ from pathlib import Path
 
 from knoarbor.core.errors import StorageConflict, VaultPathError
 from knoarbor.core.markdown import parse_frontmatter
-from knoarbor.core.wiki_schema import AI_WRITABLE_DIRS, CONTENT_PAGE_DIRS
+from knoarbor.core.wiki_schema import AI_WRITABLE_DIRS
+from knoarbor.storage.vault_layout import WIKI_PAGES_DIR, WIKI_SOURCES_DIR, wiki_pages_root, wiki_sources_root
 
 
-CONTENT_ROOT_DIR = "pages"
-SOURCE_DIGEST_ROOT_DIR = "sources"
-LEGACY_KNOWLEDGE_PAGE_DIRS = tuple(directory for directory in CONTENT_PAGE_DIRS if directory != SOURCE_DIGEST_ROOT_DIR)
+CONTENT_ROOT_DIR = WIKI_PAGES_DIR
+SOURCE_DIGEST_ROOT_DIR = WIKI_SOURCES_DIR
 
 
 def content_root(vault_path: Path) -> Path:
     """Return the Obsidian-facing wiki page root for a vault.
 
-    New vaults use ``pages/`` so raw inputs, reports, and runtime state can live
-    beside the published wiki without polluting Obsidian. Existing vaults that
-    still keep content directories at the vault root are read in legacy layout
-    until the explicit migration command moves them.
+    The only supported layout is ``wiki/pages/`` for user-facing knowledge
+    pages and ``wiki/sources/`` for source audit pages.
     """
 
-    vault = vault_path.expanduser().resolve()
-    pages = vault / CONTENT_ROOT_DIR
-    if pages.exists():
-        return pages
-    if any((vault / directory).exists() for directory in LEGACY_KNOWLEDGE_PAGE_DIRS) or any(
-        (vault / filename).exists() for filename in ("index.md", "log.md", "SCHEMA.md")
-    ):
-        return vault
-    return pages
+    return wiki_pages_root(vault_path)
 
 
 def source_digest_root(vault_path: Path) -> Path:
-    return content_root(vault_path) / SOURCE_DIGEST_ROOT_DIR
+    return wiki_sources_root(vault_path)
 
 
 def is_pages_layout(vault_path: Path) -> bool:
-    return content_root(vault_path) == vault_path.expanduser().resolve() / CONTENT_ROOT_DIR
+    return content_root(vault_path) == wiki_pages_root(vault_path)
 
 
 def content_relative_path(vault_path: Path, path: Path) -> str:
@@ -95,8 +85,12 @@ def resolve_wiki_page(vault_path: Path, raw_path: str) -> Path:
     if not relative.parts or (relative.parts[0] not in AI_WRITABLE_DIRS and not is_flat_page):
         allowed = ", ".join(sorted(AI_WRITABLE_DIRS))
         raise VaultPathError(f"Wiki operation path must be a flat wiki page or in an AI writable directory ({allowed}): {raw_path}")
-    root = source_digest_root(vault_path) if relative.parts and relative.parts[0] == SOURCE_DIGEST_ROOT_DIR else content_root(vault_path)
-    target_relative = Path(*relative.parts[1:]) if relative.parts and relative.parts[0] == SOURCE_DIGEST_ROOT_DIR else relative
+    if relative.parts and relative.parts[0] == SOURCE_DIGEST_ROOT_DIR:
+        root = source_digest_root(vault_path)
+        target_relative = Path(*relative.parts[1:])
+    else:
+        root = content_root(vault_path)
+        target_relative = relative
     path = (root / target_relative).resolve()
     if not path.is_relative_to(root.resolve()):
         raise VaultPathError(f"Wiki operation path escapes vault: {raw_path}")
@@ -146,14 +140,9 @@ def resolve_existing_by_hash(vault_path: Path, page_dir: str, digest: str) -> Pa
 
 
 def _hash_lookup_dirs(vault_path: Path, page_dir: str) -> list[Path]:
-    root = content_root(vault_path)
     if page_dir == "sources":
-        return [source_digest_root(vault_path), root / "sources"]
-    dirs = [root]
-    legacy_dir = root / page_dir
-    if legacy_dir not in dirs:
-        dirs.append(legacy_dir)
-    return dirs
+        return [source_digest_root(vault_path)]
+    return [content_root(vault_path)]
 
 
 def available_title_path(output_dir: Path, title: str) -> Path:

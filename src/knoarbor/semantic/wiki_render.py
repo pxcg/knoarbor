@@ -31,7 +31,6 @@ def apply_wiki_patches(content: str, patches: list[WikiPatchInput]) -> str:
 
 def render_markdown(
     draft: WikiDraft,
-    related_links: list[str],
     source_file: str | None,
     digest: str,
     created_at: str | None = None,
@@ -49,6 +48,7 @@ def render_markdown(
     entities = _render_list(draft.entities, "暂无显式实体")
     relations = _render_relations(draft.relations)
     evidence = _render_evidence(draft.evidence, draft.claims, source_file, draft.source_digest_ids, draft.page_dir)
+    attachments = _render_attachments(draft.attachments)
 
     return f"""---
 created: {created}
@@ -81,13 +81,17 @@ content_hash: {digest}
 ## Synthesis
 
 {synthesis}
+
+## Attachments
+
+{attachments}
 """
 
 
 def _render_source_digest_markdown(draft: WikiDraft, source_file: str, digest: str, created: str, updated: str) -> str:
     summary = validate_body_markdown(draft.summary, "summary")
     source_units = _render_source_units(draft.evidence, source_file)
-    attachments = _render_attachments(draft.attachments)
+    attachments = _render_source_digest_attachments(draft.attachments)
     contribution_map = _render_contribution_map(draft)
     unresolved = _render_source_unresolved(draft.unresolved_items)
     raw_source = _render_raw_source(source_file, digest)
@@ -117,10 +121,6 @@ content_hash: {digest}
 
 {source_units}
 
-## Attachments
-
-{attachments}
-
 ## Contribution Map
 
 {contribution_map}
@@ -128,6 +128,10 @@ content_hash: {digest}
 ## Unresolved / Rejected
 
 {unresolved}
+
+## Attachments
+
+{attachments}
 
 ## Raw Source
 
@@ -156,24 +160,111 @@ def _render_source_units(items: list[str], source_file: str) -> str:
 
 
 def _render_attachments(items: list[dict[str, object]]) -> str:
+    return _render_knowledge_page_attachments(items)
+
+
+def _render_knowledge_page_attachments(items: list[dict[str, object]]) -> str:
+    values = [item for item in items if isinstance(item, dict)]
+    if not values:
+        return "- No attachments recorded."
+    rows = ["| Topic | Description |", "|---|---|"]
+    for index, item in enumerate(values, start=1):
+        topic = _attachment_topic_label(item, index, allow_generic=False)
+        description = _attachment_description_label(item)
+        if not topic and not description:
+            continue
+        rows.append(f"| {_escape_table_cell(topic or f'Attachment {index}')} | {_escape_table_cell(description)} |")
+    if len(rows) == 2:
+        return "- No readable attachments recorded."
+    return "\n".join(rows)
+
+
+def _render_source_digest_attachments(items: list[dict[str, object]]) -> str:
     values = [item for item in items if isinstance(item, dict)]
     if not values:
         return "- No source attachments recorded."
-    rows = ["| Topic | Description | Path |", "|---|---|---|"]
-    for item in values:
-        path = str(item.get("relative_path") or item.get("path") or "").strip()
+    rows = ["| Attachment | Type | Topic | Description | Source Range | Status |", "|---|---|---|---|---|---|"]
+    for index, item in enumerate(values, start=1):
+        attachment_id = str(item.get("attachment_id") or f"A{index}").strip() or f"A{index}"
+        attachment_type = str(item.get("attachment_type") or "file").strip() or "file"
+        topic = _attachment_topic_label(item, index, allow_generic=True)
+        description = _attachment_description_label(item)
+        source_range = _attachment_source_range_label(item)
+        status = str(item.get("status") or "candidate").strip() or "candidate"
         rows.append(
-            "| "
-            + " | ".join(
-                [
-                    _escape_table_cell(str(item.get("topic") or item.get("name") or path or "attachment")),
-                    _escape_table_cell(str(item.get("description") or "")),
-                    _escape_table_cell(path),
-                ]
-            )
-            + " |"
+            f"| {_escape_table_cell(attachment_id)} | {_escape_table_cell(attachment_type)} | "
+            f"{_escape_table_cell(topic)} | {_escape_table_cell(description)} | "
+            f"{_escape_table_cell(source_range)} | {_escape_table_cell(status)} |"
         )
     return "\n".join(rows)
+
+
+def _attachment_source_range_label(item: dict[str, object]) -> str:
+    value = str(item.get("source_range") or "").strip()
+    if value:
+        return value
+    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+    parts: list[str] = []
+    page_idx = metadata.get("page_idx")
+    if page_idx is not None and str(page_idx).strip():
+        parts.append(f"page_idx:{page_idx}")
+    bbox = metadata.get("bbox")
+    if isinstance(bbox, list) and bbox:
+        parts.append("bbox:" + ",".join(str(part) for part in bbox[:4]))
+    return " ".join(parts) or "source-level"
+
+
+def _attachment_topic_label(item: dict[str, object], index: int, *, allow_generic: bool) -> str:
+    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+    for key in ("topic", "title", "caption", "image_caption", "table_caption", "description", "alt", "name"):
+        value = item.get(key)
+        if value is None and key in metadata:
+            value = metadata.get(key)
+        value = _clean_attachment_text(value)
+        if value and not _looks_like_hash_filename(value):
+            return value
+    attachment_type = str(item.get("attachment_type") or "attachment").strip()
+    if allow_generic and attachment_type == "image":
+        return f"Image {index}"
+    if allow_generic:
+        return f"Attachment {index}"
+    return ""
+
+
+def _attachment_description_label(item: dict[str, object]) -> str:
+    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+    for key in ("description", "mineru_description", "caption", "image_caption", "table_caption", "alt"):
+        value = item.get(key)
+        if value is None and key in metadata:
+            value = metadata.get(key)
+        text = _clean_attachment_text(value)
+        if text and not _looks_like_hash_filename(text):
+            return text
+    return ""
+
+
+def _clean_attachment_text(value: object, *, limit: int = 180) -> str:
+    if isinstance(value, list):
+        text = " ".join(str(part).strip() for part in value if str(part).strip())
+    else:
+        text = str(value or "").strip()
+    if not text:
+        return ""
+    if re.search(r"<\s*(table|tr|td|th)\b", text, flags=re.IGNORECASE):
+        return ""
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if _looks_like_hash_filename(text):
+        return ""
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "..."
+
+
+def _looks_like_hash_filename(value: str) -> bool:
+    path_name = value.strip().rsplit("/", 1)[-1]
+    stem = path_name.rsplit(".", 1)[0]
+    return bool(re.fullmatch(r"[0-9a-fA-F]{24,}", stem))
 
 
 def _render_contribution_map(draft: WikiDraft) -> str:
@@ -264,10 +355,8 @@ def _escape_table_cell(value: str) -> str:
 def apply_patched_markdown(
     existing_content: str,
     draft: WikiDraft,
-    related_links: list[str],
     source_file: str | None,
     digest: str,
-    auto_related_links: bool = True,
 ) -> str:
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     created = parse_frontmatter(existing_content).get("created") or now

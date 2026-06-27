@@ -323,7 +323,7 @@ class IngestSemanticRunner:
                 "compile_context": {
                     "context_policy": ingest_compile_context.context_policy,
                     "target_pages": len(ingest_compile_context.page_context.targets),
-                    "related_pages": len(ingest_compile_context.page_context.related),
+                    "context_pages": len(ingest_compile_context.page_context.related),
                     "candidate_pages": len(ingest_compile_context.page_context.candidates),
                 },
                 "review_policy": review_policy.as_context(),

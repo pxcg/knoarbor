@@ -14,6 +14,7 @@ from knoarbor.maintenance.lint_candidates import scan_page, score_lint_candidate
 from knoarbor.maintenance.lint_collection import collect_pages, filter_lint_scope
 from knoarbor.maintenance.lint_scanners import lint_collected_pages
 from knoarbor.storage import update_index
+from knoarbor.storage.vault_layout import ledger_relative_path
 
 
 def lint_vault(
@@ -90,7 +91,7 @@ def apply_safe_fixes(
     vault_path: Path,
     issues: list[WikiLintIssue],
     *,
-    ledger_path: str = "maintenance/lint_safe_fixes_ledger.jsonl",
+    ledger_path: str = ledger_relative_path("lint_safe_fixes"),
     privacy_config: PrivacyConfig | None = None,
 ) -> list[WikiLintFix]:
     fixes = build_fix_plan(issues)
@@ -185,7 +186,7 @@ def _fix_for_issue(issue: WikiLintIssue) -> WikiLintFix:
             path=issue.path,
             action="ingest_or_move_source",
             mode="manual",
-            description="Move this file into raw/notes and ingest it, or relocate it to a schema-defined generated-page directory with valid frontmatter.",
+            description="Move this file into raw/inbox/notes and ingest it, or relocate it to a schema-defined generated-page directory with valid frontmatter.",
         )
     if issue.code == "orphan_page":
         return WikiLintFix(
@@ -211,13 +212,13 @@ def _fix_for_issue(issue: WikiLintIssue) -> WikiLintFix:
             mode="manual",
             description="Replace the ambiguous link with a path-qualified wikilink.",
         )
-    if issue.code in {"missing_frontmatter", "missing_frontmatter_keys", "frontmatter_type_mismatch"}:
+    if issue.code in {"missing_frontmatter", "missing_frontmatter_keys"}:
         return WikiLintFix(
             issue_code=issue.code,
             path=issue.path,
             action="repair_frontmatter",
             mode="manual",
-            description="Repair frontmatter from source provenance and page intent before rerunning lint.",
+            description="Repair page identity metadata before rerunning lint.",
         )
     if issue.code == "missing_required_section":
         return WikiLintFix(
@@ -246,8 +247,6 @@ def _fix_for_issue(issue: WikiLintIssue) -> WikiLintFix:
     if issue.code in {
         "missing_raw_source",
         "source_without_knowledge_links",
-        "source_digest_missing_related_pages",
-        "source_section_mismatch",
         "knowledge_without_source_digest",
         "knowledge_missing_source_digest_link",
     }:
@@ -265,14 +264,6 @@ def _fix_for_issue(issue: WikiLintIssue) -> WikiLintFix:
             action="redact_sensitive_text",
             mode="safe_auto",
             description="Redact configured secrets, local identities, and sensitive platform identifiers from the generated page.",
-        )
-    if issue.code == "duplicate_related_target":
-        return WikiLintFix(
-            issue_code=issue.code,
-            path=issue.path,
-            action="deduplicate_section_items",
-            mode="safe_auto",
-            description="Remove duplicate Related Pages items that resolve to the same wiki target.",
         )
     if issue.code == "duplicate_section_item":
         return WikiLintFix(
@@ -298,22 +289,6 @@ def _fix_for_issue(issue: WikiLintIssue) -> WikiLintFix:
             mode="manual",
             description="Rerun ingest or semantic maintenance so page metadata and the atom index agree.",
         )
-    if issue.code == "timeline_missing_chronology":
-        return WikiLintFix(
-            issue_code=issue.code,
-            path=issue.path,
-            action="repair_timeline_structure",
-            mode="manual",
-            description="Review whether this page belongs in timelines and add an explicit chronological structure if it does.",
-        )
-    if issue.code == "workflow_missing_steps":
-        return WikiLintFix(
-            issue_code=issue.code,
-            path=issue.path,
-            action="repair_workflow_structure",
-            mode="manual",
-            description="Review whether this page belongs in workflows and add ordered or checklist steps if it does.",
-        )
     return WikiLintFix(
         issue_code=issue.code,
         path=issue.path,
@@ -328,9 +303,6 @@ def _safe_operation_for_issue(issue: WikiLintIssue, index: int) -> WikiOperation
     section: str | None = None
     if issue.code == "adjacent_duplicate_heading":
         action = "remove_adjacent_duplicate_headings"
-    elif issue.code == "duplicate_related_target":
-        action = "deduplicate_section_items"
-        section = "Related Pages"
     elif issue.code == "duplicate_section_item":
         action = "deduplicate_section_items"
         raw_section = issue.details.get("section")

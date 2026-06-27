@@ -33,7 +33,6 @@ class WikiWritePipeline:
         entries: list[tuple[WikiDraft, VaultWriteResult]] = []
         responses: list[WikiDraftWriteResponse] = []
         log_entries: list[tuple[WikiDraft, VaultWriteResult, str | None, str]] = []
-        expected_related_by_path: dict[Path, list[str]] = {}
         logger.info("wiki_write_started drafts=%s vault=%s", len(request.drafts), vault_path)
 
         for item in request.drafts:
@@ -51,13 +50,11 @@ class WikiWritePipeline:
                 display_source_file=item.display_source_file,
                 write_action=item.write_action,
                 target_page=item.target_page,
-                auto_related_links=request.auto_related_links,
             )
             entries.append((draft, write_result))
             if write_result.created or item.write_action in {"update", "merge"}:
                 log_action = item.write_action if item.target_page else "create"
                 log_entries.append((draft, write_result, source_file, log_action))
-            expected_related_by_path[write_result.path] = [str(path).strip() for path in item.expected_related_pages if str(path).strip()]
             response = self._to_write_response(
                 draft=draft,
                 write_result=write_result,
@@ -69,16 +66,6 @@ class WikiWritePipeline:
             response.stats["operation_index"] = item.operation_index
             response.stats["canonicalization_changes"] = canonicalized.changes
             responses.append(response)
-
-        semantic_related_added_count = 0
-        semantic_related_missing_count = 0
-        for response in responses:
-            path = Path(response.wiki_file_path)
-            expected_related_pages = expected_related_by_path.get(path, [])
-            if not expected_related_pages:
-                continue
-            response.stats["expected_related_pages"] = expected_related_pages
-            response.stats["semantic_related_links"] = {"added_count": 0, "added": [], "missing": []}
 
         unresolved_removed_count = 0
         for response in responses:
@@ -97,9 +84,6 @@ class WikiWritePipeline:
             results=responses,
             stats={
                 "written_count": len(responses),
-                "batch_links_reconciled_count": 0,
-                "semantic_related_links_added_count": semantic_related_added_count,
-                "semantic_related_links_missing_count": semantic_related_missing_count,
                 "unresolved_wikilinks_sanitized_count": unresolved_removed_count,
                 "content_hashes": [result.stats.get("content_hash") for result in responses],
             },
@@ -123,18 +107,13 @@ class WikiWritePipeline:
             stats={
                 "created": write_result.created,
                 "directory": draft.page_dir,
-                "type": draft.page_type,
                 "canonical_path": write_result.canonical_path,
-                "legacy_paths": list(write_result.legacy_paths),
-                "page_kind": write_result.page_kind,
                 "subject_kind": write_result.subject_kind,
                 "role": write_result.role,
-                "facets": list(write_result.facets),
                 "model_provider": draft.model_provider,
                 "model_name": draft.model_name,
                 "write_action": write_action,
                 "target_page": target_page,
-                "related_links_count": len(write_result.related_links),
                 "content_hash": write_result.content_hash,
                 "source_digest_ids": list(draft.source_digest_ids),
                 "atom_ids": list(draft.atom_ids),

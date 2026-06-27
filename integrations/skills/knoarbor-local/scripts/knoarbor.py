@@ -170,8 +170,8 @@ def _add_page(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -
     list_parser.add_argument("--contains", default=None)
     read_parser = page_sub.add_parser("read", help="Read one wiki page by path.")
     read_parser.add_argument("path")
-    links_parser = page_sub.add_parser("links", help="Read outbound links and backlinks for one page.")
-    links_parser.add_argument("path")
+    relations_parser = page_sub.add_parser("relations", help="Read page relations for one wiki page.")
+    relations_parser.add_argument("path")
 
 
 def _add_vaults(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -320,9 +320,9 @@ def _cmd_page(args: argparse.Namespace, runtime: Runtime) -> int:
     if args.page_command == "read":
         response = _get_json(_url(runtime.base_url, "/wiki/pages/content", _vault_query(runtime, {"vault_path": vault_path, "path": args.path})), timeout=runtime.timeout)
         return _print_or_format(response, runtime, formatter=_format_page_read)
-    if args.page_command == "links":
-        response = _get_json(_url(runtime.base_url, "/wiki/pages/links", _vault_query(runtime, {"vault_path": vault_path, "path": args.path})), timeout=runtime.timeout)
-        return _print_or_format(response, runtime, formatter=_format_page_links)
+    if args.page_command == "relations":
+        response = _get_json(_url(runtime.base_url, "/wiki/pages/relations", _vault_query(runtime, {"vault_path": vault_path, "path": args.path})), timeout=runtime.timeout)
+        return _print_or_format(response, runtime, formatter=_format_page_relations)
     return 2
 
 
@@ -857,8 +857,8 @@ def _format_query(response: dict[str, Any]) -> str:
         lines.append(f"{index}. {prefix}{result.get('title', '')} ({result.get('path', '')}) [{result.get('relevance', '')}, {result.get('match_kind', '')}]")
         if result.get("summary"):
             lines.append(f"   {result['summary']}")
-        for point in result.get("key_points", [])[:3]:
-            lines.append(f"   - {point}")
+        for claim in result.get("claims", [])[:3]:
+            lines.append(f"   - {claim}")
         if result.get("content"):
             lines.append("   Content:")
             lines.append(_indent(str(result["content"])[:8000], "   "))
@@ -884,13 +884,13 @@ def _format_page_read(response: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _format_page_links(response: dict[str, Any]) -> str:
-    lines = [f"Page links: {response.get('path')}", "", "Outbound links:"]
-    for link in response.get("outbound_links", []):
+def _format_page_relations(response: dict[str, Any]) -> str:
+    lines = [f"Page relations: {response.get('path')}", "", "Outgoing pages:"]
+    for link in response.get("outgoing_pages", []):
         lines.append(f"- {link.get('target_path') or link.get('target')} ({'resolved' if link.get('resolved') else 'unresolved'})")
     lines.append("")
-    lines.append("Backlinks:")
-    for link in response.get("backlinks", []):
+    lines.append("Incoming pages:")
+    for link in response.get("incoming_pages", []):
         lines.append(f"- {link.get('source')}")
     return "\n".join(lines)
 

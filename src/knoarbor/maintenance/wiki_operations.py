@@ -13,31 +13,27 @@ from knoarbor.core.markdown import (
     extract_section,
     parse_frontmatter,
     remove_adjacent_duplicate_headings,
-    render_list_section,
     replace_section,
-    update_frontmatter_value,
     update_heading,
-    wiki_target_key,
 )
 from knoarbor.core.config import PrivacyConfig
 from knoarbor.core.redaction import redact_public_text
 from knoarbor.core.schemas.wiki_operation import WikiOperationApplyResult, WikiOperationInput
 from knoarbor.core.hashing import file_content_hash
-from knoarbor.storage import append_operation_ledger, append_operation_log, relative_wiki_path, resolve_wiki_page, update_index, wiki_link_for_path
-from knoarbor.core.wiki_lists import merge_unique_items, prefer_list_item
+from knoarbor.storage import append_operation_ledger, append_operation_log, relative_wiki_path, resolve_wiki_page, update_index
+from knoarbor.storage.vault_layout import maintenance_archives_root
+from knoarbor.core.wiki_lists import prefer_list_item
 from knoarbor.retrieval.wiki_links import canonical_wiki_list_item_identity, replace_wikilink_targets
 
 
 STANDARD_SECTION_ORDER = (
     "Summary",
-    "Source Focus",
-    "Question",
-    "Answer",
+    "Claims",
+    "Relations",
+    "Synthesis",
+    "Entities",
     "Evidence",
-    "Key Points",
-    "Related Pages",
-    "Tags",
-    "Source",
+    "Attachments",
 )
 
 MAX_OPERATION_DIFF_LINES = 320
@@ -53,7 +49,7 @@ def ensure_expected_hash(path: Path, expected_hash: str | None) -> tuple[str, st
 
 def operation_archive_path(vault_path: Path, category: str, source_path: Path) -> Path:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    archive_dir = vault_path / "maintenance" / category
+    archive_dir = maintenance_archives_root(vault_path) / category
     archive_dir.mkdir(parents=True, exist_ok=True)
     return archive_dir / f"{timestamp}_{source_path.name}"
 
@@ -121,31 +117,6 @@ def apply_rename_page(vault_path: Path, operation: WikiOperationInput) -> tuple[
         "new_title": operation.new_title,
         "bytes_moved": len(before_content),
         **operation_diff(before_content, after_content, operation.target_page),
-    }
-
-
-def apply_update_frontmatter(vault_path: Path, operation: WikiOperationInput) -> tuple[Path, list[Path], str, str, dict[str, object]]:
-    allowed_keys = {"status", "type", "tags"}
-    updates = {str(key).strip(): str(value).strip() for key, value in operation.frontmatter.items() if str(key).strip()}
-    invalid = sorted(set(updates) - allowed_keys)
-    if invalid:
-        raise PolicyRejection(f"Unsupported frontmatter keys for autonomous update: {', '.join(invalid)}")
-    if not updates:
-        raise PolicyRejection("update_frontmatter requires frontmatter updates")
-    target_path = resolve_wiki_page(vault_path, operation.target_page)
-    if not target_path.exists():
-        raise PolicyRejection(f"Target page does not exist: {operation.target_page}")
-    content, before_hash = ensure_expected_hash(target_path, operation.before_hash)
-    updated = content
-    for key, value in updates.items():
-        updated = update_frontmatter_value(updated, key, value)
-    after_hash = file_content_hash(updated)
-    if after_hash != before_hash:
-        target_path.write_text(updated, encoding="utf-8")
-    return target_path, [], before_hash, after_hash, {
-        "frontmatter": updates,
-        "frontmatter_keys": sorted(updates),
-        **operation_diff(content, updated, operation.target_page),
     }
 
 
@@ -222,69 +193,8 @@ def apply_replace_wikilink(vault_path: Path, operation: WikiOperationInput) -> t
     }
 
 
-def apply_attach_related_pages(vault_path: Path, operation: WikiOperationInput) -> tuple[Path, list[Path], str, str, dict[str, object]]:
-    if not operation.related_pages:
-        raise PolicyRejection("attach_related_pages requires related_pages")
-    target_path = resolve_wiki_page(vault_path, operation.target_page)
-    if not target_path.exists():
-        raise PolicyRejection(f"Target page does not exist: {operation.target_page}")
-    content, before_hash = ensure_expected_hash(target_path, operation.before_hash)
-    links: list[str] = []
-    missing: list[str] = []
-    for page in operation.related_pages:
-        page_path = resolve_wiki_page(vault_path, page)
-        if not page_path.exists():
-            missing.append(page)
-            continue
-        links.append(wiki_link_for_path(vault_path, page_path, extract_heading(page_path.read_text(encoding="utf-8"), page_path.stem)))
-    if missing:
-        raise PolicyRejection(f"Related pages do not exist: {', '.join(missing)}")
-    related = merge_unique_items(extract_list_items(extract_section(content, "Related Pages")), links, 20)
-    updated = replace_section(content, "Related Pages", render_list_section(related, "暂无关联知识"))
-    after_hash = file_content_hash(updated)
-    if after_hash != before_hash:
-        target_path.write_text(updated, encoding="utf-8")
-    return target_path, [], before_hash, after_hash, {
-        "related_pages": operation.related_pages,
-        "added_links": links,
-        **operation_diff(content, updated, operation.target_page),
-    }
-
-
-def apply_remove_related_links(vault_path: Path, operation: WikiOperationInput) -> tuple[Path, list[Path], str, str, dict[str, object]]:
-    if not operation.related_pages:
-        raise PolicyRejection("remove_related_links requires related_pages")
-    target_path = resolve_wiki_page(vault_path, operation.target_page)
-    if not target_path.exists():
-        raise PolicyRejection(f"Target page does not exist: {operation.target_page}")
-    content, before_hash = ensure_expected_hash(target_path, operation.before_hash)
-    remove_keys = {wiki_target_key(page) for page in operation.related_pages}
-    removed: list[str] = []
-
-    def keep_item(item: str) -> bool:
-        import re
-
-        match = re.search(r"\[\[([^\]|]+)", item)
-        key = wiki_target_key(match.group(1) if match else item)
-        if key in remove_keys:
-            removed.append(item)
-            return False
-        return True
-
-    items = [item for item in extract_list_items(extract_section(content, "Related Pages")) if keep_item(item)]
-    updated = replace_section(content, "Related Pages", "\n".join(f"- {item}" for item in items) if items else "- 暂无关联知识")
-    after_hash = file_content_hash(updated)
-    if after_hash != before_hash:
-        target_path.write_text(updated, encoding="utf-8")
-    return target_path, [], before_hash, after_hash, {
-        "removed": removed,
-        "related_pages": operation.related_pages,
-        **operation_diff(content, updated, operation.target_page),
-    }
-
-
 def apply_deduplicate_section_items(vault_path: Path, operation: WikiOperationInput) -> tuple[Path, list[Path], str, str, dict[str, object]]:
-    section = (operation.section or "Related Pages").strip()
+    section = (operation.section or "Entities").strip()
     target_path = resolve_wiki_page(vault_path, operation.target_page)
     if not target_path.exists():
         raise PolicyRejection(f"Target page does not exist: {operation.target_page}")
@@ -353,8 +263,8 @@ def apply_add_missing_section(vault_path: Path, operation: WikiOperationInput) -
 
 def _default_missing_section_content(content: str, section: str) -> str:
     metadata = parse_frontmatter(content)
+    source = _first_structured_source(content)
     if section == "Source Identity":
-        source = metadata.get("source", "").strip()
         rows = [
             f"- Raw source: {source or 'unknown'}",
             f"- Content hash: {metadata.get('content_hash', 'unknown')}",
@@ -362,15 +272,14 @@ def _default_missing_section_content(content: str, section: str) -> str:
         return "\n".join(rows)
     if section == "Audit Summary":
         title = extract_heading(content, "Untitled")
-        source = metadata.get("source", "").strip() or "unknown"
         return f"Audit record for {title}. Raw pointer: {source}."
     if section == "Source Units":
-        source = metadata.get("source", "").strip() or "unknown"
+        unit_source = source or "unknown"
         return "\n".join(
             [
                 "| Unit | Source | Range | Basis | Confidence |",
                 "|---|---|---|---|---|",
-                f"| U1 | {source} | source-level | source digest placeholder | low |",
+                f"| U1 | {unit_source} | source-level | source digest placeholder | low |",
             ]
         )
     if section == "Contribution Map":
@@ -378,28 +287,56 @@ def _default_missing_section_content(content: str, section: str) -> str:
     if section == "Unresolved / Rejected":
         return "- No unresolved or rejected material recorded."
     if section == "Raw Source":
-        source = metadata.get("source", "").strip()
         return f"- Raw source: {source}" if source else "- Raw source: unknown"
-    if section == "Tags":
-        return render_list_section(_default_tags(content, metadata), "暂无标签")
-    if section == "Question":
-        focus = extract_section(content, "Source Focus")
-        return focus or extract_heading(content, "Untitled")
-    if section == "Key Points":
-        summary = extract_section(content, "Summary")
-        return f"- {summary or extract_heading(content, 'Untitled')}"
-    if section == "Related Pages":
-        return "- 暂无关联知识"
-    if section == "Source":
-        source = metadata.get("source", "").strip()
-        return f"- {source}" if source else "- 暂无来源"
     if section == "Summary":
         return extract_heading(content, "Untitled")
-    if section == "Answer":
-        return "暂无内容"
+    if section == "Claims":
+        return "- C1: 暂无可验证断言。"
+    if section == "Relations":
+        return "| Subject | Predicate | Object | Based on |\n|---|---|---|---|\n| 暂无 | relates_to | 暂无 | C1 |"
+    if section == "Synthesis":
+        return extract_section(content, "Summary") or extract_heading(content, "Untitled")
+    if section == "Entities":
+        return "- 暂无实体"
     if section == "Evidence":
         return "- 暂无证据"
+    if section == "Attachments":
+        return "- 暂无附件"
     return "暂无内容"
+
+
+def _first_structured_source(content: str) -> str:
+    for item in extract_list_items(extract_section(content, "Raw Source")):
+        source = item.strip().strip("`")
+        if source.lower().startswith("raw source:"):
+            source = source.split(":", 1)[1].strip().strip("`")
+        if source and not source.startswith("暂无"):
+            return source
+    for item in extract_list_items(extract_section(content, "Source Identity")):
+        source = item.strip().strip("`")
+        if source.lower().startswith("raw source:"):
+            source = source.split(":", 1)[1].strip().strip("`")
+        if source and not source.startswith("暂无"):
+            return source
+    for cells in _markdown_table_rows(extract_section(content, "Evidence")):
+        if len(cells) < 2 or cells[0].strip().lower() == "claim":
+            continue
+        source = cells[1].strip().strip("`")
+        if source:
+            return source
+    return ""
+
+
+def _markdown_table_rows(section: str) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for line in section.splitlines():
+        text = line.strip()
+        if not text.startswith("|") or text.startswith("|---"):
+            continue
+        cells = [cell.strip() for cell in text.strip("|").split("|")]
+        if cells:
+            rows.append(cells)
+    return rows
 
 
 def _insert_missing_section(content: str, section: str, section_content: str) -> str:
@@ -416,33 +353,6 @@ def _insert_missing_section(content: str, section: str, section_content: str) ->
             return content[: match.start()].rstrip() + "\n\n" + section_block + "\n" + content[match.start() :].lstrip()
 
     return content.rstrip() + "\n\n" + section_block
-
-
-def _default_tags(content: str, metadata: dict[str, str]) -> list[str]:
-    raw_tags = metadata.get("tags", "")
-    tags = [tag.strip().strip("[]'\"") for tag in raw_tags.split(",") if tag.strip()]
-    if tags:
-        return tags[:8]
-    title = extract_heading(content, "")
-    candidates = [part for part in re.split(r"[\s/\\,，:：()（）-]+", title.lower()) if len(part) >= 2]
-    return candidates[:5]
-
-
-def apply_update_source_field(vault_path: Path, operation: WikiOperationInput) -> tuple[Path, list[Path], str, str, dict[str, object]]:
-    source_file = validated_source_file(operation.source_file, "update_source_field")
-    target_path = resolve_wiki_page(vault_path, operation.target_page)
-    if not target_path.exists():
-        raise PolicyRejection(f"Target page does not exist: {operation.target_page}")
-    content, before_hash = ensure_expected_hash(target_path, operation.before_hash)
-    updated = update_frontmatter_value(content, "source", source_file)
-    updated = replace_section(updated, "Source", f"- {source_file}")
-    after_hash = file_content_hash(updated)
-    if after_hash != before_hash:
-        target_path.write_text(updated, encoding="utf-8")
-    return target_path, [], before_hash, after_hash, {
-        "source_file": source_file,
-        **operation_diff(content, updated, operation.target_page),
-    }
 
 
 def apply_redact_sensitive_text(
@@ -468,15 +378,6 @@ def apply_redact_sensitive_text(
     }
 
 
-def validated_source_file(value: str | None, action: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise PolicyRejection(f"{action} requires source_file")
-    source_file = value.strip()
-    if "\n" in source_file or source_file.startswith(("[", "{")):
-        raise PolicyRejection(f"{action} requires a single source_file string")
-    return source_file
-
-
 def apply_wiki_operation(
     vault_path: Path,
     operation: WikiOperationInput,
@@ -487,26 +388,18 @@ def apply_wiki_operation(
     privacy_config = privacy_config or PrivacyConfig()
     if operation.action == "rename_page":
         output_path, archived, before_hash, after_hash, details = apply_rename_page(vault_path, operation)
-    elif operation.action == "update_frontmatter":
-        output_path, archived, before_hash, after_hash, details = apply_update_frontmatter(vault_path, operation)
     elif operation.action == "delete_page":
         output_path, archived, before_hash, after_hash, details = apply_delete_page(vault_path, operation)
     elif operation.action == "merge_pages":
         output_path, archived, before_hash, after_hash, details = apply_merge_pages(vault_path, operation)
     elif operation.action in {"replace_wikilink", "normalize_wikilink"}:
         output_path, archived, before_hash, after_hash, details = apply_replace_wikilink(vault_path, operation)
-    elif operation.action in {"attach_related_pages", "attach_source_digest"}:
-        output_path, archived, before_hash, after_hash, details = apply_attach_related_pages(vault_path, operation)
-    elif operation.action == "remove_related_links":
-        output_path, archived, before_hash, after_hash, details = apply_remove_related_links(vault_path, operation)
     elif operation.action == "deduplicate_section_items":
         output_path, archived, before_hash, after_hash, details = apply_deduplicate_section_items(vault_path, operation)
     elif operation.action == "remove_adjacent_duplicate_headings":
         output_path, archived, before_hash, after_hash, details = apply_remove_adjacent_duplicate_headings(vault_path, operation)
     elif operation.action == "add_missing_section":
         output_path, archived, before_hash, after_hash, details = apply_add_missing_section(vault_path, operation)
-    elif operation.action == "update_source_field":
-        output_path, archived, before_hash, after_hash, details = apply_update_source_field(vault_path, operation)
     elif operation.action == "redact_sensitive_text":
         output_path, archived, before_hash, after_hash, details = apply_redact_sensitive_text(vault_path, operation, privacy_config)
     else:
@@ -527,7 +420,6 @@ def apply_wiki_operation(
         "expected_effect": operation.expected_effect,
         "before_hash": before_hash,
         "after_hash": after_hash,
-        "related_pages": operation.related_pages,
         "details": details,
         "created_at": now,
     }

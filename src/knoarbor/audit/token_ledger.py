@@ -3,11 +3,14 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
+from knoarbor.audit.contracts import LEDGER_PATHS, LEDGER_SCHEMA_VERSIONS
 from knoarbor.audit.report_formatting import as_dict, as_list
 from knoarbor.storage.ledger import append_jsonl_records, read_jsonl_ledger
 
 
-TOKEN_LEDGER_PATH = "maintenance/token_ledger.jsonl"
+TOKEN_LEDGER_PATH = LEDGER_PATHS["token"]
+TOKEN_LEDGER_SCHEMA_VERSION = LEDGER_SCHEMA_VERSIONS["token"]
+TOKEN_ANALYSIS_SCHEMA_VERSION = LEDGER_SCHEMA_VERSIONS["token_analysis"]
 LOW_CACHE_RATE_THRESHOLD = 0.2
 HIGH_DYNAMIC_TO_STABLE_RATIO = 3.0
 
@@ -34,7 +37,7 @@ def read_token_analysis(vault_path: Path, *, limit: int | None = 5000) -> dict[s
 def build_ingest_token_records(record: dict[str, object]) -> list[dict[str, object]]:
     run_id = str(record.get("run_id") or "")
     base = {
-        "schema_version": "token_ledger.v1",
+        "schema_version": TOKEN_LEDGER_SCHEMA_VERSION,
         "flow": "ingest",
         "run_id": run_id,
         "started_at": record.get("started_at"),
@@ -83,7 +86,7 @@ def build_ingest_token_records(record: dict[str, object]) -> list[dict[str, obje
 
 def build_lint_token_records(record: dict[str, object]) -> list[dict[str, object]]:
     base = {
-        "schema_version": "token_ledger.v1",
+        "schema_version": TOKEN_LEDGER_SCHEMA_VERSION,
         "flow": "lint",
         "run_id": record.get("run_id"),
         "created_at": record.get("created_at"),
@@ -96,7 +99,7 @@ def build_lint_token_records(record: dict[str, object]) -> list[dict[str, object
 
 def build_chat_token_records(record: dict[str, object]) -> list[dict[str, object]]:
     base = {
-        "schema_version": "token_ledger.v1",
+        "schema_version": TOKEN_LEDGER_SCHEMA_VERSION,
         "flow": "chat",
         "run_id": record.get("chat_id"),
         "created_at": record.get("created_at"),
@@ -148,7 +151,7 @@ def build_chat_token_records(record: dict[str, object]) -> list[dict[str, object
 def build_token_analysis(records: list[dict[str, object]]) -> dict[str, object]:
     sorted_records = sorted(records, key=lambda item: str(item.get("finished_at") or item.get("created_at") or ""))
     return {
-        "schema_version": "token_analysis.v1",
+        "schema_version": TOKEN_ANALYSIS_SCHEMA_VERSION,
         "record_count": len(sorted_records),
         "totals": _summarize(sorted_records),
         "by_flow": _group(sorted_records, "flow"),
@@ -217,9 +220,9 @@ def _call_records(
 
 def _historical_records(vault_path: Path, *, limit: int | None) -> list[dict[str, object]]:
     records: list[dict[str, object]] = []
-    for record in read_jsonl_ledger(vault_path, "maintenance/ingest_ledger.jsonl", limit=limit):
+    for record in read_jsonl_ledger(vault_path, ledger_relative_path("ingest"), limit=limit):
         records.extend(build_ingest_token_records(record))
-    for record in read_jsonl_ledger(vault_path, "maintenance/lint_run_ledger.jsonl", limit=limit):
+    for record in read_jsonl_ledger(vault_path, ledger_relative_path("lint_run"), limit=limit):
         records.extend(build_lint_token_records(record))
     return records[-limit:] if limit is not None else records
 

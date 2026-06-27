@@ -3,10 +3,7 @@ from __future__ import annotations
 
 REQUIRED_FRONTMATTER_KEYS = ("created", "updated", "content_hash")
 IGNORED_LINK_PREFIXES = ("http://", "https://", "mailto:", "#")
-KNOWLEDGE_DIRS = {"entities", "concepts", "comparisons", "queries", "timelines", "workflows"}
-WEAK_GRAPH_DIRS = KNOWLEDGE_DIRS
 OVERDENSE_LINK_THRESHOLD = 30
-OVERDENSE_RELATED_THRESHOLD = 20
 KNOWLEDGE_PAGE_SECTIONS = (
     "Summary",
     "Claims",
@@ -23,15 +20,10 @@ SOURCE_DIGEST_SECTIONS = (
     "Unresolved / Rejected",
     "Raw Source",
 )
-REQUIRED_SECTIONS_BY_DIR = {
-    "sources": SOURCE_DIGEST_SECTIONS,
-    "entities": KNOWLEDGE_PAGE_SECTIONS,
-    "concepts": KNOWLEDGE_PAGE_SECTIONS,
-    "comparisons": KNOWLEDGE_PAGE_SECTIONS,
-    "queries": KNOWLEDGE_PAGE_SECTIONS,
-    "timelines": KNOWLEDGE_PAGE_SECTIONS,
-    "workflows": KNOWLEDGE_PAGE_SECTIONS,
+REQUIRED_SECTIONS_BY_ROLE = {
+    "source_digest": SOURCE_DIGEST_SECTIONS,
 }
+
 
 # Lint issue execution classes define which layer is responsible for a fix.
 # Deterministic-only issues are precise scanner findings and should be handled
@@ -40,9 +32,7 @@ DETERMINISTIC_ONLY_ISSUE_CODES = frozenset(
     {
         "ambiguous_wikilink",
         "broken_wikilink",
-        "duplicate_related_target",
         "duplicate_section_item",
-        "frontmatter_type_mismatch",
         "missing_frontmatter",
         "missing_frontmatter_keys",
         "missing_index",
@@ -50,7 +40,6 @@ DETERMINISTIC_ONLY_ISSUE_CODES = frozenset(
         "missing_required_section",
         "page_missing_from_index",
         "privacy_sensitive_content",
-        "source_section_mismatch",
         "unexpected_markdown_location",
     }
 )
@@ -59,7 +48,6 @@ SEMANTIC_STRUCTURAL_ISSUE_CODES = frozenset(
     {
         "knowledge_missing_source_digest_link",
         "knowledge_without_source_digest",
-        "source_digest_missing_related_pages",
         "source_without_knowledge_links",
     }
 )
@@ -74,12 +62,7 @@ GOVERNANCE_QUEUE_ISSUE_CODES = frozenset(
     }
 )
 
-QUALITY_SEMANTIC_ISSUE_CODES = frozenset(
-    {
-        "timeline_missing_chronology",
-        "workflow_missing_steps",
-    }
-)
+QUALITY_SEMANTIC_ISSUE_CODES = frozenset()
 
 
 def lint_issue_execution_class(code: str) -> str:

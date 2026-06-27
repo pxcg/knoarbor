@@ -38,7 +38,7 @@ def project_draft_batch_from_page_assembly(
                 draft = _project_source_digest_draft(draft, source_digest)
             drafts.append(draft)
             continue
-        drafts.append(_project_draft(draft, assembly))
+        drafts.append(_project_draft(draft, assembly, source_digest))
     return draft_batch.model_copy(update={"drafts": drafts})
 
 
@@ -53,21 +53,13 @@ def _project_operation_trace(draft: WikiDraftBatchItem, operation: object) -> Wi
     canonical_path = str(getattr(operation, "canonical_path", "") or "").strip()
     if canonical_path and not draft.canonical_path:
         update["canonical_path"] = canonical_path
-    page_kind = str(getattr(operation, "page_kind", "") or "").strip()
-    if page_kind and not draft.page_kind:
-        update["page_kind"] = page_kind
-    subject_kind = str(getattr(operation, "subject_kind", "") or "").strip()
-    if subject_kind and not draft.subject_kind:
-        update["subject_kind"] = subject_kind
-    facets = [str(item).strip() for item in getattr(operation, "facets", []) if str(item).strip()]
-    if facets and not draft.facets:
-        update["facets"] = facets
     return draft.model_copy(update=update)
 
 
-def _project_draft(draft: WikiDraftBatchItem, assembly: dict[str, object]) -> WikiDraftBatchItem:
+def _project_draft(draft: WikiDraftBatchItem, assembly: dict[str, object], source_digest: SourceDigest | None = None) -> WikiDraftBatchItem:
     source_digest_ids = _merge_strings(draft.source_digest_ids, _strings(assembly.get("source_digest_ids")))
     atom_ids = _merge_strings(draft.atom_ids, _strings(assembly.get("atom_ids")))
+    attachments = _draft_attachments(draft, source_digest)
     return draft.model_copy(
         update={
             "claims": _claim_rows(assembly),
@@ -76,6 +68,7 @@ def _project_draft(draft: WikiDraftBatchItem, assembly: dict[str, object]) -> Wi
             "evidence": _evidence_rows(assembly),
             "source_digest_ids": source_digest_ids,
             "atom_ids": atom_ids,
+            "attachments": attachments,
         }
     )
 
@@ -173,3 +166,29 @@ def _merge_strings(left: list[str], right: list[str]) -> list[str]:
         if item and item not in result:
             result.append(item)
     return result
+
+
+def _draft_attachments(draft: WikiDraftBatchItem, source_digest: SourceDigest | None) -> list[dict[str, object]]:
+    if source_digest is not None and source_digest.attachments:
+        llm_descriptions = _llm_attachment_descriptions(draft)
+        merged: list[dict[str, object]] = []
+        for attachment in source_digest.attachments:
+            item = attachment.model_dump()
+            name = str(item.get("name") or "").strip()
+            if name and name in llm_descriptions:
+                item["description"] = llm_descriptions[name]
+            merged.append(item)
+        return merged
+    return list(draft.attachments)
+
+
+def _llm_attachment_descriptions(draft: WikiDraftBatchItem) -> dict[str, str]:
+    descriptions: dict[str, str] = {}
+    for item in draft.attachments:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        desc = str(item.get("description") or "").strip()
+        if name and desc:
+            descriptions[name] = desc
+    return descriptions

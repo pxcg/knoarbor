@@ -107,7 +107,7 @@ curl -sS --get "$KNOARBOR_BASE_URL/wiki/pages" \
 ```bash
 curl -sS --get "$KNOARBOR_BASE_URL/wiki/pages/content" \
   --data-urlencode "vault_path=$KNOARBOR_VAULT_PATH" \
-  --data-urlencode "path=concepts/Agent-Loop-and-Control-Patterns.md"
+  --data-urlencode "path=Agent-Loop-and-Control-Patterns.md"
 ```
 
 Read a page selected from a multi-vault query result:
@@ -116,24 +116,24 @@ Read a page selected from a multi-vault query result:
 curl -sS --get "$KNOARBOR_BASE_URL/wiki/pages/content" \
   --data-urlencode "config_path=$KNOARBOR_CONFIG_PATH" \
   --data-urlencode "vault_id=personal" \
-  --data-urlencode "path=concepts/Agent-Loop-and-Control-Patterns.md"
+  --data-urlencode "path=Agent-Loop-and-Control-Patterns.md"
 ```
 
-## Page Links
+## Page Relations
 
 ```bash
-curl -sS --get "$KNOARBOR_BASE_URL/wiki/pages/links" \
+curl -sS --get "$KNOARBOR_BASE_URL/wiki/pages/relations" \
   --data-urlencode "vault_path=$KNOARBOR_VAULT_PATH" \
-  --data-urlencode "path=concepts/Agent-Loop-and-Control-Patterns.md"
+  --data-urlencode "path=Agent-Loop-and-Control-Patterns.md"
 ```
 
-Inspect links for a page selected from a multi-vault query result:
+Inspect page relations for a page selected from a multi-vault query result:
 
 ```bash
-curl -sS --get "$KNOARBOR_BASE_URL/wiki/pages/links" \
+curl -sS --get "$KNOARBOR_BASE_URL/wiki/pages/relations" \
   --data-urlencode "config_path=$KNOARBOR_CONFIG_PATH" \
   --data-urlencode "vault_id=personal" \
-  --data-urlencode "path=concepts/Agent-Loop-and-Control-Patterns.md"
+  --data-urlencode "path=Agent-Loop-and-Control-Patterns.md"
 ```
 
 ## Start Connector Ingest
@@ -197,7 +197,7 @@ curl -sS --get "$KNOARBOR_BASE_URL/reports" \
 ```bash
 curl -sS --get "$KNOARBOR_BASE_URL/reports/content" \
   --data-urlencode "vault_path=$KNOARBOR_VAULT_PATH" \
-  --data-urlencode "path=maintenance/ingest_report_YYYYMMDD_HHMMSS.md"
+  --data-urlencode "path=maintenance/reports/ingest/ingest_report_YYYYMMDD_HHMMSS.md"
 ```
 
 ## Runs

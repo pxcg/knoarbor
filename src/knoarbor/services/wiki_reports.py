@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from knoarbor.core.errors import UserInputError, WikiPageNotFound
 from knoarbor.core.markdown import compact_inline_text, extract_heading
+from knoarbor.storage.vault_layout import maintenance_reports_root
 
 
 class WikiReportSummary(BaseModel):
@@ -57,11 +58,15 @@ class WikiReportService:
 
 
 def collect_report_summaries(vault_path: Path, *, vault_id: str | None = None, vault_name: str | None = None) -> list[WikiReportSummary]:
-    maintenance_path = vault_path / "maintenance"
-    if not maintenance_path.exists():
-        return []
     reports: list[WikiReportSummary] = []
-    for path in sorted(maintenance_path.glob("*report*.md"), key=lambda item: item.stat().st_mtime, reverse=True):
+    seen: set[Path] = set()
+    root = maintenance_reports_root(vault_path)
+    if not root.exists():
+        return reports
+    for path in sorted(root.rglob("*report*.md"), key=lambda item: item.stat().st_mtime, reverse=True):
+        if path in seen:
+            continue
+        seen.add(path)
         content = path.read_text(encoding="utf-8")
         reports.append(summarize_report(vault_path, path, content, vault_id=vault_id, vault_name=vault_name))
     return reports

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from knoarbor.core.schemas.source_digest import SourceDigest
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatchItem
 from knoarbor.core.schemas.wiki_page_plan import WikiPageOperation, WikiPagePlan
@@ -53,10 +55,7 @@ def _source_digest_draft_from_operation(
         title=title,
         page_dir="sources",
         canonical_path=operation.canonical_path or "",
-        legacy_paths=list(operation.legacy_paths),
-        page_kind=operation.page_kind or "source_digest",
-        subject_kind=operation.subject_kind or "source",
-        facets=list(operation.facets),
+        subject_kind="source",
         question=question,
         summary=summary,
         synthesis=summary,
@@ -140,16 +139,22 @@ def _source_units_table(items: list[str], fallback_source: str) -> str:
 def _attachments_table(items: list[dict[str, object]]) -> str:
     if not items:
         return "- No source attachments recorded."
-    rows = ["| Topic | Description | Path |", "|---|---|---|"]
-    for item in items:
-        path = str(item.get("relative_path") or item.get("path") or "").strip()
+    rows = ["| Attachment | Type | Topic | Description | Source Range | Status |", "|---|---|---|---|---|---|"]
+    for index, item in enumerate(items, start=1):
+        attachment_id = str(item.get("attachment_id") or f"A{index}").strip() or f"A{index}"
+        attachment_type = str(item.get("attachment_type") or "file").strip() or "file"
+        source_range = _attachment_source_range_label(item)
+        status = str(item.get("status") or "candidate").strip() or "candidate"
         rows.append(
             "| "
             + " | ".join(
                 [
-                    _table_cell(str(item.get("topic") or item.get("name") or path or "attachment")),
-                    _table_cell(str(item.get("description") or "")),
-                    _table_cell(path),
+                    _table_cell(attachment_id),
+                    _table_cell(attachment_type),
+                    _table_cell(_attachment_topic_label(item, index)),
+                    _table_cell(_attachment_description_label(item)),
+                    _table_cell(source_range),
+                    _table_cell(status),
                 ]
             )
             + " |"
@@ -173,6 +178,69 @@ def _unresolved_list(items: list[str]) -> str:
 
 def _table_cell(value: str) -> str:
     return " ".join(value.replace("|", "/").split())
+
+
+def _attachment_topic_label(item: dict[str, object], index: int) -> str:
+    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+    for key in ("topic", "title", "caption", "image_caption", "table_caption", "description", "alt", "name"):
+        value = item.get(key)
+        if value is None and key in metadata:
+            value = metadata.get(key)
+        text = _clean_attachment_text(value)
+        if text and not _looks_like_hash_filename(text):
+            return text
+    return "Image " + str(index) if str(item.get("attachment_type") or "") == "image" else "Attachment " + str(index)
+
+
+def _attachment_description_label(item: dict[str, object]) -> str:
+    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+    for key in ("description", "mineru_description", "caption", "image_caption", "table_caption", "alt"):
+        value = item.get(key)
+        if value is None and key in metadata:
+            value = metadata.get(key)
+        text = _clean_attachment_text(value)
+        if text and not _looks_like_hash_filename(text):
+            return text
+    return ""
+
+
+def _attachment_source_range_label(item: dict[str, object]) -> str:
+    value = str(item.get("source_range") or "").strip()
+    if value:
+        return value
+    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+    parts: list[str] = []
+    page_idx = metadata.get("page_idx")
+    if page_idx is not None and str(page_idx).strip():
+        parts.append(f"page_idx:{page_idx}")
+    bbox = metadata.get("bbox")
+    if isinstance(bbox, list) and bbox:
+        parts.append("bbox:" + ",".join(str(part) for part in bbox[:4]))
+    return " ".join(parts) or "source-level"
+
+
+def _clean_attachment_text(value: object, *, limit: int = 180) -> str:
+    if isinstance(value, list):
+        text = " ".join(str(part).strip() for part in value if str(part).strip())
+    else:
+        text = str(value or "").strip()
+    if not text:
+        return ""
+    if re.search(r"<\s*(table|tr|td|th)\b", text, flags=re.IGNORECASE):
+        return ""
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if _looks_like_hash_filename(text):
+        return ""
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "..."
+
+
+def _looks_like_hash_filename(value: str) -> bool:
+    path_name = value.strip().rsplit("/", 1)[-1]
+    stem = path_name.rsplit(".", 1)[0]
+    return bool(re.fullmatch(r"[0-9a-fA-F]{24,}", stem))
 
 
 def _merge_strings(left: list[str], right: list[str]) -> list[str]:

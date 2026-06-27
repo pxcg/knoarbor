@@ -16,9 +16,7 @@ class QueryPipelineRequest:
     mode: str = "balanced"
     limit: int = 8
     page_dirs: list[str] = field(default_factory=list)
-    page_kinds: list[str] = field(default_factory=list)
     page_roles: list[str] = field(default_factory=list)
-    facets: list[str] = field(default_factory=list)
     include_related: bool = True
 
 
@@ -57,9 +55,7 @@ class QueryPipeline:
                 query=request.query,
                 limit=request.limit,
                 page_dirs=request.page_dirs,
-                page_kinds=request.page_kinds,
                 page_roles=request.page_roles,
-                facets=request.facets,
                 include_related=request.include_related,
             )
         )

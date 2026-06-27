@@ -49,7 +49,6 @@ class MaintenanceCandidate(BaseModel):
     executor_hint: MaintenanceExecutorHint
     evidence: list[MaintenanceEvidence] = Field(default_factory=list)
     recommended_action: MaintenanceRecommendedAction
-    related_pages: list[str] = Field(default_factory=list)
     expected_effect: str = Field(..., min_length=1)
     review_notes: str = Field(..., min_length=1)
 

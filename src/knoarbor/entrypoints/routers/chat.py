@@ -78,6 +78,17 @@ def create_chat_router(services: ApplicationServices) -> APIRouter:
         target = session_target(ChatRequest(config_path=config_path, vault_path=vault_path, vault_id=vault_id, messages=[{"role": "user", "content": "delete session"}]))
         return ChatSessionDeleteResponse(deleted=services.chat_sessions.delete_session(target.path, session_id), session_id=session_id)
 
+    @router.delete("/chat/sessions/{session_id}/turns/{turn_index}", response_model=ChatSessionRecord)
+    async def delete_chat_turn(
+        session_id: str,
+        turn_index: int,
+        config_path: str | None = None,
+        vault_path: str | None = None,
+        vault_id: str | None = None,
+    ) -> ChatSessionRecord:
+        target = session_target(ChatRequest(config_path=config_path, vault_path=vault_path, vault_id=vault_id, messages=[{"role": "user", "content": "delete turn"}]))
+        return services.chat_sessions.remove_turn(target.path, session_id, turn_index)
+
     @router.patch("/chat/sessions/{session_id}", response_model=ChatSessionRecord)
     async def update_chat_session(
         session_id: str,
@@ -244,7 +255,7 @@ def _sse_event(name: str, payload: dict[str, Any]) -> str:
 
 def _start_chat_session_ingest(services: ApplicationServices, session_id: str, request: ChatSessionIngestRequest):
     target = session_target(ChatRequest(config_path=request.config_path, vault_path=request.vault_path, vault_id=request.vault_id, messages=[{"role": "user", "content": "ingest session"}]))
-    source_document = services.chat_sessions.to_source_document(target.path, session_id)
+    source_document = services.chat_sessions.to_source_document(target.path, session_id, turn_indices=request.turn_indices)
     ingest_request = IngestDocumentRunRequest(
         source_document=source_document,
         config_path=request.config_path,

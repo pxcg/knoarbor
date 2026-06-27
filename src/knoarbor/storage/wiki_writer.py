@@ -8,7 +8,6 @@ from knoarbor.core.errors import PolicyRejection
 from knoarbor.core.hashing import content_hash
 from knoarbor.core.markdown import extract_list_items, extract_section, normalize_list_item, parse_frontmatter
 from knoarbor.core.schemas.wiki_write import VaultWriteResult, WikiDraft
-from knoarbor.retrieval.wiki_links import find_related_links
 from knoarbor.semantic.wiki_render import apply_patched_markdown, render_markdown
 from knoarbor.storage.wiki_paths import (
     available_title_path,
@@ -38,7 +37,6 @@ TRACKED_WRITE_SECTIONS = (
 
 MAX_WRITE_DIFF_LINES = 320
 STRUCTURED_KNOWLEDGE_SECTIONS = ("Summary", "Claims", "Entities", "Relations", "Evidence", "Synthesis")
-LEGACY_BODY_PATCH_SECTIONS = {"Answer", "Definition", "Source Focus"}
 
 
 def section_changed(before_content: str, after_content: str, heading: str) -> bool:
@@ -58,9 +56,8 @@ def added_list_items(before_content: str, after_content: str, heading: str) -> l
     return added
 
 
-def requested_merge_items(draft: WikiDraft, related_links: list[str], source_file: str | None) -> dict[str, list[str]]:
+def requested_merge_items(draft: WikiDraft, source_file: str | None) -> dict[str, list[str]]:
     requested: dict[str, list[str]] = {
-        "Related Pages": related_links,
         "Source": [source_file] if source_file else [],
     }
     for patch in draft.patches:
@@ -99,7 +96,6 @@ def build_write_details(
     before_content: str | None,
     after_content: str,
     draft: WikiDraft,
-    related_links: list[str],
     source_file: str | None,
 ) -> dict[str, object]:
     if write_action not in {"update", "merge"} or before_content is None:
@@ -116,19 +112,17 @@ def build_write_details(
     )
     changed = [section for section in TRACKED_WRITE_SECTIONS if section_changed(before_content, after_content, section)]
     added_by_section = {
-        "Key Points": added_list_items(before_content, after_content, "Key Points"),
-        "Related Pages": added_list_items(before_content, after_content, "Related Pages"),
-        "Tags": added_list_items(before_content, after_content, "Tags"),
+        "Claims": added_list_items(before_content, after_content, "Claims"),
+        "Entities": added_list_items(before_content, after_content, "Entities"),
         "Source": added_list_items(before_content, after_content, "Source"),
     }
-    requested_by_section = requested_merge_items(draft, related_links, source_file)
+    requested_by_section = requested_merge_items(draft, source_file)
     return {
         "write_action": write_action,
         "target_page": target_page,
         "patched_sections": changed,
-        "added_key_points": added_by_section["Key Points"],
-        "added_related_links": added_by_section["Related Pages"],
-        "added_tags": added_by_section["Tags"],
+        "added_claims": added_by_section["Claims"],
+        "added_entities": added_by_section["Entities"],
         "added_sources": added_by_section["Source"],
         "skipped_duplicate_items": skipped_duplicate_items(before_content, added_by_section, requested_by_section),
         "diff": "\n".join(diff_lines[:MAX_WRITE_DIFF_LINES]),
@@ -143,7 +137,6 @@ def write_draft(
     display_source_file: str | None = None,
     write_action: str = "create",
     target_page: str | None = None,
-    auto_related_links: bool = True,
 ) -> VaultWriteResult:
     if write_action == "create" and target_page:
         raise PolicyRejection("create must not set target_page")
@@ -164,18 +157,17 @@ def write_draft(
     if wiki_path.exists():
         before_content = wiki_path.read_text(encoding="utf-8")
         created_at = parse_frontmatter(before_content).get("created")
-    related_links = find_related_links(vault_path, draft.question, wiki_path) if auto_related_links else []
     page_source_file = display_source_file or source_file
     if target_path and wiki_path.exists():
         structured_rewrite = _structured_rewrite_required(before_content or "", draft, source_file=page_source_file)
         if not draft.patches and not structured_rewrite:
             raise PolicyRejection(f"{write_action} requires patches[] for target_page: {target_page}")
         if structured_rewrite:
-            content = render_markdown(draft, related_links, page_source_file, digest, created_at=created_at)
+            content = render_markdown(draft, page_source_file, digest, created_at=created_at)
         else:
-            content = apply_patched_markdown(before_content or "", draft, related_links, page_source_file, digest, auto_related_links)
+            content = apply_patched_markdown(before_content or "", draft, page_source_file, digest)
     else:
-        content = render_markdown(draft, related_links, page_source_file, digest, created_at)
+        content = render_markdown(draft, page_source_file, digest, created_at)
 
     _validate_rendered_structured_page(content, draft)
 
@@ -186,21 +178,16 @@ def write_draft(
         path=wiki_path,
         content=content,
         created=created,
-        related_links=related_links,
         content_hash=digest,
         canonical_path=draft.canonical_path,
-        legacy_paths=list(draft.legacy_paths),
-        page_kind=draft.page_kind,
         subject_kind=draft.subject_kind,
         role=draft.role,
-        facets=list(draft.facets),
         write_details=build_write_details(
             write_action,
             target_page,
             before_content,
             content,
             draft,
-            related_links,
             page_source_file,
         ),
     )
@@ -209,7 +196,7 @@ def write_draft(
 
 def _draft_output_dir(vault_path: Path, draft: WikiDraft) -> Path:
     root = content_root(vault_path)
-    if draft.role == "source_digest" or draft.page_kind == "source_digest" or draft.page_dir == "sources":
+    if draft.role == "source_digest" or draft.page_dir == "sources":
         return source_digest_root(vault_path)
     return root
 
@@ -229,9 +216,9 @@ def _draft_content_hash(draft: WikiDraft) -> str:
 
 
 def _structured_rewrite_required(before_content: str, draft: WikiDraft, *, source_file: str | None) -> bool:
-    if draft.page_dir == "sources":
+    if draft.role == "source_digest" or draft.page_dir == "sources":
         return True
-    if draft.page_dir not in {"entities", "concepts", "comparisons", "queries", "timelines", "workflows"}:
+    if not _is_structured_knowledge_draft(draft):
         return False
     if not source_file:
         return False
@@ -239,7 +226,11 @@ def _structured_rewrite_required(before_content: str, draft: WikiDraft, *, sourc
         return True
     if not draft.patches:
         return True
-    return any(patch.section in LEGACY_BODY_PATCH_SECTIONS for patch in draft.patches)
+    return False
+
+
+def _is_structured_knowledge_draft(draft: WikiDraft) -> bool:
+    return draft.role == "knowledge_page"
 
 
 def _has_complete_structured_draft(draft: WikiDraft) -> bool:
@@ -252,9 +243,9 @@ def _has_complete_structured_draft(draft: WikiDraft) -> bool:
 
 
 def _validate_rendered_structured_page(content: str, draft: WikiDraft) -> None:
-    if draft.page_dir == "sources" or draft.role == "source_digest" or draft.page_kind == "source_digest":
+    if draft.role == "source_digest" or draft.page_dir == "sources":
         return
-    if draft.page_dir not in {"entities", "concepts", "comparisons", "queries", "timelines", "workflows"}:
+    if not _is_structured_knowledge_draft(draft):
         return
     if not _has_rendered_structured_body(content):
         return
@@ -312,31 +303,8 @@ def _claim_sort_key(claim_id: str) -> int:
 
 def _draft_with_resolved_identity(vault_path: Path, draft: WikiDraft, wiki_path: Path) -> WikiDraft:
     canonical_path = content_relative_path(vault_path, wiki_path)
-    legacy_paths = list(draft.legacy_paths)
-    for alias in _draft_canonical_path_aliases(draft.canonical_path):
-        if alias != canonical_path and alias not in legacy_paths:
-            legacy_paths.append(alias)
-    if draft.role != "source_digest" and draft.page_dir != "sources":
-        legacy_path = f"{draft.page_dir}/{wiki_path.name}"
-        if legacy_path != canonical_path and legacy_path not in legacy_paths:
-            legacy_paths.append(legacy_path)
     return draft.model_copy(
         update={
             "canonical_path": canonical_path,
-            "legacy_paths": legacy_paths,
         }
     )
-
-
-def _draft_canonical_path_aliases(value: str | None) -> list[str]:
-    text = str(value or "").strip().replace("\\", "/").lstrip("/")
-    if not text:
-        return []
-    aliases = [text]
-    if text.startswith("pages/"):
-        aliases.append(text.removeprefix("pages/"))
-    result: list[str] = []
-    for alias in aliases:
-        if alias and alias not in result:
-            result.append(alias)
-    return result

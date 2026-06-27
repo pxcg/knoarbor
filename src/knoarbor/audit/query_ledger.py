@@ -4,16 +4,20 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
+from knoarbor.audit.contracts import LEDGER_PATHS, LEDGER_SCHEMA_VERSIONS
 from knoarbor.core.schemas.wiki_query import WikiQueryFeedbackRequest, WikiSearchRequest, WikiSearchResponse
 from knoarbor.storage.ledger import append_jsonl_ledger, read_jsonl_ledger
+from knoarbor.storage.vault_layout import ledger_relative_path
 
-QUERY_LEDGER_PATH = "maintenance/query_ledger.jsonl"
-QUERY_FEEDBACK_LEDGER_PATH = "maintenance/query_feedback_ledger.jsonl"
+QUERY_LEDGER_PATH = LEDGER_PATHS["query"]
+QUERY_FEEDBACK_LEDGER_PATH = ledger_relative_path("query_feedback")
+QUERY_RECORD_SCHEMA_VERSION = LEDGER_SCHEMA_VERSIONS["query"]
+QUERY_FEEDBACK_SCHEMA_VERSION = LEDGER_SCHEMA_VERSIONS["query_feedback"]
 
 
 def append_query_record(vault_path: Path, request: WikiSearchRequest, response: WikiSearchResponse) -> Path:
     record = {
-        "schema_version": "query_record.v1",
+        "schema_version": QUERY_RECORD_SCHEMA_VERSION,
         "timestamp": current_timestamp(),
         "caller": request.caller or "unknown",
         "query": request.query,
@@ -41,7 +45,7 @@ def append_query_record(vault_path: Path, request: WikiSearchRequest, response: 
 
 def append_query_feedback(vault_path: Path, request: WikiQueryFeedbackRequest) -> Path:
     record = {
-        "schema_version": "query_feedback.v1",
+        "schema_version": QUERY_FEEDBACK_SCHEMA_VERSION,
         "timestamp": current_timestamp(),
         "caller": request.caller or "unknown",
         "query": request.query,

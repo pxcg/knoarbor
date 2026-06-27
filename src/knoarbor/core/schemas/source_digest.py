@@ -60,10 +60,13 @@ class SourceDigestUnresolvedItem(BaseModel):
 class SourceDigestAttachment(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    attachment_id: str = ""
     attachment_type: Literal["image", "file", "table", "other"] = "file"
     name: str = Field(..., min_length=1)
     topic: str = ""
     description: str = ""
+    source_range: str = ""
+    status: Literal["candidate", "used", "skipped"] = "candidate"
     path: str | None = None
     relative_path: str | None = None
     mime_type: str | None = None

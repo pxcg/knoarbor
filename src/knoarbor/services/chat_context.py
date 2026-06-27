@@ -82,8 +82,13 @@ def memory_target(request: ChatRequest) -> ResolvedVault | None:
 
 def session_target(request: ChatRequest) -> ResolvedVault:
     if request.all_vaults or request.vault_id == VIRTUAL_ALL_VAULT_ID:
-        return resolve_single_vault(None, None, request.config_path)
+        return ResolvedVault(path=_global_chat_root(request.config_path), vault_id=VIRTUAL_ALL_VAULT_ID, vault_name="All vaults")
     return resolve_single_vault(request.vault_path, request.vault_id, request.config_path)
+
+
+def _global_chat_root(config_path: str | None) -> Path:
+    config_file = Path(config_path).expanduser().resolve() if config_path else default_config_path()
+    return config_file.parent / ".knoarbor" / "global_chat"
 
 
 def latest_user_text(messages: list[ChatMessageItem]) -> str:

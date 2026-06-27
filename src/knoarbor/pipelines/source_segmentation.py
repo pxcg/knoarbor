@@ -457,7 +457,12 @@ class SourceSegmenter:
         return document.model_copy(
             update={
                 "source_id": source_id,
-                "content": SourceContent(format=content_format, text=text, sections=sections),
+                "content": SourceContent(
+                    format=content_format,
+                    text=text,
+                    sections=sections,
+                    attachments=list(document.content.attachments),
+                ),
                 "metadata": metadata,
                 "fingerprint": SourceFingerprint(
                     content_hash=f"{document.fingerprint.content_hash}-s{index}",

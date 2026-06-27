@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from hashlib import sha1
 
 from knoarbor.core.schemas.knowledge_atoms import KnowledgeEvidenceSpan
@@ -115,10 +116,13 @@ def _attachments_from_extract(extract: KnowledgeExtract) -> list[SourceDigestAtt
             attachment_type = "other"
         attachments.append(
             SourceDigestAttachment(
+                attachment_id=f"A{len(attachments) + 1}",
                 attachment_type=attachment_type,  # type: ignore[arg-type]
                 name=name,
                 topic=_attachment_topic(item, name),
-                description=str(item.get("description") or ""),
+                description=_attachment_description(item),
+                source_range=_attachment_source_range(item),
+                status=_attachment_status(item),
                 path=str(item.get("path") or "") or None,
                 relative_path=str(item.get("relative_path") or "") or None,
                 mime_type=str(item.get("mime_type") or "") or None,
@@ -130,22 +134,75 @@ def _attachments_from_extract(extract: KnowledgeExtract) -> list[SourceDigestAtt
     return attachments
 
 
+def _attachment_source_range(item: dict[str, object]) -> str:
+    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+    parts: list[str] = []
+    page_idx = metadata.get("page_idx")
+    if page_idx is not None and str(page_idx).strip():
+        parts.append(f"page_idx:{page_idx}")
+    bbox = metadata.get("bbox")
+    if isinstance(bbox, list) and bbox:
+        parts.append("bbox:" + ",".join(str(value) for value in bbox[:4]))
+    source_unit = metadata.get("source_unit") or metadata.get("unit")
+    if source_unit is not None and str(source_unit).strip():
+        parts.append(f"unit:{source_unit}")
+    return " ".join(parts) or "source-level"
+
+
+def _attachment_status(item: dict[str, object]) -> str:
+    status = str(item.get("status") or "").strip().lower()
+    return status if status in {"candidate", "used", "skipped"} else "candidate"
+
+
 def _attachment_topic(item: dict[str, object], fallback_name: str) -> str:
     for key in ("topic", "title"):
         value = item.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
+        text = _attachment_text(value)
+        if text:
+            return text
     metadata = item.get("metadata")
     if isinstance(metadata, dict):
-        caption = metadata.get("image_caption")
-        if isinstance(caption, list):
-            values = [str(part).strip() for part in caption if str(part).strip()]
-            if values:
-                return values[0]
+        for key in ("image_caption", "table_caption", "caption"):
+            text = _attachment_text(metadata.get(key))
+            if text:
+                return text
         subtype = metadata.get("sub_type")
         if isinstance(subtype, str) and subtype.strip():
             return subtype.strip()
-    return fallback_name
+    return "" if _looks_like_hash_filename(fallback_name) else fallback_name
+
+
+def _attachment_description(item: dict[str, object]) -> str:
+    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+    for key in ("description", "caption", "image_caption", "table_caption"):
+        text = _attachment_text(item.get(key) if item.get(key) is not None else metadata.get(key))
+        if text:
+            return text
+    return ""
+
+
+def _attachment_text(value: object, *, limit: int = 180) -> str:
+    if isinstance(value, list):
+        text = " ".join(str(part).strip() for part in value if str(part).strip())
+    else:
+        text = str(value or "").strip()
+    if not text:
+        return ""
+    if re.search(r"<\s*(table|tr|td|th)\b", text, flags=re.IGNORECASE):
+        return ""
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if _looks_like_hash_filename(text):
+        return ""
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "..."
+
+
+def _looks_like_hash_filename(value: str) -> bool:
+    path_name = value.strip().rsplit("/", 1)[-1]
+    stem = path_name.rsplit(".", 1)[0]
+    return bool(re.fullmatch(r"[0-9a-fA-F]{24,}", stem))
 
 
 def _stable_hash(value: str) -> str:

@@ -62,6 +62,7 @@ from knoarbor.core.source_unitization import attach_source_unitization, source_u
 from knoarbor.pipelines.write import WikiWritePipeline
 from knoarbor.runtime import current_run_monitor, vault_write_lock
 from knoarbor.storage.source_metrics import connector_source_metric_key, update_source_counts
+from knoarbor.storage.vault_layout import checkpoint_relative_path
 
 
 class IngestSourceExecutor:
@@ -684,10 +685,6 @@ def _semantic_result_operations(semantic_result: IngestSemanticWorkflowResult | 
             "target_page": operation.target_page,
             "page_dir": operation.page_dir,
             "canonical_path": operation.canonical_path,
-            "legacy_paths": list(operation.legacy_paths),
-            "page_kind": operation.page_kind,
-            "subject_kind": operation.subject_kind,
-            "facets": list(operation.facets),
             "title": operation.title,
             "knowledge_object": operation.knowledge_object,
             "selected_claim_ids": list(operation.selected_claim_ids),
@@ -797,7 +794,7 @@ class IngestPipeline:
             self.source_executor.post_processor.lint_pipeline = self.lint_pipeline
         if monitor:
             monitor.event("pipeline_started", stage="source_discovery", message="Starting ingest pipeline.")
-        checkpoint_path = self.checkpoint_store.checkpoint_path(vault_path, "maintenance/source_ingest_checkpoints.json")
+        checkpoint_path = self.checkpoint_store.checkpoint_path(vault_path, checkpoint_relative_path("source_ingest_checkpoints.json"))
         state = self.checkpoint_store.read_state(checkpoint_path)
         index_payload = _read_index_payload(vault_path)
         ignore = KnoArborIgnore.from_file(vault_path / ".knoarborignore")

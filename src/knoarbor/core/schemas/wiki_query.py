@@ -5,6 +5,24 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
+WIKI_QUERY_SCHEMA_VERSION = "wiki_query.v1"
+
+WIKI_QUERY_RESPONSE_FIELDS = (
+    "query",
+    "retrieval_mode",
+    "results",
+    "primary_pages",
+    "supporting_pages",
+    "source_pages",
+    "answer_scope",
+    "answer_set",
+    "evidence_coverage",
+    "context_pack",
+)
+
+WIKI_ANSWER_PAGE_ROLES = ("primary", "supporting", "source")
+
+
 class WikiPageReadRequest(BaseModel):
     vault_path: str = Field(..., min_length=1)
     page_paths: list[str] = Field(default_factory=list)
@@ -34,9 +52,7 @@ class WikiSearchRequest(BaseModel):
     query: str = Field(..., min_length=1)
     mode: Literal["quick", "balanced", "deep"] = "balanced"
     page_dirs: list[str] = Field(default_factory=list)
-    page_kinds: list[str] = Field(default_factory=list)
     page_roles: list[str] = Field(default_factory=list)
-    facets: list[str] = Field(default_factory=list)
     max_results: int = Field(default=6, ge=1, le=20)
     max_pages_to_read: int = Field(default=10, ge=1, le=30)
     max_excerpts_per_page: int = Field(default=3, ge=0, le=8)
@@ -73,7 +89,7 @@ class WikiSearchExcerpt(BaseModel):
 
 class WikiAtomTrace(BaseModel):
     atom_id: str
-    atom_type: Literal["fact", "claim", "relation"]
+    atom_type: Literal["claim", "relation", "entity", "evidence"]
     text: str
     source_digest_id: str
 
@@ -126,16 +142,11 @@ class WikiQueryTrendResponse(BaseModel):
 class WikiSearchResult(BaseModel):
     path: str
     canonical_path: str | None = None
-    legacy_paths: list[str] = Field(default_factory=list)
     vault_id: str | None = None
     vault_name: str | None = None
     vault_path: str | None = None
     title: str
-    type: str
-    page_kind: str | None = None
     page_role: str | None = None
-    facets: list[str] = Field(default_factory=list)
-    status: str | None = None
     score: float
     relevance: Literal["high", "medium", "low"]
     match_kind: Literal["direct", "related"]
@@ -144,12 +155,12 @@ class WikiSearchResult(BaseModel):
     matched_terms: dict[str, list[str]] = Field(default_factory=dict)
     reason: str = ""
     summary: str = ""
-    key_points: list[str] = Field(default_factory=list)
+    claims: list[str] = Field(default_factory=list)
     excerpts: list[WikiSearchExcerpt] = Field(default_factory=list)
     content: str | None = None
     source: str | None = None
-    tags: list[str] = Field(default_factory=list)
-    related_pages: list[str] = Field(default_factory=list)
+    entities: list[str] = Field(default_factory=list)
+    outbound_links: list[str] = Field(default_factory=list)
     content_truncated: bool = False
     atom_traces: list[WikiAtomTrace] = Field(default_factory=list)
 
@@ -189,12 +200,12 @@ class WikiEvidenceCoverage(BaseModel):
     source_count: int = 0
     gap_count: int = 0
     covered_terms: list[str] = Field(default_factory=list)
-    covered_facets: list[str] = Field(default_factory=list)
-    missing_facets: list[str] = Field(default_factory=list)
+    covered_dimensions: list[str] = Field(default_factory=list)
+    missing_dimensions: list[str] = Field(default_factory=list)
 
 
 class WikiSearchResponse(BaseModel):
-    schema_version: Literal["wiki_query.v1"] = "wiki_query.v1"
+    schema_version: Literal["wiki_query.v1"] = WIKI_QUERY_SCHEMA_VERSION
     query: str
     retrieval_mode: str
     results: list[WikiSearchResult]
@@ -206,7 +217,7 @@ class WikiSearchResponse(BaseModel):
     evidence_coverage: WikiEvidenceCoverage = Field(default_factory=WikiEvidenceCoverage)
     rejected_candidates: list[WikiRejectedCandidate] = Field(default_factory=list)
     context_pack: str
-    answer_guidance: list[str] = Field(default_factory=list)
+    response_guidance: list[str] = Field(default_factory=list)
     gap_suggestions: list[WikiQueryGapSuggestion] = Field(default_factory=list)
     gaps: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
@@ -219,9 +230,7 @@ class WikiContextRequest(BaseModel):
     query: str = Field(..., min_length=1)
     purpose: Literal["ingest_relation", "lint_quality", "lint_freshness", "query", "manual"] = "manual"
     page_dirs: list[str] = Field(default_factory=list)
-    page_kinds: list[str] = Field(default_factory=list)
     page_roles: list[str] = Field(default_factory=list)
-    facets: list[str] = Field(default_factory=list)
     limit: int = Field(default=8, ge=1, le=30)
     include_content: bool = False
     max_chars_per_page: int = Field(default=2500, ge=500, le=12000)
@@ -239,19 +248,13 @@ class WikiContextRequest(BaseModel):
 class WikiContextMatch(BaseModel):
     path: str
     canonical_path: str | None = None
-    legacy_paths: list[str] = Field(default_factory=list)
     title: str
     page_dir: str
-    type: str
-    page_kind: str | None = None
     page_role: str | None = None
-    facets: list[str] = Field(default_factory=list)
-    status: str | None = None
-    source: str | None = None
     summary: str = ""
-    tags: list[str] = Field(default_factory=list)
-    key_points: list[str] = Field(default_factory=list)
-    related_pages: list[str] = Field(default_factory=list)
+    entities: list[str] = Field(default_factory=list)
+    claims: list[str] = Field(default_factory=list)
+    outbound_links: list[str] = Field(default_factory=list)
     score: float
     relevance: Literal["high", "medium", "low"]
     matched_fields: list[str] = Field(default_factory=list)

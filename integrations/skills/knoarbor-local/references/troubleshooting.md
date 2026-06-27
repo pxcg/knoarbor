@@ -66,7 +66,7 @@ If multiple knowledge bases are configured, use the reported vault ID:
 
 ```bash
 python3 scripts/knoarbor.py --vault-id personal query "agent loop"
-python3 scripts/knoarbor.py --vault-id personal page read concepts/Agent-Loop.md
+python3 scripts/knoarbor.py --vault-id personal page read Agent-Loop.md
 ```
 
 If a command says `Requested vault ID` and lists `Available vault IDs`, rerun the
@@ -75,7 +75,7 @@ knowledge bases, use query with `--all-vaults` instead of a single vault ID.
 
 ## Page path is missing or wrong
 
-When `page read` or `page links` fails because a page path cannot be found:
+When `page read` or `page relations` fails because a page path cannot be found:
 
 1. Run `python3 scripts/knoarbor.py page list --contains "keyword"`.
 2. If the page came from a multi-vault query result, repeat the command with
@@ -112,7 +112,7 @@ python3 scripts/knoarbor.py runs events RUN_ID
 If the run has a report path, read it:
 
 ```bash
-python3 scripts/knoarbor.py report read maintenance/ingest_report_YYYYMMDD_HHMMSS.md
+python3 scripts/knoarbor.py report read maintenance/reports/ingest/ingest_report_YYYYMMDD_HHMMSS.md
 ```
 
 For failed ingest runs that report recoverable items, use:
@@ -126,7 +126,7 @@ python3 scripts/knoarbor.py ingest recovery RUN_ID
 Use full content only when the user explicitly asks for detailed page reading:
 
 ```bash
-python3 scripts/knoarbor.py page read concepts/Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py page read Agent-Loop-and-Control-Patterns.md
 ```
 
 If the exact page path is not known, first run a query and then read the

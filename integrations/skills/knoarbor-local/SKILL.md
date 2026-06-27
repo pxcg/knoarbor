@@ -1,6 +1,6 @@
 ---
 name: knoarbor-local
-description: "Use when a user request may benefit from a local KnoArbor vault: query local wiki context, read known pages, inspect links/reports/runs, diagnose the service, or explicitly compile/maintain the wiki through KnoArbor APIs."
+description: "Use when a user request may benefit from a local KnoArbor vault: query local wiki context, read known pages, inspect page relations/reports/runs, diagnose the service, or explicitly compile/maintain the wiki through KnoArbor APIs."
 license: Apache-2.0
 metadata:
   tags: [knoarbor, wiki, knowledge-base, local-search, retrieval]
@@ -29,7 +29,7 @@ Use the smallest operation that satisfies the user request:
 - Page discovery -> `page list`.
 - Vault discovery -> `vaults list`.
 - Expand/read a known result page -> `page read` with the returned page path.
-- Inspect page relationships -> `page links`.
+- Inspect page relationships -> `page relations`.
 - Compile a specific file -> `ingest file`.
 - Compile a one-off folder -> `ingest folder`.
 - Compile configured sources -> `ingest connector`.
@@ -53,9 +53,9 @@ Map natural user requests to operations before choosing a command:
 - "What is X?", "explain X from my wiki", "do I have notes about X" -> `query`.
 - "Show the full page", "continue from this result", "open this wiki page" ->
   `page read`.
-- "What links to this?", "why is this page connected?", "show relationships" ->
-  `page links`.
-- "What pages do I have about X?", "list concept pages", "find pages named X" ->
+- "What relates to this page?", "why is this page connected?", "show relationships" ->
+  `page relations`.
+- "What pages do I have about X?", "list wiki pages", "find pages named X" ->
   `page list`.
 - "Which knowledge bases do I have?", "what vaults are available", "我有哪些知识库" ->
   `vaults list`.
@@ -85,9 +85,9 @@ python3 scripts/knoarbor.py --vault-id personal query "agent loop control patter
 python3 scripts/knoarbor.py query "agent loop control patterns" --all-vaults
 python3 scripts/knoarbor.py query "agent loop control patterns" --query-vault-id personal --query-vault-id team
 python3 scripts/knoarbor.py page list --contains "agent loop"
-python3 scripts/knoarbor.py page read concepts/Agent-Loop-and-Control-Patterns.md
-python3 scripts/knoarbor.py --vault-id personal page read concepts/Agent-Loop-and-Control-Patterns.md
-python3 scripts/knoarbor.py page links concepts/Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py page read Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py --vault-id personal page read Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py page relations Agent-Loop-and-Control-Patterns.md
 python3 scripts/knoarbor.py vaults list
 python3 scripts/knoarbor.py sources catalog
 python3 scripts/knoarbor.py sources catalog --connector codex
@@ -145,7 +145,7 @@ structured JSON is needed for debugging or automation:
 
 ```bash
 python3 scripts/knoarbor.py --format json query "agent loop"
-python3 scripts/knoarbor.py --format json page read concepts/Agent-Loop-and-Control-Patterns.md
+python3 scripts/knoarbor.py --format json page read Agent-Loop-and-Control-Patterns.md
 python3 scripts/knoarbor.py --format text query "agent loop"
 ```
 
@@ -163,7 +163,7 @@ When a query result includes `vault_id`, reuse it for follow-up reads:
 
 ```bash
 python3 scripts/knoarbor.py --vault-id <result.vault_id> page read <result.path>
-python3 scripts/knoarbor.py --vault-id <result.vault_id> page links <result.path>
+python3 scripts/knoarbor.py --vault-id <result.vault_id> page relations <result.path>
 ```
 
 Do not call `/health` before every query. Use `scripts/knoarbor.py check` only
@@ -183,7 +183,7 @@ Load only what is needed:
 - `references/http-api.md`: direct `curl` examples for environments without
   Python or when the host tool uses an HTTP client instead of shell commands.
 
-## Answer Rules
+## Response Rules
 
 - Do not paste JSON unless asked.
 - Do not present weak matches as authoritative.

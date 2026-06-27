@@ -20,6 +20,7 @@ from knoarbor.services.ui_config_models import (
     UiConfigUpdateResponse,
 )
 from knoarbor.services.wiki_graph import WikiGraph, build_wiki_graph
+from knoarbor.storage.vault_layout import maintenance_reports_root, raw_assets_root
 from knoarbor.storage.wiki_index import ensure_machine_index, machine_index_dir
 from knoarbor.storage.wiki_paths import content_root
 
@@ -34,9 +35,7 @@ class UiStatusResponse(BaseModel):
     warnings: int
     info: int
     directories: dict[str, int] = Field(default_factory=dict)
-    page_kinds: dict[str, int] = Field(default_factory=dict)
     roles: dict[str, int] = Field(default_factory=dict)
-    facets: dict[str, int] = Field(default_factory=dict)
 
 
 class UiProjectDoc(BaseModel):
@@ -89,20 +88,13 @@ def create_ui_router() -> APIRouter:
         path = Path(vault_path or _summary_from_default_config().get("vault_path") or DEFAULT_VAULT_PATH).expanduser().resolve()
         index_pages = _read_machine_page_records(path)
         directories: dict[str, int] = {}
-        page_kinds: dict[str, int] = {}
         roles: dict[str, int] = {}
-        facets: dict[str, int] = {}
         for page in index_pages:
             directory = str(page.get("directory") or "unknown")
             directories[directory] = directories.get(directory, 0) + 1
-            page_kind = str(page.get("page_kind") or "unknown")
-            page_kinds[page_kind] = page_kinds.get(page_kind, 0) + 1
             role = str(page.get("role") or "")
             if role:
                 roles[role] = roles.get(role, 0) + 1
-            for facet in page.get("facets", []):
-                if isinstance(facet, str) and facet:
-                    facets[facet] = facets.get(facet, 0) + 1
         issue_counts = _latest_lint_issue_counts(path)
         return UiStatusResponse(
             vault_path=str(path),
@@ -114,15 +106,14 @@ def create_ui_router() -> APIRouter:
             warnings=issue_counts["warnings"],
             info=issue_counts["info"],
             directories=directories,
-            page_kinds=page_kinds,
             roles=roles,
-            facets=dict(sorted(facets.items(), key=lambda item: (-item[1], item[0]))[:30]),
         )
 
     @router.get("/ui/api/graph", response_model=WikiGraph, tags=["ui"])
-    async def read_ui_graph(vault_path: str | None = Query(default=None)) -> WikiGraph:
+    async def read_ui_graph(vault_path: str | None = Query(default=None), view: str = Query(default="entity")) -> WikiGraph:
         path = Path(vault_path or _summary_from_default_config().get("vault_path") or DEFAULT_VAULT_PATH).expanduser().resolve()
-        return build_wiki_graph(path)
+        graph_view = "page" if view == "page" else "entity"
+        return build_wiki_graph(path, view=graph_view)
 
     @router.get("/ui/api/tokens", tags=["ui"])
     async def read_ui_tokens(vault_path: str | None = Query(default=None), limit: int = Query(default=5000, ge=1, le=50000)) -> dict[str, object]:
@@ -132,6 +123,19 @@ def create_ui_router() -> APIRouter:
     async def read_ui_doc(doc_path: str) -> UiProjectDoc:
         doc = _resolve_project_doc(doc_path)
         return UiProjectDoc(path=doc.relative_to(_project_docs_root()).as_posix(), content=doc.read_text(encoding="utf-8"))
+
+    @router.get("/ui/api/docs-assets/{asset_path:path}", tags=["ui"])
+    async def read_ui_doc_asset(asset_path: str) -> FileResponse:
+        asset = _resolve_doc_asset(asset_path)
+        return FileResponse(asset)
+
+    @router.get("/ui/api/vault-assets/{asset_path:path}", tags=["ui"])
+    async def read_vault_asset(
+        asset_path: str,
+        vault_path: str = Query(default=..., description="Absolute path to the vault directory"),
+    ) -> FileResponse:
+        asset = _resolve_vault_asset(vault_path, asset_path)
+        return FileResponse(asset)
 
     @router.get("/ui/{asset_path:path}", tags=["ui"])
     async def ui_root_asset(asset_path: str) -> FileResponse:
@@ -183,6 +187,43 @@ def _resolve_project_doc(name: str) -> Path:
     if not doc_path.exists() or not doc_path.is_file() or doc_path.suffix.lower() != ".md":
         raise HTTPException(status_code=404, detail="Project document not found")
     return doc_path
+
+
+def _resolve_doc_asset(name: str) -> Path:
+    docs_root = _project_docs_root()
+    asset_path = (docs_root / name).resolve()
+    try:
+        asset_path.relative_to(docs_root.resolve())
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Unknown doc asset") from exc
+    if not asset_path.exists() or not asset_path.is_file():
+        raise HTTPException(status_code=404, detail="Doc asset not found")
+    if asset_path.suffix.lower() == ".md":
+        raise HTTPException(status_code=404, detail="Not a doc asset")
+    return asset_path
+
+
+def _resolve_vault_asset(vault_path: str, asset_path: str) -> Path:
+    vault = Path(vault_path).expanduser().resolve()
+    if not vault.exists() or not vault.is_dir():
+        raise HTTPException(status_code=404, detail="Vault directory not found")
+    cleaned = asset_path.replace("\\", "/").lstrip("/")
+    if cleaned.startswith("raw/assets/"):
+        cleaned = cleaned.removeprefix("raw/assets/")
+    elif cleaned.startswith("assets/"):
+        cleaned = cleaned.removeprefix("assets/")
+    if not cleaned or ".." in cleaned.split("/"):
+        raise HTTPException(status_code=400, detail="Invalid asset path")
+
+    asset_root = raw_assets_root(vault).resolve()
+    candidate = (asset_root / cleaned).resolve()
+    try:
+        candidate.relative_to(asset_root)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid asset path") from exc
+    if not candidate.exists() or not candidate.is_file():
+        raise HTTPException(status_code=404, detail="Vault asset not found")
+    return candidate
 
 
 def _project_docs_root() -> Path:
@@ -246,10 +287,12 @@ def _latest_lint_issue_counts(vault_path: Path) -> dict[str, int]:
 
 
 def _latest_lint_report(vault_path: Path) -> Path | None:
-    maintenance_path = vault_path / "maintenance"
-    if not maintenance_path.exists():
-        return None
-    candidates = list(maintenance_path.glob("lint_run_report_*.md")) + list(maintenance_path.glob("lint_report_*.md"))
+    candidates: list[Path] = []
+    for root in (maintenance_reports_root(vault_path), vault_path / "maintenance"):
+        if not root.exists():
+            continue
+        candidates.extend(root.rglob("lint_run_report_*.md"))
+        candidates.extend(root.rglob("lint_report_*.md"))
     if not candidates:
         return None
     return max(candidates, key=lambda path: path.stat().st_mtime)

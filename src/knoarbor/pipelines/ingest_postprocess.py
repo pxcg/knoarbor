@@ -84,8 +84,6 @@ class IngestPostProcessor:
         write_response = self.write_pipeline.run(
             WikiDraftBatchWriteRequest(
                 vault_path=str(vault_path),
-                auto_related_links=False,
-                provenance_related_links=True,
                 drafts=policy_result.items,
             )
         )

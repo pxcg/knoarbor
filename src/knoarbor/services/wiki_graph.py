@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Literal
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -12,12 +13,11 @@ from knoarbor.storage import ensure_machine_index, machine_index_dir
 class WikiGraphNode(BaseModel):
     id: str
     title: str
-    type: str
-    page_kind: str | None = None
+    type: str = "page"
     role: str | None = None
-    facets: list[str] = Field(default_factory=list)
     summary: str
-    tags: list[str] = Field(default_factory=list)
+    entities: list[str] = Field(default_factory=list)
+    pages: list[str] = Field(default_factory=list)
     source: str | None = None
 
 
@@ -25,6 +25,9 @@ class WikiGraphEdge(BaseModel):
     source: str
     target: str
     kind: str = "wikilink"
+    label: str | None = None
+    page: str | None = None
+    claim: str | None = None
 
 
 class WikiGraphStats(BaseModel):
@@ -33,20 +36,93 @@ class WikiGraphStats(BaseModel):
     orphan_count: int
     unresolved_link_count: int
     directory_counts: dict[str, int] = Field(default_factory=dict)
-    page_kind_counts: dict[str, int] = Field(default_factory=dict)
     role_counts: dict[str, int] = Field(default_factory=dict)
-    facet_counts: dict[str, int] = Field(default_factory=dict)
-    tag_counts: dict[str, int] = Field(default_factory=dict)
+    entity_counts: dict[str, int] = Field(default_factory=dict)
 
 
 class WikiGraph(BaseModel):
     vault_path: str
+    graph_kind: Literal["entity", "page"] = "entity"
     nodes: list[WikiGraphNode] = Field(default_factory=list)
     edges: list[WikiGraphEdge] = Field(default_factory=list)
     stats: WikiGraphStats
 
 
-def build_wiki_graph(vault_path: Path) -> WikiGraph:
+def build_wiki_graph(vault_path: Path, *, view: Literal["entity", "page"] = "entity") -> WikiGraph:
+    if view == "page":
+        return build_page_graph(vault_path)
+    return build_entity_graph(vault_path)
+
+
+def build_entity_graph(vault_path: Path) -> WikiGraph:
+    """Build an entity-relation graph from the graph machine index."""
+
+    vault_path = vault_path.expanduser().resolve()
+    index_dir = machine_index_dir(vault_path)
+    graph_path = index_dir / "graph_index.json"
+    ensure_machine_index(vault_path)
+
+    graph_payload = _read_json(graph_path)
+    node_records = [item for item in graph_payload.get("nodes", []) if isinstance(item, dict)]
+    edge_records = [item for item in graph_payload.get("edges", []) if isinstance(item, dict)]
+
+    nodes: list[WikiGraphNode] = []
+    edges: list[WikiGraphEdge] = []
+    page_counts: dict[str, int] = {}
+    page_ids: set[str] = set()
+
+    for item in node_records:
+        node_id = str(item.get("id") or "").strip()
+        if not node_id:
+            continue
+        pages = [str(page) for page in item.get("pages", []) if isinstance(page, str)]
+        for page in pages:
+            page_ids.add(page)
+            page_counts[page] = page_counts.get(page, 0) + 1
+        nodes.append(
+            WikiGraphNode(
+                id=node_id,
+                title=node_id,
+                type="entity",
+                role="entity",
+                summary=str(item.get("summary") or ""),
+                entities=[node_id],
+                pages=pages,
+            )
+        )
+
+    node_ids = {node.id for node in nodes}
+    seen_edges: set[tuple[str, str, str, str]] = set()
+    for item in edge_records:
+        source = str(item.get("source") or "").strip()
+        target = str(item.get("target") or "").strip()
+        predicate = str(item.get("predicate") or "").strip()
+        page = str(item.get("page") or "").strip()
+        claim = str(item.get("claim") or "").strip()
+        if not source or not target or not predicate:
+            continue
+        if source not in node_ids or target not in node_ids:
+            continue
+        edge_key = (source, target, predicate, page)
+        if edge_key in seen_edges:
+            continue
+        seen_edges.add(edge_key)
+        edges.append(WikiGraphEdge(source=source, target=target, kind="relation", label=predicate, page=page or None, claim=claim or None))
+
+    connected = {edge.source for edge in edges} | {edge.target for edge in edges}
+    stats = WikiGraphStats(
+        page_count=len(nodes),
+        edge_count=len(edges),
+        orphan_count=sum(1 for node in nodes if node.id not in connected),
+        unresolved_link_count=0,
+        directory_counts={"entity_nodes": len(nodes), "wiki_pages": len(page_ids)},
+        role_counts={"entity": len(nodes)},
+        entity_counts={},
+    )
+    return WikiGraph(vault_path=str(vault_path), graph_kind="entity", nodes=nodes, edges=edges, stats=stats)
+
+
+def build_page_graph(vault_path: Path) -> WikiGraph:
     """Build a deterministic page-link graph from the machine index."""
 
     vault_path = vault_path.expanduser().resolve()
@@ -62,10 +138,8 @@ def build_wiki_graph(vault_path: Path) -> WikiGraph:
     nodes: list[WikiGraphNode] = []
     edges: list[WikiGraphEdge] = []
     directory_counts: dict[str, int] = {}
-    page_kind_counts: dict[str, int] = {}
     role_counts: dict[str, int] = {}
-    facet_counts: dict[str, int] = {}
-    tag_counts: dict[str, int] = {}
+    entity_counts: dict[str, int] = {}
     unresolved = sum(1 for link in link_records if not link.get("resolved"))
 
     page_ids = {str(page.get("path")) for page in page_records if page.get("path")}
@@ -73,31 +147,22 @@ def build_wiki_graph(vault_path: Path) -> WikiGraph:
         page_id = str(page.get("path") or "")
         if not page_id:
             continue
-        page_type = str(page.get("type") or "page")
-        page_kind = str(page.get("page_kind") or page_type)
         role = str(page.get("role") or "")
         directory = str(page.get("directory") or Path(page_id).parent.name)
-        facets = [str(facet) for facet in page.get("facets", []) if isinstance(facet, str)]
-        tags = [str(tag) for tag in page.get("tags", []) if isinstance(tag, str)]
+        entities = [str(entity) for entity in page.get("entities", []) if isinstance(entity, str)]
         directory_counts[directory] = directory_counts.get(directory, 0) + 1
-        page_kind_counts[page_kind] = page_kind_counts.get(page_kind, 0) + 1
         if role:
             role_counts[role] = role_counts.get(role, 0) + 1
-        for facet in facets:
-            facet_counts[facet] = facet_counts.get(facet, 0) + 1
-        for tag in tags:
-            tag_counts[tag] = tag_counts.get(tag, 0) + 1
+        for entity in entities:
+            entity_counts[entity] = entity_counts.get(entity, 0) + 1
         nodes.append(
             WikiGraphNode(
                 id=page_id,
                 title=str(page.get("title") or Path(page_id).stem),
-                type=page_type,
-                page_kind=page_kind,
+                type="page",
                 role=role,
-                facets=facets,
                 summary=str(page.get("summary") or ""),
-                tags=tags,
-                source=_metadata_text(page.get("source")),
+                entities=entities,
             )
         )
 
@@ -121,7 +186,7 @@ def build_wiki_graph(vault_path: Path) -> WikiGraph:
         if any(item[0] == edge_key[0] and item[1] == edge_key[1] for item in seen_edges):
             continue
         seen_edges.add((*edge_key, "semantic"))
-        edges.append(WikiGraphEdge(source=source, target=target, kind="semantic"))
+        edges.append(WikiGraphEdge(source=source, target=target, kind="semantic", label="semantic"))
 
     connected = {edge.source for edge in edges} | {edge.target for edge in edges}
     stats = WikiGraphStats(
@@ -130,21 +195,15 @@ def build_wiki_graph(vault_path: Path) -> WikiGraph:
         orphan_count=sum(1 for node in nodes if node.id not in connected),
         unresolved_link_count=unresolved,
         directory_counts=dict(sorted(directory_counts.items())),
-        page_kind_counts=dict(sorted(page_kind_counts.items())),
         role_counts=dict(sorted(role_counts.items())),
-        facet_counts=dict(sorted(facet_counts.items(), key=lambda item: (-item[1], item[0]))[:30]),
-        tag_counts=dict(sorted(tag_counts.items(), key=lambda item: (-item[1], item[0]))[:20]),
+        entity_counts=dict(sorted(entity_counts.items(), key=lambda item: (-item[1], item[0]))[:20]),
     )
-    return WikiGraph(vault_path=str(vault_path), nodes=nodes, edges=edges, stats=stats)
+    return WikiGraph(vault_path=str(vault_path), graph_kind="page", nodes=nodes, edges=edges, stats=stats)
 
 
 def _read_json(path: Path) -> dict[str, object]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     return payload if isinstance(payload, dict) else {}
-
-
-def _metadata_text(value: object) -> str | None:
-    return value if isinstance(value, str) and value else None
 
 
 def _edge_key(source: str, target: str) -> tuple[str, str]:

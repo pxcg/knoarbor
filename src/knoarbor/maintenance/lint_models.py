@@ -18,10 +18,7 @@ class LintPage:
     relation_nodes: list[str] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
     canonical_path: str = ""
-    legacy_paths: list[str] = field(default_factory=list)
-    page_kind: str = "unknown"
     role: str = "knowledge_page"
-    facets: list[str] = field(default_factory=list)
 
     @property
     def is_knowledge_page(self) -> bool:

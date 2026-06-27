@@ -204,7 +204,6 @@ class WikiLintPipeline:
         verifications: list[dict[str, object]] = []
         deferred_retries: list[dict[str, object]] = []
         refresh_warnings: list[str] = []
-        graph_repair_warnings: list[str] = []
         rescan: WikiLintResponse | None = None
         draft_batch = None
         draft_write_response = None
@@ -289,27 +288,6 @@ class WikiLintPipeline:
                     )
                 )
             refresh_warnings.extend(refresh_result.warnings)
-            graph_result = self.execution_router.apply_graph_repairs(request, queued_actions)
-            if graph_result.applied_operations:
-                applied_operations.extend(graph_result.applied_operations)
-                if monitor:
-                    monitor.event(
-                        "graph_repairs_applied",
-                        status="linting",
-                        stage="execute",
-                        message=f"Applied {len(graph_result.applied_operations)} graph repair operation(s).",
-                        payload={"applied_operations": len(graph_result.applied_operations)},
-                    )
-                rescan = self.lint(
-                    WikiLintRequest(
-                        vault_path=request.vault_path,
-                        write_report=False,
-                        apply_safe_fixes=False,
-                        scope_pages=_scope_pages(request),
-                        include_related=request.include_related,
-                    )
-                )
-            graph_repair_warnings.extend(graph_result.warnings)
         result = LintRunResult(
             scope=request.scope,
             mode=mode,
@@ -325,7 +303,7 @@ class WikiLintPipeline:
             applied_operations=applied_operations,
             verifications=verifications,
             rescan=rescan,
-            warnings=[*_verification_warnings(verifications), *refresh_warnings, *graph_repair_warnings],
+            warnings=[*_verification_warnings(verifications), *refresh_warnings],
             metrics=_lint_run_metrics(started, self.semantic_workflow, semantic_history_start),
         )
         return _write_lint_run_artifacts_if_requested(request, result)
@@ -408,7 +386,7 @@ def _run_semantic_diagnose(pipeline: WikiLintPipeline, request: LintRunRequest, 
             )
         )
         model_candidates = pipeline.semantic_workflow.diagnose_quality({"selected_pages": selected.model_dump()}, max_tokens=request.max_tokens)
-        return _merge_candidates(_seed_quality_candidates(selected), model_candidates)
+        return model_candidates
 
     structural_scan = pipeline.scan(
         WikiScanRequest(
@@ -428,7 +406,7 @@ def _run_semantic_diagnose(pipeline: WikiLintPipeline, request: LintRunRequest, 
         )
     )
     quality = pipeline.semantic_workflow.diagnose_quality({"selected_pages": selected.model_dump()}, max_tokens=request.max_tokens)
-    return _merge_candidates(structural, _seed_quality_candidates(selected), quality)
+    return _merge_candidates(structural, quality)
 
 
 def _run_deferred_retry(
@@ -544,10 +522,6 @@ def _deferred_retry_pages(queued_actions: list[dict[str, object]]) -> list[str]:
         if action.get("queue_type") != "report_only":
             continue
         _append_page(pages, seen, action.get("target_page"))
-        related_pages = action.get("related_pages")
-        if isinstance(related_pages, list):
-            for page in related_pages:
-                _append_page(pages, seen, page)
         params = action.get("params")
         if isinstance(params, dict):
             for key in ("target_page", "old_target", "new_target"):
@@ -568,55 +542,6 @@ def _append_page(pages: list[str], seen: set[str], value: object) -> None:
         return
     seen.add(value)
     pages.append(value)
-
-
-def _seed_quality_candidates(selected: WikiLintCandidateSelectResponse) -> MaintenanceCandidates:
-    candidates: list[dict[str, object]] = []
-    for page in selected.candidates:
-        for reason in page.reasons:
-            if reason.source != "quality" or reason.issue_type != "workflow_missing_steps":
-                continue
-            candidates.append(
-                {
-                    "candidate_id": f"quality:{page.path}:workflow_missing_steps:seed",
-                    "source": "quality",
-                    "target_page": page.path,
-                    "issue_type": "workflow_missing_steps",
-                    "severity": "medium",
-                    "confidence": min(0.9, max(0.7, reason.score / 2.0)),
-                    "risk_hint": "low",
-                    "executor_hint": "draft_write",
-                    "evidence": [
-                        {
-                            "kind": "metadata",
-                            "ref": page.path,
-                            "quote": f"{reason.message} details={reason.evidence}",
-                        },
-                        {
-                            "kind": "page_excerpt",
-                            "ref": page.path,
-                            "quote": page.content_preview[:1800] or page.summary or page.title,
-                        },
-                    ],
-                    "recommended_action": {
-                        "action": "rewrite_section",
-                        "params": {"section": "Steps"},
-                    },
-                    "related_pages": [],
-                    "expected_effect": "Replace placeholder or missing workflow steps with meaningful ordered steps inferred from the page.",
-                    "review_notes": "Patch only the Steps section. Reject if the evidence cannot support actionable steps.",
-                }
-            )
-            break
-    return MaintenanceCandidates.model_validate(
-        {
-            "schema_version": "maintenance_candidates.v1",
-            "candidates": candidates,
-            "page_reviews": [],
-            "summary": f"Seeded {len(candidates)} deterministic quality candidate(s).",
-            "warnings": [],
-        }
-    )
 
 
 def _merge_candidates(*items: MaintenanceCandidates) -> MaintenanceCandidates:
@@ -670,16 +595,13 @@ def _structural_diagnose_payload(scan: WikiScanResponse, *, include_content: boo
             "path": page.path,
             "directory": page.directory,
             "title": page.title,
-            "page_type": page.page_type,
-            "status": page.status,
-            "source": page.source,
             "headings": page.headings,
         }
         if include_content:
             item.update(
                 {
                     "summary": page.summary,
-                    "tags": page.tags,
+                    "entities": page.entities,
                     "outgoing_links": page.outgoing_links,
                     "content_preview": page.content_preview,
                     "content_truncated": page.content_truncated,

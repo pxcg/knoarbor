@@ -50,7 +50,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     init_parser = subparsers.add_parser("init", help="Initialize a local KnoArbor vault.")
     init_parser.add_argument("--vault", default=None, help="Vault path to create. Defaults to config.yaml vault.path.")
-    init_parser.add_argument("--force", action="store_true", help="Overwrite SCHEMA.md and .knoarborignore if they already exist.")
+    init_parser.add_argument("--force", action="store_true", help="Overwrite .knoarborignore if it already exists.")
     init_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
     init_parser.set_defaults(handler=run_init)
 
@@ -64,21 +64,6 @@ def build_parser() -> argparse.ArgumentParser:
     vaults_list_parser = vaults_subparsers.add_parser("list", help="List configured vault profiles.")
     vaults_list_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
     vaults_list_parser.set_defaults(handler=run_vaults)
-    vaults_migrate_parser = vaults_subparsers.add_parser("migrate-layout", help="Move legacy root-level wiki pages into pages/.")
-    add_vault_argument(vaults_migrate_parser)
-    vaults_migrate_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
-    vaults_migrate_parser.set_defaults(handler=run_vaults)
-    vaults_namespace_parser = vaults_subparsers.add_parser("migrate-namespace", help="Plan or apply legacy typed-page migration into the flat page namespace.")
-    add_vault_argument(vaults_namespace_parser)
-    vaults_namespace_parser.add_argument(
-        "--dir",
-        action="append",
-        default=None,
-        help="Legacy knowledge directory to migrate, such as concepts or entities. Can be repeated. Defaults to all non-source legacy knowledge dirs.",
-    )
-    vaults_namespace_parser.add_argument("--apply", action="store_true", help="Apply the migration. Omitted by default, which performs a dry-run.")
-    vaults_namespace_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
-    vaults_namespace_parser.set_defaults(handler=run_vaults)
     vaults_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
     vaults_parser.set_defaults(handler=run_vaults)
 
@@ -129,7 +114,7 @@ def build_parser() -> argparse.ArgumentParser:
     pages_list_parser = pages_subparsers.add_parser("list", help="List wiki pages.")
     pages_list_parser.add_argument("--vault", default=argparse.SUPPRESS, help="Path to the Obsidian wiki vault. Overrides config.yaml.")
     pages_list_parser.add_argument("--vault-id", default=argparse.SUPPRESS, help="Configured vault profile ID. Ignored when --vault is provided.")
-    pages_list_parser.add_argument("--dir", dest="page_dir", default=None, help="Limit to one wiki directory such as concepts or entities.")
+    pages_list_parser.add_argument("--dir", dest="page_dir", default=None, help="Limit to one physical page area such as pages or sources.")
     pages_list_parser.add_argument("--contains", default=None, help="Filter by title or path substring.")
     pages_list_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
     pages_list_parser.set_defaults(handler=run_pages)
@@ -139,12 +124,12 @@ def build_parser() -> argparse.ArgumentParser:
     pages_read_parser.add_argument("path")
     pages_read_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
     pages_read_parser.set_defaults(handler=run_pages)
-    pages_links_parser = pages_subparsers.add_parser("links", help="Read outbound links and backlinks for one page.")
-    pages_links_parser.add_argument("--vault", default=argparse.SUPPRESS, help="Path to the Obsidian wiki vault. Overrides config.yaml.")
-    pages_links_parser.add_argument("--vault-id", default=argparse.SUPPRESS, help="Configured vault profile ID. Ignored when --vault is provided.")
-    pages_links_parser.add_argument("path")
-    pages_links_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
-    pages_links_parser.set_defaults(handler=run_pages)
+    pages_relations_parser = pages_subparsers.add_parser("relations", help="Read page relations for one wiki page.")
+    pages_relations_parser.add_argument("--vault", default=argparse.SUPPRESS, help="Path to the Obsidian wiki vault. Overrides config.yaml.")
+    pages_relations_parser.add_argument("--vault-id", default=argparse.SUPPRESS, help="Configured vault profile ID. Ignored when --vault is provided.")
+    pages_relations_parser.add_argument("path")
+    pages_relations_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
+    pages_relations_parser.set_defaults(handler=run_pages)
 
     reports_parser = subparsers.add_parser("reports", help="List or read workflow reports.")
     add_vault_argument(reports_parser)

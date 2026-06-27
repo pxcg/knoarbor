@@ -7,32 +7,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from knoarbor.core.markdown import compact_inline_text, extract_heading, extract_section, extract_tags, parse_frontmatter
-from knoarbor.core.schemas.page_identity import PageIdentity, normalize_facet
+from knoarbor.core.markdown import compact_inline_text, extract_heading, extract_section, parse_frontmatter
+from knoarbor.core.schemas.page_identity import PageIdentity
 from knoarbor.core.schemas.wiki_write import VaultWriteResult, WikiDraft
-from knoarbor.core.wiki_schema import (
-    FRONTMATTER_TYPES,
-    GENERATED_VIEW_DIR,
-    INDEX_PAGE_DIRS,
-    UNIFIED_KNOWLEDGE_PAGE_DIR,
-    is_index_excluded_file,
-)
+from knoarbor.core.wiki_schema import UNIFIED_KNOWLEDGE_PAGE_DIR, is_index_excluded_file
 from knoarbor.runtime import vault_write_lock
+from knoarbor.storage.vault_layout import runtime_index_root, wiki_root
 from knoarbor.storage.wiki_paths import SOURCE_DIGEST_ROOT_DIR, content_relative_path, content_root, source_digest_root, vault_relative_path
-
-
-ALLOWED_PAGE_KINDS = {
-    "concept",
-    "entity",
-    "workflow",
-    "comparison",
-    "timeline",
-    "query",
-    "note",
-    "source_digest",
-    "generated_view",
-    "unknown",
-}
 
 
 def relative_wiki_path(vault_path: Path, path: Path) -> str:
@@ -60,21 +41,18 @@ def index_entry(vault_path: Path, md_path: Path) -> str:
 
     metadata = parse_frontmatter(content)
     title = extract_heading(content, fallback_title)
-    page_type = metadata.get("type") or FRONTMATTER_TYPES.get(md_path.parent.name, "page")
-    status = metadata.get("status", "unknown")
+    role = metadata.get("role") or "knowledge_page"
     updated = metadata.get("updated") or metadata.get("created") or "unknown"
-    tags = extract_tags(content, metadata)
-    tags_text = ", ".join(tags) if tags else "none"
     summary = compact_inline_text(extract_section(content, "Summary") or "No summary yet.")
 
     return (
-        f"- [[{link_path}|{title}]] — type: {page_type} | status: {status} | "
-        f"updated: {updated} | tags: {tags_text} | summary: {summary}"
+        f"- [[{link_path}|{title}]] — role: {role} | "
+        f"updated: {updated} | summary: {summary}"
     )
 
 
 def machine_index_dir(vault_path: Path) -> Path:
-    return vault_path.expanduser().resolve() / ".knoarbor" / "index"
+    return runtime_index_root(vault_path)
 
 
 def is_machine_index_stale(vault_path: Path) -> bool:
@@ -106,43 +84,41 @@ def page_record(vault_path: Path, md_path: Path) -> dict[str, Any]:
     content = md_path.read_text(encoding="utf-8")
     metadata = parse_frontmatter(content)
     title = extract_heading(content, md_path.stem)
-    tags = extract_tags(content, metadata) or _extract_entities(content)
     headings = _extract_headings(content)
     summary = compact_inline_text(extract_section(content, "Summary") or "")
+    raw_source_body = extract_section(content, "Raw Source")
+    source = _extract_first_source_item(raw_source_body) if raw_source_body else None
     claims = extract_section(content, "Claims")
     relations = extract_section(content, "Relations")
     evidence = extract_section(content, "Evidence")
+    evidence_rows = _extract_evidence_rows(evidence)
+    if not source:
+        source = _first_evidence_source(evidence_rows)
     entities = _extract_entities(content)
     directory = _page_directory(vault_path, md_path)
-    identity = _page_identity(vault_path, md_path, metadata, title, tags, headings)
+    identity = _page_identity(vault_path, md_path, metadata, title, headings)
     return {
         "schema_version": "machine_page.v2",
         "path": relative_wiki_path(vault_path, md_path),
         "canonical_path": identity.canonical_path,
-        "legacy_paths": identity.legacy_paths,
         "directory": directory,
-        "page_kind": identity.page_kind,
         "subject_kind": identity.subject_kind,
         "role": identity.role,
-        "facets": identity.facets,
         "atom_ids": identity.atom_ids,
         "relation_ids": identity.relation_ids,
         "source_digest_ids": identity.source_digest_ids,
         "title": title,
-        "type": str(metadata.get("type") or FRONTMATTER_TYPES.get(directory, "page")),
-        "status": str(metadata.get("status") or "unknown"),
         "created": _string_or_none(metadata.get("created")),
         "updated": _string_or_none(metadata.get("updated") or metadata.get("created")),
-        "source": _string_or_none(metadata.get("source")),
-        "tags": tags,
         "entities": entities,
         "summary": summary,
         "headings": headings,
         "claims": _extract_claim_ids(claims),
         "relations": _extract_relation_rows(relations),
-        "evidence": _extract_evidence_rows(evidence),
+        "evidence": evidence_rows,
         "outbound_links": _extract_wikilinks(content),
-        "search_text": compact_inline_text(" ".join([title, summary, " ".join(tags), " ".join(entities), claims, relations, " ".join(headings)])),
+        "source": source,
+        "search_text": compact_inline_text(" ".join([title, summary, " ".join(entities), claims, relations, " ".join(headings)])),
     }
 
 
@@ -170,13 +146,8 @@ def build_machine_index(vault_path: Path) -> dict[str, Any]:
             {
                 "path": page["path"],
                 "canonical_path": page["canonical_path"],
-                "legacy_paths": page["legacy_paths"],
                 "title": page["title"],
-                "type": page["type"],
-                "page_kind": page["page_kind"],
                 "role": page["role"],
-                "facets": page["facets"],
-                "tags": page["tags"],
                 "summary": page["summary"],
                 "search_text": page["search_text"],
             }
@@ -416,148 +387,6 @@ def _json_bytes(payload: dict[str, Any]) -> bytes:
     return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
-def _page_records_for_views(vault_path: Path, paths: list[Path]) -> list[dict[str, Any]]:
-    records: list[dict[str, Any]] = []
-    for md_path in paths:
-        try:
-            records.append(page_record(vault_path, md_path))
-        except UnicodeDecodeError:
-            continue
-    return records
-
-
-def _write_generated_views(root: Path, records: list[dict[str, Any]]) -> None:
-    views = {
-        "Home.md": _render_home_view(records),
-        "Concepts.md": _render_kind_view("Concepts", records, {"concept"}),
-        "Entities.md": _render_kind_view("Entities", records, {"entity"}),
-        "Workflows.md": _render_kind_view("Workflows", records, {"workflow"}),
-        "Comparisons.md": _render_kind_view("Comparisons", records, {"comparison"}),
-        "Open-Questions.md": _render_open_questions_view(records),
-        "Source-Audit.md": _render_source_audit_view(records),
-    }
-    views_dir = root / GENERATED_VIEW_DIR
-    views_dir.mkdir(parents=True, exist_ok=True)
-    for filename, content in views.items():
-        (views_dir / filename).write_text(content.rstrip() + "\n", encoding="utf-8")
-
-
-def _render_home_view(records: list[dict[str, Any]]) -> str:
-    counts = {
-        "knowledge pages": sum(1 for record in records if record.get("role") == "knowledge_page"),
-        "source digests": sum(1 for record in records if record.get("role") == "source_digest"),
-        "concepts": sum(1 for record in records if record.get("page_kind") == "concept"),
-        "entities": sum(1 for record in records if record.get("page_kind") == "entity"),
-        "workflows": sum(1 for record in records if record.get("page_kind") == "workflow"),
-        "comparisons": sum(1 for record in records if record.get("page_kind") == "comparison"),
-    }
-    lines = [
-        "# Home",
-        "",
-        *_view_frontmatter("Home", ["generated_view", "home"]),
-        "## Overview",
-        "",
-        "Generated navigation view for this KnoArbor vault. It is rebuilt from maintained wiki pages.",
-        "",
-        "## Views",
-        "",
-        "- [[_views/Concepts|Concepts]]",
-        "- [[_views/Entities|Entities]]",
-        "- [[_views/Workflows|Workflows]]",
-        "- [[_views/Comparisons|Comparisons]]",
-        "- [[_views/Open-Questions|Open Questions]]",
-        "- [[_views/Source-Audit|Source Audit]]",
-        "",
-        "## Counts",
-        "",
-    ]
-    lines.extend(f"- {name}: {count}" for name, count in counts.items())
-    lines.extend(["", "## Recent Pages", "", *_record_links(records[:20])])
-    return "\n".join(lines)
-
-
-def _render_kind_view(title: str, records: list[dict[str, Any]], page_kinds: set[str]) -> str:
-    selected = [record for record in records if str(record.get("page_kind") or "") in page_kinds and record.get("role") == "knowledge_page"]
-    lines = [
-        f"# {title}",
-        "",
-        *_view_frontmatter(title, ["generated_view", *sorted(page_kinds)]),
-        "## Pages",
-        "",
-        *_record_links(selected),
-    ]
-    return "\n".join(lines)
-
-
-def _render_open_questions_view(records: list[dict[str, Any]]) -> str:
-    selected = [
-        record
-        for record in records
-        if record.get("page_kind") == "query" or "open_questions" in set(record.get("facets", []))
-    ]
-    lines = [
-        "# Open Questions",
-        "",
-        *_view_frontmatter("Open Questions", ["generated_view", "open_questions"]),
-        "## Pages",
-        "",
-        *_record_links(selected),
-    ]
-    return "\n".join(lines)
-
-
-def _render_source_audit_view(records: list[dict[str, Any]]) -> str:
-    selected = [record for record in records if record.get("role") == "source_digest" or record.get("page_kind") == "source_digest"]
-    lines = [
-        "# Source Audit",
-        "",
-        *_view_frontmatter("Source Audit", ["generated_view", "source_audit"]),
-        "## Source Digests",
-        "",
-        *_record_links(selected),
-    ]
-    return "\n".join(lines)
-
-
-def _view_frontmatter(title: str, facets: list[str]) -> list[str]:
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    return [
-        "---",
-        f"created: {now}",
-        f"updated: {now}",
-        "type: view",
-        "status: generated",
-        f"canonical_path: {GENERATED_VIEW_DIR}/{title.replace(' ', '-')}.md",
-        "page_kind: generated_view",
-        "role: generated_view",
-        f"facets: {_yaml_list(facets)}",
-        "---",
-        "",
-    ]
-
-
-def _record_links(records: list[dict[str, Any]]) -> list[str]:
-    if not records:
-        return ["- No pages yet."]
-    lines: list[str] = []
-    for record in sorted(records, key=lambda item: (str(item.get("page_kind") or ""), str(item.get("title") or ""))):
-        path = str(record.get("path") or "")
-        title = str(record.get("title") or Path(path).stem)
-        summary = compact_inline_text(str(record.get("summary") or "No summary."), 160)
-        link_path = path.removesuffix(".md")
-        lines.append(f"- [[{link_path}|{title}]] — {summary}")
-    return lines
-
-
-def _yaml_list(values: list[str]) -> str:
-    normalized: list[str] = []
-    for value in values:
-        text = normalize_facet(value)
-        if text and text not in normalized:
-            normalized.append(text)
-    return "[" + ", ".join(f'"{value}"' for value in normalized) + "]"
-
-
 def _extract_wikilinks(content: str) -> list[str]:
     links: list[str] = []
     for match in re.finditer(r"\[\[([^\]]+)\]\]", content):
@@ -577,10 +406,30 @@ def _extract_headings(content: str) -> list[str]:
     return headings
 
 
+def _extract_first_source_item(source_text: str) -> str | None:
+    """Extract the first raw source reference from a raw source trace section."""
+    for line in source_text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- "):
+            value = stripped[2:].strip()
+            if value.lower().startswith("raw source:"):
+                value = value.split(":", 1)[1].strip()
+            return value
+    first_line = source_text.strip().split("\n")[0].strip()
+    if first_line.lower().startswith("raw source:"):
+        first_line = first_line.split(":", 1)[1].strip()
+    return first_line if first_line else None
+
+
 def _iter_indexable_page_paths(root: Path) -> list[Path]:
     paths: list[Path] = []
     seen: set[Path] = set()
-    vault = root.parent if root.name == "pages" else root
+    if root.name == "pages" and root.parent.name == "wiki":
+        vault = root.parent.parent
+    elif root.name == "pages":
+        vault = root.parent
+    else:
+        vault = root
     source_root = source_digest_root(vault)
     def add_path(md_path: Path) -> None:
         if not is_index_excluded_file(md_path.name):
@@ -594,12 +443,6 @@ def _iter_indexable_page_paths(root: Path) -> list[Path]:
         add_path(md_path)
     if source_root.exists():
         for md_path in sorted(source_root.glob("*.md")):
-            add_path(md_path)
-    for page_type in INDEX_PAGE_DIRS:
-        page_dir = root / page_type
-        if not page_dir.exists():
-            continue
-        for md_path in sorted(page_dir.glob("*.md")):
             add_path(md_path)
     return paths
 
@@ -621,84 +464,27 @@ def _page_identity(
     md_path: Path,
     metadata: dict[str, str],
     title: str,
-    tags: list[str],
     headings: list[str],
 ) -> PageIdentity:
     relative_path = relative_wiki_path(vault_path, md_path)
     directory = _page_directory(vault_path, md_path)
-    page_kind = _infer_page_kind(metadata, directory)
-    role = _infer_page_role(directory, page_kind)
-    canonical_path = metadata.get("canonical_path") or relative_path
-    legacy_paths = _metadata_list(metadata.get("legacy_paths"))
-    if canonical_path != relative_path:
-        legacy_paths.append(relative_path)
-    facets = _identity_facets(metadata, directory, page_kind, tags, headings)
+    role = _infer_page_role(directory)
+    canonical_path = relative_path
     return PageIdentity(
         canonical_path=canonical_path,
-        legacy_paths=legacy_paths,
         title=title,
-        page_kind=page_kind,
         subject_kind=metadata.get("subject_kind", ""),
         role=role,
-        facets=facets,
         atom_ids=_metadata_list(metadata.get("atom_ids")) + _metadata_list(metadata.get("claim_ids")),
         relation_ids=_metadata_list(metadata.get("relation_ids")),
         source_digest_ids=_metadata_list(metadata.get("source_digest_ids")),
     )
 
 
-def _infer_page_role(directory: str, page_kind: str) -> str:
-    if directory == "sources" or page_kind == "source_digest":
+def _infer_page_role(directory: str) -> str:
+    if directory == "sources":
         return "source_digest"
-    if directory == GENERATED_VIEW_DIR or page_kind == "generated_view":
-        return "generated_view"
     return "knowledge_page"
-
-
-def _infer_page_kind(metadata: dict[str, str], directory: str) -> str:
-    explicit = metadata.get("page_kind") or metadata.get("kind")
-    if explicit:
-        return _normalize_page_kind(explicit)
-    legacy_type = metadata.get("type") or FRONTMATTER_TYPES.get(directory, "unknown")
-    if directory == "sources" or legacy_type == "source":
-        return "source_digest"
-    if directory == UNIFIED_KNOWLEDGE_PAGE_DIR and legacy_type == "page":
-        return "unknown"
-    return _normalize_page_kind(legacy_type)
-
-
-def _normalize_page_kind(value: str) -> str:
-    normalized = normalize_facet(value)
-    aliases = {
-        "source": "source_digest",
-        "digest": "source_digest",
-        "view": "generated_view",
-        "question": "query",
-        "qa": "query",
-        "q_a": "query",
-        "page": "unknown",
-    }
-    normalized = aliases.get(normalized, normalized or "unknown")
-    return normalized if normalized in ALLOWED_PAGE_KINDS else "unknown"
-
-
-def _identity_facets(metadata: dict[str, str], directory: str, page_kind: str, tags: list[str], headings: list[str]) -> list[str]:
-    section_facets = {
-        "Claims": "claims",
-        "Relations": "relations",
-        "Synthesis": "synthesis",
-        "Definition": "definition",
-        "Key Points": "key_points",
-        "Source Focus": "source_focus",
-    }
-    values: list[str] = []
-    values.extend(_metadata_list(metadata.get("facets")))
-    values.extend(_metadata_list(metadata.get("entities")))
-    values.extend(_metadata_list(metadata.get("concepts")))
-    values.extend(tags)
-    values.extend([directory, page_kind])
-    values.extend(facet for heading, facet in section_facets.items() if heading in headings)
-    return values
 
 
 def _metadata_list(value: object) -> list[str]:
@@ -735,7 +521,7 @@ def _string_or_none(value: object) -> str | None:
 
 
 def ensure_log(vault_path: Path) -> None:
-    root = content_root(vault_path)
+    root = wiki_root(vault_path)
     root.mkdir(parents=True, exist_ok=True)
     log_path = root / "log.md"
     with vault_write_lock(vault_path):
@@ -751,7 +537,7 @@ def append_ingest_log(
     action: str = "create",
 ) -> None:
     ensure_log(vault_path)
-    log_path = content_root(vault_path) / "log.md"
+    log_path = wiki_root(vault_path) / "log.md"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     source = source_file if source_file else "null"
     entry = (
@@ -761,7 +547,6 @@ def append_ingest_log(
         f"- source: {source}\n"
         f"- output: {wiki_link_for_path(vault_path, result.path, draft.title)}\n"
         f"- directory: {draft.page_dir}\n"
-        f"- type: {draft.page_type}\n"
         f"- created: {str(result.created).lower()}\n"
         f"- content_hash: {result.content_hash}\n"
     )
@@ -772,7 +557,7 @@ def append_ingest_log(
 
 def append_operation_log(vault_path: Path, message: str) -> None:
     ensure_log(vault_path)
-    log_path = content_root(vault_path) / "log.md"
+    log_path = wiki_root(vault_path) / "log.md"
     with vault_write_lock(vault_path):
         with log_path.open("a", encoding="utf-8") as file:
             file.write(message.rstrip() + "\n")

@@ -25,12 +25,10 @@ def scan_page(page: LintPage, max_chars_per_page: int) -> WikiScanPage:
         path=page.relative_path,
         directory=page.directory,
         title=page.title,
-        page_type=metadata.get("type"),
-        status=metadata.get("status"),
+        role=page.role,
         updated=metadata.get("updated") or metadata.get("created"),
-        source=metadata.get("source"),
         content_hash=metadata.get("content_hash"),
-        tags=extract_tags_for_scan(page.content, metadata),
+        entities=extract_entities_for_scan(page.content),
         summary=extract_section(page.content, "Summary"),
         headings=extract_headings(page.content),
         outgoing_links=page.links,
@@ -52,11 +50,10 @@ def score_lint_candidate(page: WikiScanPage, issues: list[WikiLintIssue], mode: 
         path=page.path,
         directory=page.directory,
         title=page.title,
-        page_type=page.page_type,
+        role=page.role,
         updated=page.updated,
-        source=page.source,
         summary=page.summary,
-        tags=page.tags,
+        entities=page.entities,
         headings=page.headings,
         outgoing_links=page.outgoing_links,
         content_preview=page.content_preview,
@@ -67,16 +64,18 @@ def score_lint_candidate(page: WikiScanPage, issues: list[WikiLintIssue], mode: 
     )
 
 
-def extract_tags_for_scan(content: str, metadata: dict[str, str]) -> list[str]:
-    raw_tags = metadata.get("tags", "")
-    tags = [tag.strip().strip("[]'\"") for tag in raw_tags.split(",") if tag.strip()]
-    if tags:
-        return tags[:12]
-    section_tags = []
-    for item in extract_list_items(extract_section(content, "Tags")):
-        if item and item != "暂无标签":
-            section_tags.append(item)
-    return section_tags[:12]
+def extract_entities_for_scan(content: str) -> list[str]:
+    entities: list[str] = []
+    for item in extract_list_items(extract_section(content, "Entities")):
+        text = item.strip()
+        if not text or text.startswith("暂无"):
+            continue
+        text = text.removeprefix("[[").removesuffix("]]")
+        if "|" in text:
+            text = text.split("|", 1)[-1]
+        if text not in entities:
+            entities.append(text)
+    return entities[:24]
 
 
 def _quality_candidate_reasons(page: WikiScanPage, issues: list[WikiLintIssue]) -> list[WikiLintCandidateReason]:
@@ -141,13 +140,11 @@ def _quality_candidate_reasons(page: WikiScanPage, issues: list[WikiLintIssue]) 
     for issue in issues:
         if is_deterministic_only_issue(issue.code):
             continue
-        if issue.code in {"knowledge_without_source_digest", "knowledge_missing_source_digest_link", "source_digest_missing_related_pages"}:
+        if issue.code in {"knowledge_without_source_digest", "knowledge_missing_source_digest_link", "source_digest_missing_contribution_map"}:
             reasons.append(_reason_from_issue(issue, "provenance", "medium", 1.6))
-        elif issue.code in {"orphan_page", "duplicate_title", "duplicate_related_target", "duplicate_section_item", "path_alias_conflict", "weak_link_graph", "overdense_link_graph"}:
+        elif issue.code in {"orphan_page", "duplicate_title", "duplicate_section_item", "path_alias_conflict", "weak_link_graph", "overdense_link_graph"}:
             reasons.append(_reason_from_issue(issue, "graph", "low", 0.9))
-        elif issue.code == "workflow_missing_steps":
-            reasons.append(_reason_from_issue(issue, "quality", "medium", 2.0))
-        elif issue.code in {"missing_required_section", "timeline_missing_chronology"}:
+        elif issue.code == "missing_required_section":
             reasons.append(_reason_from_issue(issue, "quality", "medium", 1.2))
 
     return reasons
