@@ -40,7 +40,7 @@ Public endpoints are organized by product capability, not by internal workflow s
 | Reports | `GET /reports`, `GET /reports/content` | List and read workflow reports |
 | Run monitor | `GET /runs`, `GET /runs/{run_id}` | Inspect queued/running/completed workflows |
 | Run events | `GET /runs/{run_id}/events`, `GET /runs/{run_id}/stream`, `POST /runs/{run_id}/cancel` | Observe or cancel a run |
-| Wiki pages | `GET /wiki/pages`, `GET /wiki/pages/content`, `GET /wiki/pages/links` | Read generated wiki pages |
+| Wiki pages | `GET /wiki/pages`, `GET /wiki/pages/content`, `GET /wiki/pages/relations` | Read generated wiki pages |
 
 `/ui/api/*` is reserved for the local management UI and is not a stable integration API.
 
@@ -359,7 +359,7 @@ local inspection and one-off automation, but public clients should prefer
 
 ```http
 GET /reports?vault_path=/path/to/vault
-GET /reports/content?vault_path=/path/to/vault&path=maintenance/ingest_report_YYYYMMDD_HHMMSS.md
+GET /reports/content?vault_path=/path/to/vault&path=maintenance/reports/ingest/ingest_report_YYYYMMDD_HHMMSS.md
 ```
 
 Lists or reads Markdown workflow reports from the vault `maintenance/` folder.
@@ -655,7 +655,7 @@ The response also includes:
   supporting pages because each wiki page is a curated knowledge unit.
 - `rejected_candidates`: candidate pages considered by the answer-set selector
   but excluded from the default answer evidence, with reasons such as
-  `redundant_facet`, `weak_score`, or `source_not_requested`.
+  `redundant_dimension`, `weak_score`, or `source_not_requested`.
 - `evidence_coverage`: a compact signal for whether the returned pages provide
   strong, adequate, or weak local coverage.
 
@@ -737,7 +737,7 @@ Workflow reports and run metrics include model usage fields when the selected pr
 Prompt caching is provider-owned. KnoArbor keeps long semantic contract prompts stable and records cache telemetry only when the model API returns cache fields.
 
 Ingest, lint, and chat model calls are also appended to
-`maintenance/token_ledger.jsonl` with `flow=ingest`, `flow=lint`, or
+`.knoarbor/ledgers/token.jsonl` with `flow=ingest`, `flow=lint`, or
 `flow=chat`. The Token Analytics page reads this ledger to compare usage by
 workflow, agent, source, page, provider, and model.
 
@@ -757,17 +757,15 @@ This design favors correctness and reproducibility over maximum throughput for t
 ```http
 GET /wiki/pages?vault_path=/path/to/vault
 GET /wiki/pages/content?vault_path=/path/to/vault&path=Agent-Loop.md
-GET /wiki/pages/links?vault_path=/path/to/vault&path=Agent-Loop.md
+GET /wiki/pages/relations?vault_path=/path/to/vault&path=Agent-Loop.md
 ```
 
 `/wiki/pages` returns page summaries and link metadata. `/wiki/pages/content`
 returns one Markdown page with metadata and rendered summary fields.
-`/wiki/pages/links` returns pages that link to the selected page. Page paths are
+`/wiki/pages/relations` returns incoming and outgoing page relations for the selected page. Page paths are
 relative to the maintained content root. New knowledge pages use flat paths such
 as `Agent-Loop.md`; source digest pages use paths such as
-`sources/Agent-Loop-Source.md`. Legacy typed paths such as
-`concepts/Agent-Loop.md` may still resolve during migration when the page
-records them as `legacy_paths`.
+`sources/Agent-Loop-Source.md`.
 
 These endpoints also accept `vault_id` with `config_path`. When a result from
 a multi-vault `/query` response is selected, pass the result's `vault_id` to

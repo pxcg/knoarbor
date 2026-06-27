@@ -34,7 +34,7 @@ Follow long-running ingest, lint, and query workflows with queue state, heartbea
 
 ![Knowledge base page](assets/knoarbor-console-wiki.png)
 
-Browse generated wiki pages, inspect frontmatter metadata, outgoing links, backlinks, and open workflow artifacts without leaving the console.
+Browse generated wiki pages, inspect structured metadata, entity relations, source evidence, and open workflow artifacts without leaving the console.
 
 ### Query Context
 
@@ -56,21 +56,19 @@ Inspect the generated knowledge network.
 
 KnoArbor writes normal Markdown pages into a local vault:
 
-- `pages/`: the Obsidian-facing Wiki root. Open this directory in Obsidian.
-- `sources/`: source digest pages that explain what each source contributes.
-- `pages/<slug>.md`: maintained knowledge pages. Page identity metadata records
-  `page_kind`, `role`, `facets`, `canonical_path`, and `legacy_paths`.
+- `wiki/pages/<slug>.md`: maintained knowledge pages. Open this directory in
+  Obsidian when you only want the final wiki pages.
+- `wiki/sources/<slug>.md`: source digest pages that explain what each source
+  contributes.
 - UI browsing views are derived from machine indexes rather than written as
   wiki pages.
 - `raw/`: immutable copied or normalized source material.
-- `maintenance/`: human-readable run reports.
+- `maintenance/reports/`: human-readable run reports.
 - `.knoarbor/`: machine state, indexes, ledgers, locks, and run records.
 
-Legacy typed directories such as `pages/concepts/` can still be read during
-migration, but new knowledge pages use the unified page namespace. The result is
-a traceable knowledge network: generated pages link to source digests, source
-digests point back to raw sources, and query returns evidence that a host AI can
-use.
+The result is a traceable knowledge network: knowledge pages are grounded by
+source digests, source digests point back to raw sources, and query returns
+evidence that a host AI can use.
 
 ## End-To-End Flow
 
@@ -86,7 +84,7 @@ KnoArbor currently supports:
 - Generic local chat JSONL or SQLite transcripts.
 - Non-Markdown files through a user-configured MinerU-compatible preprocessor.
 
-Connectors only normalize inputs into `SourceDocument`. They do not decide page types or write the wiki.
+Connectors only normalize inputs into `SourceDocument`. They do not decide wiki page boundaries or write the wiki.
 
 ### 2. Ingest Knowledge
 
@@ -110,7 +108,7 @@ Plain RAG often retrieves raw chunks at answer time. KnoArbor compiles durable w
 | --- | --- | --- |
 | Main artifact | Chunk index | Maintained Markdown wiki |
 | Source handling | Search raw chunks | Preserve raw sources and source digests |
-| Knowledge shape | Query-time snippets | Stable pages with links and page types |
+| Knowledge shape | Query-time snippets | Stable pages with claims, entities, relations, evidence, and links |
 | Maintenance | Usually implicit | Explicit lint, reports, and verification |
 | Human inspectability | Depends on app | Open `pages/` in an editor or Obsidian |
 
@@ -122,8 +120,8 @@ For a short demo, use the built-in Agent Loop example:
 
 ```bash
 uv run knoar init --vault ./vaults/default
-mkdir -p vaults/default/raw/notes
-cp examples/agent-loop.md vaults/default/raw/notes/agent-loop.md
+mkdir -p vaults/default/raw/inbox/notes
+cp examples/agent-loop.md vaults/default/raw/inbox/notes/agent-loop.md
 uv run knoar ingest --connector markdown --write
 uv run knoar lint --mode structural
 uv run knoar query "Agent Loop 是什么？"

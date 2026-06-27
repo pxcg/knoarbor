@@ -206,11 +206,13 @@ reports must preserve generated page paths even if a later index step fails.
 
 - [x] Materialize MinerU native response images from base64 payloads into
   generated Markdown `images/` folders.
-- [x] Record image attachments in `*.attachments.json` sidecars.
+- [x] Record image attachments in `raw/sidecars/**` sidecars for normalized
+  vault sources.
 - [x] Preserve MinerU image caption, raw extracted content, subtype, page index,
   and bounding box in attachment metadata.
 - [x] Keep source digest and wiki Markdown attachment views compact:
-  `Topic | Description | Path`.
+  wiki pages use `Topic | Description`; source digests use
+  `Attachment | Type | Topic | Description | Source Range | Status`.
 - [x] Prevent raw Mermaid/OCR/model output from being inlined into default wiki
   page bodies.
 

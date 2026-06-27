@@ -1,4 +1,4 @@
-# 1.12 Answer Set Selection Requirements
+# 1.12 Response Evidence Selection Requirements
 
 ## Problem
 
@@ -38,7 +38,7 @@ concept page as `primary_pages`, keep implementation pages as optional
 
 For "Agent Loop 的架构、模式和实现有哪些？", KnoArbor should choose one or more
 primary pages when they represent distinct answer anchors, then add supporting
-pages that cover complementary facets.
+pages that cover complementary evidence dimensions.
 
 ### Source Question
 
@@ -48,7 +48,7 @@ answer pages because the user asks about provenance.
 ### Noisy Candidate Set
 
 When several pages are similar but redundant, KnoArbor should reject or demote
-pages that do not add a new answer facet. Rejected candidates should remain
+pages that do not add a new evidence dimension. Rejected candidates should remain
 visible in trace metadata, not in the default answer package.
 
 ## Acceptance Criteria

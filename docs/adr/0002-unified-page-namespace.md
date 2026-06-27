@@ -1,4 +1,4 @@
-# ADR 0002: Unified Page Namespace And Virtual Facets
+# ADR 0002: Canonical Wiki Layout And Graph Index
 
 ## Status
 
@@ -6,166 +6,113 @@ Accepted
 
 ## Context
 
-KnoArbor's early wiki layout used physical directories such as `concepts/`,
-`entities/`, `workflows/`, `comparisons/`, `queries/`, and `timelines/` to group
-generated pages. This is easy to understand at small scale, but it makes the
-file path act like a knowledge type boundary.
+KnoArbor compiles raw materials into a maintained Markdown wiki. The durable
+knowledge boundary is the page body itself: identity, summary, claims,
+relations, synthesis, entities, and evidence. Physical folders must therefore
+describe storage responsibility, not knowledge type.
 
-The knowledge atom ingest decision in [ADR 0001](0001-knowledge-atom-ingest.md)
-defines atoms, claims, relations, and evidence as the durable knowledge
-boundary. Markdown pages are readable projections. Under that model, the page
-path should not be the source of truth for whether a page is a concept, entity,
-workflow, comparison, or other knowledge view.
-
-Many useful pages naturally belong to multiple types. For example, a page about
-an agent framework can be an entity, an architecture case, a workflow example,
-and a comparison target at the same time. A single physical directory cannot
-represent that shape without forcing arbitrary choices or duplicate pages.
+The filesystem layout needs to stay simple for users opening the vault in
+Obsidian or a normal editor, while machine indexes need enough structure for
+query, chat, graph, and lint.
 
 ## Decision
 
-KnoArbor will move toward a unified page namespace:
+Each vault uses one canonical layout:
 
 ```text
-wiki/
-  pages/
-    <slug>.md
-  sources/
-    <source-digest>.md
+<vault>/
+  raw/
+  wiki/
+    pages/
+      <slug>.md
+    sources/
+      <source-digest>.md
+    log.md
+  maintenance/
+    reports/
+      ingest/
+      lint/
+      query/
+      run-failure/
+    archives/
   .knoarbor/
     index/
       manifest.json
       graph_index.json
+    ledgers/
+    checkpoints/
+    runs/
+    queue/
+    locks/
+    logs/
+    chat/
+      sessions/
 ```
 
-Knowledge pages live under `pages/`. Page type and classification are expressed
-through frontmatter, page sections, atom indexes, and virtual facets, not through
-physical directory names.
+Knowledge pages live only under `wiki/pages/`. Source digest pages live only
+under `wiki/sources/`. Runtime state and machine indexes live under
+`.knoarbor/`. Human-readable reports live under `maintenance/reports/`.
 
-Source digest pages remain separate under `sources/` because they are
-provenance and audit views. They describe what a raw source contributed and are
-not ordinary knowledge pages unless the user asks about the source itself.
+KnoArbor does not use physical directories for topic categories. Concept, entity,
+workflow, comparison, claim, and relation semantics are represented inside the
+page body and in `.knoarbor/index/graph_index.json`.
 
-The expected page identity model is:
+The minimum page identity frontmatter is:
 
 ```yaml
 ---
-title: Agent Loop
-canonical_path: pages/Agent-Loop.md
-legacy_paths:
-  - concepts/Agent-Loop.md
-page_kind: concept
-subject_kind: architecture_pattern
-facets:
-  - concept
-  - workflow_pattern
-  - agent_architecture
-entities:
-  - OpenClaw
-  - Claude Code
-concepts:
-  - ReAct
-  - Tool Calling
-  - Memory
-claim_ids:
-  - claim_...
-relation_ids:
-  - rel_...
-source_digest_ids:
-  - source_...
+created: 2026-06-27 10:00:00
+updated: 2026-06-27 10:00:00
+content_hash: abc123
 ---
 ```
 
-Virtual facets replace physical type directories:
+The page body carries the knowledge contract:
 
-- `concepts` becomes `page_kind` or `facets`.
-- `entities` becomes entity atoms plus page metadata.
-- `workflows` becomes a page facet or relation-backed synthesis shape.
-- `comparisons` becomes a page facet or relation-backed synthesis shape.
-- `claims` becomes atom/index data plus a page section.
-- `relations` becomes typed relation index data plus a page section.
-- `sources` remains a physical provenance directory.
+- `Summary`: short human-readable overview.
+- `Claims`: numbered evidence-backed assertions.
+- `Relations`: triples derived from claims and entities.
+- `Synthesis`: readable synthesis derived from the claims.
+- `Entities`: important entities mentioned by claims.
+- `Evidence`: source, range, basis, and confidence for claims.
 
-UI and index-derived views should provide human browsing entry points for
-concepts, entities, workflows, comparisons, recent pages, open questions, and
-source audit. These views replace the browsing role previously played by
-physical type directories without writing generated view pages into the wiki.
+The graph index is the primary machine index. It stores page records, entity
+nodes, relation edges, source references, and lookup keys needed by query,
+chat, graph, and lint.
 
 ## Consequences
 
 Positive consequences:
 
-- A page can belong to multiple knowledge facets without duplication.
-- Page movement is no longer required when type semantics evolve.
-- Query and Chat can use explicit metadata and atom evidence instead of
-  inferring type from a path prefix.
-- Obsidian users can browse through generated views while the filesystem stays
-  stable.
-- The layout aligns with the atom-first model in ADR 0001.
+- Users see one clean wiki page directory plus one source audit directory.
+- Obsidian users do not see reports, ledgers, checkpoints, or machine state as
+  normal notes.
+- Query and chat can retrieve by graph structure before reading full pages.
+- Frontend views can be derived from indexes without writing generated view
+  pages into the wiki.
+- Page semantics can evolve without moving files between type directories.
 
 Costs:
 
-- Metadata, lint, and machine indexes must become stronger because directory
-  names no longer provide the main type signal.
-- Query, graph, reports, and the frontend need virtual-facet awareness.
-- A path resolver is required during migration so legacy links and citations can
-  resolve to canonical paths.
-- Flat `pages/` namespaces can introduce slug collisions; collision handling
-  must be explicit.
-
-## Migration Strategy
-
-This decision should be implemented in phases. It should not start by moving
-all existing files.
-
-1. Define the page identity contract: `canonical_path`, `legacy_paths`,
-   `page_kind`, `subject_kind`, `facets`, atom ids, relation ids, and source
-   digest ids.
-2. Extend the machine page index with canonical path, legacy paths, page kind,
-   role, facets, and source-digest role fields.
-3. Update query, lint, graph, and frontend browsing to prefer virtual facets
-   while old directory fields remain available as migration data.
-4. Add canonical path resolution so old paths such as `concepts/X.md` can point
-   to `pages/X.md` when migrated.
-5. Add a new ingest write mode for canonical `pages/` output.
-6. Provide equivalent UI/index filters before broad physical migration, so
-   browsing does not depend on physical type directories.
-7. Migrate existing knowledge pages in controlled batches, updating wikilinks,
-   atom refs, reports, and indexes.
+- Index generation must be reliable because browsing and graph views depend on
+  machine indexes.
+- Lint must validate page body structure rather than relying on folder names.
+- Tests and fixtures must create canonical vaults; no compatibility fixture is
+  part of the contract.
 
 ## Alternatives Considered
 
-### Keep Physical Type Directories
+### Physical Type Directories
 
-Rejected as the long-term model because path prefixes become an implicit type
-system. This makes multi-facet pages awkward and conflicts with the atom-first
-model.
+Rejected. Folder names such as concepts, entities, workflows, and comparisons
+turn file paths into a type system and make multi-dimensional pages awkward.
 
-### Fully Flat Wiki Without Views
+### Single Flat Wiki Directory
 
-Rejected because a flat `pages/` directory without generated views or facet
-filters would make browsing worse for Obsidian and filesystem users.
+Rejected. Source digests are audit artifacts and should not be mixed with
+ordinary knowledge pages.
 
-### Put Source Digests Under `pages/`
+### Generated Physical Views
 
-Rejected because source digests are provenance artifacts, not ordinary
-knowledge pages. Keeping `sources/` separate protects the distinction between
-source-level audit and maintained knowledge.
-
-### Immediate Physical Migration
-
-Rejected because current paths appear in wikilinks, citations, reports, run
-ledgers, tests, and user bookmarks. A resolver and virtual-facet layer should
-come before bulk file moves.
-
-## Verification And Follow-Up
-
-Follow-up work should verify:
-
-- new pages can be indexed and retrieved by `page_kind` and `facets`;
-- legacy paths resolve to canonical paths after migration;
-- query and chat do not infer answer role from path prefix alone;
-- graph and UI show type/facet counts instead of relying on directory counts;
-- lint validates required page metadata and source digest separation;
-- UI/index filters keep browsing clear after physical directory reduction;
-- slug collision handling is deterministic and reported.
+Rejected. Generated view files such as topical groups are UI/index
+projections, not files written into the wiki.

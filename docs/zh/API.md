@@ -40,7 +40,7 @@ http://127.0.0.1:8000
 | 运行报告 | `GET /reports`, `GET /reports/content` | 列出和读取流程报告 |
 | 运行监控 | `GET /runs`, `GET /runs/{run_id}` | 查看队列、运行中和已完成任务 |
 | 运行事件 | `GET /runs/{run_id}/events`, `GET /runs/{run_id}/stream`, `POST /runs/{run_id}/cancel` | 观察或取消运行 |
-| Wiki 页面 | `GET /wiki/pages`, `GET /wiki/pages/content`, `GET /wiki/pages/links` | 读取生成后的 Wiki 页面 |
+| Wiki 页面 | `GET /wiki/pages`, `GET /wiki/pages/content`, `GET /wiki/pages/relations` | 读取生成后的 Wiki 页面 |
 
 `/ui/api/*` 仅供本地管理界面使用，不作为稳定集成 API。
 
@@ -344,7 +344,7 @@ GET /vaults?config_path=/path/to/config.yaml
 
 ```http
 GET /reports?vault_path=/path/to/vault
-GET /reports/content?vault_path=/path/to/vault&path=maintenance/ingest_report_YYYYMMDD_HHMMSS.md
+GET /reports/content?vault_path=/path/to/vault&path=maintenance/reports/ingest/ingest_report_YYYYMMDD_HHMMSS.md
 ```
 
 列出或读取知识库 `maintenance/` 目录下的 Markdown 流程报告。报告属于公开集成 API，
@@ -615,7 +615,7 @@ primary 和 supporting 页面都会尽量保留已维护的 Wiki 正文。source
 - `answer_set`：按路径组织的推荐答案集合。窄问题通常以一个主页面为核心；
   广泛问题可以包含多个补充页面，因为 Wiki 页面本身就是已维护的知识单元。
 - `rejected_candidates`：答案页面选择器考虑过但未放入默认回答证据的候选页，
-  会记录 `redundant_facet`、`weak_score` 或 `source_not_requested` 等原因。
+  会记录 `redundant_dimension`、`weak_score` 或 `source_not_requested` 等原因。
 - `evidence_coverage`：用 strong、adequate 或 weak 表示本地页面对问题的
   覆盖程度。
 
@@ -680,7 +680,7 @@ POST /runs/{run_id}/cancel
 提示词缓存由模型供应商实现。KnoArbor 会保持长语义契约提示词稳定，并且只在模型 API 返回缓存字段时记录缓存遥测。
 
 知识编译、校验维护和对话中的模型调用也会写入
-`maintenance/token_ledger.jsonl`，分别标记为 `flow=ingest`、`flow=lint`
+`.knoarbor/ledgers/token.jsonl`，分别标记为 `flow=ingest`、`flow=lint`
 或 `flow=chat`。Token 分析页面会读取这份账本，按流程、智能体、来源、页面、供应商和模型分析用量。
 
 ## Wiki 页面
@@ -688,14 +688,13 @@ POST /runs/{run_id}/cancel
 ```http
 GET /wiki/pages?vault_path=/path/to/vault
 GET /wiki/pages/content?vault_path=/path/to/vault&path=Agent-Loop.md
-GET /wiki/pages/links?vault_path=/path/to/vault&path=Agent-Loop.md
+GET /wiki/pages/relations?vault_path=/path/to/vault&path=Agent-Loop.md
 ```
 
 `/wiki/pages` 返回页面摘要和链接元数据。`/wiki/pages/content` 返回单个
-Markdown 页面及其元数据。`/wiki/pages/links` 返回指向目标页面的页面。
+Markdown 页面及其元数据。`/wiki/pages/relations` 返回所选页面的入站和出站页面关系。
 页面路径是相对于 Wiki 内容根目录的路径。新知识页面使用 `Agent-Loop.md`
-这样的 flat path；来源摘要页面使用 `sources/Agent-Loop-Source.md`。迁移期内，
-`concepts/Agent-Loop.md` 等旧 typed path 可以通过页面的 `legacy_paths` 继续解析。
+这样的 flat path；来源摘要页面使用 `sources/Agent-Loop-Source.md`。
 
 这些接口也支持同时传入 `config_path` 和 `vault_id`。当用户选择跨知识库
 `/query` 返回的某个结果时，应使用该结果的 `vault_id` 读取页面正文或链接，

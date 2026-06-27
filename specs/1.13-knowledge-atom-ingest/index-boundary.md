@@ -42,10 +42,11 @@ page fully say?" Full claims, evidence, and synthesis remain in Markdown pages.
 The wiki content surface remains:
 
 ```text
-wiki/
+vaults/<id>/
   raw/
-  sources/
-  pages/
+  wiki/
+    pages/
+    sources/
 ```
 
 ## `graph_index.json`
@@ -85,7 +86,7 @@ It does not store full claims, full evidence, full synthesis, or full page text.
   "sources": [
     {
       "source": "sources/Agent-Loop-Source.md",
-      "raw": "raw/chats/session_xxx.jsonl",
+      "raw": "raw/normalized/chats/session_xxx.jsonl",
       "pages": ["pages/Agent-Loop.md", "pages/Workflow.md"]
     }
   ]
@@ -127,7 +128,7 @@ claims.
 
 Source mappings connect source digests to affected pages.
 
-Minimum source fields:
+Minimum source index fields:
 
 - `source`: source digest path;
 - `raw`: raw source path or source id;
@@ -156,7 +157,7 @@ It answers:
 {
   "schema_version": "knoarbor_index.v1",
   "generated_at": "2026-06-23T12:00:00",
-  "vault_id": "default",
+  "vault_path": "/Users/example/KnoArbor/vaults/default",
   "wiki_hash": "abc123",
   "graph_index_hash": "def456",
   "page_count": 120,
@@ -170,7 +171,7 @@ It answers:
 
 - `schema_version`: graph index contract version.
 - `generated_at`: index build timestamp.
-- `vault_id`: vault/workspace identity.
+- `vault_path`: resolved local vault path used when building the index.
 - `wiki_hash`: hash of indexed wiki content.
 - `graph_index_hash`: hash of `graph_index.json`.
 - `page_count`: number of knowledge pages indexed.
@@ -245,3 +246,8 @@ treated as source of truth.
 `manifest.json` tells KnoArbor whether the index can be trusted.
 `graph_index.json` tells KnoArbor which pages to read.
 Markdown pages contain the claims, evidence, and synthesis that answer the user.
+
+Implementation may keep derived cache files such as `pages.json`, `links.json`,
+`sources.json`, or `search.json` under `.knoarbor/index/`. These files are
+internal rebuildable caches. The frozen public machine-index contract remains
+`manifest.json` plus `graph_index.json`.

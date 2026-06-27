@@ -27,7 +27,7 @@ uv run knoar first-run --json
 ```
 
 该命令不会调用模型，也不会写入 Wiki 页面。它只准备本地运行环境并提示下一步命令。默认情况下，它会把一个小型 Markdown 示例复制到
-`raw/notes/agent-loop.md`，新用户可以直接测试首个页面流程：
+`raw/inbox/notes/agent-loop.md`，新用户可以直接测试首个页面流程：
 
 ```bash
 uv run knoar ingest --connector markdown --write
@@ -176,7 +176,7 @@ uv run knoar query --vault-id personal "Agent Loop 是什么？"
 
 查询阶段返回的是本地 Wiki 上下文，不负责替代宿主 AI 生成最终聊天回答。
 返回的 context pack 是页面优先：primary 页面保留正文，supporting/source
-页面保留结构化摘要、Key Points、摘录和来源线索。需要读取某个辅助页面全文时，
+页面保留结构化摘要、claims、摘录和来源线索。需要读取某个辅助页面全文时，
 使用 `pages read`。
 
 记录一次查询反馈：
@@ -191,36 +191,25 @@ uv run knoar query-feedback "Agent Loop 是什么？" --useful --selected-path A
 
 ```bash
 uv run knoar pages list
-uv run knoar pages list --dir concepts
+uv run knoar pages list --dir pages
 uv run knoar pages list --contains "Agent Loop"
 uv run knoar pages read Agent-Loop-and-Control-Patterns.md
-uv run knoar pages links Agent-Loop-and-Control-Patterns.md
+uv run knoar pages relations Agent-Loop-and-Control-Patterns.md
 uv run knoar pages read --vault-id personal Agent-Loop-and-Control-Patterns.md
 ```
 
 当查询结果需要展开时，使用 `pages read` 读取完整页面正文。使用
-`pages links` 可以查看出站链接和反向链接。
+`pages relations` 可以查看页面关系元数据。
 
 页面路径相对于维护后的内容根目录。新知识页面使用 `Agent-Loop.md` 这样的
-flat path；来源摘要页面使用 `sources/Agent-Loop-Source.md`。迁移期内，
-`concepts/Agent-Loop.md` 等旧 typed path 仍可通过 `legacy_paths` 解析。
-`pages list --dir` 是旧目录兼容过滤，主要类型信息应查看 `page_kind`、`role`
-和 `facets`。
+flat path；来源摘要页面使用 `sources/Agent-Loop-Source.md`。`pages list --dir pages`
+列出知识页面；`pages list --dir sources` 列出来源审计页面。
 
-## 知识库迁移
+## 知识库
 
 ```bash
 uv run knoar vaults list
-uv run knoar vaults migrate-layout --vault ./vaults/default
-uv run knoar vaults migrate-namespace --vault ./vaults/default
-uv run knoar vaults migrate-namespace --vault ./vaults/default --dir concepts
-uv run knoar vaults migrate-namespace --vault ./vaults/default --apply
 ```
-
-`migrate-layout` 处理更早期的根目录布局，把根目录下的旧知识目录移动到
-`pages/`，但保留 `sources/` 作为来源摘要和溯源审计目录。`migrate-namespace` 处理 `pages/` 内旧 typed 知识目录到统一 flat
-namespace 的迁移。该命令默认 dry-run，只报告计划；只有显式 `--apply` 才写文件。
-来源摘要页保留在 `sources/`；浏览视图由机器索引派生，并由 UI 渲染。
 
 ## 运行报告
 
@@ -228,7 +217,7 @@ namespace 的迁移。该命令默认 dry-run，只报告计划；只有显式 `
 
 ```bash
 uv run knoar reports list
-uv run knoar reports read maintenance/ingest_report_YYYYMMDD_HHMMSS.md
+uv run knoar reports read maintenance/reports/ingest/ingest_report_YYYYMMDD_HHMMSS.md
 uv run knoar reports list --vault-id personal
 ```
 

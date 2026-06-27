@@ -149,7 +149,7 @@ connectors:
       sessions_dir: ~/.codex/sessions
       pattern: "rollout-*.jsonl"
       recursive: true
-      raw_output_dir: ./vaults/default/raw/chats
+      raw_output_dir: ./vaults/default/raw/normalized/chats
 ```
 
 启用 Hermes 需要本地存在 Hermes 会话目录：
@@ -160,7 +160,7 @@ connectors:
     enabled: true
     settings:
       sessions_dir: ~/.hermes/sessions
-      raw_output_dir: ./vaults/default/raw/chats
+      raw_output_dir: ./vaults/default/raw/normalized/chats
 ```
 
 启用 OpenClaw 需要本地存在 OpenClaw 会话目录。该 connector 只读取主会话 `.jsonl`，默认排除 `.trajectory.jsonl` 运行轨迹文件。
@@ -173,7 +173,7 @@ connectors:
       sessions_dir: ~/.openclaw/agents/main/sessions
       pattern: "*.jsonl"
       recursive: false
-      raw_output_dir: ./vaults/default/raw/chats
+      raw_output_dir: ./vaults/default/raw/normalized/chats
 ```
 
 启用 Claude Code 需要本地存在 Claude Code 项目会话目录：
@@ -186,7 +186,7 @@ connectors:
       sessions_dir: ~/.claude/projects
       pattern: "*.jsonl"
       recursive: true
-      raw_output_dir: ./vaults/default/raw/chats
+      raw_output_dir: ./vaults/default/raw/normalized/chats
 ```
 
 当没有专用 connector 时，可以使用 `generic_chat` 读取常见 `role`/`content` 结构的本地 JSONL 或 SQLite 聊天导出：
@@ -203,10 +203,10 @@ connectors:
         - "*.sqlite"
         - "*.db"
       recursive: true
-      raw_output_dir: ./vaults/default/raw/chats
+      raw_output_dir: ./vaults/default/raw/normalized/chats
 ```
 
-Markdown 是默认稳定入口。可以把笔记放入 `./vaults/default/raw/notes`，也可以添加自己的 Markdown 目录：
+Markdown 是默认稳定入口。可以把笔记放入 `./vaults/default/raw/inbox/notes`，也可以添加自己的 Markdown 目录：
 
 ```yaml
 connectors:
@@ -214,7 +214,7 @@ connectors:
     enabled: true
     settings:
       roots:
-        - ./vaults/default/raw/notes
+        - ./vaults/default/raw/inbox/notes
         - /path/to/your/markdown-notes
       recursive: true
 ```
@@ -235,8 +235,8 @@ document_processing:
   mineru:
     enabled: true
     endpoint: http://127.0.0.1:18000/file_parse
-    input_dir: ./vaults/default/raw/documents/originals
-    output_dir: ./vaults/default/raw/documents/markdown
+    input_dir: ./vaults/default/raw/inbox/documents
+    output_dir: ./vaults/default/raw/normalized/markdown
     mode: auto
     timeout_seconds: 600
     patterns:
@@ -268,6 +268,8 @@ MinerU 只负责把 PDF/DOCX/PPTX 等富文档转换为 Markdown；最终仍由 
 例如 `![figure](images/a.png)`。进入 ingest 后，这些附件会写入 source
 digest 审计页的 `## Attachments` 章节，并以紧凑表格展示 topic、description
 和 path。MIME type、内容 hash、页码、bbox、MinerU 原始图片解析结果等完整审计字段保留在 sidecar metadata 中。图片二进制不会发送给语义模型。
+当维护后的 Wiki 页面需要引用附件时，页面正文只保留 topic/description
+附件行；文件路径保留在来源审计页和 sidecar metadata 中。
 
 管理界面默认只展示 MinerU 服务地址。只有当你的 MinerU 部署需要切换
 `pipeline`、`vlm-engine`、`hybrid-engine`、`vlm-http-client`、`hybrid-http-client` 等后端、调整
@@ -289,7 +291,7 @@ ingest:
     min_segment_chars: 1000
   recovery:
     enabled: true
-    execution_ledger_path: maintenance/ingest_execution_ledger.jsonl
+    execution_ledger_path: .knoarbor/ledgers/ingest_execution.jsonl
   concurrency:
     max_concurrent_sources: 1
 ```

@@ -22,26 +22,18 @@ This keeps the rest of the system independent from source-specific details.
 
 ## Wiki Page Identity
 
-The maintained wiki is stored under `pages/`. Source digest pages stay in
-`sources/`; ordinary knowledge pages use the flat `pages/<slug>.md`
-namespace.
+The maintained wiki uses one canonical layout per vault:
 
-Page type is described by metadata rather than by mandatory physical
-directories:
+- `wiki/pages/<slug>.md`: maintained knowledge pages.
+- `wiki/sources/<slug>.md`: source digest and audit pages.
+- `raw/**`: original or normalized source material.
+- `maintenance/reports/**`: human-readable run reports.
+- `.knoarbor/index/**`: machine indexes for page lookup and graph traversal.
 
-- `page_kind`: concept, entity, workflow, comparison, timeline, query, note, or
-  source digest.
-- `role`: knowledge page, source digest, generated view, or report.
-- `facets`: searchable and browsable labels such as `agent_architecture`,
-  `workflow_pattern`, `claims`, or `relations`.
-- `canonical_path`: the current stable path.
-- `legacy_paths`: old paths that still resolve after migration.
-
-The console provides human browsing by concepts, entities, workflows,
-comparisons, open questions, and source audit from machine indexes. Page
-`Claims` and `Relations` sections carry evidence-backed statements and typed
-edges; `.knoarbor/index/` stores the machine-readable index, atoms, run state,
-and ledgers.
+Knowledge pages do not use physical type directories. Their durable structure
+lives in page sections: `Summary`, `Claims`, `Relations`, `Synthesis`,
+`Entities`, and `Evidence`. UI browsing views are derived from
+`.knoarbor/index/graph_index.json` rather than written as wiki files.
 
 ## Ingest
 

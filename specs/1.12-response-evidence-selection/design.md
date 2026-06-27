@@ -1,4 +1,4 @@
-# 1.12 Answer Set Selection Design
+# 1.12 Response Evidence Selection Design
 
 ## Layer Position
 
@@ -33,12 +33,12 @@ The selector returns:
 The first implementation uses structural signals:
 
 - query scope: narrow, broad, exploratory;
-- page type and directory;
+- page role and directory;
 - source query intent;
 - score distance from the strongest answer page;
 - direct match versus graph expansion;
-- matched fields such as title, summary, key points, tags, and body;
-- facet novelty from page type, directory, tags, headings, and graph reasons;
+- matched fields such as title, summary, claims, relations, entities, and body;
+- evidence diversity from page role, directory, entities, headings, and graph reasons;
 - source digest role.
 
 ## Primary Selection
@@ -49,15 +49,15 @@ Rules:
   maintained knowledge page matched.
 - Narrow questions select one primary page by default.
 - Broad and exploratory questions may select multiple primary pages only when
-  they are strong, direct, and facet-distinct.
+  they are strong, direct, and evidence-dimension-distinct.
 - A high-scoring page that is mostly redundant becomes supporting or further
   reading rather than another primary page.
 
 ## Supporting Selection
 
-Supporting pages are selected when they add complementary facets. The selector
+Supporting pages are selected when they add complementary evidence dimensions. The selector
 prefers direct matches, graph-linked pages, pages with shared source, and pages
-with non-overlapping tags/headings/type. Redundant pages are rejected or moved
+with non-overlapping entities, headings, and relations. Redundant pages are rejected or moved
 to further reading.
 
 ## Rejection Reasons
@@ -65,7 +65,7 @@ to further reading.
 Common reasons:
 
 - `source_not_requested`
-- `redundant_facet`
+- `redundant_dimension`
 - `weak_score`
 - `not_answer_bearing`
 - `outside_answer_budget`

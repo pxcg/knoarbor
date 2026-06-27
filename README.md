@@ -26,7 +26,7 @@ Raw sources -> Ingest -> Markdown wiki -> Lint -> Query context
 | Area | What KnoArbor provides |
 | --- | --- |
 | Input | Markdown notes, AI chat sessions, generic chat logs, and optional MinerU-preprocessed rich documents |
-| Output | A local Markdown wiki with source digests, entities, concepts, queries, reports, ledgers, and graph links |
+| Output | A local Markdown wiki with maintained pages, source digest audit pages, raw assets, reports, ledgers, and graph indexes |
 | Interfaces | CLI, FastAPI, local management console, and host-AI skill template |
 | Runtime model | Local-first, single-user, file-based vaults with queue, locks, checkpoints, and reports |
 
@@ -85,7 +85,7 @@ Follow long-running ingest, lint, and query workflows with queue state, heartbea
 
 ### Knowledge Base Browser
 
-Browse generated wiki pages, inspect metadata, links, backlinks, and open the exact pages written or modified by a workflow run.
+Browse generated wiki pages, inspect structured metadata, entity relations, source evidence, and open the exact pages written or modified by a workflow run.
 
 <p align="center">
   <img src="docs/assets/knoarbor-console-wiki.png" alt="KnoArbor knowledge base browser" width="920">
@@ -136,7 +136,7 @@ uv run knoar first-run --vault ./vaults/default
 ```
 
 This creates `config.yaml`, initializes `./vaults/default`, and copies a small bundled
-Markdown example to `vaults/default/raw/notes/agent-loop.md`.
+Markdown example to `vaults/default/raw/inbox/notes/agent-loop.md`.
 
 Create `.env` and set at least one provider key:
 
@@ -201,16 +201,20 @@ KnoArbor organizes knowledge into three layers:
 ```text
 vaults/
 └── default/
-    ├── pages/        # Obsidian-facing wiki; open this directory in Obsidian
-    │   └── *.md      # maintained knowledge pages
-    ├── sources/      # source digest and provenance audit pages
-    ├── raw/          # immutable source files
+    ├── wiki/
+    │   ├── pages/    # maintained knowledge pages
+    │   └── sources/  # source digest and provenance audit pages
+    ├── raw/
+    │   ├── inbox/       # user-provided source files
+    │   ├── normalized/  # connector/document-processor outputs
+    │   ├── assets/      # extracted images, media, pages, and tables
+    │   └── sidecars/    # attachment and processor metadata
     ├── maintenance/  # human-readable run reports
     └── .knoarbor/    # machine state, indexes, ledgers, locks, runs
 ```
 
-The runtime `vaults/` workspace is ignored by git because it can contain private notes, source documents, generated pages, and run records. Use `vaults/default/pages` as the clean Obsidian vault when you only want maintained Wiki pages.
-Knowledge-page type is metadata, not a required physical directory: pages carry `page_kind`, `role`, `facets`, claims, and typed relations. Source digest pages stay under `sources/`; browsing views are derived from machine indexes and rendered by the UI instead of being written as wiki facts.
+The runtime `vaults/` workspace is ignored by git because it can contain private notes, source documents, generated pages, and run records. Use `vaults/default/wiki/pages` as the clean Obsidian-facing folder when you only want maintained Wiki pages.
+Knowledge pages live in one flat `wiki/pages/` namespace. Their meaning is expressed by page-body sections: `Summary`, numbered `Claims`, `Entities`, typed `Relations`, `Evidence`, `Synthesis`, and optional `Attachments`. Source digest audit pages live in `wiki/sources/`; browsing views are derived from machine indexes and rendered by the UI instead of being written as extra wiki directories.
 
 ## Usage
 

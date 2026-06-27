@@ -108,7 +108,7 @@ npm install
 npm run build
 ```
 
-The generated static files are copied into `src/knoarbor/ui/dist/` so `uv run knoar serve` can serve the console at `/`, with `/ui` kept as a compatibility alias.
+The generated static files are copied into `src/knoarbor/ui/dist/` so `uv run knoar serve` can serve the console at `/`.
 
 Do not commit `web/node_modules/`, `web/dist/`, or local TypeScript build cache files.
 

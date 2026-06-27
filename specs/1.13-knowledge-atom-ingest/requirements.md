@@ -30,8 +30,8 @@ This weakens long-term wiki maintenance:
 - Keep the design compatible with the machine index, lint governance, query,
   chat, and report layers.
 - Align page planning with the unified page namespace decision: physical
-  directories are migration details, while page type is represented by
-  metadata, virtual facets, and atom indexes.
+  directories are not the page boundary; claims, entities, relations, evidence,
+  and source digests define the durable knowledge structure.
 
 ## Non-Goals
 
@@ -48,8 +48,7 @@ This weakens long-term wiki maintenance:
   rendering should expose auditable claims and typed relations while preserving
   readable synthesis.
 - Do not expose atom-level controls in the default user workflow.
-- Do not make `concepts/`, `entities/`, `workflows/`, `comparisons/`,
-  `queries/`, or `timelines/` the long-term canonical page type boundary.
+- Do not make physical page-type directories the canonical page boundary.
 
 ## User Scenarios
 
@@ -116,8 +115,8 @@ inventing a broad article from thin evidence.
   navigation surface.
 - Short-text ingest can produce claim updates, candidate pages, micro pages, or
   quote/source views without forcing full-length page generation.
-- Page plans can emit canonical page identity metadata, including
-  `canonical_path`, `legacy_paths`, `page_kind`, `subject_kind`, and `facets`.
+- Page plans can emit canonical page targets for `wiki/pages/` and
+  `wiki/sources/`.
 - New page/index design treats `sources/` as the source digest/provenance
-  boundary and treats concept/entity/workflow/comparison semantics as virtual
-  facets rather than required physical directories.
+  boundary and treats concept/entity/workflow/comparison semantics as page
+  content and graph-index semantics rather than required physical directories.

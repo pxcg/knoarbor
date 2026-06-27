@@ -92,7 +92,7 @@ Focus areas:
 
 - Use `.knoarbor/index/manifest.json` and `.knoarbor/index/graph_index.json` as the default machine index boundary.
 - Keep page-level BM25 ranking as the default lexical retrieval signal.
-- Keep compatibility retrieval payloads for UI/query while gradually moving traversal logic to the graph index.
+- Route UI and query traversal through the machine index provider instead of ad hoc retrieval payloads.
 - Keep vector search optional, not required for the default install.
 - Track index freshness, rebuild status, and failure states.
 - Let ingest and lint use the same index provider contracts.

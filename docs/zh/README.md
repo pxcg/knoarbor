@@ -15,6 +15,7 @@
 - [命令行](CLI.md)：知识编译、校验维护、查询和服务启动命令。
 - [接口说明](API.md)：本地 HTTP API 的用途和边界。
 - [API 兼容性](API_COMPATIBILITY.md)：稳定 endpoint、schema version 和废弃策略。
+- [契约总览](CONTRACTS.md)：目录、Wiki 页面、Source Digest、索引、Ingest、Query、Chat、API 和 UI 契约。
 - [路线图](ROADMAP.md)：从 1.0 公开版本到 2.0 长期兼容基线的发展路径。
 - [能力地图](CAPABILITY_MAP.md)：跨功能的能力状态和职责归属。
 - [错误码](ERROR_CODES.md)：CLI/API 的稳定错误码和排查建议。
@@ -56,7 +57,7 @@
 贡献者：
 
 ```text
-核心概念 -> 架构设计 -> 溯源设计 -> API 兼容性 -> 路线图 -> 功能规格 -> 开发说明 -> 维护者指南 -> 测试与质量门禁
+核心概念 -> 架构设计 -> 契约总览 -> 溯源设计 -> API 兼容性 -> 路线图 -> 功能规格 -> 开发说明 -> 维护者指南 -> 测试与质量门禁
 ```
 
 发布准备：

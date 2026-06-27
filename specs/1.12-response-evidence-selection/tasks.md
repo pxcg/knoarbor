@@ -1,4 +1,4 @@
-# 1.12 Answer Set Selection Tasks
+# 1.12 Response Evidence Selection Tasks
 
 ## P0 Selector Contract
 
@@ -8,6 +8,8 @@
 - [x] Expose selection decisions in query trace.
 - [x] Add tests for source demotion, broad multi-page selection, and redundant
   candidate rejection.
+- [x] Freeze runtime query response, chat evidence pack, and public citation
+  presentation contracts.
 
 ## P1 Quality Tuning
 

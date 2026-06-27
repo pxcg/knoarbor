@@ -68,14 +68,14 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 
 常见运行目录：
 
-- `vaults/default/raw/chats/`：Hermes、Codex、OpenClaw、Claude Code 等 AI 工具会话。
-- `vaults/default/raw/notes/`：导入的 Markdown 笔记。
-- `vaults/default/raw/articles/`：网页或文章导出。
-- `vaults/default/raw/documents/originals/`：PDF、DOCX、PPTX、XLSX、手册、课程资料等富文档原件。
-- `vaults/default/raw/documents/markdown/`：由 MinerU-compatible 等确定性预处理器生成的 Markdown。
-- `vaults/default/raw/transcripts/`：会议、音频或视频转录。
-- `vaults/default/raw/datasets/`：结构化数据集。
-- `vaults/default/raw/media/`：原始图片和媒体。
+- `vaults/default/raw/inbox/notes/`：用户提供的 Markdown 笔记。
+- `vaults/default/raw/inbox/documents/`：PDF、DOCX、PPTX、XLSX、手册、课程资料等富文档原件。
+- `vaults/default/raw/inbox/media/`：原始图片和媒体文件。
+- `vaults/default/raw/normalized/chats/`：Hermes、Codex、OpenClaw、Claude Code 等 AI 工具会话的标准化结果。
+- `vaults/default/raw/normalized/markdown/`：由 MinerU-compatible 等确定性预处理器生成的 Markdown。
+- `vaults/default/raw/normalized/excerpts/`：用户手动选中的短摘录。
+- `vaults/default/raw/assets/`：解析出的图片、表格、页面切片和媒体附件。
+- `vaults/default/raw/sidecars/`：不作为 Wiki 页面渲染的来源辅助元数据。
 
 规则：
 
@@ -86,30 +86,16 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 
 ### 知识层
 
-知识层保存维护后的 Wiki 页面，物理位置是 `vaults/default/pages/`。
-当你希望在 Obsidian 中打开干净的知识库时，应打开 `vaults/default/pages`，而不是整个 `vaults/default` 运行时工作区：
+知识层保存维护后的 Wiki 页面，物理位置是 `vaults/default/wiki/`。
+当你希望在 Obsidian 中打开干净的知识库时，应打开 `vaults/default/wiki`，而不是整个 `vaults/default` 运行时工作区：
 
 - `pages/<slug>.md`：维护后的知识页面。
 - `sources/*.md`：来源摘要和溯源审计页面。
 - UI 浏览视图由 `.knoarbor/index/manifest.json` 和 `.knoarbor/index/graph_index.json` 派生，不再作为 wiki fact 写入物理目录。
 
-知识页面的类型由页面身份元数据和索引 facets 表达：
+知识页面的结构写在页面内部：identity、summary、claims、entities、relations、evidence 和 synthesis。物理目录不再承担知识类型分类。
 
-- `page_kind`：concept、entity、workflow、comparison、timeline、query、note 或 source digest。
-- `role`：knowledge page、source digest、generated view 或 report。
-- `facets`：用于检索和浏览的多标签，例如 `agent_architecture`、`workflow_pattern`、`claims`、`relations`。
-- `canonical_path` 与 `legacy_paths`：迁移期间保持稳定解析的路径身份。
-
-`pages/concepts/`、`pages/entities/` 等旧 typed 目录在迁移期仍可读取，但新知识页写入统一的 flat namespace。来源摘要页仍保留在 `sources/`。
-
-迁移状态：
-
-- 读取路径：flat 页面和旧 typed 页面都可读取。
-- 写入路径：新知识页写入 `pages/<slug>.md`。
-- 迁移路径：`knoar vaults migrate-namespace` 默认 dry-run，只有显式 `--apply` 才移动旧 typed 页面。
-- 安全路径：迁移会先报告冲突，执行后写入带 rollback notes 的维护报告。
-
-人类可读报告保存在 `vaults/default/maintenance/`。运行状态、ledger、checkpoint、lock 和机器索引保存在 `vaults/default/.knoarbor/`。
+人类可读报告保存在 `vaults/default/maintenance/reports/`。运行状态、ledger、checkpoint、lock 和机器索引保存在 `vaults/default/.knoarbor/`。
 可审计声明和类型化关系是页面内部结构，并进入机器索引，不再作为独立页面目录。
 
 规则：
@@ -229,7 +215,7 @@ connector discovery
 - `IngestWritePolicy` 在写入前执行 source/window 级不变量：同一 raw source 在同一批 ingest 中最多创建一个 source digest。
 - source digest 页面是 provenance 审计视图，由 source units、已选择 atoms、写入结果、warning 和 raw 指针生成。它不是普通知识页，也不由页面 draft agent 撰写。
 - 普通知识页采用 claims-first 结构：已选择 claims 决定 entities、relations、evidence 和可读 synthesis。
-- ingest 默认不做宽泛词面 Related Pages 扫描，只保留 source digest 与同源生成页面之间的确定性 provenance 链接。
+- ingest 不向页面正文持久化宽泛词面导航链接。Provenance 由 source digest Contribution Map、页面 evidence/source trace 和机器索引承载；弱主题链接只在 retrieval/query 结果中出现。
 - `ingest --input` 是一次性本地输入边界：Markdown 文件和文件夹直接进入共享 ingest；非 Markdown 必须先经过已配置的 MinerU-compatible 预处理器，缺少预处理器时显式失败。
 
 实现边界：
@@ -307,7 +293,7 @@ query
 
 检索信号：
 
-- title、path、tags、summary、key points、headings 和正文的字段加权 BM25 页面排序。
+- title、path、entities、summary、claims、relations、headings 和正文的字段加权 BM25 页面排序。
 - 尽量保留技术标识符和中文短语片段作为查询信号。
 - 通过出站 wikilink、反向链接、来源关系和图谱邻近度进行相关页扩展。
 - 对同源页面和同类型页面给予可解释的图谱相关性加权。
@@ -374,7 +360,7 @@ KnoArbor 是本地优先的 Wiki 引擎，但仍需要明确运行时基础设�
 ```text
 storage / retrieval metadata
   -> WikiPagesService
-  -> /vaults/default/pages, /vaults/default/pages/content, /vaults/default/pages/links
+  -> /wiki/pages, /wiki/pages/content, /wiki/pages/relations
   -> UI, skills, CLI wrappers, external clients
 ```
 

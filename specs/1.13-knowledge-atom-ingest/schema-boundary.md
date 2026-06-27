@@ -59,28 +59,28 @@ selection.
 
 Schema should not live in `wiki/pages/`, because it is not user knowledge. It
 should not be mixed into `wiki/sources/`, because it is not source provenance.
-It should not be mixed into `wiki/raw/`, because it is not raw input material.
+It should not be mixed into `raw/`, because it is not raw input material.
 
-Recommended vault layout:
+Runtime vault layout:
 
 ```text
 vault/
+  raw/
+    inbox/
+    normalized/
+    assets/
+    sidecars/
   wiki/
-    raw/
-    sources/
     pages/
+    sources/
+  maintenance/
   .knoarbor/
-    schema/
     index/
-    reports/
 ```
 
-`wiki/` remains the user-facing knowledge surface. `.knoarbor/schema/` contains
-rules used by the system and maintainers.
-
-Project-level built-in schema can also live in the application source tree, but
-vault-level schema overrides or snapshots should live under `.knoarbor/schema/`
-when needed.
+`wiki/` remains the user-facing knowledge surface. Built-in schema lives in the
+application source tree and contract docs. Vault-level schema snapshots can be
+introduced later as an explicit extension to Vault Layout v2.
 
 ## Schema Families
 
@@ -97,6 +97,7 @@ Current frozen page elements:
 - `Relations`
 - `Evidence`
 - `Synthesis`
+- `Attachments`
 
 Minimal identity fields:
 
@@ -126,6 +127,11 @@ Knowledge page rules:
 - Evidence must include `source`, `range`, `basis`, and `confidence`.
 - Synthesis must be derived from claims, relations, and evidence. It must not
   introduce unsupported claims.
+- Attachments are optional semantic references for retained rich-document
+  assets. Knowledge pages keep only readable `topic` and `description` values
+  in the Markdown body. Asset paths, hashes, OCR/VLM raw output, coordinates,
+  and parser-specific metadata stay in attachment sidecars or source digest
+  audit material.
 
 Example section order:
 
@@ -141,6 +147,8 @@ Example section order:
 ## Evidence
 
 ## Synthesis
+
+## Attachments
 ```
 
 ### Source Digest Schema
@@ -174,12 +182,11 @@ Source digest rules:
 - It should support audit and source-level query.
 - It should not be selected as the primary answer object for ordinary subject
   questions.
-- `Attachments` should be compact in readable Markdown. It stores only
-  `topic`, `description`, and `path`. Full attachment audit data belongs to the
-  attachment sidecar and machine metadata.
+- `Attachments` should be compact in readable Markdown. It stores attachment
+  id, type, topic, description, source range, and status. Full attachment audit
+  data belongs to the attachment sidecar and machine metadata.
 - MinerU image extraction output, OCR text, Mermaid, page coordinates, MIME
-  type, hashes, and base64 data must not be inlined into the default source
-  digest Markdown body.
+  type, hashes, and base64 data live in raw sidecars and machine metadata.
 
 Attachment sidecar minimum fields:
 
@@ -214,7 +221,7 @@ Minimum evidence fields:
 Field meanings:
 
 - `source`: source digest or source reference used as evidence;
-- `range`: source section, page, paragraph, turn range, segment, or other
+- `range`: source unit, page, paragraph, turn range, segment, or other
   location hint;
 - `basis`: short explanation of why the source range supports the claim;
 - `confidence`: support strength, preferably `high`, `medium`, or `low`.

@@ -76,7 +76,7 @@ More precisely:
 Example:
 
 ```text
-raw/notes/Agent.md
+raw/inbox/notes/Agent.md
   -> sources/Agent-Source-Digest.md
     -> Agent Loop.md
     -> Tool Calling.md
@@ -87,7 +87,7 @@ raw/notes/Agent.md
 For a long PDF or long chat record:
 
 ```text
-raw/documents/AgentBook.pdf
+raw/inbox/documents/AgentBook.pdf
   -> segment: Agent Loop
       -> sources/AgentBook-Agent-Loop-Digest.md
   -> segment: Memory
@@ -213,7 +213,7 @@ Default behavior:
 
 ## Source Identity
 
-- Source: raw/notes/Agent.md
+- Source: raw/inbox/notes/Agent.md
 - Connector: markdown
 - Content hash: ...
 - Ingest run: ...
@@ -227,8 +227,8 @@ contributions, 0 rejected contributions, and one raw source pointer.
 
 | Unit | Source | Range | Basis | Confidence |
 |---|---|---|---|---|
-| U1 | raw/notes/Agent.md | section:Agent Loop | source introduces the loop cycle | high |
-| U2 | raw/notes/Agent.md | section:Production | source describes production modules | medium |
+| U1 | raw/inbox/notes/Agent.md | section:Agent Loop | source introduces the loop cycle | high |
+| U2 | raw/inbox/notes/Agent.md | section:Production | source describes production modules | medium |
 
 ## Contribution Map
 
@@ -244,13 +244,13 @@ contributions, 0 rejected contributions, and one raw source pointer.
 
 ## Attachments
 
-| Topic | Description | Path |
-|---|---|---|
-| Agent Loop flowchart | Diagram showing a user task entering an agent loop, tool calls, and memory feedback. | images/agent-loop-flowchart.jpg |
+| Attachment | Type | Topic | Description | Source Range | Status |
+|---|---|---|---|---|---|
+| A1 | image | Agent Loop flowchart | Diagram showing a user task entering an agent loop, tool calls, and memory feedback. | page_idx:0 | candidate |
 
 ## Raw Source
 
-- raw/notes/Agent.md
+- raw/inbox/notes/Agent.md
 ```
 
 ## Attachment Boundary
@@ -261,12 +261,16 @@ log.
 
 Readable source digest pages keep only:
 
+- `attachment`: stable local attachment id such as `A1`;
+- `type`: image, table, file, or other;
 - `topic`: what the attachment is about;
 - `description`: a short human-readable summary;
-- `path`: the relative path to the retained file.
+- `source_range`: page, region, table block, OCR block, or source-unit pointer;
+- `status`: candidate, used, or skipped.
 
 Attachment sidecars keep the audit details:
 
+- retained asset path;
 - page index;
 - bounding box or source region;
 - MIME type;
@@ -275,13 +279,10 @@ Attachment sidecars keep the audit details:
 - extracted image structure, table structure, or model output.
 
 For images parsed by MinerU VLM or hybrid backends, the raw image file is kept
-under the generated Markdown output, while the VLM/OCR extraction is stored in
-`*.attachments.json`. The source digest page should not inline raw Mermaid,
-large OCR text, base64 data, or full content-list JSON. The semantic ingest
-pipeline may read the attachment metadata to understand the source, but image
-content does not create claims by default. Image-backed claims are allowed only
-when the image is the primary evidence and the evidence row explicitly points to
-the image path, page, and region.
+under `raw/assets/**`, while the VLM/OCR extraction is stored in
+`raw/sidecars/**`. The semantic ingest pipeline may read the attachment
+metadata to understand the source. Image-backed claims are represented through
+normal evidence rows that point to the source digest, source range, and basis.
 
 ## Ingest Design Implications
 

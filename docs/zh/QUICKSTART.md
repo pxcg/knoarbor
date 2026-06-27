@@ -35,7 +35,7 @@ uv run knoar first-run --vault ./vaults/default
 ```
 
 这会创建 `config.yaml`，初始化 `./vaults/default`，并把 `agent-loop.md` 示例复制到
-`vaults/default/raw/notes/`。
+`vaults/default/raw/inbox/notes/`。
 
 创建 `.env` 并填写至少一个模型密钥：
 
@@ -76,10 +76,10 @@ uv run knoar lint --mode structural
 生成后的 Wiki 页面位于：
 
 ```text
-vaults/default/pages/
+vaults/default/wiki/pages/
 ```
 
-如果只希望在 Obsidian 中打开维护后的 Markdown Wiki，请打开这个 `pages/` 目录，
+如果只希望在 Obsidian 中打开维护后的 Markdown Wiki，请打开这个 `wiki/pages/` 目录，
 而不是整个运行时知识库目录。这样可以避开 raw、报告和机器状态文件。
 
 ## 4. 打开本地控制台

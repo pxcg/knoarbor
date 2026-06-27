@@ -1,12 +1,16 @@
-# 1.12 Answer Set Selection Verification
+# 1.12 Response Evidence Selection Verification
 
 ## Automated
 
 - Source digest pages are source role by default for ordinary questions.
 - Source digest pages can be primary for provenance questions.
-- Broad queries select multiple answer-bearing pages when facets differ.
+- Broad queries select multiple answer-bearing pages when evidence dimensions differ.
 - Redundant pages are reported as rejected candidates.
 - Query trace includes selection metadata.
+- Runtime contract constants cover `wiki_query.v1`,
+  `chat_evidence_pack.v1`, answer page roles, and ingest observation steps.
+- Public citations are resolved from answer references and validated evidence,
+  with hidden evidence counted separately.
 
 ## Manual
 

@@ -245,7 +245,7 @@ ingest:
     min_segment_chars: 1000
   recovery:
     enabled: true
-    execution_ledger_path: maintenance/ingest_execution_ledger.jsonl
+    execution_ledger_path: .knoarbor/ledgers/ingest_execution.jsonl
   concurrency:
     max_concurrent_sources: 1
 ```
@@ -268,10 +268,10 @@ connectors:
     enabled: true
     settings:
       roots:
-        - ./vaults/default/raw/notes
-        - ./vaults/default/raw/documents/markdown
+        - ./vaults/default/raw/inbox/notes
+        - ./vaults/default/raw/normalized/markdown
       recursive: true
-      raw_output_dir: ./vaults/default/raw/notes
+      raw_output_dir: ./vaults/default/raw/inbox/notes
       preserve_relative_paths: true
 ```
 
@@ -294,7 +294,7 @@ connectors:
       sessions_dir: ~/.codex/sessions
       pattern: "rollout-*.jsonl"
       recursive: true
-      raw_output_dir: ./vaults/default/raw/chats
+      raw_output_dir: ./vaults/default/raw/normalized/chats
 ```
 
 Enable Hermes only when the local Hermes session directory exists:
@@ -305,7 +305,7 @@ connectors:
     enabled: true
     settings:
       sessions_dir: ~/.hermes/sessions
-      raw_output_dir: ./vaults/default/raw/chats
+      raw_output_dir: ./vaults/default/raw/normalized/chats
 ```
 
 Enable OpenClaw only when the local OpenClaw session directory exists. The
@@ -320,7 +320,7 @@ connectors:
       sessions_dir: ~/.openclaw/agents/main/sessions
       pattern: "*.jsonl"
       recursive: false
-      raw_output_dir: ./vaults/default/raw/chats
+      raw_output_dir: ./vaults/default/raw/normalized/chats
 ```
 
 Enable Claude Code only when the local Claude Code project transcript directory exists:
@@ -333,7 +333,7 @@ connectors:
       sessions_dir: ~/.claude/projects
       pattern: "*.jsonl"
       recursive: true
-      raw_output_dir: ./vaults/default/raw/chats
+      raw_output_dir: ./vaults/default/raw/normalized/chats
 ```
 
 Use `generic_chat` for custom local chat exports only when no dedicated connector exists:
@@ -350,10 +350,10 @@ connectors:
         - "*.sqlite"
         - "*.db"
       recursive: true
-      raw_output_dir: ./vaults/default/raw/chats
+      raw_output_dir: ./vaults/default/raw/normalized/chats
 ```
 
-Markdown is the default stable input path. Put notes under a configured root, such as `./vaults/default/raw/notes`, or add another root:
+Markdown is the default stable input path. Put notes under a configured root, such as `./vaults/default/raw/inbox/notes`, or add another root:
 
 ```yaml
 connectors:
@@ -361,7 +361,7 @@ connectors:
     enabled: true
     settings:
       roots:
-        - ./vaults/default/raw/notes
+        - ./vaults/default/raw/inbox/notes
         - /path/to/your/markdown-notes
       recursive: true
 ```
@@ -369,7 +369,7 @@ connectors:
 Optional document processors live under `document_processing`, not under
 `connectors`. For example, `document_processing.mineru` can call a user-managed
 MinerU-compatible HTTP service and write Markdown into
-`vaults/default/raw/documents/markdown/`; the normal `markdown` connector then ingests that
+`vaults/default/raw/normalized/markdown/`; the normal `markdown` connector then ingests that
 directory.
 
 Enable MinerU preprocessing only if you already run a compatible service. For a
@@ -388,8 +388,8 @@ document_processing:
   mineru:
     enabled: true
     endpoint: http://127.0.0.1:18000/file_parse
-    input_dir: ./vaults/default/raw/documents/originals
-    output_dir: ./vaults/default/raw/documents/markdown
+    input_dir: ./vaults/default/raw/inbox/documents
+    output_dir: ./vaults/default/raw/normalized/markdown
     mode: auto
     timeout_seconds: 600
     patterns:
@@ -425,6 +425,9 @@ under `## Attachments` as a compact readable table with topic, description, and
 path. Full audit fields such as MIME type, content hash, page index, bounding
 box, and raw MinerU image extraction remain in the sidecar metadata. Image bytes
 are not sent to the semantic model.
+When a maintained wiki page uses an attachment, the page body keeps only
+topic/description attachment rows; retained file paths stay in the source audit
+and sidecar metadata.
 
 The management UI keeps only the endpoint visible by default. Use the folded
 advanced section when your MinerU deployment needs a different backend such as

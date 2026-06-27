@@ -13,11 +13,13 @@ Chinese documentation lives in [zh/](zh/). This documentation tree is intended f
 - [CLI Reference](CLI.md): command-line usage for ingest, lint, query, service, and debugging.
 - [API Reference](API.md): FastAPI endpoints and boundary rules.
 - [API Compatibility](API_COMPATIBILITY.md): stable endpoint policy, schema versioning, and deprecation rules.
+- [Contracts](CONTRACTS.md): frozen vault, wiki, source digest, index, ingest, query, chat, API, and UI contracts.
+- [UI Contract](UI_CONTRACT.md): chat-first console surfaces, UI-only adapters, and rendering boundaries.
 - [Roadmap](ROADMAP.md): planned path from the 1.0 public release to the 2.0 compatibility baseline.
 - [Capability Map](CAPABILITY_MAP.md): cross-feature capability status and ownership map.
 - [Error Codes](ERROR_CODES.md): stable CLI/API error codes and troubleshooting hints.
 - [Troubleshooting](TROUBLESHOOTING.md): common setup, model, UI, ingest, and runtime issues.
-- [Core Concepts](CONCEPTS.md): raw sources, source documents, wiki page types, ingest, lint, query, and runtime vault.
+- [Core Concepts](CONCEPTS.md): raw sources, source documents, wiki pages, source audits, ingest, lint, query, and runtime vault.
 
 ## Architecture
 
@@ -69,7 +71,7 @@ Showcase -> Installation -> Quickstart -> Configuration -> Troubleshooting -> CL
 For contributors:
 
 ```text
-Core Concepts -> Architecture -> Provenance Design -> API Compatibility -> Roadmap -> Feature Specs -> Development -> Maintainer Guide -> Testing -> Contributing
+Core Concepts -> Architecture -> Contracts -> Provenance Design -> API Compatibility -> Roadmap -> Feature Specs -> Development -> Maintainer Guide -> Testing -> Contributing
 ```
 
 For release preparation:

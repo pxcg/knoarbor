@@ -42,18 +42,14 @@ knowledge boundary.
 
 The accepted page model is:
 
-- `Identity`: stable page subject, aliases, type, and scope.
 - `Summary`: short scanning and routing summary.
-- `Scope`: what the page covers, excludes, or treats as time/version scoped.
-- `Definition`: stable explanation of the subject.
-- `Claims`: auditable statements backed by atoms or direct evidence.
-- `Relations`: typed edges to other pages or objects.
+- `Claims`: numbered auditable statements backed by atoms or direct evidence.
+- `Relations`: claim-backed triples between entities.
 - `Synthesis`: readable derived explanation based on claims and relations.
-- `Key Points`: compact reading and retrieval hints.
-- `Limitations / Open Questions`: weak evidence, conflicts, and unresolved
-  gaps.
-- `Related Pages`: navigation rendered from accepted relationships.
-- `Sources`: source digests, raw source references, and evidence pointers.
+- `Entities`: important entities explicitly involved in claims and relations.
+- `Evidence`: claim-to-source trace with source, range, basis, and confidence.
+- `Attachments`: compact references to parsed figures or files when present.
+- `Source`: source digests, raw source references, and evidence pointers.
 
 `Synthesis` may remain because KnoArbor is a wiki, not a raw knowledge graph.
 It is a derived reading layer and must not be treated as the only source of
@@ -62,8 +58,8 @@ direct source evidence.
 
 Source digest pages are provenance and audit views. They describe what a raw
 source or source segment contributed, which evidence was extracted, and which
-pages or atoms were affected. They are not concept pages unless the user asks
-about the source itself.
+wiki pages or atoms were affected. They are source audit pages rather than
+maintained wiki knowledge pages.
 
 Markdown wikilinks and typed relations coexist. Wikilinks are the reading and
 navigation surface; typed relations are the machine-usable semantic edges with
@@ -130,8 +126,8 @@ Follow-up work should verify:
   relations;
 - generated pages expose claims, relations, and synthesis as separate sections;
 - synthesis does not introduce unsupported major factual statements;
-- source digests remain provenance views and are not used as concept pages by
-  default;
+- source digests remain provenance views and are separate from maintained wiki
+  knowledge pages;
 - short excerpt ingest creates compact knowledge artifacts or claim updates;
 - lint can report unsupported claims, orphan atoms, contradictions, and stale
   page narratives;

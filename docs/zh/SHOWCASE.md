@@ -56,15 +56,14 @@ KnoArbor 会把 Markdown 笔记、AI 对话记录和已解析文档编译成本�
 
 KnoArbor 会把页面写入一个普通的本地 Markdown 工作区：
 
-- `pages/`：面向 Obsidian 的干净 Wiki 根目录。需要在 Obsidian 中查看时，打开这个目录。
-- `sources/`：来源摘要页面，说明某个原始资料贡献了什么内容。
-- `pages/<slug>.md`：维护后的知识页面。页面身份元数据记录 `page_kind`、`role`、`facets`、`canonical_path` 和 `legacy_paths`。
+- `wiki/pages/<slug>.md`：维护后的知识页面。需要在 Obsidian 中只查看最终 Wiki 时，打开这个目录。
+- `wiki/sources/<slug>.md`：来源摘要页面，说明某个原始资料贡献了什么内容。
 - UI 浏览视图由机器索引派生，不再写成 wiki 页面。
 - `raw/`：不可变的原始资料或标准化后的资料副本。
-- `maintenance/`：人类可读的运行报告。
+- `maintenance/reports/`：人类可读的运行报告。
 - `.knoarbor/`：机器状态、索引、账本、锁和运行记录。
 
-`pages/concepts/` 等旧 typed 目录在迁移期仍可读取，但新知识页面写入统一页面命名空间。最终结果是一个可追溯的知识网络：知识页面连接来源摘要，来源摘要指向原始资料，查询阶段返回可供宿主 AI 使用的证据。
+最终结果是一个可追溯的知识网络：知识页面由来源摘要支撑，来源摘要指向原始资料，查询阶段返回可供宿主 AI 使用的证据。
 
 ## 端到端流程
 
@@ -80,7 +79,7 @@ KnoArbor 会把页面写入一个普通的本地 Markdown 工作区：
 - 本地通用 JSONL 或 SQLite 聊天记录。
 - 通过用户自配 MinerU 兼容预处理器处理的非 Markdown 文件。
 
-连接器只负责把输入标准化为 `SourceDocument`，不会决定页面类型，也不会直接写 Wiki。
+连接器只负责把输入标准化为 `SourceDocument`，不会决定 Wiki 页面边界，也不会直接写 Wiki。
 
 ### 2. 编译知识
 
@@ -106,7 +105,7 @@ Query 会返回排序后的页面、摘录、关联上下文、来源线索、�
 | 来源处理 | 检索原始切块 | 保留 raw source 和 source digest |
 | 知识形态 | 查询时片段 | 有类型、有链接的稳定页面 |
 | 维护方式 | 通常隐式 | 显式 lint、报告和验证 |
-| 人类可检查性 | 依赖应用 | 可直接用编辑器或 Obsidian 打开 `pages/` |
+| 人类可检查性 | 依赖应用 | 可直接用编辑器或 Obsidian 打开 `wiki/pages/` |
 
 后续仍然可以引入 RAG 作为检索后端。KnoArbor 的第一目标是让知识本身可检查、可维护。
 
@@ -116,8 +115,8 @@ Query 会返回排序后的页面、摘录、关联上下文、来源线索、�
 
 ```bash
 uv run knoar init --vault ./vaults/default
-mkdir -p vaults/default/raw/notes
-cp examples/agent-loop.md vaults/default/raw/notes/agent-loop.md
+mkdir -p vaults/default/raw/inbox/notes
+cp examples/agent-loop.md vaults/default/raw/inbox/notes/agent-loop.md
 uv run knoar ingest --connector markdown --write
 uv run knoar lint --mode structural
 uv run knoar query "Agent Loop 是什么？"

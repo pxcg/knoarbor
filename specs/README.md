@@ -16,10 +16,11 @@ tests, and release notes.
 | Long-term roadmap | `docs/ROADMAP.md`, `docs/zh/ROADMAP.md` |
 | Cross-feature capability state | `docs/CAPABILITY_MAP.md`, `docs/zh/CAPABILITY_MAP.md` |
 | Architecture layers and ownership | `docs/ARCHITECTURE.md`, `docs/zh/ARCHITECTURE.md` |
+| Frozen cross-layer contracts | `docs/CONTRACTS.md`, `docs/UI_CONTRACT.md` |
 | Durable architecture decisions | `docs/adr/*.md` |
 | Knowledge atom ingest boundary | `docs/adr/0001-knowledge-atom-ingest.md`, `specs/1.13-knowledge-atom-ingest/` |
 | Maintainer process and governance | `docs/MAINTAINERS.md`, `docs/zh/MAINTAINERS.md` |
-| Public API contract | `docs/API.md`, `src/knoarbor/entrypoints/api_contract.py` |
+| Public API contract | `docs/API_COMPATIBILITY.md`, `docs/API.md`, `src/knoarbor/entrypoints/api_contract.py` |
 | CLI contract | `docs/CLI.md`, `src/knoarbor/cli_commands/parser.py` |
 | Config contract | `docs/CONFIGURATION.md`, `src/knoarbor/core/config.py` |
 | Error contract | `docs/ERROR_CODES.md`, `src/knoarbor/core/errors.py` |
@@ -39,9 +40,9 @@ tests, and release notes.
 | 1.9.x | [Vault Workspaces](1.9-vault-workspaces/requirements.md) | Vault registry, vault ID selection, multi-vault UX, workspace identity. |
 | 1.10.x | [Wiki Chat Agent](1.10-wiki-chat-agent/requirements.md) | Console chat surface, page-first evidence retrieval, answer synthesis, and `/chat` contract. |
 | 1.11.x | [Chat Memory](1.11-chat-memory/requirements.md) | Vault-scoped chat preferences, memory recall, explicit memory capture, and memory audit events. |
-| 1.12.x | [Answer Set Selection](1.12-answer-set-selection/requirements.md) | Page-level primary/supporting/source selection, rejected candidates, and evidence-set quality. |
+| 1.12.x | [Response Evidence Selection](1.12-response-evidence-selection/requirements.md) | Page-level primary/supporting/source selection, rejected candidates, runtime evidence pack, and citation presentation. |
 | 1.13.x | [Knowledge Atom Ingest](1.13-knowledge-atom-ingest/requirements.md) | Source unitization, evidence-backed entities, claims, and relations between source digest and page drafting. |
-| 1.14.x | [Unified Page Namespace](1.14-unified-page-namespace/requirements.md) | Move page type semantics from physical directories to page identity metadata, atom indexes, and virtual facets. |
+| 1.14.x | Superseded by [Vault Layout v2](1.17-vault-layout-v2/requirements.md) | Canonical `raw/`, `wiki/pages`, `wiki/sources`, `maintenance/`, and `.knoarbor/` layout with no typed physical page directories. |
 | 1.15.x | [Desktop App](1.15-desktop-app/requirements.md) | Electron desktop surface, managed Python service lifecycle, packaged web console, intranet updates, and desktop app-data boundaries. |
 
 Desktop App product shape:
@@ -81,7 +82,7 @@ verification.
 
 ## File Shape
 
-Each feature spec should keep four short documents:
+Each feature spec keeps four core documents:
 
 ```text
 specs/<feature>/
@@ -97,6 +98,10 @@ specs/<feature>/
 - `tasks.md`: implementation tasks with status.
 - `verification.md`: automated tests, manual checks, release gates, and known
   risks.
+
+Focused boundary files such as `runtime-contract.md`, `schema-boundary.md`, or
+`source-digest-boundary.md` are allowed when a feature owns a durable
+cross-module contract. The core four documents remain the navigation entry.
 
 When implementation evidence changes the design, update the spec before or in
 the same commit as the code change.

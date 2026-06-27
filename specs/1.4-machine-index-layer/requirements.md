@@ -28,8 +28,8 @@ without requiring a vector database or heavyweight service.
 - Do not replace wiki Markdown pages as the source of truth.
 - Do not make query depend on a network service.
 - Do not add multi-user search permissions.
-- Do not replace current compatibility retrieval payloads until query, UI, and
-  graph traversal are migrated behind the provider boundary.
+- Do not let query, UI, or graph traversal depend on ad hoc retrieval payloads
+  outside the index provider boundary.
 
 ## User Scenarios
 
@@ -41,7 +41,7 @@ more consistent page matches than path/title-only scanning.
 Acceptance criteria:
 
 - Query can use a machine index provider.
-- Query results still include source path, title, page type, excerpts, and
+- Query results still include source path, title, page role, excerpts, and
   trace data.
 - Query results expose `role`, and responses group pages into `primary_pages`,
   `supporting_pages`, and `source_pages`.
@@ -66,7 +66,7 @@ and UI independently.
 Acceptance criteria:
 
 - Retrieval callers depend on an index provider interface.
-- The first durable provider can coexist with the current Markdown provider.
+- The durable provider can coexist with Markdown scanning as an implementation detail.
 - Tests cover provider behavior, freshness, and fallback decisions.
 
 ## Current Status
@@ -75,8 +75,7 @@ Implemented:
 
 - Markdown-based retrieval with field-weighted BM25 page scoring.
 - Durable `.knoarbor/index/manifest.json` and `.knoarbor/index/graph_index.json`.
-- Compatibility retrieval payloads: `pages.json`, `links.json`, `sources.json`,
-  and `search.json`.
+- Index-provider views for pages, links, sources, and search.
 - Query context packs and trace metadata.
 - `IndexProvider` direction documented in architecture and roadmap.
 - Query trace records the active scoring model.
@@ -86,4 +85,4 @@ Implemented:
 Still in scope for 1.4:
 
 - Add rebuild command/API/reporting.
-- Move more query graph traversal from compatibility payloads to `graph_index.json`.
+- Move query graph traversal to `graph_index.json`.

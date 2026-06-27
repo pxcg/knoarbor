@@ -24,7 +24,7 @@ If `--config` is omitted, the CLI searches for `config.yaml` and falls back to
 ## Recommended Commands
 
 These commands mirror the stable API surface: `/ingest`, `/lint`, `/query`,
-`/runs`, `/vaults/default/pages`, `/doctor`, and `/health`.
+`/runs`, `/wiki/pages`, `/doctor`, and `/health`.
 
 ### `first-run`
 
@@ -40,7 +40,7 @@ uv run knoar first-run --json
 
 This command does not call the model and does not write wiki pages. It prepares
 the local runtime and prints the next recommended commands. By default it copies
-a small bundled Markdown example to `raw/notes/agent-loop.md`, so a new user can
+a small bundled Markdown example to `raw/inbox/notes/agent-loop.md`, so a new user can
 test the first page flow with:
 
 ```bash
@@ -243,7 +243,7 @@ intact and keeps supporting/source pages as structured evidence. Use
 
 Use `--json` when another tool or skill needs structured fields. Use
 `--write-report` when you want the query run to leave an audit artifact under
-`maintenance/query_report_*.md`.
+`maintenance/reports/query/query_report_*.md`.
 
 ### `query-feedback`
 
@@ -261,46 +261,29 @@ List, read, or inspect generated wiki pages.
 
 ```bash
 uv run knoar pages list
-uv run knoar pages list --dir concepts
+uv run knoar pages list --dir pages
 uv run knoar pages list --contains "Agent Loop"
 uv run knoar pages read Agent-Loop-and-Control-Patterns.md
-uv run knoar pages links Agent-Loop-and-Control-Patterns.md
+uv run knoar pages relations Agent-Loop-and-Control-Patterns.md
 uv run knoar pages read --vault-id personal Agent-Loop-and-Control-Patterns.md
 ```
 
 Use `pages read` after query when you need the full maintained page body. Use
-`pages links` to inspect outbound links and backlinks without opening the UI.
+`pages relations` to inspect page relation metadata without opening the UI.
 
 Page paths are relative to the maintained content root. In the default layout,
-KnoArbor stores knowledge pages under `vaults/default/pages/`. New knowledge
+KnoArbor stores knowledge pages under `vaults/default/wiki/pages/`. Knowledge
 pages use flat paths such as `Agent-Loop.md`; source digest pages use
-`sources/Agent-Loop-Source.md`. Legacy typed paths such as
-`concepts/Agent-Loop.md` continue to resolve during migration when page metadata
-records them as `legacy_paths`. `pages list --dir` is a legacy compatibility
-filter; UI and retrieval increasingly prefer page kind, role, and facets.
+`sources/Agent-Loop-Source.md`. `pages list --dir pages` lists knowledge pages;
+`pages list --dir sources` lists source audit pages.
 
 ### `vaults`
 
-List configured knowledge bases or migrate older wiki layouts.
+List configured knowledge bases.
 
 ```bash
 uv run knoar vaults list
-uv run knoar vaults migrate-layout --vault ./vaults/default
-uv run knoar vaults migrate-namespace --vault ./vaults/default
-uv run knoar vaults migrate-namespace --vault ./vaults/default --dir concepts
-uv run knoar vaults migrate-namespace --vault ./vaults/default --apply
 ```
-
-`migrate-layout` moves legacy root-level knowledge directories such as
-`concepts/` and `entities/` into `pages/`. It keeps `sources/` as the source
-digest and provenance audit directory, and does not move `raw/`, `maintenance/`,
-or `.knoarbor/`.
-
-`migrate-namespace` plans migration from legacy typed knowledge directories
-inside `pages/` into the flat namespace. It is a dry-run by default and reports
-planned moves, link rewrites, skipped paths, and conflicts. `--apply` is
-required to write files. Source digest pages stay under `sources/`; browsing
-views are derived from machine indexes and rendered by the UI.
 
 ### `reports`
 
@@ -308,7 +291,7 @@ List or read workflow reports from the selected vault.
 
 ```bash
 uv run knoar reports list
-uv run knoar reports read maintenance/ingest_report_YYYYMMDD_HHMMSS.md
+uv run knoar reports read maintenance/reports/ingest/ingest_report_YYYYMMDD_HHMMSS.md
 uv run knoar reports list --vault-id personal
 ```
 

@@ -36,19 +36,12 @@ models:
   # pages. Keep these defaults larger than short chat-tool calls.
   default_max_tokens: 30000
   request_timeout_seconds: 600
-  retry:
-    enabled: true
-    max_attempts: 2
-    backoff_seconds: 2
-    retry_on_invalid_output: true
   providers:
     deepseek:
       base_url: https://api.deepseek.com
       api_key_env: DEEPSEEK_API_KEY
       model: deepseek-v4-flash
       json_mode: true
-      verify_tls: true
-      tls_ca_file:
     # Local presets. Keep only one default provider selected above; uncomment
     # and edit one of these when using a local runtime.
     # ollama:
@@ -57,11 +50,6 @@ models:
     #   api_key_env:
     #   model: qwen3.6:27b-q4_K_M
     #   json_mode: true
-    #   # Keep TLS verification on by default. For an internal HTTPS endpoint
-    #   # with a private CA, set tls_ca_file to that CA bundle. Only set
-    #   # verify_tls: false for a trusted internal endpoint you control.
-    #   verify_tls: true
-    #   tls_ca_file:
     #   context_window: 262144
     #   max_output_tokens: 8000
     #   extra_body:
@@ -70,14 +58,14 @@ models:
     #   base_url: http://127.0.0.1:11434/v1
     #   api_key_env:
     #   model: qwen3:14b
-    #   json_mode: false
+    #   json_mode: true
     #   context_window: 32768
     #   max_output_tokens: 8000
     # vllm:
     #   base_url: http://127.0.0.1:8001/v1
     #   api_key_env:
     #   model: Qwen/Qwen3-32B-Instruct
-    #   json_mode: false
+    #   json_mode: true
     #   context_window: 32768
     #   max_output_tokens: 8000
     # qwen-vl:
@@ -87,6 +75,16 @@ models:
     #   json_mode: false
     #   context_window: 262144
     #   max_output_tokens: 8000
+  retry:
+    enabled: true
+    max_attempts: 3
+    backoff_seconds: 2
+    retry_on_invalid_output: true
+    retryable_error_codes:
+      - KA-EXT-001
+      - KA-MODEL-001
+      - KA-SEM-001
+      - KA-STORAGE-001
 
 document_processing:
   mineru:
@@ -98,8 +96,8 @@ document_processing:
     #   cd /path/to/MinerU
     #   .venv/bin/mineru-api --host 127.0.0.1 --port 18000
     endpoint: http://127.0.0.1:18000/file_parse
-    input_dir: ./vaults/default/raw/documents/originals
-    output_dir: ./vaults/default/raw/documents/markdown
+    input_dir: ./vaults/default/raw/inbox/documents
+    output_dir: ./vaults/default/raw/normalized/markdown
     recursive: true
     patterns:
       - "*.pdf"
@@ -134,34 +132,46 @@ connectors:
       sessions_dir: ~/.codex/sessions
       pattern: "rollout-*.jsonl"
       recursive: true
-      raw_output_dir: ./vaults/default/raw/chats
+      raw_output_dir: ./vaults/default/raw/normalized/chats
   hermes:
     enabled: false
     settings:
       sessions_dir: ~/.hermes/sessions
-      raw_output_dir: ./vaults/default/raw/chats
+      raw_output_dir: ./vaults/default/raw/normalized/chats
   openclaw:
     enabled: false
     settings:
       sessions_dir: ~/.openclaw/agents/main/sessions
       pattern: "*.jsonl"
       recursive: false
-      raw_output_dir: ./vaults/default/raw/chats
+      raw_output_dir: ./vaults/default/raw/normalized/chats
   claude_code:
     enabled: false
     settings:
       sessions_dir: ~/.claude/projects
       pattern: "*.jsonl"
       recursive: true
-      raw_output_dir: ./vaults/default/raw/chats
+      raw_output_dir: ./vaults/default/raw/normalized/chats
+  generic_chat:
+    enabled: false
+    settings:
+      # Optional generic adapter for local JSONL or SQLite chat exports. Prefer
+      # dedicated connectors above when the tool is known.
+      roots: []
+      patterns:
+        - "*.jsonl"
+        - "*.sqlite"
+        - "*.db"
+      recursive: true
+      raw_output_dir: ./vaults/default/raw/normalized/chats
   markdown:
     enabled: true
     settings:
       roots:
-        - ./vaults/default/raw/notes
-        - ./vaults/default/raw/documents/markdown
+        - ./vaults/default/raw/inbox/notes
+        - ./vaults/default/raw/normalized/markdown
       recursive: true
-      raw_output_dir: ./vaults/default/raw/notes
+      raw_output_dir: ./vaults/default/raw/inbox/notes
       preserve_relative_paths: true
 
 query:
@@ -171,10 +181,9 @@ query:
   max_excerpts_per_page: 3
   max_chars_per_excerpt: 800
   max_context_chars: 8000
+  # Optional initial retrieval scope. Leave empty for normal page-first retrieval.
   page_dirs: []
   include_related: true
-  include_content: false
-  max_chars_per_page: 6000
 
 memory:
   enabled: true
@@ -205,6 +214,13 @@ ingest:
     soft_chars_per_segment: 12000
     max_segments_per_source: 20
     min_segment_chars: 1000
+  recovery:
+    enabled: true
+    execution_ledger_path: .knoarbor/ledgers/ingest_execution.jsonl
+  concurrency:
+    # Source-level concurrency applies to dry-run/preflight workflows. Vault
+    # writes stay serial to keep page updates and checkpoints consistent.
+    max_concurrent_sources: 1
 
 lint:
   default_scope: latest-ingest
@@ -218,6 +234,10 @@ privacy:
   redact_phone_numbers: true
   redact_api_keys: true
   redact_private_keys: true
+  redact_platform_ids: true
   redact_local_paths: true
   redact_source_paths_in_pages: true
   redact_private_ips: false
+  # Optional exact-match terms for names, hostnames, internal project aliases,
+  # or organization-specific identifiers that generic regex rules cannot infer.
+  custom_terms: []

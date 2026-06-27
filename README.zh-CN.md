@@ -26,7 +26,7 @@ KnoArbor 提供一层长期知识基础设施，为 Hermes、Codex、Obsidian、
 | 模块 | KnoArbor 提供什么 |
 | --- | --- |
 | 输入 | Markdown 笔记、AI 聊天记录、通用聊天日志，以及可选 MinerU 预处理后的富文档 |
-| 输出 | 本地 Markdown Wiki，包括来源摘要、实体、概念、查询页、报告、账本和图谱链接 |
+| 输出 | 本地 Markdown Wiki，包括维护后的知识页、来源审计页、raw 附件、运行报告、账本和图索引 |
 | 使用方式 | CLI、FastAPI、本地管理控制台，以及宿主 AI skill 模板 |
 | 运行模型 | 本地优先、单用户、文件型多知识库，带队列、文件锁、断点和报告 |
 
@@ -85,7 +85,7 @@ KnoArbor 提供一层长期知识基础设施，为 Hermes、Codex、Obsidian、
 
 ### 知识库浏览
 
-浏览生成后的 Wiki 页面，查看元数据、出站链接、反向链接，并从运行结果直接打开本次写入或维护的页面。
+浏览生成后的 Wiki 页面，查看结构化元数据、实体关系、来源证据，并从运行结果直接打开本次写入或维护的页面。
 
 <p align="center">
   <img src="docs/assets/knoarbor-console-wiki.png" alt="知识库浏览页面" width="920">
@@ -136,7 +136,7 @@ uv run knoar first-run --vault ./vaults/default
 ```
 
 这会创建 `config.yaml`，初始化 `./vaults/default`，并把内置 Markdown 示例复制到
-`vaults/default/raw/notes/agent-loop.md`。
+`vaults/default/raw/inbox/notes/agent-loop.md`。
 
 创建 `.env` 并至少填写一个模型密钥：
 
@@ -201,16 +201,20 @@ KnoArbor 把知识库组织为三层：
 ```text
 vaults/
 └── default/
-    ├── pages/        # 面向 Obsidian 的 Wiki 页面；建议只打开这个目录
-    │   └── *.md      # 维护后的知识页面
-    ├── sources/      # 来源摘要和溯源审计页面
-    ├── raw/          # 不可变原始资料
+    ├── wiki/
+    │   ├── pages/    # 维护后的知识页面
+    │   └── sources/  # 来源摘要和溯源审计页面
+    ├── raw/
+    │   ├── inbox/       # 用户放入的原始资料
+    │   ├── normalized/  # 连接器/文档预处理后的标准化结果
+    │   ├── assets/      # 提取出的图片、媒体、页面切片和表格
+    │   └── sidecars/    # 附件清单和处理器元数据
     ├── maintenance/  # 可读运行报告
     └── .knoarbor/    # 机器状态、索引、账本、锁和运行记录
 ```
 
-运行时 `vaults/` 目录默认不提交到 git，因为它可能包含私人笔记、原始文档、生成页面和运行记录。只需要在 Obsidian 中查看维护后的 Wiki 时，建议打开 `vaults/default/pages`。
-知识页面类型由元数据表达，而不是由必须存在的物理目录表达：页面会记录 `page_kind`、`role`、`facets`、claims 和 typed relations。来源摘要页保留在 `sources/`；浏览视图由机器索引派生，并由 UI 渲染，不再作为 wiki fact 写入物理目录。
+运行时 `vaults/` 目录默认不提交到 git，因为它可能包含私人笔记、原始文档、生成页面和运行记录。只需要在 Obsidian 中查看维护后的 Wiki 时，建议打开 `vaults/default/wiki/pages`。
+知识页面统一存放在扁平的 `wiki/pages/` 命名空间。页面含义由正文结构表达：`Summary`、带编号的 `Claims`、`Entities`、三元组 `Relations`、`Evidence`、`Synthesis` 和可选 `Attachments`。来源摘要审计页保存在 `wiki/sources/`；浏览视图由机器索引派生，并由 UI 渲染，不再作为额外 wiki 目录写入。
 
 ## 常用命令
 

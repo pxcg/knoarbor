@@ -37,7 +37,7 @@ uv run knoar first-run --vault ./vaults/default
 ```
 
 This creates `config.yaml`, initializes `./vaults/default`, and copies
-`agent-loop.md` into `vaults/default/raw/notes/`.
+`agent-loop.md` into `vaults/default/raw/inbox/notes/`.
 
 Create `.env` and set at least one model key:
 
@@ -79,10 +79,10 @@ uv run knoar lint --mode structural
 The generated wiki pages are written under:
 
 ```text
-vaults/default/pages/
+vaults/default/wiki/pages/
 ```
 
-Open this `pages/` directory in Obsidian when you only want the maintained
+Open this `wiki/pages/` directory in Obsidian when you only want the maintained
 Markdown wiki, without raw sources, reports, or machine state.
 
 ## 4. Open The Local Console

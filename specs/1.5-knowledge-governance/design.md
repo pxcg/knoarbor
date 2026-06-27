@@ -31,10 +31,10 @@ scan
 
 | Executor | Input | Writes | Automatic Boundary |
 | --- | --- | --- | --- |
-| Deterministic wiki operation | Approved `deterministic_wiki_operation` candidates | Targeted metadata, wiki links, sections, source fields, redactions | Safe/low-risk operations with complete parameters. |
+| Deterministic wiki operation | Approved `deterministic_wiki_operation` candidates | Targeted page identity metadata, wiki links, body sections, source trace sections, redactions | Safe/low-risk operations with complete parameters. |
 | Draft write | Approved `draft_write` candidates | Reviewed page drafts or section rewrites | Requires semantic review and writer validation. |
 | Provenance refresh | Approved `refresh_request` queue items | Source digest pages and bidirectional source links | Executes when a raw source exists or an existing source digest can be matched through source aliases. |
-| Graph repair | Approved safe graph queue items | `Related Pages` links on weakly connected source or knowledge pages | Executes only for weak links or source digests without knowledge links; it does not remove or prune links. |
+| Graph review | Approved graph queue items | Reports and queue records for weak or dense graph structure | Records graph governance work without writing navigation links into page bodies. |
 | Governance queue | Approved audit findings | Reports and ledgers only | Duplicate merge, dense graph pruning, claim review, deletion, and ambiguous source repair. |
 
 ## Operation Taxonomy
@@ -57,7 +57,7 @@ The maintenance layer should reduce routine manual work by executing bounded
 repairs after review. Automatic execution is appropriate when:
 
 - the evidence identifies an existing target page;
-- the operation changes only metadata, source provenance, or `Related Pages`;
+- the operation changes only metadata, source provenance, or bounded page sections covered by the current schema;
 - the executor can produce a before/after diff;
 - a rescan can verify that the relevant deterministic issue is reduced.
 

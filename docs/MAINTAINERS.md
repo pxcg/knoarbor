@@ -137,7 +137,7 @@ runtime data, or another leak that cannot be safely published.
 Before adding or moving a capability, identify the owning layer:
 
 - **Source layer**: connectors, document preprocessing, source normalization.
-- **Knowledge layer**: page types, vault paths, source digests, page rendering.
+- **Knowledge layer**: wiki pages, vault paths, source digests, page rendering.
 - **Index layer**: human index and machine retrieval indexes.
 - **Governance layer**: lint, review, maintenance operations, verification.
 - **Runtime layer**: queue, monitor, logs, locks, lifecycle reports.

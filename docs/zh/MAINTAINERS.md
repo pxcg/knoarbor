@@ -106,7 +106,7 @@ KnoArbor 对影响架构、公开契约、来源 connector、语义契约、流�
 新增或移动能力前，先判断其归属层：
 
 - **来源层**：connector、文档预处理、source normalization。
-- **知识层**：页面类型、vault 路径、source digest、页面渲染。
+- **知识层**：Wiki 页面、vault 路径、source digest、页面渲染。
 - **索引层**：人类可读 index 和机器检索索引。
 - **治理层**：lint、review、维护操作、验证。
 - **运行层**：队列、监控、日志、锁、生命周期报告。

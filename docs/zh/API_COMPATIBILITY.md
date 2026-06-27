@@ -39,7 +39,7 @@ KnoArbor 1.x 已经面向 CLI、前端控制台、Skill 和外部工具暴露本
 - `POST /runs/{run_id}/cancel`
 - `GET /wiki/pages`
 - `GET /wiki/pages/content`
-- `GET /wiki/pages/links`
+- `GET /wiki/pages/relations`
 
 不同功能通过 `execution`、`kind`、`mode` 等请求字段选择。
 

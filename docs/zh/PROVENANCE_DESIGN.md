@@ -7,7 +7,7 @@
 - 保留 raw source 作为不可变证据底座。
 - 让每个生成页都能追溯到一个或多个来源。
 - 让 source digest 成为 raw source 与知识页之间的人类可读摘要页。
-- 支持未来多来源合成页面，但不破坏当前单 `source` 字段页面。
+- 使用正文中的结构化 Evidence 作为单来源和多来源页面的标准溯源模型。
 - 让 lint 能检查 provenance 链路，而不是凭自然语言猜测来源。
 
 ## 来源层级
@@ -15,76 +15,70 @@
 | 层级 | 目录/字段 | 职责 |
 | --- | --- | --- |
 | Raw Source | `raw/**` | 原始输入，原则上不可改写。 |
-| Source Digest | `sources/*.md` | 对单个 raw source 的可读摘要、重点和生成页反向链接。 |
-| Knowledge Page | `pages/<slug>.md` | 面向复用的知识对象页面。页面类型和 facets 保存在元数据中，声明和类型化关系保存在页面内部与机器 atom 索引中。 |
+| Source Digest | `wiki/sources/*.md` | 单个 raw source 的来源审计页，连接原始资料与生成知识页。 |
+| Knowledge Page | `wiki/pages/<slug>.md` | 面向复用的知识页面。Claims、Relations、Entities、Synthesis 和 Evidence 保存在页面正文与图索引中。 |
 
-`pages/concepts/`、`pages/entities/` 等旧 typed 目录在迁移期仍可读取，但不再作为规范的类型系统。
+## 页面正文来源证据
 
-## 当前兼容字段
+当前页面在专门的正文结构中记录来源。知识页使用 `## Evidence`；source digest 使用 `## Source Identity`、`## Source Units`、`## Contribution Map` 与 `## Raw Source`。
 
-当前页面仍使用单值字段：
+```markdown
+## Evidence
 
-```yaml
-source: raw/notes/Agent.md
+| Claim | Source | Range | Basis | Confidence |
+|---|---|---|---|---|
+| C1 | raw/inbox/notes/Agent.md | unit:0 | 原始资料描述了 Agent Loop 的控制循环。 | high |
 ```
 
 约束：
 
-- `source` 表示 primary source。
-- `## Source` section 必须与 `source` 同步。
-- 单来源页面必须有匹配 source digest，知识页也应在 Related Pages 中链接到该 digest。
-- source digest 的 Related Pages 应链接回由同一 raw source 生成的知识页。
+- `## Evidence` 将每条 claim 绑定到 source、range、basis 和 confidence。它是知识页记录 raw source 的唯一正文来源表。
+- 知识页依赖的每个 raw source 都应该有匹配的 source digest trace。
+- source digest 通过 Contribution Map 和机器索引 trace 记录由同一 raw source 生成的知识页。
 - 同一个 raw source 在同一批 ingest 中只能生成一个 source digest。长文档或长聊天被切分为多个 segment 时，重复的 source digest 草稿必须在写入前归并。
-- ingest 阶段的 Related Pages 优先表达 provenance 关系。泛主题相似、弱相关或候选召回页不应自动沉淀为 Related Pages；这类关系由 lint 或 query 阶段再评估。
+- ingest 不向页面正文写入宽泛导航链接。主题相似和弱候选匹配保留为 retrieval/index 信号，不再沉淀为导航 section。
 
-## 多来源目标模型
+## 多来源模型
 
-多来源页面不应把多个来源塞进自然语言段落。目标 frontmatter：
+多来源页面通过多行 `## Evidence` 表达：
 
-```yaml
-source: raw/notes/Agent.md
-sources:
-  - path: raw/notes/Agent.md
-    role: primary
-  - path: raw/chats/session_20260505_173432_47d596.json
-    role: supporting
+```markdown
+## Evidence
+
+| Claim | Source | Range | Basis | Confidence |
+|---|---|---|---|---|
+| C1 | raw/inbox/notes/Agent.md | unit:0 | Agent Loop 控制循环。 | high |
+| C2 | raw/normalized/chats/session_20260505_173432_47d596.json | turn:4-6 | 生产环境记忆设计讨论。 | medium |
 ```
 
-角色语义：
-
-- `primary`：页面主要依据。
-- `supporting`：补充事实、例子、解释或上下文。
-- `derived_from`：页面从另一个 source digest 或知识页整理迁移而来。
-
-`source` 继续保留为兼容字段，等价于 `sources[0].path`。新的检索、lint 和关系判断在支持后应优先读取 `sources[]`。
+检索、lint 和关系判断以 `## Evidence` 与 source digest trace 为准。
 
 ## Lint 责任边界
 
 Lint 可以：
 
-- 检查 `source` 与 `## Source` 是否一致。
+- 检查 `## Evidence` 与 source digest trace 中的来源是否完整。
 - 检查 raw source 是否存在。
 - 检查 source digest 是否存在。
-- 检查 source digest 与知识页是否互链。
-- 为缺失 source digest、缺失互链、source 字段不一致生成维护候选。
+- 检查 source digest trace 与 Contribution Map 是否和生成页一致。
+- 为缺失 source digest 和缺失 trace 记录生成维护候选。
 
 Lint 不可以：
 
-- 在没有结构化 `source_file` 或 `sources[]` 证据时猜测来源。
+- 在没有结构化 Evidence、Source Identity、Raw Source 或 Contribution Map 证据时猜测来源。
 - 联网重新验证事实。
-- 把普通 related page 链接当作 provenance source。
-- 为多来源页面自动合并来源，除非操作显式携带 `sources[]` 参数并通过 review。
+- 把普通 wiki 链接当作 provenance source。
+- 为多来源页面自动合并来源，除非操作显式更新结构化 Evidence 行并通过 review。
 
 ## 迁移策略
 
-1. 保持当前单 `source` 运行路径稳定。
-2. 先在 schema、文档和 lint 诊断中识别多来源需求。
-3. 后续新增 `sources[]` 写入和读取能力时，只在 storage/retrieval/provenance 层扩展，不在 agent prompt 中用自然语言兜底。
-4. 多来源页面的自动修复必须走 reviewed operation 或 draft write，并由 post-fix verification 检查 frontmatter 与 Source section。
+1. 将来源溯源保存在页面正文的证据章节中。
+2. 从 Evidence、Source Identity、Raw Source 和 Contribution Map 校验来源引用。
+3. frontmatter 仅保存创建时间、更新时间、内容哈希等页面身份元数据。
+4. 自动来源修复只更新结构化 Evidence 与 source digest trace，不改写页面身份元数据。
 
 ## 后续实现点
 
-- 在页面 schema 中加入可选 `sources[]`。
-- 在 scanner 中识别 `sources[]` 与 `source` 的一致性。
+- 在 scanner 中校验 Evidence、Source Identity、Raw Source 和 Contribution Map 的来源完整性。
 - 在 source digest 关系检查中支持一页多来源。
-- 在 query context pack 中暴露 primary/supporting source。
+- 在 query context pack 中暴露证据置信度与来源范围。

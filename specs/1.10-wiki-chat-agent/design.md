@@ -100,7 +100,7 @@ Response:
   "answer": "...",
   "messages": [],
   "citations": [
-    {"kind": "page", "path": "concepts/Agent-Loop-and-Control-Patterns.md", "title": "Agent Loop and Control Patterns", "vault_id": "default"}
+    {"kind": "page", "path": "Agent-Loop-and-Control-Patterns.md", "title": "Agent Loop and Control Patterns", "vault_id": "default"}
   ],
   "tool_trace": [
     {"tool": "query_wiki", "arguments": {}, "status": "ok", "summary": "..."}
@@ -314,14 +314,14 @@ The evidence pack owns:
 - primary page content as the opening anchor;
 - primary/supporting page bodies as the answer-bearing wiki material;
 - source page summaries for provenance;
-- weak-evidence and missing-facet signals.
+- weak-evidence and missing-evidence-dimension signals.
 
 This keeps token budgeting and evidence sufficiency out of the prompt while
 preserving page-first wiki semantics. Chat should present a page list only when
 the user explicitly asks to list pages, browse the vault, or choose from
 candidates.
 
-## Answer Control
+## Response Control
 
 Default chain:
 
@@ -367,7 +367,7 @@ Rules:
 Retrieval policy:
 
 - A known maintained page can be used as an anchor for a broad question.
-- Broad architecture, comparison, design, production, or multi-facet questions
+- Broad architecture, comparison, design, production, or multi-dimensional questions
   must not finish from one anchor page alone.
 - When the current evidence only contains an anchor page, the loop asks for a
   supporting `query_wiki` evidence set before answer synthesis.
