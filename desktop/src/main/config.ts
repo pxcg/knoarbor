@@ -1,5 +1,12 @@
 import { app } from "electron";
-import { cpSync, existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -336,6 +343,7 @@ function migrateLegacyUserData(legacyRoot: string, targetRoot: string): void {
     mkdirSync(dirname(targetRoot), { recursive: true });
     try {
       renameSync(legacyRoot, targetRoot);
+      secureMigratedEnvFile(join(targetRoot, ".env"));
       return;
     } catch {
       mkdirSync(targetRoot, { recursive: true });
@@ -354,6 +362,16 @@ function migrateLegacyUserData(legacyRoot: string, targetRoot: string): void {
     const target = join(targetRoot, entry);
     if (!existsSync(source) || existsSync(target)) continue;
     cpSync(source, target, { recursive: true, force: false });
+  }
+  secureMigratedEnvFile(join(targetRoot, ".env"));
+}
+
+function secureMigratedEnvFile(envPath: string): void {
+  if (!existsSync(envPath)) return;
+  try {
+    chmodSync(envPath, 0o600);
+  } catch {
+    // Some filesystems do not support POSIX permissions.
   }
 }
 
