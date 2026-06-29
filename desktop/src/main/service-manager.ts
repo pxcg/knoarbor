@@ -231,8 +231,13 @@ export class DesktopServiceManager {
   }
 
   async restart(config: DesktopAppServerConfig): Promise<DesktopServiceState> {
+    const currentPort = this.state.mode === "managed" ? this.state.port : undefined;
+    const restartConfig =
+      config.mode === "managed" && !config.port && currentPort
+        ? { ...config, port: currentPort }
+        : config;
     await this.stop();
-    return this.start(config);
+    return this.start(restartConfig);
   }
 
   async stop(): Promise<DesktopServiceState> {
