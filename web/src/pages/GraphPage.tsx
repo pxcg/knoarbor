@@ -1,21 +1,17 @@
-import cytoscape, { type Core, type ElementDefinition, type NodeCollection, type NodeSingular } from "cytoscape";
+import cytoscape, { type Core, type NodeCollection, type NodeSingular } from "cytoscape";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { getGraph, type GraphEdge, type GraphNode, type GraphResponse, type GraphView } from "../api/client";
 import { MetricCard } from "../components/MetricCard";
-import type { AppContext } from "../App";
+import type { AppContext } from "../appContext";
+import { buildGraphElements, filterVisibleGraph, graphNodeTypeCounts, mapEdgesByNodeId, mapNodesById, nodeColors } from "./graph/GraphModel";
+import { GraphNodeDetail } from "./graph/GraphNodeDetail";
 
 type Props = {
   graph: GraphResponse | null;
   context?: AppContext;
   embedded?: boolean;
-};
-
-const nodeColors: Record<string, string> = {
-  wiki_page: "#dcfce7",
-  source_audit: "#eef2f7",
-  entity: "#ccfbf1",
 };
 
 export function GraphPage({ graph, context, embedded = false }: Props) {
@@ -44,35 +40,10 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
     setNodeSearch("");
   }, [graphView]);
 
-  const visibleGraph = useMemo(() => {
-    if (!activeGraph) return { nodes: [], edges: [] };
-    const normalizedSearch = nodeSearch.trim().toLowerCase();
-    const nodes = activeGraph.nodes.filter((node) => {
-      if (!normalizedSearch) return true;
-      return `${node.title} ${node.id} ${node.summary} ${node.entities.join(" ")}`.toLowerCase().includes(normalizedSearch);
-    });
-    const visibleIds = new Set(nodes.map((node) => node.id));
-    const edges = activeGraph.edges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target));
-    return { nodes, edges };
-  }, [activeGraph, nodeSearch]);
-
-  const nodeById = useMemo(() => new Map((activeGraph?.nodes || []).map((node) => [node.id, node])), [activeGraph]);
-  const edgeByNodeId = useMemo(() => {
-    const map = new Map<string, GraphEdge[]>();
-    for (const edge of activeGraph?.edges || []) {
-      map.set(edge.source, [...(map.get(edge.source) || []), edge]);
-      map.set(edge.target, [...(map.get(edge.target) || []), edge]);
-    }
-    return map;
-  }, [activeGraph]);
-  const typeCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const node of activeGraph?.nodes || []) {
-      const type = nodeViewOf(node);
-      counts.set(type, (counts.get(type) || 0) + 1);
-    }
-    return counts;
-  }, [activeGraph]);
+  const visibleGraph = useMemo(() => filterVisibleGraph(activeGraph, nodeSearch), [activeGraph, nodeSearch]);
+  const nodeById = useMemo(() => mapNodesById(activeGraph), [activeGraph]);
+  const edgeByNodeId = useMemo(() => mapEdgesByNodeId(activeGraph), [activeGraph]);
+  const typeCounts = useMemo(() => graphNodeTypeCounts(activeGraph), [activeGraph]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -85,26 +56,7 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
       return;
     }
 
-    const degree = buildDegreeMap(visibleGraph.edges);
-    const elements: ElementDefinition[] = [
-      ...visibleGraph.nodes.map((node) => ({
-        data: {
-          id: node.id,
-          label: node.title,
-          type: nodeViewOf(node),
-          view: nodeViewOf(node),
-          degree: degree.get(node.id) || 0,
-        },
-      })),
-      ...visibleGraph.edges.map((edge, index) => ({
-        data: {
-          id: `${edge.source}->${edge.target}:${index}`,
-          source: edge.source,
-          target: edge.target,
-          label: edge.label || "",
-        },
-      })),
-    ];
+    const elements = buildGraphElements(visibleGraph.nodes, visibleGraph.edges);
 
     const cy = cytoscape({
       container,
@@ -233,7 +185,7 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
 
   return (
     <section className={embedded ? "embedded-section" : "view active"}>
-      <div className="metric-grid">
+      <div className="graph-metrics">
         <MetricCard label={graphView === "entity" ? t("entityNodes") : t("graphNodes")} value={graphData.stats.page_count} hint={graphView === "entity" ? t("entityNodesHint") : t("maintainedPages")} />
         <MetricCard label={graphView === "entity" ? t("relationEdges") : t("graphEdges")} value={graphData.stats.edge_count} hint={graphView === "entity" ? t("relationEdgesHint") : t("resolvedWikilinks")} />
         <MetricCard label={t("orphans")} value={graphData.stats.orphan_count} hint={graphView === "entity" ? t("entityOrphanHint") : t("orphanHint")} />
@@ -247,7 +199,7 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
               <h2>{graphView === "entity" ? t("entityRelationGraph") : t("pageLinkGraph")}</h2>
               <p className="panel-copy">{graphView === "entity" ? t("entityGraphSubtitle") : t("pageGraphSubtitle")}</p>
             </div>
-            <div className="graph-actions">
+            <div className="graph-toolbar">
               <div className="segmented-control compact" role="tablist" aria-label={t("graphMode")}>
                 <button className={graphView === "entity" ? "active" : ""} type="button" onClick={() => setGraphView("entity")}>
                   {t("entityGraphMode")}
@@ -256,13 +208,10 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
                   {t("pageGraphMode")}
                 </button>
               </div>
-              <label className="field graph-search">
+              <label className="field graph-toolbar-search">
                 <span>{t("graphSearch")}</span>
                 <input value={nodeSearch} onChange={(event) => setNodeSearch(event.target.value)} placeholder={t("graphSearchPlaceholder")} />
               </label>
-              <button className="button secondary" onClick={() => cyRef.current?.fit(undefined, 42)}>
-                {t("fit")}
-              </button>
             </div>
           </div>
           <div className="graph-legend" aria-label={t("graphLegend")}>
@@ -287,95 +236,11 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
           <div className="panel-header">
             <h2>{graphView === "entity" ? t("selectedEntity") : t("selectedPage")}</h2>
           </div>
-          <NodeDetail node={selectedNode} edges={selectedNode ? edgeByNodeId.get(selectedNode.id) || [] : []} graphView={graphView} t={t} onOpenPage={context?.openWikiPage} />
+          <GraphNodeDetail node={selectedNode} edges={selectedNode ? edgeByNodeId.get(selectedNode.id) || [] : []} graphView={graphView} t={t} onOpenPage={context?.openWikiPage} />
         </aside>
       </div>
     </section>
   );
-}
-
-function NodeDetail({ node, edges, graphView, t, onOpenPage }: { node: GraphNode | null; edges: GraphEdge[]; graphView: GraphView; t: (key: string) => string; onOpenPage?: (path: string) => void }) {
-  if (!node) {
-    return <div className="node-detail">{t("selectNode")}</div>;
-  }
-  const relatedPages = node.pages || [];
-  const openPath = graphView === "entity" ? relatedPages[0] : node.id;
-  return (
-    <div className="node-detail">
-      <h3>{node.title}</h3>
-      <div className="result-meta">
-        {node.id} · {labelForGraphView(nodeViewOf(node), t)}
-      </div>
-      <p>{node.summary || t("noSummary")}</p>
-      <div className="tag-list">
-        {node.entities.length ? node.entities.map((entity) => <span key={entity}>{entity}</span>) : <em>{t("noEntities")}</em>}
-      </div>
-      {graphView === "entity" && (
-        <>
-          <div className="mini-section">
-            <h4>{t("relatedWikiPages")}</h4>
-            {relatedPages.length ? (
-              <div className="inline-list">
-                {relatedPages.slice(0, 8).map((page) => (
-                  <button key={page} type="button" onClick={() => onOpenPage?.(page)}>
-                    {page}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p>{t("none")}</p>
-            )}
-          </div>
-          <div className="mini-section">
-            <h4>{t("relations")}</h4>
-            {edges.length ? (
-              <ul className="relation-list">
-                {edges.slice(0, 8).map((edge, index) => (
-                  <li key={`${edge.source}-${edge.target}-${index}`}>
-                    <span>{edge.source}</span>
-                    <strong>{edge.label || edge.kind}</strong>
-                    <span>{edge.target}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>{t("none")}</p>
-            )}
-          </div>
-        </>
-      )}
-      {graphView === "page" && (
-        <dl className="mini-detail">
-          <div>
-            <dt>{t("pageRole")}</dt>
-            <dd>{node.role === "source_digest" ? t("sourceAudit") : t("wikiPages")}</dd>
-          </div>
-          <div>
-            <dt>{t("source")}</dt>
-            <dd>{node.source || t("none")}</dd>
-          </div>
-        </dl>
-      )}
-      {onOpenPage && openPath && (
-        <button className="button secondary full-width-button" type="button" onClick={() => onOpenPage(openPath)}>
-          {t("openInWiki")}
-        </button>
-      )}
-    </div>
-  );
-}
-
-
-function nodeViewOf(node: GraphNode) {
-  if (node.type === "entity" || node.role === "entity") return "entity";
-  return node.role === "source_digest" || node.id.startsWith("sources/") ? "source_audit" : "wiki_page";
-}
-
-function labelForGraphView(value: string, t: (key: string) => string) {
-  if (value === "entity") return t("entity");
-  if (value === "source_audit") return t("sourceAudit");
-  if (value === "wiki_page") return t("wikiPages");
-  return value.replace(/_/g, " ");
 }
 
 function buildLayout() {
@@ -466,13 +331,4 @@ function collectComponents(cy: Core): NodeCollection[] {
     components.push(component.nodes());
   });
   return components;
-}
-
-function buildDegreeMap(edges: Array<{ source: string; target: string }>) {
-  const degree = new Map<string, number>();
-  for (const edge of edges) {
-    degree.set(edge.source, (degree.get(edge.source) || 0) + 1);
-    degree.set(edge.target, (degree.get(edge.target) || 0) + 1);
-  }
-  return degree;
 }

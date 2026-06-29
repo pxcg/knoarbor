@@ -8,6 +8,11 @@ import { installDesktopMenu } from "./menu.js";
 import { DesktopServiceManager } from "./service-manager.js";
 import { DesktopWindowManager } from "./window-manager.js";
 
+const appDataRootOverride = process.env.KNOARBOR_DESKTOP_APP_DATA_ROOT?.trim();
+if (appDataRootOverride) {
+  app.setPath("userData", appDataRootOverride);
+}
+
 const config = resolveDesktopAppConfig();
 const serviceManager = new DesktopServiceManager();
 const windowManager = new DesktopWindowManager();

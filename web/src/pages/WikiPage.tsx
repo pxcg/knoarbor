@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { deletePage, getPage, updatePage, type PageDetail, type PageSummary } from "../api/client";
-import type { AppContext } from "../App";
-import { AsyncMarkdownPreview } from "../components/AsyncMarkdownPreview";
+import type { AppContext } from "../appContext";
 import { DelayedTooltip } from "../components/DelayedTooltip";
 import { LoadingBlock } from "../components/LoadingBlock";
 import { queryKeys } from "../queryKeys";
+import { filterWikiPages, relatedPagesByEntities, searchWikiPages, type RelatedPage } from "./wiki/WikiModel";
+import { WikiStructuredPreview } from "./wiki/WikiStructuredPreview";
 
 type Props = {
   context: AppContext;
@@ -54,15 +55,8 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
     onError: (error) => context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true }),
   });
 
-  const wikiPages = useMemo(() => context.pages.filter((page) => !isSourceDigestPage(page)), [context.pages]);
-
-  const filteredPages = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return wikiPages.filter((page) => {
-      if (!query) return true;
-      return `${page.title} ${page.path} ${page.summary} ${page.entities.join(" ")}`.toLowerCase().includes(query);
-    });
-  }, [search, wikiPages]);
+  const wikiPages = useMemo(() => filterWikiPages(context.pages), [context.pages]);
+  const filteredPages = useMemo(() => searchWikiPages(wikiPages, search), [search, wikiPages]);
 
   const relatedPages = useMemo(() => {
     if (!selectedDetail) return [];
@@ -236,151 +230,6 @@ function askAboutPage(context: AppContext, detail: PageDetail) {
   context.openChatWithPrompt(`请阅读并解释「${title}」（${detail.path}），并回答我的后续问题。`, context.activeVaultId);
 }
 
-type RelatedPage = {
-  page: PageSummary;
-  sharedEntities: string[];
-};
-
-function relatedPagesByEntities(detail: PageDetail, pages: PageSummary[]): RelatedPage[] {
-  const currentEntities = pageEntitySet(detail);
-  if (!currentEntities.size) return [];
-  return pages
-    .filter((page) => page.path !== detail.path)
-    .map((page) => {
-      const sharedEntities = page.entities
-        .map(normalizeEntity)
-        .filter((entity) => entity && currentEntities.has(entity));
-      return { page, sharedEntities: uniqueStrings(sharedEntities) };
-    })
-    .filter((item) => item.sharedEntities.length)
-    .sort((left, right) => {
-      if (right.sharedEntities.length !== left.sharedEntities.length) return right.sharedEntities.length - left.sharedEntities.length;
-      return left.page.title.localeCompare(right.page.title);
-    })
-    .slice(0, 8);
-}
-
-function pageEntitySet(detail: PageDetail) {
-  const entities = new Set<string>();
-  for (const entity of detail.summary.entities || []) {
-    const normalized = normalizeEntity(entity);
-    if (normalized) entities.add(normalized);
-  }
-  for (const section of extractWikiSections(detail.content)) {
-    if (!["claims", "entities", "relations"].includes(section.key)) continue;
-    for (const match of section.content.matchAll(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g)) {
-      const normalized = normalizeEntity(match[1]);
-      if (normalized) entities.add(normalized);
-    }
-  }
-  return entities;
-}
-
-function normalizeEntity(value: string) {
-  return value
-    .replace(/^\[\[/, "")
-    .replace(/\]\]$/, "")
-    .split("|")
-    .pop()
-    ?.trim()
-    .toLowerCase() || "";
-}
-
-function WikiStructuredPreview({ detail, context }: { detail: PageDetail; context: AppContext }) {
-  const sections = extractWikiSections(detail.content);
-  if (!sections.length) {
-    return <AsyncMarkdownPreview content={detail.content} className="wiki-markdown-preview" stripFrontmatter onOpenWikiPage={context.openWikiPage} vaultPath={context.vaultPath} />;
-  }
-  const ordered = orderWikiSections(sections);
-  return (
-    <div className="wiki-structured-preview">
-      {ordered.map((section) => (
-        <section className={`wiki-structure-card wiki-structure-${section.key}`} key={section.key}>
-          <div className="wiki-structure-heading">
-            <span>{wikiSectionLabel(section.key, section.title, context.language)}</span>
-          </div>
-          <WikiSectionContent section={section} context={context} />
-        </section>
-      ))}
-    </div>
-  );
-}
-
-function WikiSectionContent({ section, context }: { section: WikiSection; context: AppContext }) {
-  if (section.key === "relations" || section.key === "evidence" || section.key === "attachments") {
-    const table = parseMarkdownTable(section.content);
-    if (table) {
-      return (
-        <div className={`wiki-structured-table-wrap wiki-${section.key}-table-wrap`}>
-          <table className={`wiki-structured-table wiki-${section.key}-table`}>
-            <thead>
-              <tr>
-                {table.headers.map((header) => <th key={header}>{plainCellText(header)}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {table.rows.map((row, rowIndex) => (
-                <tr key={`${section.key}-${rowIndex}`}>
-                  {table.headers.map((_header, cellIndex) => (
-                    <td key={cellIndex}>{plainCellText(row[cellIndex] || "")}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
-    }
-  }
-  return (
-    <AsyncMarkdownPreview
-      content={section.content}
-      className="wiki-markdown-preview wiki-section-markdown"
-      onOpenWikiPage={context.openWikiPage}
-      vaultPath={context.vaultPath}
-    />
-  );
-}
-
-function parseMarkdownTable(content: string): { headers: string[]; rows: string[][] } | null {
-  const lines = content.split("\n").map((line) => line.trim()).filter(Boolean);
-  const headerIndex = lines.findIndex((line, index) => line.startsWith("|") && lines[index + 1]?.startsWith("|") && /^\|?\s*:?-{3,}/.test(lines[index + 1]));
-  if (headerIndex < 0) return null;
-  const headers = splitMarkdownTableRow(lines[headerIndex]);
-  const rows = lines.slice(headerIndex + 2).filter((line) => line.startsWith("|")).map(splitMarkdownTableRow);
-  return headers.length && rows.length ? { headers, rows } : null;
-}
-
-function splitMarkdownTableRow(line: string) {
-  return line.replace(/^\|/, "").replace(/\|$/, "").split(/(?<!\\)\|/).map((cell) => cell.replace(/\\\|/g, "|").trim());
-}
-
-function plainCellText(value: string) {
-  return value
-    .replace(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g, (_match, target: string, alias: string | undefined) => alias || target)
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/\*\*([^*]+)\*\*/g, "$1")
-    .replace(/\*([^*]+)\*/g, "$1")
-    .replace(/^#+\s*/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function uniqueStrings(values: string[]) {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const value of values) {
-    if (!value || seen.has(value)) continue;
-    seen.add(value);
-    result.push(value);
-  }
-  return result;
-}
-
-function isSourceDigestPage(page: PageSummary) {
-  return page.role === "source_digest" || page.directory === "sources";
-}
-
 function RelatedPagesSection({
   title,
   pages,
@@ -410,68 +259,4 @@ function RelatedPagesSection({
       )}
     </section>
   );
-}
-
-type WikiSection = {
-  key: string;
-  title: string;
-  content: string;
-  index: number;
-};
-
-const WIKI_SECTION_ORDER = ["summary", "claims", "relations", "synthesis", "entities", "evidence", "attachments"];
-
-function extractWikiSections(content: string): WikiSection[] {
-  const body = stripPageChrome(content);
-  const matches = Array.from(body.matchAll(/^##\s+(.+?)\s*$/gm));
-  if (!matches.length) return [];
-  return matches.map((match, index) => {
-    const title = match[1].trim();
-    const start = (match.index || 0) + match[0].length;
-    const end = matches[index + 1]?.index ?? body.length;
-    return {
-      key: normalizeSectionKey(title),
-      title,
-      content: body.slice(start, end).trim(),
-      index,
-    };
-  }).filter((section) => section.content);
-}
-
-function stripPageChrome(content: string) {
-  return content
-    .replace(/\r\n/g, "\n")
-    .replace(/^# .+?\n+---\s*\n[\s\S]*?\n---\s*\n?/, "")
-    .replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, "")
-    .replace(/^# .+?\n+/, "")
-    .trim();
-}
-
-function normalizeSectionKey(title: string) {
-  return title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-}
-
-function orderWikiSections(sections: WikiSection[]) {
-  return [...sections].sort((left, right) => {
-    const leftIndex = WIKI_SECTION_ORDER.indexOf(left.key);
-    const rightIndex = WIKI_SECTION_ORDER.indexOf(right.key);
-    if (leftIndex === -1 && rightIndex === -1) return left.index - right.index;
-    if (leftIndex === -1) return 1;
-    if (rightIndex === -1) return -1;
-    return leftIndex - rightIndex;
-  });
-}
-
-function wikiSectionLabel(key: string, title: string, language: AppContext["language"]) {
-  if (language !== "zh") return title;
-  const labels: Record<string, string> = {
-    summary: "摘要",
-    claims: "核心断言",
-    relations: "关系三元组",
-    synthesis: "综合说明",
-    entities: "实体",
-    evidence: "证据",
-    attachments: "附件",
-  };
-  return labels[key] || title;
 }

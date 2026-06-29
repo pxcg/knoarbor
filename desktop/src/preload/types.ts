@@ -22,12 +22,16 @@ export type DesktopServiceState = {
   command?: string;
   configPath?: string;
   endpoint?: string;
+  exitCode?: number | null;
   lastOutput?: string[];
   lastError?: string;
+  logDir?: string;
   logPath?: string;
   mode: DesktopServiceMode;
   port?: number;
+  signal?: NodeJS.Signals | null;
   startedAt?: string;
+  stateDir?: string;
   status: DesktopServiceStatus;
 };
 
@@ -59,6 +63,7 @@ export type KnoArborDesktopBridge = {
   onServiceStateChanged(listener: (state: DesktopServiceState) => void): () => void;
   openApiDocs(): Promise<{ opened: boolean; url?: string }>;
   openLogs(): Promise<{ opened: boolean; path?: string }>;
+  openPath(path: string): Promise<{ opened: boolean; path?: string; error?: string }>;
   restartService(): Promise<DesktopServiceState>;
   selectDirectory(options?: { defaultPath?: string; title?: string }): Promise<{
     canceled: boolean;

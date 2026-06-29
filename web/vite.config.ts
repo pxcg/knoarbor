@@ -6,12 +6,31 @@ export default defineConfig({
   base: "/ui/",
   build: {
     outDir: "../src/knoarbor/ui/dist",
-    emptyOutDir: false,
+    emptyOutDir: true,
+    chunkSizeWarningLimit: 700,
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes("node_modules/cytoscape")) {
-            return "graph";
+          const normalizedId = id.replace(/\\/g, "/");
+          if (normalizedId.includes("node_modules/cytoscape")) {
+            return "graph-engine";
+          }
+          if (
+            normalizedId.includes("node_modules/react/") ||
+            normalizedId.includes("node_modules/react-dom/") ||
+            normalizedId.includes("node_modules/scheduler/")
+          ) {
+            return "vendor-react";
+          }
+          if (
+            normalizedId.includes("node_modules/react-markdown/") ||
+            normalizedId.includes("node_modules/remark-") ||
+            normalizedId.includes("node_modules/rehype-") ||
+            normalizedId.includes("node_modules/unified/") ||
+            normalizedId.includes("node_modules/mdast-") ||
+            normalizedId.includes("node_modules/hast-")
+          ) {
+            return "vendor-markdown";
           }
           return undefined;
         },

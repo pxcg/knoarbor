@@ -4,7 +4,7 @@ import { getTokenAnalysis, type TokenAnalysis, type TokenCallRecord, type TokenM
 import { BarChart } from "../components/BarChart";
 import { LoadingBlock } from "../components/LoadingBlock";
 import { MetricCard } from "../components/MetricCard";
-import type { AppContext } from "../App";
+import type { AppContext } from "../appContext";
 
 type Props = {
   context: AppContext;

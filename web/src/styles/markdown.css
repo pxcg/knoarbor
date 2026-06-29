@@ -1,0 +1,137 @@
+.markdown-preview {
+  max-height: 720px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--surface-soft);
+  color: var(--text);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.markdown-rendered {
+  max-width: 860px;
+  color: var(--muted-strong);
+  line-height: 1.68;
+  overflow-x: auto;
+}
+
+.markdown-rendered img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+}
+
+.markdown-rendered h1,
+.markdown-rendered h2,
+.markdown-rendered h3 {
+  color: var(--text);
+  line-height: 1.28;
+  margin: 26px 0 10px;
+}
+
+.markdown-rendered h1:first-child,
+.markdown-rendered h2:first-child,
+.markdown-rendered h3:first-child {
+  margin-top: 0;
+}
+
+.markdown-rendered h1 {
+  font-size: 23px;
+}
+
+.markdown-rendered h2 {
+  font-size: 18px;
+}
+
+.markdown-rendered h3 {
+  font-size: 16px;
+}
+
+.markdown-rendered p,
+.markdown-rendered ul,
+.markdown-rendered ol {
+  margin: 0 0 14px;
+}
+
+.markdown-rendered ul,
+.markdown-rendered ol {
+  padding-left: 21px;
+}
+
+.markdown-rendered li {
+  margin: 5px 0;
+}
+
+.markdown-rendered code {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #f8fafc;
+  color: var(--text);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.92em;
+  padding: 1px 5px;
+}
+
+.markdown-rendered pre {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e5edf8;
+  overflow: auto;
+  padding: 14px;
+}
+
+.markdown-rendered pre code {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+.markdown-rendered table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  margin: 14px 0 18px;
+  font-size: 13px;
+}
+
+.markdown-rendered th,
+.markdown-rendered td {
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown-rendered th {
+  background: #f3f7fb;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.markdown-rendered tr:nth-child(even) td {
+  background: #fbfdff;
+}
+
+.markdown-rendered blockquote {
+  background: #f8fafc;
+  border-left-color: var(--accent);
+  border-radius: 0 8px 8px 0;
+  padding: 10px 12px;
+}
+
+.markdown-rendered a {
+  color: var(--accent-strong);
+  text-decoration: none;
+}
+
+.markdown-rendered a:hover {
+  text-decoration: underline;
+}

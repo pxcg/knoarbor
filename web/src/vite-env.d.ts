@@ -15,6 +15,7 @@ type KnoArborDesktopBridge = {
   onServiceStateChanged(listener: (state: unknown) => void): () => void;
   openApiDocs(): Promise<{ opened: boolean; url?: string }>;
   openLogs(): Promise<{ opened: boolean; path?: string }>;
+  openPath(path: string): Promise<{ opened: boolean; path?: string; error?: string }>;
   restartService(): Promise<unknown>;
   selectDirectory(options?: { defaultPath?: string; title?: string }): Promise<{
     canceled: boolean;

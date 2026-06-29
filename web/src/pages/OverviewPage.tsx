@@ -1,4 +1,4 @@
-import type { AppContext } from "../App";
+import type { AppContext } from "../appContext";
 import { LineIcon, type IconName } from "../components/LineIcon";
 import { MetricCard } from "../components/MetricCard";
 import type { ViewName } from "../types";

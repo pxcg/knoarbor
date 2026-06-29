@@ -1,8 +1,8 @@
 import log from "electron-log/main";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import type { DesktopAppServerConfig } from "./config.js";
 import type { DesktopServiceState } from "../preload/types.js";
 
@@ -30,12 +30,30 @@ export class DesktopServiceManager {
   async start(config: DesktopAppServerConfig): Promise<DesktopServiceState> {
     this.serviceConfig = config;
     if (config.mode === "external") {
+      const startedAt = new Date().toISOString();
       this.setState({
         endpoint: config.url,
         mode: "external",
-        startedAt: new Date().toISOString(),
-        status: "healthy",
+        startedAt,
+        status: "starting",
       });
+      const healthy = await waitForHealth(`${config.url}/health`, STARTUP_TIMEOUT_MS);
+      this.setState({
+        endpoint: config.url,
+        lastError: healthy
+          ? undefined
+          : `External KnoArbor service is not healthy: ${config.url}`,
+        mode: "external",
+        startedAt,
+        status: healthy ? "healthy" : "failed",
+      });
+      return this.state;
+    }
+
+    if (
+      this.child &&
+      (this.state.status === "starting" || this.state.status === "healthy")
+    ) {
       return this.state;
     }
 
@@ -54,11 +72,23 @@ export class DesktopServiceManager {
       });
       return this.state;
     }
+    if (isAbsolute(config.serviceCommand) && !existsSync(config.serviceCommand)) {
+      this.setState({
+        ...this.state,
+        lastError: `Packaged service executable is missing: ${config.serviceCommand}`,
+        status: "failed",
+      });
+      return this.state;
+    }
 
     const port = config.port || (await findAvailablePort(config.host));
     const endpoint = `http://${config.host}:${port}`;
-    const logPath = join(dirname(config.configPath), "logs", "service.log");
-    mkdirSync(dirname(logPath), { recursive: true });
+    const appDataRoot = dirname(config.configPath);
+    const logDir = join(appDataRoot, "logs");
+    const stateDir = join(appDataRoot, "state");
+    const logPath = join(logDir, "service.log");
+    mkdirSync(logDir, { recursive: true });
+    mkdirSync(stateDir, { recursive: true });
     const logStream = createWriteStream(logPath, { flags: "a" });
     const args = [
       ...config.serviceArgs,
@@ -74,18 +104,22 @@ export class DesktopServiceManager {
       ...process.env,
       KNOARBOR_CONFIG_PATH: config.configPath,
       KNOARBOR_DESKTOP: "1",
-      KNOARBOR_LOG_DIR: dirname(logPath),
+      KNOARBOR_LOG_DIR: logDir,
+      KNOARBOR_STATE_DIR: stateDir,
     };
 
     this.recentOutput = [];
+    const startedAt = new Date().toISOString();
     this.setState({
       command: [config.serviceCommand, ...args].join(" "),
       configPath: config.configPath,
       endpoint,
+      logDir,
       logPath,
       mode: "managed",
       port,
-      startedAt: new Date().toISOString(),
+      startedAt,
+      stateDir,
       status: "starting",
     });
     log.info("Starting KnoArbor managed service", {
@@ -93,11 +127,13 @@ export class DesktopServiceManager {
       configPath: config.configPath,
       endpoint,
       logPath,
+      serviceCwd: config.serviceCwd,
+      stateDir,
       webAssetsRoot: config.webAssetsRoot,
     });
 
     const child = spawn(config.serviceCommand, args, {
-      cwd: findRepoRoot(),
+      cwd: config.serviceCwd,
       env,
     });
     this.child = child;
@@ -118,6 +154,7 @@ export class DesktopServiceManager {
       this.setState({
         ...this.state,
         lastError: error.message,
+        lastOutput: this.recentOutput,
         status: "failed",
       });
     });
@@ -130,8 +167,10 @@ export class DesktopServiceManager {
       this.child = undefined;
       this.setState({
         ...this.state,
+        exitCode: code,
         lastError: `Service exited before shutdown. code=${String(code)} signal=${String(signal)} recent=${this.recentOutput.join(" | ")}`,
         lastOutput: this.recentOutput,
+        signal,
         status: "failed",
       });
     });
@@ -144,21 +183,41 @@ export class DesktopServiceManager {
         endpoint,
         lastError: `Service did not become healthy within ${STARTUP_TIMEOUT_MS}ms. Recent output: ${this.recentOutput.join(" | ")}`,
         lastOutput: this.recentOutput,
+        logDir,
         logPath,
         mode: "managed",
         port,
+        stateDir,
         status: "failed",
       });
       return this.state;
     }
 
+    writeFileSync(
+      join(stateDir, "service.json"),
+      JSON.stringify(
+        {
+          configPath: config.configPath,
+          endpoint,
+          logPath,
+          pid: child.pid,
+          port,
+          startedAt,
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
     this.setState({
       configPath: config.configPath,
       endpoint,
+      logDir,
       logPath,
       mode: "managed",
       port,
-      startedAt: new Date().toISOString(),
+      startedAt,
+      stateDir,
       status: "healthy",
     });
     return this.state;
@@ -252,18 +311,4 @@ async function waitForExit(
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function findRepoRoot(): string {
-  let current = process.cwd();
-  while (true) {
-    if (existsSync(join(current, "pyproject.toml"))) {
-      return current;
-    }
-    const parent = dirname(current);
-    if (parent === current) {
-      return process.cwd();
-    }
-    current = parent;
-  }
 }

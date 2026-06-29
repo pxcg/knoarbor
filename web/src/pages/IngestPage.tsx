@@ -1,4 +1,4 @@
-import type { AppContext } from "../App";
+import type { AppContext } from "../appContext";
 import { RunPage } from "./RunPage";
 
 type Props = {

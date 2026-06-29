@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import type { AppContext } from "../App";
+import type { AppContext } from "../appContext";
 import { runStatusClass, runStatusLabel } from "../components/runStatus";
 import { ActiveRunsPanel, RunPreflight } from "../components/runs/RunPanels";
 import type { RunRecord } from "../types";

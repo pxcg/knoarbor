@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-import type { AppContext } from "../App";
+import type { AppContext } from "../appContext";
 import { getConfigDiagnostics, getSourceCatalog, listChatSessions, type ConfigDiagnosticItem, type SourceConnectorCatalogItem } from "../api/client";
 import { BrandIcon, type BrandIconName } from "../components/BrandIcon";
 import { LoadingBlock } from "../components/LoadingBlock";

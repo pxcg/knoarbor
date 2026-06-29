@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { getProjectDoc } from "../api/client";
-import type { AppContext } from "../App";
+import type { AppContext } from "../appContext";
 import { AsyncMarkdownPreview } from "../components/AsyncMarkdownPreview";
 import { LoadingBlock } from "../components/LoadingBlock";
 
@@ -57,6 +57,7 @@ const docGroups: DocGroup[] = [
 export function DocsPage({ context }: Props) {
   const [selectedPath, setSelectedPath] = useState("QUICKSTART.md");
   const [content, setContent] = useState("");
+  const [resolvedDocPath, setResolvedDocPath] = useState("QUICKSTART.md");
   const [loading, setLoading] = useState(false);
 
   const selectedDoc = useMemo(
@@ -74,7 +75,10 @@ export function DocsPage({ context }: Props) {
     });
     request
       .then((doc) => {
-        if (!cancelled) setContent(doc.content);
+        if (!cancelled) {
+          setContent(doc.content);
+          setResolvedDocPath(doc.path || selectedPath);
+        }
       })
       .catch((error) => {
         if (!cancelled) context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
@@ -124,7 +128,7 @@ export function DocsPage({ context }: Props) {
           {loading ? (
             <LoadingBlock title={context.t("docsLoading")} copy={context.t("docsLoadingCopy")} />
           ) : (
-            <AsyncMarkdownPreview content={content} currentDocPath={selectedPath} onOpenDocLink={setSelectedPath} />
+            <AsyncMarkdownPreview content={content} currentDocPath={resolvedDocPath} onOpenDocLink={setSelectedPath} />
           )}
         </article>
       </div>

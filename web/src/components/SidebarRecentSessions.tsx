@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { deleteChatSession, ingestChatSession, listChatSessions, updateChatSession, type ChatSessionSummary, type VaultSelector } from "../api/client";
-import type { AppContext } from "../App";
+import type { AppContext } from "../appContext";
 import { LineIcon } from "./LineIcon";
 
 const RECENT_SESSION_LIMIT = 80;

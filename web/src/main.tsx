@@ -5,6 +5,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./App";
 import "./styles/app.css";
 
+if (window.knoarborDesktop) {
+  document.documentElement.classList.add("desktop-shell");
+}
+
 window.addEventListener("vite:preloadError", (event) => {
   event.preventDefault();
   const key = "knoarbor.preloadErrorReloaded";

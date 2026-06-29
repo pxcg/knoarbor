@@ -18,6 +18,7 @@ export type DesktopAppServerConfig =
       port: number;
       serviceCommand: string;
       serviceArgs: string[];
+      serviceCwd: string;
       webAssetsRoot: string;
     };
 
@@ -39,7 +40,8 @@ function resolveAppServerConfig(): DesktopAppServerConfig {
     return { mode: "external", url: externalUrl };
   }
 
-  const appDataRoot = app.getPath("userData");
+  const appDataRoot =
+    process.env.KNOARBOR_DESKTOP_APP_DATA_ROOT?.trim() || app.getPath("userData");
   const configPath = resolveConfigPath(
     process.env.KNOARBOR_CONFIG_PATH?.trim(),
     appDataRoot,
@@ -54,8 +56,11 @@ function resolveAppServerConfig(): DesktopAppServerConfig {
     host: process.env.KNOARBOR_DESKTOP_APP_SERVER_HOST ?? DEFAULT_HOST,
     mode: "managed",
     port: readPort(process.env.KNOARBOR_DESKTOP_APP_SERVER_PORT),
-    serviceArgs: readServiceArgs(),
-    serviceCommand: process.env.KNOARBOR_DESKTOP_SERVICE_COMMAND ?? "uv",
+    serviceArgs: readServiceArgs(app.isPackaged),
+    serviceCommand: resolveServiceCommand(app.isPackaged),
+    serviceCwd:
+      process.env.KNOARBOR_DESKTOP_SERVICE_CWD?.trim() ||
+      (app.isPackaged ? appDataRoot : findRepoRootFromDesktopRoot()),
     webAssetsRoot,
   };
 }
@@ -63,14 +68,7 @@ function resolveAppServerConfig(): DesktopAppServerConfig {
 export function ensureDesktopBootstrapConfig(config: DesktopAppServerConfig): void {
   if (config.mode !== "managed") return;
   const defaultVaultRoot = join(config.appDataRoot, "vaults", "default");
-  mkdirSync(defaultVaultRoot, { recursive: true });
-  mkdirSync(join(defaultVaultRoot, "raw", "notes"), { recursive: true });
-  mkdirSync(join(defaultVaultRoot, "raw", "documents", "originals"), {
-    recursive: true,
-  });
-  mkdirSync(join(defaultVaultRoot, "raw", "documents", "markdown"), {
-    recursive: true,
-  });
+  createDesktopVaultLayout(defaultVaultRoot);
   mkdirSync(dirname(config.configPath), { recursive: true });
   if (existsSync(config.configPath)) return;
   writeFileSync(
@@ -84,12 +82,49 @@ export function ensureDesktopBootstrapConfig(config: DesktopAppServerConfig): vo
   );
 }
 
+function createDesktopVaultLayout(vaultRoot: string): void {
+  const directories = [
+    "raw/inbox/documents",
+    "raw/inbox/media",
+    "raw/inbox/notes",
+    "raw/normalized/chats",
+    "raw/normalized/excerpts",
+    "raw/normalized/markdown",
+    "raw/assets/images",
+    "raw/assets/media",
+    "raw/assets/pages",
+    "raw/assets/tables",
+    "raw/sidecars/documents",
+    "raw/sidecars/sources",
+    "wiki/pages",
+    "wiki/sources",
+    "maintenance/reports/ingest",
+    "maintenance/reports/lint",
+    "maintenance/reports/query",
+    "maintenance/reports/run-failure",
+    "maintenance/archives",
+    ".knoarbor/index",
+    ".knoarbor/ledgers",
+    ".knoarbor/checkpoints",
+    ".knoarbor/runs",
+    ".knoarbor/queue",
+    ".knoarbor/locks",
+    ".knoarbor/logs",
+    ".knoarbor/chat/sessions",
+  ];
+  for (const directory of directories) {
+    mkdirSync(join(vaultRoot, directory), { recursive: true });
+  }
+}
+
 function desktopDefaultConfigYaml(input: {
   host: string;
   port: number;
   vaultPath: string;
 }): string {
   const port = input.port > 0 ? input.port : 8000;
+  const vaultPath = pathRelativeToConfigDir(input.vaultPath);
+  const vaultRelative = (relativePath: string): string => `${vaultPath}/${relativePath}`;
   return `# KnoArbor Desktop local configuration.
 # Secrets do not belong here. Put API keys in your shell environment or .env,
 # then reference their environment variable names through api_key_env.
@@ -105,10 +140,10 @@ vaults:
   profiles:
     default:
       name: My Knowledge Base
-      path: ${quoteYamlString(input.vaultPath)}
+      path: ${quoteYamlString(vaultPath)}
 
 vault:
-  path: ${quoteYamlString(input.vaultPath)}
+  path: ${quoteYamlString(vaultPath)}
 
 server:
   host: ${quoteYamlString(input.host)}
@@ -140,8 +175,8 @@ document_processing:
   mineru:
     enabled: false
     endpoint: http://127.0.0.1:18000/file_parse
-    input_dir: ${quoteYamlString(`${input.vaultPath}/raw/documents/originals`)}
-    output_dir: ${quoteYamlString(`${input.vaultPath}/raw/documents/markdown`)}
+    input_dir: ${quoteYamlString(vaultRelative("raw/inbox/documents"))}
+    output_dir: ${quoteYamlString(vaultRelative("raw/normalized/markdown"))}
     recursive: true
     patterns:
       - "*.pdf"
@@ -174,10 +209,10 @@ connectors:
     enabled: true
     settings:
       roots:
-        - ${quoteYamlString(`${input.vaultPath}/raw/notes`)}
-        - ${quoteYamlString(`${input.vaultPath}/raw/documents/markdown`)}
+        - ${quoteYamlString(vaultRelative("raw/inbox/notes"))}
+        - ${quoteYamlString(vaultRelative("raw/normalized/markdown"))}
       recursive: true
-      raw_output_dir: ${quoteYamlString(`${input.vaultPath}/raw/notes`)}
+      raw_output_dir: ${quoteYamlString(vaultRelative("raw/inbox/notes"))}
       preserve_relative_paths: true
   codex:
     enabled: false
@@ -185,26 +220,26 @@ connectors:
       sessions_dir: ~/.codex/sessions
       pattern: "rollout-*.jsonl"
       recursive: true
-      raw_output_dir: ${quoteYamlString(`${input.vaultPath}/raw/chats`)}
+      raw_output_dir: ${quoteYamlString(vaultRelative("raw/normalized/chats"))}
   hermes:
     enabled: false
     settings:
       sessions_dir: ~/.hermes/sessions
-      raw_output_dir: ${quoteYamlString(`${input.vaultPath}/raw/chats`)}
+      raw_output_dir: ${quoteYamlString(vaultRelative("raw/normalized/chats"))}
   openclaw:
     enabled: false
     settings:
       sessions_dir: ~/.openclaw/agents/main/sessions
       pattern: "*.jsonl"
       recursive: false
-      raw_output_dir: ${quoteYamlString(`${input.vaultPath}/raw/chats`)}
+      raw_output_dir: ${quoteYamlString(vaultRelative("raw/normalized/chats"))}
   claude_code:
     enabled: false
     settings:
       sessions_dir: ~/.claude/projects
       pattern: "*.jsonl"
       recursive: true
-      raw_output_dir: ${quoteYamlString(`${input.vaultPath}/raw/chats`)}
+      raw_output_dir: ${quoteYamlString(vaultRelative("raw/normalized/chats"))}
   generic_chat:
     enabled: false
     settings:
@@ -214,7 +249,7 @@ connectors:
         - "*.sqlite"
         - "*.db"
       recursive: true
-      raw_output_dir: ${quoteYamlString(`${input.vaultPath}/raw/chats`)}
+      raw_output_dir: ${quoteYamlString(vaultRelative("raw/normalized/chats"))}
 
 query:
   mode: balanced
@@ -254,7 +289,7 @@ ingest:
     min_segment_chars: 1000
   recovery:
     enabled: true
-    execution_ledger_path: maintenance/ingest_execution_ledger.jsonl
+    execution_ledger_path: .knoarbor/ledgers/ingest_execution.jsonl
   concurrency:
     max_concurrent_sources: 1
 
@@ -282,12 +317,31 @@ function quoteYamlString(value: string): string {
   return JSON.stringify(value);
 }
 
-function readServiceArgs(): string[] {
+function pathRelativeToConfigDir(path: string): string {
+  return `./${relativePathFromRootToAppData(path)}`;
+}
+
+function relativePathFromRootToAppData(path: string): string {
+  const normalized = path.replace(/\\/g, "/");
+  const marker = "/vaults/";
+  const index = normalized.lastIndexOf(marker);
+  return index >= 0 ? normalized.slice(index + 1) : normalized;
+}
+
+function resolveServiceCommand(isPackaged: boolean): string {
+  const explicit = process.env.KNOARBOR_DESKTOP_SERVICE_COMMAND?.trim();
+  if (explicit) return explicit;
+  if (!isPackaged) return "uv";
+  const executable = process.platform === "win32" ? "knoar-service.exe" : "knoar-service";
+  return join(process.resourcesPath, "service", executable);
+}
+
+function readServiceArgs(isPackaged: boolean): string[] {
   const raw = process.env.KNOARBOR_DESKTOP_SERVICE_ARGS?.trim();
   if (raw) {
     return raw.split(/\s+/).filter(Boolean);
   }
-  return ["run", "knoar"];
+  return isPackaged ? [] : ["run", "knoar"];
 }
 
 function readPort(value: string | undefined): number {
@@ -307,6 +361,20 @@ function findDesktopRoot(): string {
   let current = dirname(fileURLToPath(import.meta.url));
   while (true) {
     if (existsSync(join(current, "package.json"))) {
+      return current;
+    }
+    const parent = dirname(current);
+    if (parent === current) {
+      return process.cwd();
+    }
+    current = parent;
+  }
+}
+
+function findRepoRootFromDesktopRoot(): string {
+  let current = findDesktopRoot();
+  while (true) {
+    if (existsSync(join(current, "pyproject.toml"))) {
       return current;
     }
     const parent = dirname(current);

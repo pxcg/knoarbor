@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { getPage, getReport, getSourceCatalog, ingestChatSession, listChatSessions, runIngest, runIngestFile, runLint, type ReportDetail } from "../api/client";
-import type { AppContext } from "../App";
+import type { AppContext } from "../appContext";
 import { localizeReportKind, localizeReportTitle } from "../components/reportLabels";
 import { ReportSummaryCard } from "../components/report/ReportSummaryCard";
 import { RunFlowGuide } from "../components/runs/RunPanels";

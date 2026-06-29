@@ -26,6 +26,7 @@ const desktopApi: KnoArborDesktopBridge = {
   },
   openApiDocs: () => ipcRenderer.invoke("knoarbor-desktop:api-docs-open"),
   openLogs: () => ipcRenderer.invoke("knoarbor-desktop:logs-open"),
+  openPath: (path) => ipcRenderer.invoke("knoarbor-desktop:path-open", path),
   restartService: () => ipcRenderer.invoke("knoarbor-desktop:service-restart"),
   selectDirectory: (options) =>
     ipcRenderer.invoke("knoarbor-desktop:select-directory", options),

@@ -28,7 +28,7 @@ export class DesktopWindowManager {
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        preload: join(moduleDir, "../preload/index.js"),
+        preload: join(moduleDir, "../preload/index.mjs"),
         sandbox: false,
       },
       width: 1360,

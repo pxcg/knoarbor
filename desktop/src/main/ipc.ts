@@ -44,6 +44,12 @@ export function registerDesktopIpc(input: {
     await shell.showItemInFolder(filePath);
     return { opened: true, path: filePath };
   });
+  ipcMain.handle("knoarbor-desktop:path-open", async (_event, path?: string) => {
+    const target = String(path || "").trim();
+    if (!target) return { opened: false };
+    const error = await shell.openPath(target);
+    return error ? { opened: false, path: target, error } : { opened: true, path: target };
+  });
   ipcMain.handle("knoarbor-desktop:service-restart", () =>
     input.serviceManager.restart(input.config.appServer),
   );

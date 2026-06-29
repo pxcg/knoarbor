@@ -1,15 +1,43 @@
 {
   "name": "@knoarbor/desktop",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.1.0",
+  "description": "KnoArbor desktop app",
+  "author": "pxcg",
   "license": "Apache-2.0",
   "type": "module",
   "main": "out/main/index.js",
   "build": {
     "appId": "ai.knoarbor.desktop",
     "productName": "KnoArbor",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/web",
+        "to": "web"
+      },
+      {
+        "from": "resources/service",
+        "to": "service"
+      },
+      {
+        "from": "../docs",
+        "to": "docs"
+      }
+    ],
     "mac": {
-      "icon": "resources/icons/icon.icns"
+      "category": "public.app-category.productivity",
+      "icon": "resources/icons/icon.icns",
+      "target": [
+        "dmg",
+        "zip"
+      ]
     },
     "win": {
       "icon": "resources/icons/icon.ico"
@@ -20,7 +48,10 @@
   },
   "scripts": {
     "build": "npm run prepare:web && electron-vite build && tsc -p tsconfig.json --noEmit",
+    "build:service": "node scripts/build-service.mjs",
+    "dist:mac": "npm run build:service && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip",
     "dev": "npm run prepare:web && electron-vite dev",
+    "pack:mac": "npm run build:service && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir",
     "prepare:web": "node scripts/prepare-web.mjs",
     "preview": "electron-vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -33,6 +64,7 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@types/node": "^24.0.0",
     "electron": "42.4.0",
+    "electron-builder": "^26.0.12",
     "electron-vite": "^5.0.0",
     "typescript": "^5.6.3"
   }

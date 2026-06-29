@@ -1,0 +1,582 @@
+.report-card-list {
+  display: grid;
+  gap: 10px;
+}
+
+.report-type-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.report-type-card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 5px;
+  min-height: 96px;
+  padding: 12px;
+  text-align: left;
+}
+
+.report-type-card:hover,
+.report-type-card.active {
+  border-color: var(--accent);
+  background: #f0fdfa;
+}
+
+.report-type-card span,
+.report-type-card small {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-type-card strong {
+  font-size: 21px;
+  line-height: 1;
+}
+
+.report-card,
+.report-row,
+.report-summary-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text);
+}
+
+.report-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.report-card.compact p,
+.report-summary-card p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.report-card span,
+.report-summary-card span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.report-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 5px 10px;
+  text-align: left;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.report-row:hover,
+.report-row.active {
+  border-color: var(--accent);
+  background: #f0fdfa;
+}
+
+.report-row strong,
+.report-row span:not(.pill),
+.report-row small {
+  grid-column: 2;
+}
+
+.report-row .pill {
+  grid-row: 1 / span 3;
+  align-self: start;
+}
+
+.report-summary-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.report-executive-summary {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(180px, 0.75fr) minmax(0, 1.5fr);
+  margin-bottom: 16px;
+  padding: 14px;
+}
+
+.report-executive-summary h3 {
+  font-size: 14px;
+  margin: 0 0 5px;
+}
+
+.report-executive-summary p {
+  color: var(--muted-strong);
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.report-executive-summary dl {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  margin: 0;
+}
+
+.report-executive-summary dl div {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 0;
+  padding: 9px 10px;
+}
+
+.report-executive-summary dl div.danger {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.report-executive-summary dt {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.report-executive-summary dd {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  margin: 4px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-executive-summary dl div:first-child dd {
+  white-space: normal;
+}
+
+.report-technical-details {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-top: 16px;
+  overflow: hidden;
+}
+
+.report-technical-details summary {
+  align-items: center;
+  background: #ffffff;
+  color: var(--muted-strong);
+  cursor: pointer;
+  display: flex;
+  font-size: 13px;
+  font-weight: 700;
+  justify-content: space-between;
+  list-style: none;
+  padding: 11px 13px;
+}
+
+.report-technical-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.report-technical-details summary::after {
+  content: "⌄";
+  color: var(--muted);
+}
+
+.report-technical-details[open] summary::after {
+  transform: rotate(180deg);
+}
+
+.report-technical-content {
+  display: grid;
+  gap: 16px;
+  padding: 13px;
+}
+
+.report-artifact-section {
+  margin-bottom: 16px;
+}
+
+.report-artifact-group {
+  display: grid;
+  gap: 9px;
+  margin-top: 10px;
+  min-width: 0;
+}
+
+.report-artifact-group h4 {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin: 2px 0 0;
+}
+
+.report-artifact-grid {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.report-page-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 0;
+  padding: 10px 11px;
+}
+
+.report-diff-unavailable {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  color: #9a3412;
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+}
+
+.report-diff-unavailable p {
+  color: #9a3412;
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.report-failure-list {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.report-failure-card {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  color: #9a3412;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 11px 12px;
+}
+
+.report-failure-card strong,
+.report-failure-card p {
+  overflow-wrap: anywhere;
+}
+
+.report-failure-card p {
+  color: #9a3412;
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.report-page-card.active {
+  background: #eaf7f1;
+  border-color: #9bd8c2;
+  box-shadow: 0 6px 14px rgba(15, 143, 116, 0.07);
+}
+
+.report-page-card-header {
+  align-items: start;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.report-page-main {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.report-page-card:hover {
+  background: #f0fdfa;
+  border-color: var(--accent);
+}
+
+.report-page-main strong {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-page-main span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-page-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 0;
+}
+
+.report-page-change-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  min-width: 0;
+}
+
+.report-page-change {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 0;
+  padding: 9px;
+}
+
+.report-page-change-meta {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  gap: 7px;
+  margin-bottom: 7px;
+}
+
+.report-inline-preview {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  margin-top: 12px;
+  min-width: 0;
+  padding: 12px;
+  width: 100%;
+}
+
+.report-inline-preview-header {
+  align-items: start;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-bottom: 10px;
+}
+
+.report-inline-preview-header h3 {
+  font-size: 15px;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-inline-preview-header span {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-markdown-preview {
+  box-sizing: border-box;
+  max-height: 560px;
+  max-width: none;
+  min-width: 0;
+  overflow: auto;
+  width: 100%;
+}
+
+.report-diff {
+  background: #0f172a;
+  border-radius: 8px;
+  color: #dbeafe;
+  box-sizing: border-box;
+  display: block;
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 8px 0 0;
+  max-height: 320px;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: auto;
+  padding: 10px;
+  white-space: pre;
+  width: 100%;
+}
+
+.report-diff span {
+  display: block;
+  min-width: max-content;
+  padding: 1px 4px;
+}
+
+.report-diff .diff-add {
+  background: rgba(22, 121, 74, 0.28);
+  color: #bbf7d0;
+}
+
+.report-diff .diff-remove {
+  background: rgba(190, 18, 60, 0.28);
+  color: #fecdd3;
+}
+
+.report-diff .diff-hunk {
+  color: #bfdbfe;
+}
+
+.markdown-preview {
+  max-height: 720px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--surface-soft);
+  color: var(--text);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.report-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.report-metric {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.full-width-button {
+  justify-content: center;
+  margin-top: 12px;
+  width: 100%;
+}
+
+.report-metric dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.report-metric dd {
+  margin: 0;
+  color: var(--text);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.report-section-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.report-section-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 12px;
+}
+
+.report-section-card h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.report-section-card ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted-strong);
+}
+
+.report-structured-line {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  line-height: 1.55;
+}
+
+.report-structured-line button {
+  background: #eef6ff;
+  border: 1px solid #cfe4ff;
+  border-radius: 999px;
+  color: #24568f;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 3px 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-structured-line button:hover {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.report-structured-line code {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 3px 7px;
+}
+
+.report-structured-line small {
+  color: var(--muted);
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}
+
+.report-structured-line > span:last-child {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}
+
+.report-run-events {
+  margin: 18px 0;
+}
+
+.report-inline-preview .markdown-rendered.report-markdown-preview {
+  box-sizing: border-box;
+  max-width: none;
+  width: 100%;
+}

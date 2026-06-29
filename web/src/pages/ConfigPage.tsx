@@ -8,19 +8,28 @@ import {
   getConfigForm,
   probeModelProvider,
   saveConfig,
-	  saveConfigForm,
-	  type ConfigForm,
-	  type ModelCapabilitySuggestion,
-	} from "../api/client";
-import type { AppContext } from "../App";
+  saveConfigForm,
+  type ConfigForm,
+  type ModelCapabilitySuggestion,
+} from "../api/client";
+import type { AppContext } from "../appContext";
 import { ConfigDiagnosticsPanel } from "../components/config/ConfigDiagnosticsPanel";
+import {
+  ConfigGeneralSection,
+  SettingsDirectory,
+  SettingsLoadingState,
+  SettingsSectionIntro,
+  modelActionKey,
+  normalizeConfigForm,
+  type ConfigSectionId,
+} from "../components/config/ConfigPageParts";
 import {
   ConfigBasicSection,
   ConfigInputsSection,
-  ConfigModelProvidersSection,
   ConfigPreprocessingSection,
   ConfigRuntimeSection,
 } from "../components/config/ConfigSettingsSections";
+import { ConfigModelProvidersSection } from "../components/config/ConfigModelProvidersSection";
 
 type Props = {
   context: AppContext;
@@ -31,7 +40,6 @@ export function ConfigPage({ context, embedded = false }: Props) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<ConfigForm | null>(null);
   const [activeSection, setActiveSection] = useState<ConfigSectionId>("basic");
-  const [desktopDiagnostics, setDesktopDiagnostics] = useState<DesktopDiagnosticsView | null>(null);
 
   const formQuery = useQuery({
     queryKey: ["config-form", context.configPath],
@@ -58,20 +66,6 @@ export function ConfigPage({ context, embedded = false }: Props) {
     const error = formQuery.error || diagnosticsQuery.error;
     if (error) context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
   }, [context, diagnosticsQuery.error, formQuery.error]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const desktop = window.knoarborDesktop;
-    if (!desktop) return undefined;
-    desktop.getDiagnostics().then((diagnostics) => {
-      if (!cancelled) setDesktopDiagnostics(normalizeDesktopDiagnostics(diagnostics));
-    }).catch(() => {
-      if (!cancelled) setDesktopDiagnostics(null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   async function updateSettingsFromDisk() {
     await queryClient.invalidateQueries({ queryKey: ["config-form"] });
@@ -170,19 +164,6 @@ export function ConfigPage({ context, embedded = false }: Props) {
   return (
     <section className={embedded ? "settings-embedded" : "view active"}>
       <article className={embedded ? "settings-embedded-panel" : "panel"}>
-        {desktopDiagnostics?.appData && (
-          <div className="desktop-config-summary">
-            <div>
-              <span>{context.t("desktopAppDataRoot")}</span>
-              <code>{desktopDiagnostics.appData.root}</code>
-            </div>
-            <div>
-              <span>{context.t("desktopConfigPath")}</span>
-              <code>{desktopDiagnostics.appData.configPath}</code>
-            </div>
-          </div>
-        )}
-
         {formQuery.isLoading && <SettingsLoadingState t={context.t} />}
 
         {form && (
@@ -210,9 +191,9 @@ export function ConfigPage({ context, embedded = false }: Props) {
               {activeSection === "models" && (
                 <ConfigModelProvidersSection
                   form={form}
-	                  setForm={setForm}
-	                  t={context.t}
-	                  probeResults={context.modelProbeResults}
+                  setForm={setForm}
+                  t={context.t}
+                  probeResults={context.modelProbeResults}
                   pendingAction={modelActionKey(discoverMutation.variables, "discover", discoverMutation.isPending) || modelActionKey(probeMutation.variables, undefined, probeMutation.isPending) || modelActionKey(applyCapabilitiesMutation.variables, "apply", applyCapabilitiesMutation.isPending)}
                   onDiscover={(provider) => discoverMutation.mutate(provider)}
                   onProbe={(provider, level) => probeMutation.mutate({ provider, level })}
@@ -233,231 +214,5 @@ export function ConfigPage({ context, embedded = false }: Props) {
         )}
       </article>
     </section>
-  );
-}
-
-type ConfigSectionId = "general" | "basic" | "inputs" | "preprocessing" | "runtime" | "models" | "diagnostics" | "advanced";
-
-type DesktopDiagnosticsView = {
-  appData?: {
-    configPath?: string;
-    root?: string;
-  };
-};
-
-function normalizeDesktopDiagnostics(value: unknown): DesktopDiagnosticsView | null {
-  if (!value || typeof value !== "object") return null;
-  const appData = "appData" in value ? (value as { appData?: unknown }).appData : undefined;
-  if (!appData || typeof appData !== "object") return {};
-  const item = appData as { configPath?: unknown; root?: unknown };
-  return {
-    appData: {
-      configPath: typeof item.configPath === "string" ? item.configPath : undefined,
-      root: typeof item.root === "string" ? item.root : undefined,
-    },
-  };
-}
-
-function modelActionKey(
-  variables: unknown,
-  forcedAction: "discover" | "minimal" | "structured" | "apply" | undefined,
-  pending: boolean,
-): string | null {
-  if (!pending) return null;
-  if (typeof variables === "string") return `${variables}:${forcedAction || "discover"}`;
-  if (variables && typeof variables === "object" && "provider" in variables) {
-    const record = variables as { provider?: unknown; level?: unknown };
-    const provider = typeof record.provider === "string" ? record.provider : "";
-    const action = forcedAction || (typeof record.level === "string" ? record.level : "probe");
-    return provider ? `${provider}:${action}` : null;
-  }
-  return null;
-}
-
-const CONFIG_SECTIONS: Array<{ id: ConfigSectionId; titleKey: string; copyKey: string }> = [
-  { id: "general", titleKey: "settingsSectionGeneral", copyKey: "settingsSectionGeneralCopy" },
-  { id: "basic", titleKey: "settingsSectionBasic", copyKey: "settingsSectionBasicCopy" },
-  { id: "inputs", titleKey: "settingsSectionInputs", copyKey: "settingsSectionInputsCopy" },
-  { id: "preprocessing", titleKey: "settingsSectionPreprocessing", copyKey: "settingsSectionPreprocessingCopy" },
-  { id: "runtime", titleKey: "settingsSectionRuntime", copyKey: "settingsSectionRuntimeCopy" },
-  { id: "models", titleKey: "settingsSectionModels", copyKey: "settingsSectionModelsCopy" },
-  { id: "diagnostics", titleKey: "settingsSectionDiagnostics", copyKey: "settingsSectionDiagnosticsCopy" },
-  { id: "advanced", titleKey: "advancedYaml", copyKey: "advancedYamlCopy" },
-];
-
-const CONFIG_SECTION_GROUPS: Array<{ titleKey: string; items: ConfigSectionId[] }> = [
-  { titleKey: "settingsGroupGeneral", items: ["general"] },
-  { titleKey: "settingsGroupKnowledgeBase", items: ["basic", "inputs", "preprocessing"] },
-  { titleKey: "settingsGroupRuntime", items: ["runtime", "models", "diagnostics"] },
-  { titleKey: "settingsGroupAdvanced", items: ["advanced"] },
-];
-
-function SettingsSectionIntro({
-  section,
-  t,
-  saving,
-  canSave,
-  onSave,
-  onReload,
-  reloading,
-}: {
-  section: ConfigSectionId;
-  t: (key: string) => string;
-  saving: boolean;
-  canSave: boolean;
-  onSave: () => void;
-  onReload: () => Promise<void>;
-  reloading: boolean;
-}) {
-  const item = CONFIG_SECTIONS.find((candidate) => candidate.id === section) || CONFIG_SECTIONS[0];
-  const canSaveSection = section !== "general" && section !== "diagnostics" && section !== "advanced";
-  return (
-    <div className="settings-section-intro">
-      <div>
-        <p className="eyebrow">{t("settingsDetail")}</p>
-        <h2>{t(item.titleKey)}</h2>
-        <p className="panel-copy">{t(item.copyKey)}</p>
-      </div>
-      {canSaveSection && (
-        <div className="button-row">
-          <button className="button secondary" type="button" onClick={() => void onReload()} disabled={reloading}>
-            {reloading ? t("refreshing") : t("refresh")}
-          </button>
-          <button className="button primary" type="button" onClick={onSave} disabled={!canSave || saving}>
-            {saving ? t("running") : t("saveSettings")}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SettingsLoadingState({ t }: { t: (key: string) => string }) {
-  return (
-    <div className="settings-workspace">
-      <SettingsDirectory activeSection="basic" setActiveSection={() => undefined} t={t} disabled />
-      <div className="settings-section-panel">
-        <div className="settings-section-intro">
-          <p className="eyebrow">{t("loading")}</p>
-          <h2>{t("settingsSectionBasic")}</h2>
-          <p className="panel-copy">{t("settingsSectionBasicCopy")}</p>
-        </div>
-        <div className="form-grid config-basic-grid">
-          <div className="skeleton-field" />
-          <div className="skeleton-field" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ConfigGeneralSection({ context }: { context: AppContext }) {
-  return (
-    <div className="settings-card">
-      <div>
-        <h3>{context.t("language")}</h3>
-        <p className="panel-copy">{context.t("settingsLanguageCopy")}</p>
-      </div>
-      <div className="settings-language-options" role="group" aria-label={context.t("language")}>
-        <button className={`button ${context.language === "zh" ? "primary" : "secondary"}`} type="button" onClick={() => context.setLanguage("zh")}>
-          中文
-        </button>
-        <button className={`button ${context.language === "en" ? "primary" : "secondary"}`} type="button" onClick={() => context.setLanguage("en")}>
-          EN
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function normalizeConfigForm(form: ConfigForm): ConfigForm {
-  return {
-    ...form,
-    vault_id: form.vault_id || "default",
-    vaults:
-      form.vaults?.length
-        ? form.vaults
-        : [
-            {
-              id: form.vault_id || "default",
-              name: form.project_name || "My Knowledge Base",
-              path: form.vault_path || "./vaults/all",
-              active: true,
-            },
-          ],
-    providers: (form.providers || []).map((provider) => ({
-      ...provider,
-      adapter: provider.adapter || "openai_compatible",
-      verify_tls: provider.verify_tls ?? true,
-      tls_ca_file: provider.tls_ca_file || "",
-      extra_body: provider.extra_body || {},
-    })),
-    enabled_connectors: form.enabled_connectors || [],
-    markdown_roots: form.markdown_roots || [],
-    generic_chat_enabled: Boolean(form.generic_chat_enabled),
-    generic_chat_roots: form.generic_chat_roots || [],
-    generic_chat_raw_output_dir: form.generic_chat_raw_output_dir || "",
-    mineru_parse_method: form.mineru_parse_method || "auto",
-    mineru_backend: form.mineru_backend || "pipeline",
-    mineru_timeout_seconds: form.mineru_timeout_seconds || 600,
-    mineru_patterns: form.mineru_patterns || ["*.pdf", "*.docx", "*.pptx"],
-    mineru_recursive: form.mineru_recursive ?? true,
-    mineru_return_md: form.mineru_return_md ?? true,
-    mineru_return_middle_json: Boolean(form.mineru_return_middle_json),
-    mineru_return_model_output: Boolean(form.mineru_return_model_output),
-    mineru_return_content_list: Boolean(form.mineru_return_content_list),
-    mineru_return_images: Boolean(form.mineru_return_images),
-    mineru_response_format_zip: Boolean(form.mineru_response_format_zip),
-    mineru_lang_list: form.mineru_lang_list || "ch",
-    mineru_formula_enable: form.mineru_formula_enable ?? true,
-    mineru_table_enable: form.mineru_table_enable ?? true,
-    mineru_server_url: form.mineru_server_url || "",
-    mineru_start_page_id: form.mineru_start_page_id ?? 0,
-    mineru_end_page_id: form.mineru_end_page_id ?? 99999,
-    mineru_extra_fields_json: form.mineru_extra_fields_json || "{}",
-  };
-}
-
-function SettingsDirectory({
-  activeSection,
-  disabled = false,
-  setActiveSection,
-  t,
-}: {
-  activeSection: ConfigSectionId;
-  disabled?: boolean;
-  setActiveSection: (section: ConfigSectionId) => void;
-  t: (key: string) => string;
-}) {
-  return (
-    <aside className="settings-section-rail" role="tablist" aria-label={t("settingsSections")}>
-      <div className="panel-header compact">
-        <h2>{t("docsDirectory")}</h2>
-      </div>
-      {CONFIG_SECTION_GROUPS.map((group) => (
-        <section className="docs-group" key={group.titleKey}>
-          <h3>{t(group.titleKey)}</h3>
-          <div className="docs-link-list">
-            {group.items.map((sectionId) => {
-              const section = CONFIG_SECTIONS.find((item) => item.id === sectionId) || CONFIG_SECTIONS[0];
-              return (
-                <button
-                  className={`docs-link ${activeSection === section.id ? "active" : ""}`}
-                  disabled={disabled}
-                  key={section.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={activeSection === section.id}
-                  onClick={() => setActiveSection(section.id)}
-                >
-                  <strong>{t(section.titleKey)}</strong>
-                  <span>{t(section.copyKey)}</span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      ))}
-    </aside>
   );
 }

@@ -1,8 +1,9 @@
-import type { Dispatch, ReactNode, SetStateAction } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { useState } from "react";
 
-import type { ConfigForm, ConfigFormProvider, ConfigVaultProfile, ModelCapabilitySuggestion, ModelProviderProbeState } from "../../api/client";
+import type { ConfigForm, ConfigVaultProfile } from "../../api/client";
 import { BrandIcon, type BrandIconName } from "../BrandIcon";
+import { ConnectorCard, PathField, splitLines } from "./ConfigFormControls";
 
 type SectionProps = {
   form: ConfigForm;
@@ -10,81 +11,29 @@ type SectionProps = {
   t: (key: string) => string;
 };
 
-type ProviderRuntimeStatus = {
-  tone: "ok" | "warning" | "error" | "unknown";
-  dotClass: "online" | "warning" | "offline" | "neutral";
-  label: string;
-  detail: string;
-  checked: boolean;
-};
-
-const PROVIDER_PRESETS: ConfigFormProvider[] = [
-  {
-    name: "deepseek",
-    adapter: "openai_compatible",
-    base_url: "https://api.deepseek.com",
-    api_key_env: "DEEPSEEK_API_KEY",
-    model: "deepseek-v4-flash",
-    json_mode: true,
-    verify_tls: true,
-    tls_ca_file: "",
-    context_window: null,
-    max_output_tokens: null,
-    api_key_configured: false,
-  },
-  {
-    name: "openai",
-    adapter: "openai_compatible",
-    base_url: "https://api.openai.com/v1",
-    api_key_env: "OPENAI_API_KEY",
-    model: "gpt-4.1",
-    json_mode: true,
-    verify_tls: true,
-    tls_ca_file: "",
-    context_window: null,
-    max_output_tokens: null,
-    api_key_configured: false,
-  },
-  {
-    name: "vllm",
-    adapter: "openai_compatible",
-    base_url: "http://localhost:8001/v1",
-    api_key_env: "",
-    model: "local-model",
-    json_mode: true,
-    verify_tls: true,
-    tls_ca_file: "",
-    context_window: 32768,
-    max_output_tokens: 8000,
-    api_key_configured: true,
-  },
-  {
-    name: "ollama",
-    adapter: "ollama",
-    base_url: "http://localhost:11434",
-    api_key_env: "",
-    model: "qwen3.6:27b-q4_K_M",
-    json_mode: true,
-    verify_tls: true,
-    tls_ca_file: "",
-    context_window: 262144,
-    max_output_tokens: 8000,
-    extra_body: { think: false },
-    api_key_configured: true,
-  },
-];
-
 export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
-  function createNewVaultDraft() {
-    const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const id = `vault-${stamp}`;
+  async function createNewVaultDraft() {
+    if (!window.knoarborDesktop?.selectDirectory) {
+      window.alert(t("desktopDirectoryPickerUnavailable"));
+      return;
+    }
+    const result = await window.knoarborDesktop.selectDirectory({
+      defaultPath: form.vault_path || "./vaults/default",
+      title: t("chooseVaultFolder"),
+    });
+    if (result.canceled || !result.path) return;
+
     const vaults = normalizedVaults(form);
+    const baseName = vaultNameFromPath(result.path) || t("newVaultDefaultName");
+    const name = uniqueVaultName(vaults, baseName);
+    const id = uniqueVaultId(vaults, slugifyVaultId(name || baseName));
+    const path = result.path;
     setForm({
       ...form,
-      project_name: `${t("newVaultDefaultName")} ${stamp}`,
-      vault_path: `./vaults/${id}`,
+      project_name: name,
+      vault_path: path,
       vault_id: id,
-      vaults: [...vaults.map((vault) => ({ ...vault, active: false })), { id, name: `${t("newVaultDefaultName")} ${stamp}`, path: `./vaults/${id}`, active: true }],
+      vaults: [...vaults.map((vault) => ({ ...vault, active: false })), { id, name, path, active: true }],
     });
   }
 
@@ -100,7 +49,7 @@ export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
 
   function removeVault(index: number) {
     const vaults = normalizedVaults(form).filter((_, candidateIndex) => candidateIndex !== index);
-    syncVaults(vaults.length ? vaults : [{ id: "all", name: "My Knowledge Base", path: "./vaults/all", active: true }]);
+    syncVaults(vaults.length ? vaults : [{ id: "default", name: "My Knowledge Base", path: "./vaults/default", active: true }]);
   }
 
   function syncVaults(vaults: ConfigVaultProfile[]) {
@@ -121,7 +70,7 @@ export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
           <h3>{t("knowledgeBaseProfile")}</h3>
           <p className="panel-copy">{t("knowledgeBaseProfileCopy")}</p>
         </div>
-        <button className="button secondary" type="button" onClick={createNewVaultDraft}>
+        <button className="button secondary" type="button" onClick={() => void createNewVaultDraft()}>
           {t("newVault")}
         </button>
       </div>
@@ -133,10 +82,6 @@ export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
               <span>{t("activeVault")}</span>
             </label>
             <label className="field compact-field">
-              <span>{t("vaultId")}</span>
-              <input value={vault.id} onChange={(event) => updateVault(index, { id: event.target.value })} placeholder="personal" />
-            </label>
-            <label className="field compact-field">
               <span>{t("projectName")}</span>
               <input value={vault.name} onChange={(event) => updateVault(index, { name: event.target.value })} placeholder={t("projectNamePlaceholder")} />
             </label>
@@ -145,13 +90,20 @@ export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
               label={t("vaultPath")}
               value={vault.path}
               onChange={(value) => updateVault(index, { path: value })}
-              placeholder="./vaults/all"
+              placeholder="./vaults/default"
               selectDirectoryTitle={t("chooseVaultFolder")}
               t={t}
             />
-            <button className="icon-button" type="button" onClick={() => removeVault(index)} aria-label={t("removeVault")} disabled={normalizedVaults(form).length <= 1}>
-              ×
-            </button>
+            <div className="vault-profile-actions">
+              {window.knoarborDesktop?.openPath && (
+                <button className="button secondary vault-open-button" type="button" onClick={() => void openVaultFolder(vault.path)}>
+                  {t("openVaultFolder")}
+                </button>
+              )}
+              <button className="icon-button" type="button" onClick={() => removeVault(index)} aria-label={t("removeVault")} disabled={normalizedVaults(form).length <= 1}>
+                ×
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -162,9 +114,46 @@ export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
 function normalizedVaults(form: ConfigForm): ConfigVaultProfile[] {
   const vaults = form.vaults?.length
     ? form.vaults
-    : [{ id: form.vault_id || "all", name: form.project_name || "My Knowledge Base", path: form.vault_path || "./vaults/all", active: true }];
+    : [{ id: form.vault_id || "default", name: form.project_name || "My Knowledge Base", path: form.vault_path || "./vaults/default", active: true }];
   const activeId = form.vault_id || vaults.find((vault) => vault.active)?.id || vaults[0]?.id;
   return vaults.map((vault) => ({ ...vault, active: vault.id === activeId || Boolean(vault.active && !activeId) }));
+}
+
+function vaultNameFromPath(path: string): string {
+  const normalized = path.replace(/[\\/]+$/, "");
+  const parts = normalized.split(/[\\/]/).filter(Boolean);
+  const name = parts.length ? parts[parts.length - 1] : "";
+  return name.trim();
+}
+
+async function openVaultFolder(path: string) {
+  if (!path || !window.knoarborDesktop?.openPath) return;
+  await window.knoarborDesktop.openPath(path);
+}
+
+function uniqueVaultId(vaults: ConfigVaultProfile[], baseId: string): string {
+  const used = new Set(vaults.map((vault) => vault.id));
+  const fallback = baseId || "vault";
+  if (!used.has(fallback)) return fallback;
+  let suffix = 2;
+  while (used.has(`${fallback}-${suffix}`)) suffix += 1;
+  return `${fallback}-${suffix}`;
+}
+
+function uniqueVaultName(vaults: ConfigVaultProfile[], baseName: string): string {
+  const used = new Set(vaults.map((vault) => vault.name));
+  if (!used.has(baseName)) return baseName;
+  let suffix = 2;
+  while (used.has(`${baseName} ${suffix}`)) suffix += 1;
+  return `${baseName} ${suffix}`;
+}
+
+function slugifyVaultId(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 export function ConfigRuntimeSection({ form, setForm, t }: SectionProps) {
@@ -440,479 +429,4 @@ export function ConfigPreprocessingSection({ form, setForm, t }: SectionProps) {
       </div>
     </>
   );
-}
-
-export function ConfigModelProvidersSection({
-  form,
-  setForm,
-  t,
-  probeResults,
-  pendingAction,
-  onDiscover,
-  onProbe,
-  onApplyCapabilities,
-}: SectionProps & {
-  probeResults: Record<string, ModelProviderProbeState>;
-  pendingAction: string | null;
-  onDiscover: (provider: string) => void;
-  onProbe: (provider: string, level: "minimal" | "structured") => void;
-  onApplyCapabilities: (provider: string, values: ModelCapabilitySuggestion) => void;
-}) {
-  const [activeProvider, setActiveProvider] = useState(0);
-  const [providerPreset, setProviderPreset] = useState(PROVIDER_PRESETS[0].name);
-
-  function updateProvider(index: number, patch: Partial<ConfigFormProvider>) {
-    setForm({
-      ...form,
-      providers: form.providers.map((provider, current) => (current === index ? { ...provider, ...patch } : provider)),
-    });
-  }
-
-  function addProvider() {
-    const preset = PROVIDER_PRESETS.find((item) => item.name === providerPreset);
-    const template = preset || {
-      name: "",
-      base_url: "",
-      adapter: "openai_compatible",
-      api_key_env: "",
-      model: "",
-      json_mode: true,
-      verify_tls: true,
-      tls_ca_file: "",
-      context_window: null,
-      max_output_tokens: null,
-      extra_body: {},
-      api_key_configured: false,
-    };
-    const existingNames = new Set(form.providers.map((provider) => provider.name));
-    let name = template.name;
-    if (name && existingNames.has(name)) {
-      let suffix = 2;
-      while (existingNames.has(`${name}-${suffix}`)) suffix += 1;
-      name = `${name}-${suffix}`;
-    }
-    const nextProviders = [...form.providers, { ...template, name }];
-    setForm({ ...form, providers: nextProviders, default_provider: form.default_provider || name });
-    setActiveProvider(nextProviders.length - 1);
-  }
-
-  function removeProvider(index: number) {
-    const removedName = form.providers[index]?.name;
-    const nextProviders = form.providers.filter((_, current) => current !== index);
-    setForm({
-      ...form,
-      providers: nextProviders,
-      default_provider: form.default_provider === removedName ? nextProviders[0]?.name || "" : form.default_provider,
-    });
-    setActiveProvider(Math.min(index, Math.max(0, nextProviders.length - 1)));
-  }
-
-  const active = form.providers[activeProvider];
-  const activeRuntimeStatus = active ? providerRuntimeStatus(active, probeResults[active.name], t) : null;
-  return (
-    <>
-      <div className="settings-inline-action model-provider-toolbar" id="settings-models">
-        <div>
-          <h2>{t("modelProviders")}</h2>
-          <p className="panel-copy">{t("modelProvidersCopy")}</p>
-        </div>
-        <div className="add-provider-control">
-          <PresetMenu
-            label={providerPreset || t("custom")}
-            options={[...PROVIDER_PRESETS.map((preset) => preset.name), ""]}
-            value={providerPreset}
-            customLabel={t("custom")}
-            ariaLabel={t("providerPreset")}
-            onChange={setProviderPreset}
-          />
-          <button className="button secondary" onClick={addProvider} type="button">
-            {t("addProvider")}
-          </button>
-        </div>
-      </div>
-      <div className="provider-workspace">
-        <div className="provider-list">
-          {form.providers.map((provider, index) => {
-            const runtimeStatus = providerRuntimeStatus(provider, probeResults[provider.name], t);
-            return (
-              <button className={`provider-row ${index === activeProvider ? "active" : ""} ${runtimeStatus.tone}`} key={`${provider.name}:${index}`} onClick={() => setActiveProvider(index)} type="button">
-                <span className={`status-dot ${runtimeStatus.dotClass}`} />
-                <strong>{provider.name || t("untitledProvider")}</strong>
-                <small title={runtimeStatus.detail}>{runtimeStatus.checked ? `${runtimeStatus.label} · ${runtimeStatus.detail}` : runtimeStatus.detail}</small>
-              </button>
-            );
-          })}
-          {!form.providers.length && <div className="empty-state">{t("noProviders")}</div>}
-        </div>
-
-        {active && activeRuntimeStatus && (
-          <div className={`provider-card ${activeRuntimeStatus.tone}`}>
-            <div className="provider-card-header">
-              <div>
-                <h3>{active.name || t("newProvider")}</h3>
-                <p className="panel-copy">{t("providerCopy")}</p>
-              </div>
-              <div className={`provider-status ${activeRuntimeStatus.tone}`} title={activeRuntimeStatus.detail}>
-                <span className={`status-dot ${activeRuntimeStatus.dotClass}`} />
-                <span>{activeRuntimeStatus.label}</span>
-              </div>
-            </div>
-            <p className={`provider-status-message ${activeRuntimeStatus.tone}`}>{activeRuntimeStatus.detail}</p>
-            <div className="form-grid provider-form-grid">
-              <PathField label={t("name")} value={active.name} onChange={(value) => updateProvider(activeProvider, { name: value })} />
-              <label className="field">
-                <span>{t("modelAdapter")}</span>
-                <select value={active.adapter || "openai_compatible"} onChange={(event) => updateProvider(activeProvider, { adapter: event.target.value as ConfigFormProvider["adapter"] })}>
-                  <option value="openai_compatible">{t("adapterOpenAICompatible")}</option>
-                  <option value="ollama">{t("adapterOllamaNative")}</option>
-                </select>
-              </label>
-              <PathField label={t("model")} value={active.model} onChange={(value) => updateProvider(activeProvider, { model: value })} />
-              <PathField label={t("baseUrl")} value={active.base_url} onChange={(value) => updateProvider(activeProvider, { base_url: value })} />
-              <PathField label={t("apiKeyEnv")} value={active.api_key_env} onChange={(value) => updateProvider(activeProvider, { api_key_env: value })} />
-              <PathField label={t("tlsCaFile")} value={active.tls_ca_file || ""} onChange={(value) => updateProvider(activeProvider, { tls_ca_file: value })} />
-              <NumberField label={t("contextWindow")} value={active.context_window ?? null} onChange={(value) => updateProvider(activeProvider, { context_window: value })} />
-              <NumberField label={t("maxOutputTokens")} value={active.max_output_tokens ?? null} onChange={(value) => updateProvider(activeProvider, { max_output_tokens: value })} />
-            </div>
-            <label className="checkbox-field">
-              <input type="checkbox" checked={active.json_mode} onChange={(event) => updateProvider(activeProvider, { json_mode: event.target.checked })} />
-              <span>{t("jsonMode")}</span>
-            </label>
-            <label className="checkbox-field">
-              <input type="checkbox" checked={active.verify_tls ?? true} onChange={(event) => updateProvider(activeProvider, { verify_tls: event.target.checked })} />
-              <span>{t("verifyTls")}</span>
-            </label>
-            <div className="provider-actions">
-              <button className="button secondary" onClick={() => onDiscover(active.name)} disabled={!active.name || pendingAction === `${active.name}:discover`} type="button">
-                {pendingAction === `${active.name}:discover` ? t("discoveringModel") : t("discoverModels")}
-              </button>
-              <button className="button secondary" onClick={() => onProbe(active.name, "minimal")} disabled={!active.name || pendingAction === `${active.name}:minimal`} type="button">
-                {pendingAction === `${active.name}:minimal` ? t("testingModels") : t("minimalProbe")}
-              </button>
-              <button className="button secondary" onClick={() => onProbe(active.name, "structured")} disabled={!active.name || pendingAction === `${active.name}:structured`} type="button">
-                {pendingAction === `${active.name}:structured` ? t("testingModels") : t("structuredProbe")}
-              </button>
-              {hasSuggestedConfig(probeResults[active.name]) && (
-                <button
-                  className="button primary"
-                  onClick={() => onApplyCapabilities(active.name, suggestedConfigFor(probeResults[active.name]))}
-                  disabled={!active.name || pendingAction === `${active.name}:apply`}
-                  type="button"
-                >
-                  {pendingAction === `${active.name}:apply` ? t("running") : t("applyModelCapabilities")}
-                </button>
-              )}
-              <button className="button secondary" onClick={() => removeProvider(activeProvider)} type="button">
-                {t("removeProvider")}
-              </button>
-            </div>
-            <ModelProbeResultPanel
-              result={probeResults[active.name]}
-              t={t}
-              activeModel={active.model}
-              onSelectModel={(model) => updateProvider(activeProvider, { model })}
-            />
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
-
-function providerRuntimeStatus(provider: ConfigFormProvider, result: ModelProviderProbeState | undefined, t: (key: string) => string): ProviderRuntimeStatus {
-  const latest = currentModelProbeResult(provider, result);
-  if (latest) {
-    if (latest.status === "ok" && latest.available) {
-      return {
-        tone: "ok",
-        dotClass: "online",
-        label: t("modelAvailable"),
-        detail: latest.message || provider.model || t("noModelSelected"),
-        checked: true,
-      };
-    }
-    if (latest.status === "warning" || latest.available) {
-      return {
-        tone: "warning",
-        dotClass: "warning",
-        label: t("modelNeedsAttention"),
-        detail: latest.message || provider.model || t("noModelSelected"),
-        checked: true,
-      };
-    }
-    return {
-      tone: "error",
-      dotClass: "offline",
-      label: t("modelUnavailable"),
-      detail: latest.message || provider.model || t("noModelSelected"),
-      checked: true,
-    };
-  }
-
-  if (provider.api_key_env && !provider.api_key_configured) {
-    return {
-      tone: "error",
-      dotClass: "offline",
-      label: t("envMissing"),
-      detail: provider.api_key_env,
-      checked: false,
-    };
-  }
-
-  const hasMinimumConfig = Boolean(provider.name && provider.model && provider.base_url);
-  return {
-    tone: hasMinimumConfig ? "unknown" : "warning",
-    dotClass: hasMinimumConfig ? "neutral" : "warning",
-    label: t("modelNotChecked"),
-    detail: hasMinimumConfig ? `${provider.model} · ${t("modelNotCheckedCopy")}` : t("providerMissingRequiredFields"),
-    checked: false,
-  };
-}
-
-function currentModelProbeResult(provider: ConfigFormProvider, result: ModelProviderProbeState | undefined) {
-  if (!result) return undefined;
-  if (result.probe?.model === provider.model) return result.probe;
-  const discoveryModels = result.discovery?.model_ids || [];
-  if (result.discovery && (!provider.model || discoveryModels.includes(provider.model))) return result.discovery;
-  return undefined;
-}
-
-function ModelProbeResultPanel({
-  result,
-  t,
-  activeModel,
-  onSelectModel,
-}: {
-  result?: ModelProviderProbeState;
-  t: (key: string) => string;
-  activeModel?: string;
-  onSelectModel?: (model: string) => void;
-}) {
-  if (!result?.discovery && !result?.probe) {
-    return <p className="settings-action-note">{t("modelProbeEmpty")}</p>;
-  }
-  const discovery = result.discovery;
-  const probe = result.probe;
-  const suggested = suggestedConfigFor(result);
-  const modelIds = discovery?.model_ids || [];
-  return (
-    <section className="model-probe-panel">
-      <div className="model-probe-header">
-        <h3>{t("modelProbeResult")}</h3>
-        <span className={`pill ${probe?.status === "ok" || discovery?.status === "ok" ? "success" : probe?.status === "error" || discovery?.status === "error" ? "danger" : ""}`}>
-          {probe?.status || discovery?.status || t("unknown")}
-        </span>
-      </div>
-      <p className="settings-action-note">{t("modelProbeResultCopy")}</p>
-      <p className="panel-copy">{probe?.message || discovery?.message}</p>
-      <dl className="model-probe-grid">
-        <div>
-          <dt>{t("detectedContextWindow")}</dt>
-          <dd>{formatMaybeNumber(probe?.detected_context_window ?? discovery?.detected_context_window, t)}</dd>
-        </div>
-        <div>
-          <dt>{t("effectiveContextWindow")}</dt>
-          <dd>{formatMaybeNumber(probe?.effective_context_window ?? discovery?.effective_context_window, t)}</dd>
-        </div>
-        <div>
-          <dt>{t("modelCount")}</dt>
-          <dd>{formatMaybeNumber(discovery?.model_count, t)}</dd>
-        </div>
-        <div>
-          <dt>{t("latency")}</dt>
-          <dd>{probe?.latency_ms ? `${probe.latency_ms} ms` : t("notAvailable")}</dd>
-        </div>
-        <div>
-          <dt>{t("structuredOutput")}</dt>
-          <dd>{probe?.structured_output === undefined || probe?.structured_output === null ? t("notAvailable") : probe.structured_output ? t("yes") : t("no")}</dd>
-        </div>
-        <div>
-          <dt>{t("suggestedMaxOutput")}</dt>
-          <dd>{formatMaybeNumber(suggested.max_output_tokens, t)}</dd>
-        </div>
-      </dl>
-      {discovery?.configured_model_found === false && activeModel && (
-        <p className="settings-action-note warning">{t("configuredModelMissing")}</p>
-      )}
-      {modelIds.length > 0 && (
-        <div className="model-discovery-list">
-          <div className="model-discovery-heading">
-            <h4>{t("availableModels")}</h4>
-            <span>{t("availableModelsCopy")}</span>
-          </div>
-          <div className="model-discovery-table" role="table" aria-label={t("availableModels")}>
-            {modelIds.map((modelId) => {
-              const selected = modelId === activeModel;
-              return (
-                <div className={`model-discovery-row ${selected ? "selected" : ""}`} role="row" key={modelId}>
-                  <span className="model-discovery-name" title={modelId}>{modelId}</span>
-                  <button className={selected ? "button ghost compact" : "button secondary compact"} type="button" onClick={() => onSelectModel?.(modelId)} disabled={selected}>
-                    {selected ? t("selectedModel") : t("useModel")}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function hasSuggestedConfig(result?: ModelProviderProbeState): boolean {
-  const suggested = suggestedConfigFor(result);
-  return suggested.context_window !== undefined || suggested.max_output_tokens !== undefined || suggested.json_mode !== undefined;
-}
-
-function suggestedConfigFor(result?: ModelProviderProbeState): ModelCapabilitySuggestion {
-  const suggested = result?.probe?.suggested_config || result?.discovery?.suggested_config || {};
-  const values: ModelCapabilitySuggestion = {};
-  if (suggested.context_window !== undefined && suggested.context_window !== null) values.context_window = suggested.context_window;
-  if (suggested.max_output_tokens !== undefined && suggested.max_output_tokens !== null) values.max_output_tokens = suggested.max_output_tokens;
-  if (suggested.json_mode !== undefined && suggested.json_mode !== null) values.json_mode = suggested.json_mode;
-  return values;
-}
-
-function formatMaybeNumber(value: number | null | undefined, t: (key: string) => string): string {
-  return typeof value === "number" ? value.toLocaleString() : t("notAvailable");
-}
-
-function PresetMenu({
-  ariaLabel,
-  customLabel,
-  label,
-  onChange,
-  options,
-  value,
-}: {
-  ariaLabel: string;
-  customLabel: string;
-  label: string;
-  onChange: (value: string) => void;
-  options: string[];
-  value: string;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="custom-select-menu provider-preset-menu">
-      <button
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        aria-label={ariaLabel}
-        className="custom-select-trigger"
-        onClick={() => setOpen((current) => !current)}
-        type="button"
-      >
-        <span>{label}</span>
-        <span aria-hidden="true">⌄</span>
-      </button>
-      {open && (
-        <div className="custom-select-options" role="listbox">
-          {options.map((option) => {
-            const selected = option === value;
-            const optionLabel = option || customLabel;
-            return (
-              <button
-                aria-selected={selected}
-                className={selected ? "selected" : ""}
-                key={option || "custom"}
-                onClick={() => {
-                  onChange(option);
-                  setOpen(false);
-                }}
-                role="option"
-                type="button"
-              >
-                <span>{optionLabel}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ConnectorCard({ title, checked, onChange, children }: { title: string; checked: boolean; onChange: (checked: boolean) => void; children: ReactNode }) {
-  return (
-    <section className="settings-subcard">
-      <label className="checkbox-field compact">
-        <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
-        <span>{title}</span>
-      </label>
-      {children}
-    </section>
-  );
-}
-
-function PathField({
-  label,
-  value,
-  onChange,
-  className = "",
-  placeholder,
-  ariaLabel,
-  selectDirectoryTitle,
-  t,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  className?: string;
-  placeholder?: string;
-  ariaLabel?: string;
-  selectDirectoryTitle?: string;
-  t?: (key: string) => string;
-}) {
-  const canSelectDirectory = Boolean(window.knoarborDesktop?.selectDirectory && selectDirectoryTitle);
-  const chooseDirectory = async () => {
-    if (!window.knoarborDesktop?.selectDirectory) return;
-    const result = await window.knoarborDesktop.selectDirectory({
-      defaultPath: value || placeholder,
-      title: selectDirectoryTitle,
-    });
-    if (!result.canceled && result.path) onChange(result.path);
-  };
-  return (
-    <label className={`field ${className}`}>
-      {label && <span>{label}</span>}
-      <span className="desktop-path-input">
-        <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-label={ariaLabel || label} />
-        {canSelectDirectory && (
-          <button className="button secondary path-picker-button" type="button" onClick={chooseDirectory}>
-            {t ? t("chooseFolder") : "Choose"}
-          </button>
-        )}
-      </span>
-    </label>
-  );
-}
-
-function NumberField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number | null;
-  onChange: (value: number | null) => void;
-}) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      <input
-        type="number"
-        min={1}
-        value={value ?? ""}
-        onChange={(event) => onChange(event.target.value ? Number(event.target.value) : null)}
-      />
-    </label>
-  );
-}
-
-function splitLines(value: string): string[] {
-  return value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
 }

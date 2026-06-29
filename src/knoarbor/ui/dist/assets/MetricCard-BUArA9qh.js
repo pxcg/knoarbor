@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BX1tsrJU.js";var t=e();function n({label:e,value:n,hint:r,tone:i=`slate`}){return(0,t.jsxs)(`article`,{className:`metric-card tone-${i}`,children:[(0,t.jsx)(`span`,{className:`metric-label`,children:e}),(0,t.jsx)(`strong`,{children:n}),(0,t.jsx)(`span`,{className:`metric-hint`,children:r})]})}export{n as t};

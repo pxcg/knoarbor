@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { getQueryTrends, searchWiki } from "../api/client";
-import type { AppContext } from "../App";
+import type { AppContext } from "../appContext";
 import type { QueryResult } from "../api/client";
 import { LoadingBlock } from "../components/LoadingBlock";
 import type { VaultOption } from "../vaultRuntime";
@@ -13,7 +13,6 @@ type Props = {
 
 export function QueryPage({ context, embedded = false }: Props) {
   const [query, setQuery] = useState("Agent Loop 控制模式");
-  const [mode, setMode] = useState<"quick" | "balanced" | "deep">("balanced");
   const [vaultScope, setVaultScope] = useState<"current" | "all" | "selected">("current");
   const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([context.activeVaultId]);
   const [pageDirs, setPageDirs] = useState("");
@@ -35,10 +34,11 @@ export function QueryPage({ context, embedded = false }: Props) {
         .map((item) => item.trim())
         .filter(Boolean);
       const response = await searchWiki(context.activeVaultSelector, query.trim(), {
-        mode,
+        mode: "balanced",
         page_dirs: pageDirsValue,
         all_vaults: vaultScope === "all" || (vaultScope === "current" && context.activeVaultId === "all"),
         vault_ids: vaultScope === "selected" ? targetVaults.map((vault) => vault.id) : [],
+        include_content: true,
       });
       const nextScopedResults = (response.results || []).map((result) => ({
         vault: vaultForResult(context.vaultOptions, context.activeVaultId, context.vaultPath, result),
@@ -91,14 +91,6 @@ export function QueryPage({ context, embedded = false }: Props) {
               <option value="selected">{context.t("querySelectedVaults")}</option>
             </select>
             <small>{context.t("queryAcrossVaults")}</small>
-          </label>
-          <label className="field">
-            <span>{context.t("queryRetrievalMode")}</span>
-            <select value={mode} onChange={(event) => setMode(event.target.value as "quick" | "balanced" | "deep")}>
-              <option value="quick">{context.t("quickQuery")}</option>
-              <option value="balanced">{context.t("balancedQuery")}</option>
-              <option value="deep">{context.t("deepQuery")}</option>
-            </select>
           </label>
           <label className="field">
             <span>{context.t("initialPageDirs")}</span>
@@ -215,7 +207,6 @@ export function QueryPage({ context, embedded = false }: Props) {
                 <button type="button" onClick={context.openSettings}>
                   {context.t("queryEmptyHintDirs")}
                 </button>
-                <span>{context.t("queryEmptyHintBody")}</span>
               </div>
             </article>
           )}

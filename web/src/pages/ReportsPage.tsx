@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getPage, getReport, getRunEvents, type ReportDetail, type ReportSummary, type VaultSelector } from "../api/client";
-import type { AppContext } from "../App";
+import type { AppContext } from "../appContext";
 import { LoadingBlock } from "../components/LoadingBlock";
 import { ReportReadableView } from "../components/report/ReportReadableView";
 import { ReportSummaryCard } from "../components/report/ReportSummaryCard";
