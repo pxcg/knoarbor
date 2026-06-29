@@ -3,6 +3,27 @@ import type { DesktopCommand } from "../preload/types.js";
 
 export function installDesktopMenu(input: { githubUrl: string }): void {
   const isMac = process.platform === "darwin";
+  const platformEditItems: MenuItemConstructorOptions[] = isMac
+    ? [
+        { role: "pasteAndMatchStyle" },
+        { role: "delete" },
+        { role: "selectAll" },
+        { type: "separator" },
+        {
+          label: "Speech",
+          submenu: [{ role: "startSpeaking" }, { role: "stopSpeaking" }],
+        },
+      ]
+    : [{ role: "delete" }, { type: "separator" }, { role: "selectAll" }];
+  const editSubmenu: MenuItemConstructorOptions[] = [
+    { role: "undo" },
+    { role: "redo" },
+    { type: "separator" },
+    { role: "cut" },
+    { role: "copy" },
+    { role: "paste" },
+    ...platformEditItems,
+  ];
   const template: MenuItemConstructorOptions[] = [
     ...(isMac
       ? [
@@ -29,6 +50,10 @@ export function installDesktopMenu(input: { githubUrl: string }): void {
         { type: "separator" },
         isMac ? { role: "close" } : { role: "quit" },
       ],
+    },
+    {
+      label: "Edit",
+      submenu: editSubmenu,
     },
     {
       label: "Service",
