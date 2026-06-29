@@ -4,6 +4,7 @@ import { createWriteStream, existsSync, mkdirSync, writeFileSync } from "node:fs
 import { createServer } from "node:net";
 import { dirname, isAbsolute, join } from "node:path";
 import type { DesktopAppServerConfig } from "./config.js";
+import { readDesktopEnvFile } from "./env-file.js";
 import type { DesktopServiceState } from "../preload/types.js";
 
 type StateListener = (state: DesktopServiceState) => void;
@@ -87,6 +88,7 @@ export class DesktopServiceManager {
     const logDir = join(appDataRoot, "logs");
     const stateDir = join(appDataRoot, "state");
     const logPath = join(logDir, "service.log");
+    const envPath = join(appDataRoot, ".env");
     mkdirSync(logDir, { recursive: true });
     mkdirSync(stateDir, { recursive: true });
     const logStream = createWriteStream(logPath, { flags: "a" });
@@ -102,6 +104,7 @@ export class DesktopServiceManager {
     ];
     const env = {
       ...process.env,
+      ...readDesktopEnvFile(envPath),
       KNOARBOR_CONFIG_PATH: config.configPath,
       KNOARBOR_DESKTOP: "1",
       KNOARBOR_LOG_DIR: logDir,

@@ -76,15 +76,45 @@ export function ConfigPage({ context, embedded = false }: Props) {
     await context.refreshAll();
   }
 
+  function clearDesktopEnvSecretInputs() {
+    setForm((current) =>
+      current
+        ? {
+            ...current,
+            providers: current.providers.map((provider) => ({
+              ...provider,
+              api_key_value: "",
+              api_key_configured: provider.api_key_configured || Boolean(provider.api_key_value?.trim()),
+            })),
+            image_providers: current.image_providers.map((provider) => ({
+              ...provider,
+              api_key_value: "",
+              api_key_configured: provider.api_key_configured || Boolean(provider.api_key_value?.trim()),
+            })),
+          }
+        : current,
+    );
+  }
+
   const structuredSave = useMutation({
     mutationFn: async () => {
       if (!form) throw new Error("Configuration form is not loaded.");
-      return saveConfigForm(context.configPath, form);
+      const envSecrets = collectDesktopEnvSecrets(form);
+      if (Object.keys(envSecrets).length && window.knoarborDesktop?.saveEnvSecrets) {
+        const result = await window.knoarborDesktop.saveEnvSecrets(envSecrets);
+        if (result.error) throw new Error(result.error);
+      }
+      const response = await saveConfigForm(context.configPath, form);
+      if (Object.keys(envSecrets).length && window.knoarborDesktop?.restartService) {
+        await window.knoarborDesktop.restartService();
+      }
+      return response;
     },
     onSuccess: async (response) => {
       context.setConfigPath(response.config_path);
       context.setConfigExists(true);
       context.setSummary(response.summary || {});
+      clearDesktopEnvSecretInputs();
       await updateSettingsFromDisk();
       context.setNotice({ message: `${context.t("configurationSaved")} ${response.config_path}` });
     },
@@ -107,10 +137,19 @@ export function ConfigPage({ context, embedded = false }: Props) {
 
   async function saveCurrentFormForModelAction(): Promise<string | null> {
     if (!form) throw new Error("Configuration form is not loaded.");
+    const envSecrets = collectDesktopEnvSecrets(form);
+    if (Object.keys(envSecrets).length && window.knoarborDesktop?.saveEnvSecrets) {
+      const result = await window.knoarborDesktop.saveEnvSecrets(envSecrets);
+      if (result.error) throw new Error(result.error);
+    }
     const response = await saveConfigForm(context.configPath, form);
     context.setConfigPath(response.config_path);
     context.setConfigExists(true);
     context.setSummary(response.summary || {});
+    if (Object.keys(envSecrets).length && window.knoarborDesktop?.restartService) {
+      await window.knoarborDesktop.restartService();
+      clearDesktopEnvSecretInputs();
+    }
     await queryClient.invalidateQueries({ queryKey: ["config-form"] });
     await queryClient.invalidateQueries({ queryKey: ["config-diagnostics"] });
     await queryClient.invalidateQueries({ queryKey: ["models", "providers"] });
@@ -215,4 +254,19 @@ export function ConfigPage({ context, embedded = false }: Props) {
       </article>
     </section>
   );
+}
+
+function collectDesktopEnvSecrets(form: ConfigForm): Record<string, string> {
+  const secrets: Record<string, string> = {};
+  for (const provider of form.providers) {
+    const name = provider.api_key_env?.trim();
+    const value = provider.api_key_value?.trim();
+    if (name && value) secrets[name] = value;
+  }
+  for (const provider of form.image_providers) {
+    const name = provider.api_key_env?.trim();
+    const value = provider.api_key_value?.trim();
+    if (name && value) secrets[name] = value;
+  }
+  return secrets;
 }

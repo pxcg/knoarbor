@@ -2,6 +2,16 @@
 
 KnoArbor 的主要配置在 `config.yaml`，敏感密钥放在 `.env`。
 
+源码运行时，CLI/API 从当前进程环境变量读取密钥，`.env` 需要由 shell 或运行器加载。打包桌面端会把运行时文件放在应用数据目录，并在启动托管本地服务时自动读取自己的 `.env`：
+
+```text
+macOS: ~/Library/Application Support/KnoArbor/.env
+Windows: %APPDATA%/KnoArbor/.env
+Linux: ~/.config/KnoArbor/.env
+```
+
+桌面端设置页会把 API Key 写入这个 `.env` 文件；`config.yaml` 只保存 `DEEPSEEK_API_KEY` 这类环境变量名称。
+
 `config_version` 表示配置 schema 版本。第一版公开配置为：
 
 ```yaml

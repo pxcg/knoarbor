@@ -99,6 +99,7 @@ export type ConfigFormProvider = {
   adapter: "openai_compatible" | "ollama";
   base_url: string;
   api_key_env: string;
+  api_key_value?: string;
   model: string;
   json_mode: boolean;
   verify_tls: boolean;
@@ -115,6 +116,7 @@ export type ConfigImageProvider = {
   base_url: string;
   endpoint_path: string;
   api_key_env: string;
+  api_key_value?: string;
   model: string;
   verify_tls: boolean;
   tls_ca_file: string;

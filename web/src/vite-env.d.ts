@@ -17,6 +17,11 @@ type KnoArborDesktopBridge = {
   openLogs(): Promise<{ opened: boolean; path?: string }>;
   openPath(path: string): Promise<{ opened: boolean; path?: string; error?: string }>;
   restartService(): Promise<unknown>;
+  saveEnvSecrets(secrets: Record<string, string>): Promise<{
+    error?: string;
+    path?: string;
+    saved: string[];
+  }>;
   selectDirectory(options?: { defaultPath?: string; title?: string }): Promise<{
     canceled: boolean;
     path?: string;

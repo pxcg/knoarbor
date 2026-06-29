@@ -184,11 +184,19 @@ export async function getSourceCatalog(configPath?: string | null, connectors: s
 }
 
 export async function saveConfigForm(configPath: string | null, form: ConfigForm): Promise<UiConfigUpdateResponse> {
-  const { diagnostics: _diagnostics, ...payload } = form;
+  const { diagnostics: _diagnostics, ...payload } = sanitizeConfigForm(form);
   return requestJson("/ui/api/config/form", {
     method: "PUT",
     body: { ...payload, config_path: configPath },
   });
+}
+
+function sanitizeConfigForm(form: ConfigForm): ConfigForm {
+  return {
+    ...form,
+    providers: form.providers.map(({ api_key_value: _apiKeyValue, ...provider }) => provider),
+    image_providers: form.image_providers.map(({ api_key_value: _apiKeyValue, ...provider }) => provider),
+  };
 }
 
 export async function discoverModelProvider(configPath: string | null, provider: string): Promise<ModelDiscoveryResponse> {

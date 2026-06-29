@@ -1,9 +1,11 @@
 import { app } from "electron";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DEFAULT_HOST = "127.0.0.1";
+const PRODUCT_APP_DATA_DIR = "KnoArbor";
+const LEGACY_APP_DATA_PARTS = ["@knoarbor", "desktop"];
 
 export type DesktopAppServerConfig =
   | {
@@ -32,6 +34,21 @@ export function resolveDesktopAppConfig(): DesktopAppConfig {
     appServer: resolveAppServerConfig(),
     appUserModelId: "com.knoarbor.desktop",
   };
+}
+
+export function configureDesktopUserDataPath(): string {
+  const override = process.env.KNOARBOR_DESKTOP_APP_DATA_ROOT?.trim();
+  if (override) {
+    app.setPath("userData", override);
+    return override;
+  }
+
+  const appDataRoot = app.getPath("appData");
+  const targetRoot = join(appDataRoot, PRODUCT_APP_DATA_DIR);
+  const legacyRoot = join(appDataRoot, ...LEGACY_APP_DATA_PARTS);
+  migrateLegacyUserData(legacyRoot, targetRoot);
+  app.setPath("userData", targetRoot);
+  return targetRoot;
 }
 
 function resolveAppServerConfig(): DesktopAppServerConfig {
@@ -126,7 +143,7 @@ function desktopDefaultConfigYaml(input: {
   const vaultPath = pathRelativeToConfigDir(input.vaultPath);
   const vaultRelative = (relativePath: string): string => `${vaultPath}/${relativePath}`;
   return `# KnoArbor Desktop local configuration.
-# Secrets do not belong here. Put API keys in your shell environment or .env,
+# Secrets do not belong here. Put API keys in the desktop .env file,
 # then reference their environment variable names through api_key_env.
 
 project:
@@ -311,6 +328,33 @@ privacy:
   redact_private_ips: false
   custom_terms: []
 `;
+}
+
+function migrateLegacyUserData(legacyRoot: string, targetRoot: string): void {
+  if (!existsSync(legacyRoot) || legacyRoot === targetRoot) return;
+  if (!existsSync(targetRoot)) {
+    mkdirSync(dirname(targetRoot), { recursive: true });
+    try {
+      renameSync(legacyRoot, targetRoot);
+      return;
+    } catch {
+      mkdirSync(targetRoot, { recursive: true });
+    }
+  }
+
+  for (const entry of [
+    "config.yaml",
+    ".env",
+    "vaults",
+    ".knoarbor",
+    "state",
+    "logs",
+  ]) {
+    const source = join(legacyRoot, entry);
+    const target = join(targetRoot, entry);
+    if (!existsSync(source) || existsSync(target)) continue;
+    cpSync(source, target, { recursive: true, force: false });
+  }
 }
 
 function quoteYamlString(value: string): string {

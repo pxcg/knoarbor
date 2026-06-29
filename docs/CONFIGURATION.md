@@ -13,7 +13,15 @@ cp .env.example .env
 set -a && source .env && set +a
 ```
 
-The CLI/API reads secrets from process environment variables. Loading `.env` is a shell step; the project does not automatically read secret files.
+The CLI/API reads secrets from process environment variables. Loading `.env` is a shell step for source-based usage. The packaged desktop app stores its runtime files under the app data directory and loads its own `.env` automatically when starting the managed local service:
+
+```text
+macOS: ~/Library/Application Support/KnoArbor/.env
+Windows: %APPDATA%/KnoArbor/.env
+Linux: ~/.config/KnoArbor/.env
+```
+
+The desktop settings page writes API keys to that `.env` file and keeps `config.yaml` limited to environment variable names such as `DEEPSEEK_API_KEY`.
 
 `config_version` identifies the configuration schema. The first public schema is:
 

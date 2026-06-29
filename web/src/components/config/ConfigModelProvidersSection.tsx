@@ -275,6 +275,14 @@ export function ConfigModelProvidersSection({
               <PathField label={t("model")} value={active.model} onChange={(value) => updateProvider(activeProvider, { model: value })} />
               <PathField label={t("baseUrl")} value={active.base_url} onChange={(value) => updateProvider(activeProvider, { base_url: value })} />
               <PathField label={t("apiKeyEnv")} value={active.api_key_env} onChange={(value) => updateProvider(activeProvider, { api_key_env: value })} />
+              <SecretField
+                configured={active.api_key_configured}
+                configuredLabel={t("configured")}
+                label={t("apiKey")}
+                placeholder={t(active.api_key_configured ? "apiKeyConfiguredPlaceholder" : "apiKeyPlaceholder")}
+                value={active.api_key_value || ""}
+                onChange={(value) => updateProvider(activeProvider, { api_key_value: value })}
+              />
               <PathField label={t("tlsCaFile")} value={active.tls_ca_file || ""} onChange={(value) => updateProvider(activeProvider, { tls_ca_file: value })} />
               <NumberField label={t("contextWindow")} value={active.context_window ?? null} onChange={(value) => updateProvider(activeProvider, { context_window: value })} />
               <NumberField label={t("maxOutputTokens")} value={active.max_output_tokens ?? null} onChange={(value) => updateProvider(activeProvider, { max_output_tokens: value })} />
@@ -378,6 +386,14 @@ export function ConfigModelProvidersSection({
               <PathField label={t("baseUrl")} value={activeImage.base_url} onChange={(value) => updateImageProvider(activeImageProvider, { base_url: value })} />
               <PathField label={t("imageEndpointPath")} value={activeImage.endpoint_path} onChange={(value) => updateImageProvider(activeImageProvider, { endpoint_path: value })} />
               <PathField label={t("apiKeyEnv")} value={activeImage.api_key_env} onChange={(value) => updateImageProvider(activeImageProvider, { api_key_env: value })} />
+              <SecretField
+                configured={activeImage.api_key_configured}
+                configuredLabel={t("configured")}
+                label={t("apiKey")}
+                placeholder={t(activeImage.api_key_configured ? "apiKeyConfiguredPlaceholder" : "apiKeyPlaceholder")}
+                value={activeImage.api_key_value || ""}
+                onChange={(value) => updateImageProvider(activeImageProvider, { api_key_value: value })}
+              />
               <PathField label={t("tlsCaFile")} value={activeImage.tls_ca_file || ""} onChange={(value) => updateImageProvider(activeImageProvider, { tls_ca_file: value })} />
               <label className="field">
                 <span>{t("imageResponseFormat")}</span>
@@ -403,6 +419,38 @@ export function ConfigModelProvidersSection({
         )}
       </div>
     </>
+  );
+}
+
+function SecretField({
+  configured,
+  configuredLabel,
+  label,
+  onChange,
+  placeholder,
+  value,
+}: {
+  configured: boolean;
+  configuredLabel: string;
+  label: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  value: string;
+}) {
+  return (
+    <label className="field">
+      <span>
+        {label}
+        {configured && <small className="field-inline-status">{configuredLabel}</small>}
+      </span>
+      <input
+        autoComplete="off"
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        type="password"
+        value={value}
+      />
+    </label>
   );
 }
 

@@ -2,16 +2,17 @@ import { electronApp, optimizer } from "@electron-toolkit/utils";
 import { app, BrowserWindow } from "electron";
 import log from "electron-log/main";
 import { optionalDesktopResourcePath } from "./assets.js";
-import { ensureDesktopBootstrapConfig, resolveDesktopAppConfig } from "./config.js";
+import {
+  configureDesktopUserDataPath,
+  ensureDesktopBootstrapConfig,
+  resolveDesktopAppConfig,
+} from "./config.js";
 import { registerDesktopIpc } from "./ipc.js";
 import { installDesktopMenu } from "./menu.js";
 import { DesktopServiceManager } from "./service-manager.js";
 import { DesktopWindowManager } from "./window-manager.js";
 
-const appDataRootOverride = process.env.KNOARBOR_DESKTOP_APP_DATA_ROOT?.trim();
-if (appDataRootOverride) {
-  app.setPath("userData", appDataRootOverride);
-}
+configureDesktopUserDataPath();
 
 const config = resolveDesktopAppConfig();
 const serviceManager = new DesktopServiceManager();
