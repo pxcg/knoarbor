@@ -34,7 +34,9 @@
 - [x] Support external development server mode.
 - [x] Add automatic loopback port selection.
 - [x] Wait for `/health` before showing the main window.
+- [x] Verify external development server health before marking it healthy.
 - [x] Capture service stdout/stderr into `service.log`.
+- [x] Persist managed service state under app-data `state/service.json`.
 - [x] Add graceful shutdown and forced kill timeout.
 - [x] Add restart operation.
 - [x] Add structured failure state for startup errors.
@@ -60,6 +62,8 @@
 - [x] Resolve app-data paths for macOS, Windows, and Linux.
 - [x] Create default desktop config when missing.
 - [x] Create default desktop vault root when requested by first launch.
+- [x] Align desktop-created vaults with the current `raw/`, `wiki/`,
+  `maintenance/`, and `.knoarbor/` vault contract.
 - [ ] Keep user-selected vaults as profiles rather than copies.
 - [ ] Keep `.env` and API keys outside packaged resources.
 - [x] Add app-data diagnostics to UI settings or diagnostics.
@@ -70,12 +74,15 @@
 
 ## P5 Python Service Packaging
 
-- [ ] Decide first packaging implementation:
-  - PyInstaller service executable; or
-  - standalone Python runtime plus wheel install.
-- [ ] Build a local service artifact.
-- [ ] Verify the artifact can run `knoar serve` without a developer `.venv`.
-- [ ] Copy service artifact into desktop resources.
+- [x] Decide first packaging implementation:
+  - PyInstaller-style service executable first;
+  - embedded Python plus wheel install as fallback.
+- [x] Build a local service artifact.
+- [x] Verify the artifact can run `knoar serve` from a clean temporary config
+  and vault.
+- [x] Copy service artifact into desktop resources.
+- [x] Resolve packaged service executable from `resources/service/` in managed
+  mode.
 - [ ] Exclude dev dependencies, tests, notebooks, `tmp`, `vaults`, `.git`, and
   `web/node_modules`.
 - [ ] Record package size for macOS and Windows builds.
@@ -92,15 +99,31 @@
 
 ## P7 Verification And Release Gates
 
-- [ ] Add desktop typecheck.
+- [x] Add desktop typecheck.
 - [ ] Add main-process unit tests for service manager state transitions.
 - [ ] Add preload bridge type test or compile check.
-- [ ] Add packaged-web smoke check.
+- [x] Add packaged-web build smoke check.
 - [ ] Add Playwright/Electron smoke for first window load.
 - [ ] Add manual verification checklist for macOS.
 - [ ] Add manual verification checklist for Windows before public desktop
   release.
 - [ ] Update release checklist once desktop builds become release-blocking.
+
+## P7.5 Desktop Repair Closure
+
+- [x] Fix packaged preload resolution so `window.knoarborDesktop` exists in the
+  installed app.
+- [x] Route the managed service through the desktop app-data config path for
+  every config read.
+- [x] Make "New knowledge base" open the native directory picker and leave the
+  form unchanged on cancel.
+- [x] Keep knowledge-base ids internal in settings UI.
+- [x] Show vault path open/select actions in the installed app.
+- [ ] Align readiness status with actual vault, model, and input diagnostics.
+- [ ] Clean model-provider empty and preset states so configured and suggested
+  providers are visually distinct.
+- [x] Refresh graph, query, and docs empty/render states after the desktop shell
+  loads from the installed package.
 
 ## P8 Public Docs
 

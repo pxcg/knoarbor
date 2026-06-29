@@ -1,6 +1,8 @@
 # 溯源设计
 
-本文档冻结 KnoArbor 的来源溯源模型。它约束 ingest、lint、query 和后续 refresh 的共同数据语义，避免在 writer、lint agent 或查询层各自发明来源表达。
+本文档解释 KnoArbor 的来源溯源模型。冻结的字段和目录契约记录在
+[契约总览](CONTRACTS.md)；本文说明 raw source、source digest、知识页、
+lint 维护和 query context 如何共享同一个“来源”语义。
 
 ## 设计目标
 
@@ -30,13 +32,13 @@
 | C1 | raw/inbox/notes/Agent.md | unit:0 | 原始资料描述了 Agent Loop 的控制循环。 | high |
 ```
 
-约束：
+职责：
 
 - `## Evidence` 将每条 claim 绑定到 source、range、basis 和 confidence。它是知识页记录 raw source 的唯一正文来源表。
-- 知识页依赖的每个 raw source 都应该有匹配的 source digest trace。
+- 知识页依赖的每个 raw source 都有匹配的 source digest trace。
 - source digest 通过 Contribution Map 和机器索引 trace 记录由同一 raw source 生成的知识页。
-- 同一个 raw source 在同一批 ingest 中只能生成一个 source digest。长文档或长聊天被切分为多个 segment 时，重复的 source digest 草稿必须在写入前归并。
-- ingest 不向页面正文写入宽泛导航链接。主题相似和弱候选匹配保留为 retrieval/index 信号，不再沉淀为导航 section。
+- 同一个 raw source 在同一批 ingest 中生成一个 source digest。长文档或长聊天被切分为多个 segment 时，重复的 source digest 草稿在写入前归并。
+- ingest 将主题相似和弱候选匹配保留为 retrieval/index 信号，页面正文聚焦 claims、relations、entities、evidence 和 synthesis。
 
 ## 多来源模型
 
@@ -55,7 +57,7 @@
 
 ## Lint 责任边界
 
-Lint 可以：
+Lint 负责：
 
 - 检查 `## Evidence` 与 source digest trace 中的来源是否完整。
 - 检查 raw source 是否存在。
@@ -63,12 +65,12 @@ Lint 可以：
 - 检查 source digest trace 与 Contribution Map 是否和生成页一致。
 - 为缺失 source digest 和缺失 trace 记录生成维护候选。
 
-Lint 不可以：
+Lint 范围外：
 
-- 在没有结构化 Evidence、Source Identity、Raw Source 或 Contribution Map 证据时猜测来源。
-- 联网重新验证事实。
-- 把普通 wiki 链接当作 provenance source。
-- 为多来源页面自动合并来源，除非操作显式更新结构化 Evidence 行并通过 review。
+- 缺少结构化 Evidence、Source Identity、Raw Source 或 Contribution Map 证据时的来源猜测。
+- 联网事实验证。
+- 将普通 wiki 链接解释为 provenance source。
+- 未更新结构化 Evidence 行且未通过 review 的多来源合并。
 
 ## 迁移策略
 

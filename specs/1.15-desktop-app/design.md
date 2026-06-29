@@ -99,11 +99,22 @@ KNOARBOR_LOG_DIR=<app-data>/logs
 KNOARBOR_STATE_DIR=<app-data>/state
 ```
 
-The packaged service should be a lightweight Python core bundle. The preferred
-first packaging path is PyInstaller or an equivalent standalone executable
-because it keeps user installation simple. A later packaging path can use
-python-build-standalone plus wheels if size and transparency become more
-important.
+The working directory is explicit. Development builds use the repository root
+so `uv run knoar` can resolve the checked-out project. Packaged builds use the
+desktop app-data root unless a packaged service path overrides it.
+
+The first desktop packaging path uses a PyInstaller-style standalone service
+artifact for the lightweight Python core. Electron starts that artifact in
+managed mode and passes the same config, host, port, log, and app-data
+environment contract used by development mode. This keeps the normal user path
+independent from a developer checkout, `uv`, or an activated Python
+environment.
+
+An embedded Python runtime plus wheel install remains the fallback packaging
+path if PyInstaller creates unacceptable package size, code-signing, or
+platform-specific issues. Both paths preserve the same service-manager
+contract, so renderer, preload, and workflow code do not change when the
+packaging implementation changes.
 
 ### External Development Service
 
@@ -115,6 +126,10 @@ KNOARBOR_DESKTOP_APP_SERVER_URL=http://127.0.0.1:8000
 
 In external mode, Electron does not start or stop the service. It still exposes
 diagnostics and native menus.
+
+External mode must still verify `/health` before marking the desktop service
+state healthy. A configured URL that does not answer health checks is surfaced
+as a desktop startup failure rather than a blank renderer.
 
 ## Process Lifecycle
 
@@ -184,6 +199,33 @@ operations:
 
 The renderer must not receive Node.js integration or direct filesystem access.
 
+## Desktop Repair Contract
+
+The packaged desktop app must keep native desktop behavior explicit and
+observable. The following contract is release-blocking for the desktop surface:
+
+- The preload bridge is available in every packaged desktop window as
+  `window.knoarborDesktop`.
+- Native directory selection is the only desktop path for adding a knowledge
+  base. Clicking "New knowledge base" opens the operating-system directory
+  picker. Cancelling the picker leaves the settings form unchanged.
+- Knowledge-base ids are internal configuration fields. The settings UI shows
+  name, path, active state, open-folder action, select-folder action, and remove
+  action.
+- Creating or selecting a knowledge base stores a profile that points to the
+  chosen directory. The app does not create date/hash-named vault directories
+  unless that exact directory was selected by the user.
+- Managed desktop service startup passes one config path, and the Python
+  service resolves that same path for `/ui/api/config`, `/doctor`, and all
+  runtime flows. A packaged app must not fall back to a temporary config path
+  after startup.
+- Startup and readiness status reflect the actual configured vault, model
+  provider, and enabled inputs. The UI does not report ready when required
+  desktop configuration is missing.
+- Graph, wiki, query, and docs pages render against the current vault contract
+  and current documentation assets. Empty states provide a clear next action
+  rather than a blank panel.
+
 ## Preload IPC Contract
 
 Preload exposes a small bridge:
@@ -237,6 +279,54 @@ KnoArbor/
     default/
 ```
 
+Desktop-created vaults use the current KnoArbor vault contract:
+
+```text
+default/
+  raw/
+    inbox/
+      documents/
+      media/
+      notes/
+    normalized/
+      chats/
+      excerpts/
+      markdown/
+    assets/
+      images/
+      media/
+      pages/
+      tables/
+    sidecars/
+      documents/
+      sources/
+  wiki/
+    pages/
+    sources/
+  maintenance/
+    reports/
+      ingest/
+      lint/
+      query/
+      run-failure/
+    archives/
+  .knoarbor/
+    index/
+    ledgers/
+    checkpoints/
+    runs/
+    queue/
+    locks/
+    logs/
+    chat/
+      sessions/
+```
+
+Desktop bootstrap creates directories only. It does not create legacy page-type
+folders or copy existing vault content. New desktop defaults should point
+connectors and runtime ledgers at this structure so first launch and CLI-created
+vaults share the same contract.
+
 User vaults can be outside this root. The desktop app stores profiles, not
 copies, unless the user creates a new desktop-managed vault.
 
@@ -251,6 +341,28 @@ The desktop package should include:
 - KnoArbor wheel and lightweight Python dependencies;
 - default config template;
 - icons, license, notices, and update metadata.
+
+The first packaged layout should be:
+
+```text
+KnoArbor.app / KnoArbor/
+  electron runtime
+  resources/
+    app/
+      out/main/
+      out/preload/
+    web/
+      index.html
+      assets/
+    service/
+      knoar-service
+    icons/
+    licenses/
+```
+
+In packaged mode, the service manager resolves the executable from
+`resources/service/`. Development mode keeps using `uv run knoar serve` from
+the repository root.
 
 The desktop package should exclude:
 
@@ -335,6 +447,8 @@ Logs:
 
 - `desktop.log`: Electron lifecycle, IPC, updater, window events;
 - `service.log`: Python service stdout/stderr;
+- `state/service.json`: last managed service endpoint, process id, port,
+  config path, and service log path;
 - existing KnoArbor runtime logs remain under the configured vault or
   app-data state root.
 

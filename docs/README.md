@@ -15,6 +15,7 @@ Chinese documentation lives in [zh/](zh/). This documentation tree is intended f
 - [API Compatibility](API_COMPATIBILITY.md): stable endpoint policy, schema versioning, and deprecation rules.
 - [Contracts](CONTRACTS.md): frozen vault, wiki, source digest, index, ingest, query, chat, API, and UI contracts.
 - [UI Contract](UI_CONTRACT.md): chat-first console surfaces, UI-only adapters, and rendering boundaries.
+- [Report Contract](REPORT_CONTRACT.md): reports, ledgers, failure artifacts, and token analysis boundaries.
 - [Roadmap](ROADMAP.md): planned path from the 1.0 public release to the 2.0 compatibility baseline.
 - [Capability Map](CAPABILITY_MAP.md): cross-feature capability status and ownership map.
 - [Error Codes](ERROR_CODES.md): stable CLI/API error codes and troubleshooting hints.
@@ -50,6 +51,10 @@ Chinese documentation lives in [zh/](zh/). This documentation tree is intended f
 - [v0.3.0 Release Notes](releases/v0.3.0.md): reliability and evaluation release content.
 - [v0.2.0 Release Notes](releases/v0.2.0.md): engine-foundation alpha release content.
 - [v0.1.0 Release Notes](releases/v0.1.0.md): first public alpha release content.
+
+Historical release notes preserve the endpoint names, command examples, and
+runtime assumptions from the version they describe. Use the API, contracts, and
+compatibility documents above for the current supported surface.
 
 ## Development
 

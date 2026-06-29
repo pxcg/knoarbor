@@ -16,6 +16,8 @@ KnoArbor 当前以 Python 包、本地 FastAPI 服务和 React 控制台为主�
 ## 目标
 
 - 提供一等 Electron 桌面应用。
+- 将 Chat 作为桌面端首页。
+- 桌面端布局优先服务桌面使用，而不是沿用仪表盘式控制台。
 - 保留 Python/FastAPI 作为核心运行时。
 - 复用当前 React 控制台，不另起一套 UI。
 - 由桌面端启动、停止、重启和观测本地 KnoArbor 服务。
@@ -38,6 +40,7 @@ KnoArbor 当前以 Python 包、本地 FastAPI 服务和 React 控制台为主�
 
 - 桌面端 SDD 包含需求、设计、任务和验证。
 - Electron 被定义为桌面 surface 层，不重复实现核心流程。
+- Chat 是桌面端首页，设置以弹窗为主要入口。
 - 服务管理器支持 packaged managed service 和 external development service。
 - 启动契约包含命令、环境变量、配置路径、端口选择、health wait、日志和关闭策略。
 - renderer 继续通过 HTTP API 调用业务流程。
@@ -45,4 +48,3 @@ KnoArbor 当前以 Python 包、本地 FastAPI 服务和 React 控制台为主�
 - macOS、Windows 和 Linux 的应用数据目录规则清晰。
 - 打包边界排除开发依赖、仓库历史、测试、运行时知识库、临时文件和重型模型服务。
 - 内网更新设计包含 manifest、安装包、签名、回滚和运行中任务处理。
-

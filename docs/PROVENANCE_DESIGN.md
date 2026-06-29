@@ -1,6 +1,9 @@
 # Provenance Design
 
-This document defines KnoArbor's source provenance model. It keeps raw sources, source digests, knowledge pages, lint maintenance, and query context aligned under one shared meaning of "source".
+This document explains KnoArbor's source provenance model. The frozen field and
+directory contracts live in [Contracts](CONTRACTS.md); this page describes why
+raw sources, source digests, knowledge pages, lint maintenance, and query
+context share one meaning of "source".
 
 ```text
 raw source -> source digest -> wiki page -> query context
@@ -34,13 +37,19 @@ Current pages keep source provenance in dedicated body sections. A knowledge pag
 | C1 | raw/inbox/notes/Agent.md | unit:0 | The source describes Agent Loop control. | high |
 ```
 
-Rules:
+Responsibilities:
 
-- `## Evidence` binds each claim to source, range, basis, and confidence. It is the knowledge page source-of-truth for raw source references.
-- A knowledge page should have a matching source digest trace for each raw source it relies on.
-- A source digest should record generated knowledge pages through its Contribution Map and machine index trace.
-- One raw source should create at most one source digest in a single ingest batch. When long documents or chats are segmented, duplicate source digest drafts must be merged before writing.
-- Ingest does not write broad navigation links into page bodies. Topical similarity and weak candidate matches remain retrieval/index signals, not persisted navigation sections.
+- `## Evidence` binds each claim to source, range, basis, and confidence. It is
+  the knowledge page source of truth for raw source references.
+- A knowledge page has a matching source digest trace for each raw source it
+  relies on.
+- A source digest records generated knowledge pages through its Contribution Map
+  and machine index trace.
+- One raw source creates at most one source digest in a single ingest batch.
+  Long documents or chats can be segmented; duplicate source digest drafts are
+  merged before writing.
+- Ingest keeps broad navigation links out of page bodies. Topical similarity and
+  weak candidate matches remain retrieval/index signals.
 
 ## Multi-Source Model
 
@@ -59,20 +68,25 @@ Retrieval, lint, and relation logic read `## Evidence` and source digest trace s
 
 ## Lint Boundary
 
-Lint may:
+Lint owns:
 
-- check whether source references are complete across `## Evidence` and source digest trace sections;
-- check whether raw sources exist;
-- check whether source digests exist;
-- check whether source digest traces and Contribution Maps are consistent with generated pages;
-- create maintenance candidates for missing source digests and missing trace records.
+- checking whether source references are complete across `## Evidence` and
+  source digest trace sections;
+- checking whether raw sources exist;
+- checking whether source digests exist;
+- checking whether source digest traces and Contribution Maps are consistent
+  with generated pages;
+- creating maintenance candidates for missing source digests and missing trace
+  records.
 
-Lint must not:
+Out of scope for lint:
 
-- guess provenance without structured Evidence, Source Identity, Raw Source, or Contribution Map evidence;
-- verify facts through the network;
-- treat normal wiki links as provenance sources;
-- merge multiple sources automatically unless the operation explicitly updates structured Evidence rows and passes review.
+- provenance guesses without structured Evidence, Source Identity, Raw Source,
+  or Contribution Map evidence;
+- network fact verification;
+- normal wiki links as provenance sources;
+- automatic multi-source merges outside operations that update structured
+  Evidence rows and pass review.
 
 ## Migration Strategy
 

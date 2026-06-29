@@ -17,6 +17,13 @@ npm --prefix desktop run typecheck
 npm --prefix desktop run build
 ```
 
+After the service artifact path exists:
+
+```bash
+npm --prefix desktop run build:service
+desktop/resources/service/knoar-service --help
+```
+
 When desktop tests exist:
 
 ```bash
@@ -36,6 +43,17 @@ builds are promoted to release-blocking.
 - Verify the main window opens only after `/health` succeeds.
 - Verify the console can call `/health`, `/models`, `/vaults`, and `/chat`
   through the local service.
+
+### Packaged Service Artifact
+
+- Build the PyInstaller-style service artifact with `npm --prefix desktop run
+  build:service`.
+- Run `desktop/resources/service/knoar-service --help`.
+- Create a temporary config and vault using `knoar-service --config <tmp>
+  first-run --vault <tmp-vault> --no-example`.
+- Start `knoar-service --config <tmp> serve --host 127.0.0.1 --port <free-port>`.
+- Verify `GET /health` returns `status: ok`.
+- Remove the temporary config and vault after the smoke check.
 
 ### Existing Vault
 
@@ -71,6 +89,19 @@ builds are promoted to release-blocking.
 - Verify local file opening goes through IPC and validated paths.
 - Verify external links open in the system browser.
 
+### Knowledge Base Settings
+
+- Open Settings in the installed app.
+- Click "New knowledge base" and verify the native operating-system directory
+  picker opens.
+- Cancel the picker and verify no new profile row appears.
+- Select a directory and verify the profile row uses the selected directory
+  name and path.
+- Verify the settings UI does not expose the internal vault id.
+- Verify "Open folder" opens the selected directory through IPC.
+- Save settings, restart the desktop app, and verify `/ui/api/config` reports
+  the desktop app-data config path rather than a temporary config file.
+
 ### Logs And Diagnostics
 
 - Open logs from the app menu.
@@ -103,6 +134,7 @@ Expected first target:
 ```text
 compressed installer: 150-250 MB
 installed app:       300-500 MB
+service artifact:    10-40 MB
 ```
 
 If the package exceeds this range, inspect whether development dependencies,
@@ -131,4 +163,3 @@ The desktop app is release-ready when:
 - no user vault, `.env`, or API key is bundled into the app;
 - desktop-specific behavior is documented in public docs;
 - existing CLI/API/skill workflows remain unaffected.
-

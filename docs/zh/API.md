@@ -31,7 +31,7 @@ http://127.0.0.1:8000
 | 知识库注册表 | `GET /vaults` | 列出已配置知识库的 ID、名称、路径和可用状态 |
 | 诊断 | `GET /doctor` | 只读运行前检查 |
 | 资料来源 | `GET /sources` | 读取资料来源连接器能力清单 |
-| 模型供应商 | `GET /models/providers`, `POST /models/discover`, `POST /models/probe`, `POST /models/apply-capabilities` | 列出模型供应商、发现运行时模型信息、执行小型模型探测，并显式写回能力配置 |
+| 模型供应商 | `GET /models/providers`, `GET /models/image-providers`, `POST /models/discover`, `POST /models/probe`, `POST /models/apply-capabilities` | 列出文本和图片模型供应商、发现运行时模型信息、执行小型模型探测，并显式写回能力配置 |
 | 知识编译 | `POST /ingest` | 编译配置来源、标准文档、单个文件或文件夹，或恢复失败编译 |
 | 校验维护 | `POST /lint` | 执行确定性、结构、质量或完整维护 |
 | 知识查询 | `POST /query` | 为宿主 AI 检索 Wiki 上下文 |
@@ -392,6 +392,7 @@ KnoArbor 支持哪些来源、每个连接器会产生哪些 `source_type`，以
 
 ```http
 GET /models/providers
+GET /models/image-providers
 POST /models/discover
 POST /models/probe
 POST /models/apply-capabilities
@@ -400,6 +401,8 @@ POST /models/apply-capabilities
 模型接口用于在长流程运行前检查供应商配置和模型能力，可由 Swagger、Apifox、脚本或本地前端调用。
 
 `GET /models/providers` 只读取当前模型配置，不访问模型运行时。返回内容会隐藏 API Key，只标注环境变量是否已配置。
+
+`GET /models/image-providers` 读取图片生成供应商配置。图片生成供应商和聊天/编译模型供应商分离，供 chat 的 `generate_image` 工具使用。
 
 `POST /models/discover` 调用适配器对应的模型列表接口。OpenAI 兼容供应商使用 `/models`；Ollama 原生供应商使用 `/api/tags` 和 `/api/show` 探测模型可用性与上下文长度。该接口不触发模型生成，因此不消耗生成 token。
 

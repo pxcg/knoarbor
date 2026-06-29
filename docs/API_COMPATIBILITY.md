@@ -16,6 +16,7 @@ response schema, and error envelope form one contract.
 | `POST` | `/ingest` | Start or run knowledge compilation. |
 | `POST` | `/lint` | Start or run wiki maintenance. |
 | `GET` | `/models/providers` | List configured model providers. |
+| `GET` | `/models/image-providers` | List configured image-generation providers. |
 | `POST` | `/models/discover` | Discover models from a provider endpoint. |
 | `POST` | `/models/probe` | Probe model availability and capabilities. |
 | `POST` | `/models/apply-capabilities` | Persist detected model capabilities. |

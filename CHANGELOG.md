@@ -4,6 +4,26 @@ All notable public changes to KnoArbor will be documented in this file.
 
 This project follows a simple release-note format for public releases.
 
+## 2.1.0 - 2026-06-29
+
+### Added
+
+- Added first-class image generation provider configuration, including SenseNova-compatible image model settings.
+- Added image generation service integration for chat tools and model provider discovery surfaces.
+- Added desktop packaging support for the bundled service and refined app-data startup behavior.
+
+### Changed
+
+- Refined the desktop and web console layout, settings model management, graph views, chat input, and markdown rendering surfaces.
+- Tightened vault, wiki page, source digest, attachment, and graph-index contracts after the latest ingest architecture cleanup.
+- Split larger frontend modules and styles into clearer feature-level files to improve maintainability.
+
+### Validation
+
+- `npm run build`
+- `uv run python -m unittest tests.test_ui_api tests.test_image_generation tests.test_core_config`
+- `npm run pack:mac`
+
 ## 2.0.0 - 2026-06-25
 
 ### Added
@@ -160,7 +180,7 @@ Planned changes for the next release will be listed here.
 ### Changed
 
 - Standardized public API request fields around `vault_path` while keeping internal schema names private to the implementation.
-- Tightened wiki page APIs into `/wiki/pages`, `/wiki/pages/content`, and `/wiki/pages/links`.
+- Tightened wiki page APIs into `/wiki/pages`, `/wiki/pages/content`, and `/wiki/pages/relations`.
 - Made run inspection APIs easier to call by allowing `/runs`, `/runs/{run_id}`, `/runs/{run_id}/events`, `/runs/{run_id}/stream`, and `/runs/{run_id}/cancel` to resolve the configured vault when `vault_path` is omitted.
 - Updated API documentation and UI clients to use the stable `vault_path` contract.
 

@@ -176,6 +176,17 @@ Event types:
 Chat sessions are stored outside maintained wiki pages. When a conversation
 should become durable wiki knowledge, use the chat-session ingest endpoint:
 
+```http
+POST /chat/sessions/{session_id}/ingest
+```
+
+The ingest endpoint converts the persisted session into a `knoarbor_chat`
+`SourceDocument` and queues the normal `/ingest` document pipeline. The ingest
+run uses the standard document path, including segmentation, page review,
+write/report generation, and scoped lint when enabled by ingest configuration.
+The response is the same queued workflow envelope used by other long-running
+ingest requests.
+
 To rename a saved chat session:
 
 ```http
@@ -199,16 +210,6 @@ POST /chat/sessions/{session_id}/retry
 The retry endpoint removes the latest completed chat turn, reuses the same user
 message, and runs the normal `/chat` loop again. If regeneration fails, the
 previous answer is restored.
-
-```http
-POST /chat/sessions/{session_id}/ingest
-```
-
-This converts the persisted session into a `knoarbor_chat` `SourceDocument` and
-queues the normal `/ingest` document pipeline. The ingest run uses the standard
-document path, including segmentation, page review, write/report generation, and
-scoped lint when enabled by ingest configuration. The response is the same
-queued workflow envelope used by other long-running ingest requests.
 
 ```json
 {
@@ -410,6 +411,7 @@ Source file discovery remains part of `GET /doctor` runtime checks and the
 
 ```http
 GET /models/providers
+GET /models/image-providers
 POST /models/discover
 POST /models/probe
 POST /models/apply-capabilities
@@ -422,6 +424,10 @@ Apifox, scripts, and the local UI.
 `GET /models/providers` reads the current provider registry without calling a
 model endpoint. It hides API keys and reports only whether the configured key
 environment variable is available.
+
+`GET /models/image-providers` reads the configured image-generation provider
+registry. Image providers are separate from chat/completion model providers and
+are used by the chat `generate_image` tool.
 
 `POST /models/discover` calls the adapter-specific model-list endpoint.
 OpenAI-compatible providers use `/models`; native Ollama providers use

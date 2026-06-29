@@ -16,6 +16,8 @@
 - [接口说明](API.md)：本地 HTTP API 的用途和边界。
 - [API 兼容性](API_COMPATIBILITY.md)：稳定 endpoint、schema version 和废弃策略。
 - [契约总览](CONTRACTS.md)：目录、Wiki 页面、Source Digest、索引、Ingest、Query、Chat、API 和 UI 契约。
+- [UI 契约](UI_CONTRACT.md)：对话优先控制台表面、UI 专用适配器和渲染边界。
+- [报告契约](REPORT_CONTRACT.md)：报告、台账、失败产物和 Token 分析边界。
 - [路线图](ROADMAP.md)：从 1.0 公开版本到 2.0 长期兼容基线的发展路径。
 - [能力地图](CAPABILITY_MAP.md)：跨功能的能力状态和职责归属。
 - [错误码](ERROR_CODES.md)：CLI/API 的稳定错误码和排查建议。
@@ -45,6 +47,8 @@
 - [v0.9.0 发布说明](../releases/v0.9.0.md)：运行 endpoint、Skill 集成和可观测性版本说明。
 - [v0.8.0 发布说明](../releases/v0.8.0.md)：API 合约与 token 可观测性版本说明。
 - [v0.7.0 发布说明](../releases/v0.7.0.md)：UI 与知识库浏览版本说明。
+
+历史发布说明保留对应版本当时的接口名称、命令示例和运行假设。当前支持的表面以接口说明、契约总览和 API 兼容性文档为准。
 
 ## 推荐阅读顺序
 

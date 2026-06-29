@@ -12,6 +12,7 @@ KnoArbor 1.x 已经面向 CLI、前端控制台、Skill 和外部工具暴露本
 - `POST /ingest`
 - `POST /lint`
 - `GET /models/providers`
+- `GET /models/image-providers`
 - `POST /models/discover`
 - `POST /models/probe`
 - `POST /models/apply-capabilities`

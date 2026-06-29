@@ -44,9 +44,12 @@ web/*.tsbuildinfo
 web/test-results/
 web/playwright-report/
 desktop/node_modules/
+desktop/.pyinstaller/
 desktop/out/
 desktop/dist/
+desktop/release/
 desktop/resources/web/
+desktop/resources/service/
 desktop/*.tsbuildinfo
 .playwright-cli/
 knoarbor_logo_asset_kit/
