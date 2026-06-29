@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Body, Query
 
-from knoarbor.entrypoints.vault_selection import resolve_single_vault
+from knoarbor.core.vault_selection import resolve_single_vault
 from knoarbor.services import ApplicationServices
 from knoarbor.services.wiki_pages import WikiPageDeleteResponse, WikiPageDetail, WikiPageRelationsResponse, WikiPagesResponse
 

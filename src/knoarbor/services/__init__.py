@@ -6,6 +6,7 @@ from knoarbor.services.chat_agent import ChatAgentService
 from knoarbor.services.chat_sessions import ChatSessionStore
 from knoarbor.services.doctor import DoctorService
 from knoarbor.services.ingest import IngestService
+from knoarbor.services.image_generation import ImageGenerationService
 from knoarbor.services.model_probe import ModelProbeService
 from knoarbor.services.memory import MemoryService
 from knoarbor.services.run_manager import RunManager
@@ -24,6 +25,7 @@ class ApplicationServices:
     doctor: DoctorService = field(default_factory=DoctorService)
     wiki_linter: WikiLinterService = field(default_factory=WikiLinterService)
     wiki_search: WikiSearchService = field(default_factory=WikiSearchService)
+    image_generation: ImageGenerationService = field(default_factory=ImageGenerationService)
     ingest: IngestService = field(default_factory=IngestService)
     runs: RunManager = field(default_factory=RunManager)
     source_catalog: SourceCatalogService = field(default_factory=SourceCatalogService)

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from knoarbor.storage.wiki_index import ensure_log, update_index, update_machine_index
+from knoarbor.storage.wiki_index import ensure_log, update_machine_index
 from knoarbor.storage.vault_layout import (
     RAW_ROOT_DIR,
     WIKI_PAGES_DIR,

@@ -87,6 +87,38 @@ class ModelProviderConfig(BaseModel):
         return (env or os.environ).get(self.api_key_env)
 
 
+class ImageGenerationProviderConfig(BaseModel):
+    adapter: Literal["sensenova_image"] = "sensenova_image"
+    base_url: str | None = None
+    endpoint_path: str = "/images/generations"
+    api_key_env: str | None = None
+    model: str | None = None
+    verify_tls: bool = True
+    tls_ca_file: Path | None = None
+    response_format: Literal["url", "b64_json"] = "url"
+    size: str | None = None
+    aspect_ratio: str | None = None
+    image_count: int = Field(default=1, ge=1, le=4)
+    extra_body: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("tls_ca_file")
+    @classmethod
+    def expand_tls_ca_file(cls, value: Path | None) -> Path | None:
+        return value.expanduser() if value is not None else None
+
+    @field_validator("size", "aspect_ratio", mode="before")
+    @classmethod
+    def stringify_dimension(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        return str(value)
+
+    def api_key(self, env: Mapping[str, str] | None = None) -> str | None:
+        if not self.api_key_env:
+            return None
+        return (env or os.environ).get(self.api_key_env)
+
+
 class ModelRetryConfig(BaseModel):
     enabled: bool = True
     max_attempts: int = Field(default=3, ge=1, le=5)
@@ -112,6 +144,19 @@ class ModelsConfig(BaseModel):
         if provider and provider.max_output_tokens is not None:
             return provider.max_output_tokens
         return self.default_max_tokens
+
+
+class ImageGenerationConfig(BaseModel):
+    default_provider: str | None = None
+    providers: dict[str, ImageGenerationProviderConfig] = Field(default_factory=dict)
+    request_timeout_seconds: float = Field(default=120.0, ge=1)
+
+    @field_validator("providers", mode="before")
+    @classmethod
+    def empty_providers(cls, value: Any) -> dict[str, Any]:
+        if value is None:
+            return {}
+        return value
 
 
 class ConnectorConfig(BaseModel):
@@ -249,6 +294,7 @@ class KnoArborConfig(BaseModel):
     vaults: VaultsConfig = Field(default_factory=VaultsConfig)
     server: ServerConfig = Field(default_factory=ServerConfig)
     models: ModelsConfig = Field(default_factory=ModelsConfig)
+    image_generation: ImageGenerationConfig = Field(default_factory=ImageGenerationConfig)
     document_processing: DocumentProcessingConfig = Field(default_factory=DocumentProcessingConfig)
     connectors: dict[str, ConnectorConfig] = Field(default_factory=dict)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
@@ -299,6 +345,9 @@ class KnoArborConfig(BaseModel):
 
 
 def default_config_path(start: str | Path | None = None) -> Path:
+    env_config = os.environ.get("KNOARBOR_CONFIG_PATH")
+    if env_config:
+        return Path(env_config).expanduser().resolve()
     root = _find_project_root(Path(start or Path.cwd()).resolve())
     local_config = root / "config.yaml"
     if local_config.exists():

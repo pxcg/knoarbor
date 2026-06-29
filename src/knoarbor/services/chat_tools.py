@@ -5,9 +5,10 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from knoarbor.core.errors import UserInputError
 from knoarbor.core.schemas.chat import ChatCitation, ChatRequest, ChatSessionRecord, ChatToolPlan, ChatToolTraceItem
+from knoarbor.core.schemas.image_generation import ImageGenerationRequest
 from knoarbor.core.schemas.wiki_query import WikiSearchRequest, WikiSearchResult
 from knoarbor.core.vaults import VIRTUAL_ALL_VAULT_ID
-from knoarbor.entrypoints.vault_selection import resolve_single_vault, resolve_vault_group
+from knoarbor.core.vault_selection import resolve_single_vault, resolve_vault_group
 from knoarbor.retrieval.answer_selection import query_prefers_source_page
 from knoarbor.services.chat_context import latest_user_text
 from knoarbor.services.chat_evidence import CHAT_EVIDENCE_PACK_SCHEMA_VERSION, ChatEvidencePlanner, search_result_to_chat_payload
@@ -51,6 +52,8 @@ class ChatToolExecutor:
                     observation = self._list_vaults(call.arguments)
                 elif tool_name == "reuse_context":
                     observation = self._reuse_context(call.arguments)
+                elif tool_name == "generate_image":
+                    observation = self._generate_image(_with_default_prompt(call.arguments, query))
                 else:
                     observation = self._answer_directly(call.arguments)
             except Exception as exc:  # noqa: BLE001 - tool failures become model-visible observations.
@@ -92,7 +95,7 @@ class ChatToolExecutor:
             caller="chat",
         )
         response = self.services.wiki_search.search(request)
-        primary_pages = response.primary_pages or _fallback_primary_results(response.results, query)
+        primary_pages = response.primary_pages or _derive_primary_pages_from_ranked_results(response.results, query)
         primary = primary_pages[0] if primary_pages else None
         primary_paths = {item.path for item in primary_pages}
         supporting = (
@@ -321,6 +324,47 @@ class ChatToolExecutor:
             },
         )
 
+    def _generate_image(self, arguments: dict[str, Any]) -> ChatToolTraceItem:
+        prompt = _required_text(arguments, "prompt")
+        provider = _optional_text(arguments, "provider")
+        request = ImageGenerationRequest(
+            prompt=prompt,
+            negative_prompt=_optional_text(arguments, "negative_prompt"),
+            size=_optional_text(arguments, "size"),
+            aspect_ratio=_optional_text(arguments, "aspect_ratio"),
+            image_count=_bounded_int(arguments.get("image_count"), default=1, minimum=1, maximum=4),
+            response_format=arguments.get("response_format") if arguments.get("response_format") in {"url", "b64_json"} else None,
+            extra_body=arguments.get("extra_body") if isinstance(arguments.get("extra_body"), dict) else {},
+        )
+        response = self.services.image_generation.generate(request, config_path=self.request.config_path, provider_name=provider)
+        images: list[dict[str, object]] = []
+        for index, image in enumerate(response.images, start=1):
+            src = image.markdown_src()
+            if not src:
+                continue
+            images.append(
+                {
+                    "index": index,
+                    "src": src,
+                    "markdown": f"![Generated image {index}]({src})",
+                    "mime_type": image.mime_type,
+                    "revised_prompt": image.revised_prompt,
+                }
+            )
+        return ChatToolTraceItem(
+            tool="generate_image",
+            arguments=arguments,
+            summary=f"Generated {len(images)} image(s) with {response.provider}/{response.model}.",
+            result={
+                "schema_version": response.schema_version,
+                "provider": response.provider,
+                "model": response.model,
+                "prompt": response.prompt,
+                "images": images,
+                "usage": response.usage,
+            },
+        )
+
     def _resolve_tool_vaults(self, arguments: dict[str, Any]):
         vault_id = _concrete_argument_vault_id(arguments, self.request.vault_id)
         vault_ids = [str(item) for item in arguments.get("vault_ids", self.request.vault_ids) or [] if str(item).strip()]
@@ -495,12 +539,19 @@ def _ordered_chat_citations(results: list[WikiSearchResult], primary: WikiSearch
     return [*answer_pages, *source_pages]
 
 
-def _fallback_primary_results(results: list[WikiSearchResult], query: str) -> list[WikiSearchResult]:
-    primary = _fallback_primary_result(results, query)
+def _derive_primary_pages_from_ranked_results(results: list[WikiSearchResult], query: str) -> list[WikiSearchResult]:
+    """Derive a primary page only when the retrieval response lacks one.
+
+    Retrieval owns answer set classification. This deterministic derivation
+    keeps older or minimal providers usable while preserving the ranked order
+    and source-page preference rules.
+    """
+
+    primary = _derive_primary_page_from_ranked_results(results, query)
     return [primary] if primary else []
 
 
-def _fallback_primary_result(results: list[WikiSearchResult], query: str) -> WikiSearchResult | None:
+def _derive_primary_page_from_ranked_results(results: list[WikiSearchResult], query: str) -> WikiSearchResult | None:
     if query_prefers_source_page(query):
         return results[0] if results else None
     for result in results:
@@ -673,6 +724,18 @@ def _required_text(arguments: dict[str, Any], key: str) -> str:
     return value
 
 
+def _optional_text(arguments: dict[str, Any], key: str) -> str | None:
+    value = str(arguments.get(key) or "").strip()
+    return value or None
+
+
+def _with_default_prompt(arguments: dict[str, Any], query: str) -> dict[str, Any]:
+    output = dict(arguments)
+    if not str(output.get("prompt") or "").strip():
+        output["prompt"] = query
+    return output
+
+
 def _bounded_int(value: object, *, default: int, minimum: int, maximum: int) -> int:
     try:
         number = int(value) if value is not None else default
@@ -681,8 +744,8 @@ def _bounded_int(value: object, *, default: int, minimum: int, maximum: int) -> 
     return max(minimum, min(maximum, number))
 
 
-def _concrete_argument_vault_id(arguments: dict[str, Any], fallback: str | None) -> str | None:
-    value = arguments.get("vault_id", fallback)
+def _concrete_argument_vault_id(arguments: dict[str, Any], request_vault_id: str | None) -> str | None:
+    value = arguments.get("vault_id", request_vault_id)
     vault_id = str(value).strip() if value is not None else ""
     if not vault_id or vault_id == VIRTUAL_ALL_VAULT_ID:
         return None

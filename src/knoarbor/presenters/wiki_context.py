@@ -64,7 +64,7 @@ def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
     selection = AnswerSetSelector().select(request.query, results, answer_scope)
     answer_set = selection.answer_set
     results = assign_result_roles(request.query, results, answer_set=answer_set)
-    results = apply_answer_content_strategy(results, pipeline_result.matches)
+    results = apply_answer_content_strategy(results, pipeline_result.matches, include_content=request.include_content)
     primary_pages = [result for result in results if result.role == "primary"]
     supporting_pages = [result for result in results if result.role == "supporting"]
     source_pages = [result for result in results if result.role == "source"]
@@ -83,7 +83,8 @@ def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
         **pipeline_result.stats,
         "returned_count": len(results),
         "max_pages_to_read": request.max_pages_to_read,
-        "context_strategy": "page_first_primary_full",
+        "include_content": request.include_content,
+        "context_strategy": "page_first_primary_full" if request.include_content else "page_first_summary_excerpt",
         "context_pack_chars": len(context_pack),
         "context_pack_truncated": context_pack.endswith("... [truncated]"),
         "atom_trace_count": sum(len(result.atom_traces) for result in results),
@@ -218,6 +219,8 @@ def _atom_trace(record: KnowledgeAtomRecord) -> WikiAtomTrace:
 def apply_answer_content_strategy(
     results: list[WikiSearchResult],
     matches: list[ScoredPage],
+    *,
+    include_content: bool = True,
 ) -> list[WikiSearchResult]:
     """Attach model-facing page bodies after answer roles are known.
 
@@ -231,7 +234,7 @@ def apply_answer_content_strategy(
     output: list[WikiSearchResult] = []
     for result in results:
         page = page_by_path.get(result.path)
-        if not page:
+        if not page or not include_content:
             output.append(result)
             continue
         if result.role in {"primary", "supporting"}:

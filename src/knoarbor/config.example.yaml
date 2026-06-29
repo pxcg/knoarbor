@@ -86,6 +86,24 @@ models:
       - KA-SEM-001
       - KA-STORAGE-001
 
+image_generation:
+  # Optional text-to-image providers used by Chat when the user explicitly asks
+  # to generate a visual asset. Generated images are chat artifacts by default;
+  # they are not written into wiki pages unless a later save-to-vault action is
+  # added.
+  default_provider:
+  request_timeout_seconds: 120
+  providers:
+    # sensenova:
+    #   adapter: sensenova_image
+    #   base_url: https://token.sensenova.cn/v1
+    #   endpoint_path: /images/generations
+    #   api_key_env: SN_API_KEY
+    #   model: sensenova-u1-fast
+    #   response_format: url
+    #   aspect_ratio: "16:9"
+    #   image_count: 1
+
 document_processing:
   mineru:
     # Optional adapter for a user-managed MinerU 3.x-compatible HTTP service.

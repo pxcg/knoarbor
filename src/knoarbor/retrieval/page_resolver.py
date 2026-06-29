@@ -81,10 +81,12 @@ def _page_records(vault_path: Path) -> list[dict[str, object]]:
         records = payload.get("pages", [])
         return [record for record in records if isinstance(record, dict)]
     except (FileNotFoundError, OSError, ValueError):
-        return _fallback_page_records(vault)
+        return _scan_page_records_from_markdown(vault)
 
 
-def _fallback_page_records(vault_path: Path) -> list[dict[str, object]]:
+def _scan_page_records_from_markdown(vault_path: Path) -> list[dict[str, object]]:
+    """Build minimal page records when the machine index is unavailable."""
+
     root = content_root(vault_path)
     source_root = source_digest_root(vault_path)
     records: list[dict[str, object]] = []

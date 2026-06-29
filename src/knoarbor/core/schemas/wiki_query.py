@@ -59,6 +59,7 @@ class WikiSearchRequest(BaseModel):
     max_chars_per_excerpt: int = Field(default=800, ge=120, le=3000)
     max_context_chars: int = Field(default=8000, ge=1000, le=30000)
     include_related: bool = True
+    include_content: bool = True
     record_query: bool = True
     write_report: bool = False
     caller: str | None = None

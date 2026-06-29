@@ -143,6 +143,59 @@ models:
             self.assertEqual(form_response.json()["providers"][0]["max_output_tokens"], 8000)
             self.assertTrue(form_response.json()["openclaw_enabled"])
 
+    def test_ui_config_form_round_trips_image_generation_provider(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "config.yaml"
+            vault_path = Path(tmp_dir) / "vaults" / "default"
+            client = TestClient(create_app())
+
+            response = client.put(
+                "/ui/api/config/form",
+                json={
+                    "config_path": str(config_path),
+                    "project_name": "KnoArbor",
+                    "vault_path": str(vault_path),
+                    "server_host": "127.0.0.1",
+                    "server_port": 8000,
+                    "default_provider": "",
+                    "default_max_tokens": 30000,
+                    "request_timeout_seconds": 600,
+                    "providers": [],
+                    "image_default_provider": "sensenova",
+                    "image_request_timeout_seconds": 120,
+                    "image_providers": [
+                        {
+                            "name": "sensenova",
+                            "adapter": "sensenova_image",
+                            "base_url": "https://token.sensenova.cn/v1",
+                            "endpoint_path": "/images/generations",
+                            "api_key_env": "SENSENOVA_API_KEY",
+                            "model": "sensenova-u1-fast",
+                            "verify_tls": True,
+                            "tls_ca_file": "",
+                            "response_format": "url",
+                            "size": "",
+                            "aspect_ratio": "16:9",
+                            "image_count": 1,
+                            "extra_body": {},
+                            "api_key_configured": False,
+                        }
+                    ],
+                },
+            )
+
+            self.assertEqual(response.status_code, 200)
+            saved = config_path.read_text(encoding="utf-8")
+            self.assertIn("image_generation:", saved)
+            self.assertIn("default_provider: sensenova", saved)
+            self.assertIn("model: sensenova-u1-fast", saved)
+            form_response = client.get("/ui/api/config/form", params={"config_path": str(config_path)})
+            self.assertEqual(form_response.status_code, 200)
+            payload = form_response.json()
+            self.assertEqual(payload["image_default_provider"], "sensenova")
+            self.assertEqual(payload["image_providers"][0]["adapter"], "sensenova_image")
+            self.assertEqual(payload["image_providers"][0]["aspect_ratio"], "16:9")
+
     def test_ui_config_marks_local_model_provider_ready_without_api_key(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             config_path = Path(tmp_dir) / "config.yaml"

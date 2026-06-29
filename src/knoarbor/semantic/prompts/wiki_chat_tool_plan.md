@@ -14,7 +14,7 @@ Return exactly one JSON object without markdown fences or explanatory prose.
 {
   "tool_calls": [
     {
-      "name": "query_wiki | list_wiki_pages | read_wiki_page | inspect_wiki_relations | list_vaults | reuse_context | answer_directly | finish_answer",
+      "name": "query_wiki | list_wiki_pages | read_wiki_page | inspect_wiki_relations | list_vaults | reuse_context | generate_image | answer_directly | finish_answer",
       "arguments": {}
     }
   ],
@@ -37,6 +37,8 @@ Return exactly one JSON object without markdown fences or explanatory prose.
   - arguments: none.
 - `reuse_context`: reuse prior evidence from the current chat session when the latest message is a direct follow-up and prior evidence is sufficient.
   - arguments: optional `page_paths` array.
+- `generate_image`: create an image from a user prompt through the configured image generation provider.
+  - arguments: `prompt` string, optional `negative_prompt` string, optional `size` string, optional `aspect_ratio` string, optional `image_count` number, optional `provider` string.
 - `answer_directly`: answer without wiki tools only for greetings, UI questions, or questions outside wiki evidence retrieval.
   - arguments: optional `reason` string.
 - `finish_answer`: stop gathering evidence and let the answer writer synthesize the final response.
@@ -66,6 +68,9 @@ Return exactly one JSON object without markdown fences or explanatory prose.
 - Use `inspect_wiki_relations` when the user asks how a known page relates to nearby pages.
 - Use `list_vaults` when the user asks what knowledge bases are configured or which vault can be queried.
 - Use `query_wiki` when the user introduces a new knowledge topic from their vault, asks a broader or different evidence dimension of local knowledge, current evidence is weak, or current evidence recommends `query_wiki`.
+- Use `generate_image` when the latest user message explicitly asks to generate, draw, create, or produce an image, illustration, poster, diagram-as-image, cover, or visual asset.
+- If the user asks for a Mermaid flowchart or textual diagram, answer with Markdown/Mermaid rather than `generate_image`.
+- If the image should be based on wiki evidence, first gather or reuse the relevant wiki evidence, then call `generate_image` with a concise visual prompt derived from that evidence.
 - When refining a failed or weak search, rewrite the query toward the likely canonical wiki topic instead of repeating an `executed_queries` item.
 - Prefer prior `preferred_read_pages` and `answer_page_paths` for follow-up detail. Treat `source_page_paths` as provenance unless the user asks about sources, origin, raw material, citations, or page paths.
 - For relationship/comparison follow-ups, reuse context if both objects are already covered; otherwise query the missing object or comparison.
@@ -107,5 +112,7 @@ Return exactly one JSON object without markdown fences or explanatory prose.
 - User: "我的 Agent 相关页面有哪些？" -> `list_wiki_pages` with query "Agent".
 - User: "Agent Loop 这个页面和哪些页面有关？" with known path `Agent-Loop-and-Control-Patterns.md` -> `inspect_wiki_relations`.
 - User: "我现在有哪些知识库？" -> `list_vaults`.
+- User: "根据刚才的 Agent Loop 架构生成一张信息图" with prior architecture evidence -> `reuse_context`, then `generate_image` with a concise visual prompt.
+- User: "画一张青绿色的知识库封面图" -> `generate_image`.
 - Current evidence: no primary page, weak coverage, executed query "agent" -> `query_wiki` with a more specific canonical query such as "Agent Loop control patterns".
 - User: "请给出这个页面全文" with a cited path -> `read_wiki_page`.

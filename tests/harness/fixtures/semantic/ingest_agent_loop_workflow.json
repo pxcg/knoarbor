@@ -142,19 +142,28 @@
         0
       ],
       "links": [],
-      "primary_content": "Agent loop is observe, decide, act, feedback.",
+      "primary_content": "# Agent\n\nAgent loop.",
       "supporting_evidence": []
     },
     "confidence": 0.9,
     "content_units": [
       {
-        "content": "Agent loop is observe, decide, act, feedback.",
+        "content": "# Agent\n\nAgent loop.",
         "index": 0,
         "is_primary": true,
-        "metadata": {},
+        "metadata": {
+          "paragraph_count": 2,
+          "raw_indexes": [],
+          "source_range": {
+            "from_index": null,
+            "to_index": null
+          },
+          "source_unitization_rule": "paragraph_group",
+          "structural_path": []
+        },
         "role": "note",
         "timestamp": null,
-        "title": "Agent",
+        "title": "Paragraph group 1",
         "unit_type": "note"
       }
     ],
@@ -168,21 +177,23 @@
       "title": "Agent",
       "updated_at": null
     },
-    "warnings": []
+    "warnings": [
+      "unitization_fallback:markdown_heading->paragraph_group"
+    ]
   },
   "source_digest": {
     "attachments": [],
     "confidence": 0.9,
-    "content_hash": "d5f063c8ad88ba402fe9b34c35e235479d9a6fb1",
+    "content_hash": "27078c0df27849748dc5b6da78df27e6fac92c2f",
     "contribution_map": [],
-    "digest_id": "sd_c8f296e5a816ca8d",
+    "digest_id": "sd_5ab65b86ae7a5df5",
     "evidence_spans": [
       {
         "char_end": null,
         "char_start": null,
-        "excerpt": "Agent loop is observe, decide, act, feedback.",
-        "excerpt_hash": "d5f063c8ad88ba402fe9b34c35e235479d9a6fb1",
-        "source_digest_id": "sd_c8f296e5a816ca8d",
+        "excerpt": "# Agent\n\nAgent loop.",
+        "excerpt_hash": "27078c0df27849748dc5b6da78df27e6fac92c2f",
+        "source_digest_id": "sd_5ab65b86ae7a5df5",
         "source_path": "raw/inbox/notes/Agent.md",
         "source_unit_index": 0
       }
@@ -199,27 +210,47 @@
       "updated_at": null
     },
     "source_focus": "Agent",
-    "summary": "Audit record for Agent. Connector: markdown. Source units: 1. Warnings: 0. Raw pointer: raw/inbox/notes/Agent.md.",
+    "summary": "Audit record for Agent. Connector: markdown. Source units: 1. Warnings: 1. Raw pointer: raw/inbox/notes/Agent.md.",
     "units": [
       {
         "evidence": {
           "char_end": null,
           "char_start": null,
-          "excerpt": "Agent loop is observe, decide, act, feedback.",
-          "excerpt_hash": "d5f063c8ad88ba402fe9b34c35e235479d9a6fb1",
-          "source_digest_id": "sd_c8f296e5a816ca8d",
+          "excerpt": "# Agent\n\nAgent loop.",
+          "excerpt_hash": "27078c0df27849748dc5b6da78df27e6fac92c2f",
+          "source_digest_id": "sd_5ab65b86ae7a5df5",
           "source_path": "raw/inbox/notes/Agent.md",
           "source_unit_index": 0
         },
         "index": 0,
-        "metadata": {},
-        "summary": "Agent",
-        "title": "Agent",
+        "metadata": {
+          "paragraph_count": 2,
+          "raw_indexes": [],
+          "source_range": {
+            "from_index": null,
+            "to_index": null
+          },
+          "source_unitization_rule": "paragraph_group",
+          "structural_path": []
+        },
+        "summary": "Paragraph group 1",
+        "title": "Paragraph group 1",
         "unit_type": "note"
       }
     ],
-    "unresolved_items": [],
-    "warnings": []
+    "unresolved_items": [
+      {
+        "evidence_unit_ids": [
+          "U1"
+        ],
+        "item_id": "W1",
+        "item_type": "warning",
+        "reason": "unitization_fallback:markdown_heading->paragraph_group"
+      }
+    ],
+    "warnings": [
+      "unitization_fallback:markdown_heading->paragraph_group"
+    ]
   },
   "wiki_draft_batch": {
     "batch_summary": "One concept draft.",
@@ -242,11 +273,11 @@
         "evidence": [
           "C1 | sd_test_agent | unit:0 | Agent loop is observe, decide, act, feedback. | high"
         ],
-                "model_name": "unit",
+        "model_name": "unit",
         "model_provider": "fake",
         "operation_index": 0,
         "page_dir": "pages",
-                "patches": [],
+        "patches": [],
         "question": "Agent Loop",
         "relations": [
           "[[Agent Loop]] | includes | [[Agent Control]] | C1"
@@ -255,7 +286,6 @@
           "sd_test_agent"
         ],
         "source_file": "raw/inbox/notes/Agent.md",
-        "subject_kind": "control_pattern",
         "summary": "Agent Loop is a basic control cycle for agents.",
         "synthesis": "Agent Loop is an observe, decide, act, feedback cycle.",
         "target_page": null,
@@ -273,9 +303,12 @@
         "action": "create",
         "candidate_pages": [],
         "canonical_path": "Agent-Loop.md",
+        "cross_page_relations": [],
         "decision_reason": "The source defines a durable concept.",
-                "knowledge_object": "Agent Loop",
+        "entity_mappings": [],
+        "knowledge_object": "Agent Loop",
         "page_dir": "pages",
+        "relation_mappings": [],
         "selected_claim_ids": [
           "claim_agent_loop_control_pattern"
         ],

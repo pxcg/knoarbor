@@ -206,6 +206,24 @@ class ConfigTests(unittest.TestCase):
 
         self.assertEqual(path, (root / "config.yaml").resolve())
 
+    def test_default_config_path_prefers_explicit_environment_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            configured = root / "desktop-config.yaml"
+            configured.write_text("vault:\n  path: ./vaults/default\n", encoding="utf-8")
+            (root / "config.yaml").write_text("vault:\n  path: ./vaults/other\n", encoding="utf-8")
+            original = os.environ.get("KNOARBOR_CONFIG_PATH")
+            os.environ["KNOARBOR_CONFIG_PATH"] = str(configured)
+            try:
+                path = default_config_path(root)
+            finally:
+                if original is None:
+                    os.environ.pop("KNOARBOR_CONFIG_PATH", None)
+                else:
+                    os.environ["KNOARBOR_CONFIG_PATH"] = original
+
+        self.assertEqual(path, configured.resolve())
+
     def test_bundled_default_config_resolves_paths_against_cwd(self) -> None:
         bundled = Path(files("knoarbor").joinpath("config.example.yaml"))
         with tempfile.TemporaryDirectory() as tmp_dir:

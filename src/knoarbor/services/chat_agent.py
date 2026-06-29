@@ -185,6 +185,9 @@ class _ChatLoop:
             if _plan_contains_direct_answer(executable_plan):
                 stop_reason = "direct_answer"
                 break
+            if _plan_contains_generated_image(round_observations):
+                stop_reason = "image_generated"
+                break
             if self.retrieval_policy.assess_evidence(round_observations, query=query).sufficient:
                 stop_reason = "evidence_sufficient"
                 break
@@ -495,6 +498,10 @@ def _turn_evidence_page_roles(trace: list[ChatToolTraceItem]) -> tuple[list[str]
             else:
                 answer_page_paths.append(path)
     return _unique_strings(answer_page_paths), _unique_strings(source_page_paths)
+
+
+def _plan_contains_generated_image(observations: list[ChatToolTraceItem]) -> bool:
+    return any(item.tool == "generate_image" and item.status == "ok" and item.result.get("images") for item in observations)
 
 
 def _compact_text(text: str, max_chars: int) -> str:

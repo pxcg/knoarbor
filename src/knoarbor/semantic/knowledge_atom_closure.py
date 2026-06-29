@@ -51,7 +51,6 @@ def close_operation_atoms(
     claims_by_id = {claim.id: claim for claim in batch.claims}
     relations_by_id = {relation.id: relation for relation in batch.relations}
     selected_claim_ids = _dedupe(operation.selected_claim_ids)
-    available_claim_id_set = set(_dedupe(available_claim_ids or selected_claim_ids))
     explicit_relation_ids = _dedupe(operation.selected_relation_ids)
     issues: list[KnowledgeAtomClosureIssue] = []
 

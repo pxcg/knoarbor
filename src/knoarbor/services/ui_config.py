@@ -25,10 +25,12 @@ from knoarbor.services.ui_config_models import (
     UiConfigResponse,
     UiConfigUpdateRequest,
     UiConfigUpdateResponse,
+    UiImageGenerationProviderForm,
     UiModelProviderForm,
     UiVaultProfileForm,
 )
 from knoarbor.storage.source_metrics import connector_source_metric_identity, load_source_counts, source_metric_key, update_source_counts
+from knoarbor.storage.wiki_init import init_wiki_vault
 
 
 class UiConfigService:
@@ -70,6 +72,7 @@ class UiConfigService:
             raise UserInputError("Config root must be a YAML object")
         content = render_config_from_form(request, base_data, base_dir=path.parent)
         summary = summarize_config_content(content, base_dir=path.parent)
+        _initialize_configured_vaults(summary)
         path.write_text(content, encoding="utf-8")
         return UiConfigUpdateResponse(config_path=str(path), saved=True, summary=summary)
 
@@ -104,11 +107,22 @@ def summarize_config_content(content: str, *, base_dir: Path) -> dict[str, objec
         "server": f"{config.server.host}:{config.server.port}",
         "default_provider": config.models.default_provider,
         "provider_count": len(config.models.providers),
+        "image_default_provider": config.image_generation.default_provider,
+        "image_provider_count": len(config.image_generation.providers),
         "enabled_connectors": config.enabled_connectors(),
         "enabled_document_processors": enabled_document_processors(config),
         "default_max_tokens": config.models.default_max_tokens,
         "request_timeout_seconds": config.models.request_timeout_seconds,
     }
+
+
+def _initialize_configured_vaults(summary: dict[str, object]) -> None:
+    for item in summary.get("vaults", []):
+        if not isinstance(item, dict):
+            continue
+        path = str(item.get("path") or "").strip()
+        if path:
+            init_wiki_vault(Path(path))
 
 
 def enabled_document_processors(config: KnoArborConfig) -> list[str]:
@@ -178,6 +192,27 @@ def config_to_form(config: KnoArborConfig) -> UiConfigFormResponse:
                 api_key_configured=_provider_credentials_ready(provider),
             )
             for name, provider in sorted(config.models.providers.items())
+        ],
+        image_default_provider=config.image_generation.default_provider or "",
+        image_request_timeout_seconds=config.image_generation.request_timeout_seconds,
+        image_providers=[
+            UiImageGenerationProviderForm(
+                name=name,
+                adapter=provider.adapter,
+                base_url=provider.base_url or "",
+                endpoint_path=provider.endpoint_path,
+                api_key_env=provider.api_key_env or "",
+                model=provider.model or "",
+                verify_tls=provider.verify_tls,
+                tls_ca_file=str(provider.tls_ca_file) if provider.tls_ca_file else "",
+                response_format=provider.response_format,
+                size=provider.size or "",
+                aspect_ratio=provider.aspect_ratio or "",
+                image_count=provider.image_count,
+                extra_body=provider.extra_body,
+                api_key_configured=_provider_credentials_ready(provider),
+            )
+            for name, provider in sorted(config.image_generation.providers.items())
         ],
         enabled_connectors=config.enabled_connectors(),
         codex_enabled=bool(codex.enabled) if codex else False,
@@ -468,6 +503,25 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
             "max_output_tokens": provider.max_output_tokens,
             "extra_body": provider.extra_body,
         }
+    image_providers: dict[str, dict[str, object]] = {}
+    for provider in form.image_providers:
+        name = provider.name.strip()
+        if not name:
+            continue
+        image_providers[name] = {
+            "adapter": provider.adapter,
+            "base_url": provider.base_url.strip() or None,
+            "endpoint_path": provider.endpoint_path.strip() or "/images/generations",
+            "api_key_env": provider.api_key_env.strip() or None,
+            "model": provider.model.strip() or None,
+            "verify_tls": provider.verify_tls,
+            "tls_ca_file": provider.tls_ca_file.strip() or None,
+            "response_format": provider.response_format.strip() or "url",
+            "size": provider.size.strip() or None,
+            "aspect_ratio": provider.aspect_ratio.strip() or None,
+            "image_count": provider.image_count,
+            "extra_body": provider.extra_body,
+        }
     data = dict(base_data)
     data["config_version"] = 1
     vault_profiles, active_vault_id = _vault_profiles_from_form(form, base_dir)
@@ -483,6 +537,12 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
         "default_max_tokens": form.default_max_tokens,
         "request_timeout_seconds": form.request_timeout_seconds,
         "providers": providers,
+    }
+    data["image_generation"] = {
+        **dict(data.get("image_generation") or {}),
+        "default_provider": form.image_default_provider.strip() or None,
+        "request_timeout_seconds": form.image_request_timeout_seconds,
+        "providers": image_providers,
     }
     connectors = dict(data.get("connectors") or {})
     _upsert_chat_connector(

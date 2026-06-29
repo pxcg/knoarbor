@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import re
+import os
+import sys
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
@@ -121,8 +123,9 @@ def create_ui_router() -> APIRouter:
 
     @router.get("/ui/api/docs/{doc_path:path}", response_model=UiProjectDoc, tags=["ui"])
     async def read_ui_doc(doc_path: str) -> UiProjectDoc:
+        docs_root = _project_docs_root()
         doc = _resolve_project_doc(doc_path)
-        return UiProjectDoc(path=doc.relative_to(_project_docs_root()).as_posix(), content=doc.read_text(encoding="utf-8"))
+        return UiProjectDoc(path=doc.relative_to(docs_root).as_posix(), content=doc.read_text(encoding="utf-8"))
 
     @router.get("/ui/api/docs-assets/{asset_path:path}", tags=["ui"])
     async def read_ui_doc_asset(asset_path: str) -> FileResponse:
@@ -178,7 +181,7 @@ def _resolve_ui_asset(name: str) -> Path:
 
 
 def _resolve_project_doc(name: str) -> Path:
-    docs_root = _project_docs_root()
+    docs_root = _project_docs_root().resolve()
     doc_path = (docs_root / name).resolve()
     try:
         doc_path.relative_to(docs_root.resolve())
@@ -190,7 +193,7 @@ def _resolve_project_doc(name: str) -> Path:
 
 
 def _resolve_doc_asset(name: str) -> Path:
-    docs_root = _project_docs_root()
+    docs_root = _project_docs_root().resolve()
     asset_path = (docs_root / name).resolve()
     try:
         asset_path.relative_to(docs_root.resolve())
@@ -227,7 +230,27 @@ def _resolve_vault_asset(vault_path: str, asset_path: str) -> Path:
 
 
 def _project_docs_root() -> Path:
-    return Path(__file__).resolve().parents[4] / "docs"
+    candidates: list[Path] = []
+    env_root = os.getenv("KNOARBOR_DOCS_ROOT", "").strip()
+    if env_root:
+        candidates.append(Path(env_root).expanduser())
+
+    if getattr(sys, "frozen", False):
+        executable = Path(sys.executable).resolve()
+        candidates.extend(
+            [
+                executable.parent.parent / "docs",
+                executable.parent.parent.parent / "docs",
+                Path(getattr(sys, "_MEIPASS", "")) / "docs",
+            ]
+        )
+
+    candidates.append(Path(__file__).resolve().parents[4] / "docs")
+
+    for candidate in candidates:
+        if candidate.exists() and candidate.is_dir():
+            return candidate.resolve()
+    return candidates[-1].resolve()
 
 
 def _summary_from_default_config() -> dict[str, object]:

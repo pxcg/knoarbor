@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 
 from knoarbor.core.errors import RunNotFound, error_info
 from knoarbor.core.schemas.run_monitor import RunEventsResponse, RunListResponse, RunRecord, TERMINAL_RUN_STATUSES
-from knoarbor.entrypoints.vault_selection import resolve_single_vault, resolve_vault_group
+from knoarbor.core.vault_selection import resolve_single_vault, resolve_vault_group
 from knoarbor.services import ApplicationServices
 
 

@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from knoarbor.core.config import PrivacyConfig
-from knoarbor.core.markdown import adjacent_duplicate_headings, extract_list_items, extract_section, has_unclosed_fenced_code_blocks, parse_frontmatter, wiki_target_key
+from knoarbor.core.markdown import adjacent_duplicate_headings, extract_list_items, extract_section, has_unclosed_fenced_code_blocks, wiki_target_key
 from knoarbor.core.redaction import detect_sensitive_text
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatchItem
 from knoarbor.core.schemas.wiki_write import WikiDraftWriteResponse

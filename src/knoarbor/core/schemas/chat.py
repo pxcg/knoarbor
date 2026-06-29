@@ -16,6 +16,7 @@ ChatToolName = Literal[
     "inspect_wiki_relations",
     "list_vaults",
     "reuse_context",
+    "generate_image",
     "answer_directly",
     "finish_answer",
 ]

@@ -9,7 +9,7 @@ from knoarbor.core.config import default_config_path, load_config
 from knoarbor.core.schemas.chat import ChatMessageItem, ChatRequest, ChatSessionRecord
 from knoarbor.core.schemas.memory import MemoryRecord
 from knoarbor.core.vaults import VIRTUAL_ALL_VAULT_ID
-from knoarbor.entrypoints.vault_selection import ResolvedVault, resolve_single_vault
+from knoarbor.core.vault_selection import ResolvedVault, resolve_single_vault
 from knoarbor.semantic.llm import ChatMessage
 
 if TYPE_CHECKING:

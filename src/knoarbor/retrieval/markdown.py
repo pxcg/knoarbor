@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from knoarbor.core.markdown import extract_heading, extract_list_items, extract_section, parse_frontmatter
+from knoarbor.core.markdown import extract_heading, extract_list_items, extract_section
 from knoarbor.core.wiki_schema import INDEX_EXCLUDED_DIRS, UNIFIED_KNOWLEDGE_PAGE_DIR, is_index_excluded_file
 from knoarbor.retrieval.bm25 import BM25Document, BM25Field, score_bm25_documents
 from knoarbor.retrieval.wiki_links import resolve_wikilink_target
@@ -105,7 +105,6 @@ def collect_search_pages(vault_path: Path) -> list[SearchPage]:
             content = md_path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
-        metadata = parse_frontmatter(content)
         relative_path = relative_wiki_path(vault_path, md_path)
         entities = _extract_entities(content)
         pages.append(

@@ -243,6 +243,26 @@ class ChatEvidencePlanner:
                 "default_vault_id": result.get("default_vault_id"),
                 "vaults": result.get("vaults", []),
             }
+        if tool == "generate_image":
+            return {
+                "tool": tool,
+                "status": status,
+                "summary": summary,
+                "provider": result.get("provider"),
+                "model": result.get("model"),
+                "prompt": result.get("prompt"),
+                "images": [
+                    {
+                        "index": image.get("index"),
+                        "markdown": image.get("markdown"),
+                        "mime_type": image.get("mime_type"),
+                        "revised_prompt": image.get("revised_prompt"),
+                    }
+                    for image in result.get("images", [])
+                    if isinstance(image, dict)
+                ],
+                "usage": result.get("usage", {}),
+            }
         return {
             "tool": tool,
             "status": status,

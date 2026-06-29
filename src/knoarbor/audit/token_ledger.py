@@ -220,9 +220,9 @@ def _call_records(
 
 def _historical_records(vault_path: Path, *, limit: int | None) -> list[dict[str, object]]:
     records: list[dict[str, object]] = []
-    for record in read_jsonl_ledger(vault_path, ledger_relative_path("ingest"), limit=limit):
+    for record in read_jsonl_ledger(vault_path, LEDGER_PATHS["ingest"], limit=limit):
         records.extend(build_ingest_token_records(record))
-    for record in read_jsonl_ledger(vault_path, ledger_relative_path("lint_run"), limit=limit):
+    for record in read_jsonl_ledger(vault_path, LEDGER_PATHS["lint"], limit=limit):
         records.extend(build_lint_token_records(record))
     return records[-limit:] if limit is not None else records
 

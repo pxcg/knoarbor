@@ -1,11 +1,11 @@
-from __future__ import annotations
-
 """Public HTTP API compatibility contract.
 
 This module is the single machine-readable list of routes that are intended to
 remain stable across 1.x releases. Tests, documentation checks, and release
 readiness scripts should read this contract instead of duplicating route lists.
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 
@@ -25,6 +25,7 @@ PUBLIC_STABLE_ROUTE_SPECS: tuple[ApiRouteSpec, ...] = (
     ApiRouteSpec("POST", "/ingest", request_schema="ingest_request.v1", response_schema="workflow_response.v1"),
     ApiRouteSpec("POST", "/lint", request_schema="lint_request.v1", response_schema="workflow_response.v1"),
     ApiRouteSpec("GET", "/models/providers", response_schema="model_providers.v1"),
+    ApiRouteSpec("GET", "/models/image-providers", response_schema="image_providers.v1"),
     ApiRouteSpec("POST", "/models/discover", request_schema="model_discover_request.v1", response_schema="model_discover_response.v1"),
     ApiRouteSpec("POST", "/models/probe", request_schema="model_probe_request.v1", response_schema="model_probe_response.v1"),
     ApiRouteSpec("POST", "/models/apply-capabilities", request_schema="model_capability_apply_request.v1", response_schema="model_capability_apply_response.v1"),

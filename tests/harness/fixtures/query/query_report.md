@@ -16,7 +16,7 @@
 - path: Agent-Loop.md
 - match_kind: related
 - relevance: high
-- score: 61.432
+- score: 61.433
 - matched_fields: body, claims, entities, graph_index, graph_recall, graph_related, headings, path, related_graph, summary, title
 - reason: Matched body, claims, entities, graph_index, graph_recall, graph_related, headings, path, related_graph, summary, title; graph relevance boost 36.8 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:outbound_link, relation:Agent Loop-differs from-Workflow.
 
@@ -48,7 +48,7 @@ Excerpts:
 - path: sources/Agent-Loop-Source.md
 - match_kind: direct
 - relevance: high
-- score: 10.695
+- score: 10.692
 - matched_fields: body, graph_index, graph_recall, headings, path, title
 - reason: Matched body, graph_index, graph_recall, headings, path, title; graph relevance boost 4.0 via page_identity:title.
 
@@ -95,7 +95,7 @@ Excerpts:
 - role_counts: {'primary': 1, 'supporting': 1, 'source': 1}
 - schema_version: query_trace.v1
 - scoring_model: graph_recall_then_field_weighted_bm25
-- top_matches: [{'path': 'Agent-Loop.md', 'score': 61.432, 'relevance': 'high', 'matched_fields': ['body', 'claims', 'entities', 'graph_index', 'graph_recall', 'graph_related', 'headings', 'path', 'related_graph', 'summary', 'title'], 'atom_trace_count': 0, 'reason': 'Matched body, claims, entities, graph_index, graph_recall, graph_related, headings, path, related_graph, summary, title; graph relevance boost 36.8 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:outbound_link, relation:Agent Loop-differs from-Workflow.'}, {'path': 'OpenClaw.md', 'score': 35.151, 'relevance': 'high', 'matched_fields': ['body', 'entities', 'graph_index', 'graph_recall', 'graph_related', 'related_graph', 'summary'], 'atom_trace_count': 0, 'reason': 'Matched body, entities, graph_index, graph_recall, graph_related, related_graph, summary; graph relevance boost 26.3 via node:Agent Loop, page_identity:entity, related:backlink, related:outbound_link, relation:Agent Loop-differs from-Workflow.'}, {'path': 'sources/Agent-Loop-Source.md', 'score': 10.695, 'relevance': 'high', 'matched_fields': ['body', 'graph_index', 'graph_recall', 'headings', 'path', 'title'], 'atom_trace_count': 0, 'reason': 'Matched body, graph_index, graph_recall, headings, path, title; graph relevance boost 4.0 via page_identity:title.'}]
+- top_matches: [{'path': 'Agent-Loop.md', 'score': 61.433, 'relevance': 'high', 'matched_fields': ['body', 'claims', 'entities', 'graph_index', 'graph_recall', 'graph_related', 'headings', 'path', 'related_graph', 'summary', 'title'], 'atom_trace_count': 0, 'reason': 'Matched body, claims, entities, graph_index, graph_recall, graph_related, headings, path, related_graph, summary, title; graph relevance boost 36.8 via node:Agent Loop, node:Workflow, page_identity:title, related:backlink, related:outbound_link, relation:Agent Loop-differs from-Workflow.'}, {'path': 'OpenClaw.md', 'score': 35.151, 'relevance': 'high', 'matched_fields': ['body', 'entities', 'graph_index', 'graph_recall', 'graph_related', 'related_graph', 'summary'], 'atom_trace_count': 0, 'reason': 'Matched body, entities, graph_index, graph_recall, graph_related, related_graph, summary; graph relevance boost 26.3 via node:Agent Loop, page_identity:entity, related:backlink, related:outbound_link, relation:Agent Loop-differs from-Workflow.'}, {'path': 'sources/Agent-Loop-Source.md', 'score': 10.692, 'relevance': 'high', 'matched_fields': ['body', 'graph_index', 'graph_recall', 'headings', 'path', 'title'], 'atom_trace_count': 0, 'reason': 'Matched body, graph_index, graph_recall, headings, path, title; graph relevance boost 4.0 via page_identity:title.'}]
 
 ## Context Pack
 
@@ -110,7 +110,7 @@ Response guidance:
 - Cite page paths when making claims, especially for specific facts or recommendations.
 - Primary page candidate: Agent-Loop.md.
 
-1. Agent Loop (Agent-Loop.md, relevance: high, score: 61.432)
+1. Agent Loop (Agent-Loop.md, relevance: high, score: 61.433)
 Answer role: primary
 Match origin: related
 Summary: Agent loop is a control pattern where a model observes context, reasons, acts with tools, and uses feedback.
@@ -174,7 +174,7 @@ OpenClaw is an engineering agent system that combines structured workflows with 
 - [[Agent Loop]]
 Why matched: Matched body, entities, graph_index, graph_recall, graph_related, related_graph, summary; graph relevance boost 26.3 via node:Agent Loop, page_identity:entity, related:backlink, related:outbound_link, relation:Agent Loop-differs from-Workflow.
 
-3. Agent Loop Source (sources/Agent-Loop-Source.md, relevance: high, score: 10.695)
+3. Agent Loop Source (sources/Agent-Loop-Source.md, relevance: high, score: 10.692)
 Answer role: source
 Match origin: direct
 Summary: No summary.

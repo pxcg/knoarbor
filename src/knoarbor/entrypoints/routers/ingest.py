@@ -4,7 +4,7 @@ from fastapi import APIRouter
 
 from knoarbor.core.schemas.execution import WorkflowResponse
 from knoarbor.core.schemas.ingest_run import IngestRecoveryRunRequest, UnifiedIngestRequest
-from knoarbor.entrypoints.vault_selection import resolve_single_vault
+from knoarbor.core.vault_selection import resolve_single_vault
 from knoarbor.services import ApplicationServices
 
 

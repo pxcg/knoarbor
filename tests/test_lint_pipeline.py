@@ -861,9 +861,9 @@ class WikiLintPipelineTests(unittest.TestCase):
     def test_run_maintenance_executes_refresh_request_for_missing_source_digest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
-            (vault / "raw" / "notes").mkdir(parents=True)
+            (vault / "raw" / "inbox" / "notes").mkdir(parents=True)
             (vault / "wiki" / "pages").mkdir(parents=True)
-            (vault / "raw" / "notes" / "agent.md").write_text("# Agent raw\n\nAgent loop source.", encoding="utf-8")
+            (vault / "raw" / "inbox" / "notes" / "agent.md").write_text("# Agent raw\n\nAgent loop source.", encoding="utf-8")
             target = vault / "wiki" / "pages" / "Agent.md"
             target.write_text(
                 "---\ncreated: 2026-05-01\nupdated: 2026-05-01\ncontent_hash: a\n---\n"

@@ -10,7 +10,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.core.schemas.wiki_operation import WikiOperationApplyRequest, WikiOperationInput
 from knoarbor.core.schemas.wiki_operation import WikiOperationAction
-from knoarbor.core.errors import PolicyRejection
 from knoarbor.pipelines.lint_execution import _WIKI_OPERATION_ACTIONS
 from knoarbor.pipelines import WikiOperationPipeline
 

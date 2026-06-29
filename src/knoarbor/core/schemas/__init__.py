@@ -15,6 +15,13 @@ from knoarbor.core.schemas.chat import (
 from knoarbor.core.schemas.connectors import ConnectorDiscoverResponse, ConnectorRunRequest
 from knoarbor.core.schemas.events import KnowledgeEvent
 from knoarbor.core.schemas.execution import WorkflowExecutionMode, WorkflowFlow, WorkflowResponse
+from knoarbor.core.schemas.image_generation import (
+    GeneratedImage,
+    ImageGenerationRequest,
+    ImageGenerationResponse,
+    ImageProviderSummary,
+    ImageProvidersResponse,
+)
 from knoarbor.core.schemas.knowledge_extract import (
     CompileContext,
     ContentUnit,
@@ -133,6 +140,11 @@ __all__ = [
     "WorkflowExecutionMode",
     "WorkflowFlow",
     "WorkflowResponse",
+    "GeneratedImage",
+    "ImageGenerationRequest",
+    "ImageGenerationResponse",
+    "ImageProviderSummary",
+    "ImageProvidersResponse",
     "ChatCitation",
     "ChatMessageItem",
     "ChatRequest",

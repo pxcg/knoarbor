@@ -61,6 +61,23 @@ class UiModelProviderForm(BaseModel):
     api_key_configured: bool = False
 
 
+class UiImageGenerationProviderForm(BaseModel):
+    name: str
+    adapter: str = "sensenova_image"
+    base_url: str = ""
+    endpoint_path: str = "/images/generations"
+    api_key_env: str = ""
+    model: str = ""
+    verify_tls: bool = True
+    tls_ca_file: str = ""
+    response_format: str = "url"
+    size: str = ""
+    aspect_ratio: str = ""
+    image_count: int = Field(default=1, ge=1, le=4)
+    extra_body: dict[str, object] = Field(default_factory=dict)
+    api_key_configured: bool = False
+
+
 class UiVaultProfileForm(BaseModel):
     id: str
     name: str
@@ -102,6 +119,9 @@ class UiConfigFormResponse(BaseModel):
     default_max_tokens: int | None = None
     request_timeout_seconds: float
     providers: list[UiModelProviderForm] = Field(default_factory=list)
+    image_default_provider: str = ""
+    image_request_timeout_seconds: float = 120.0
+    image_providers: list[UiImageGenerationProviderForm] = Field(default_factory=list)
     enabled_connectors: list[str] = Field(default_factory=list)
     codex_enabled: bool = False
     codex_sessions_dir: str = ""
@@ -158,6 +178,9 @@ class UiConfigFormUpdateRequest(BaseModel):
     default_max_tokens: int | None = Field(default=12000, ge=1)
     request_timeout_seconds: float = Field(default=300.0, ge=1)
     providers: list[UiModelProviderForm] = Field(default_factory=list)
+    image_default_provider: str = ""
+    image_request_timeout_seconds: float = Field(default=120.0, ge=1)
+    image_providers: list[UiImageGenerationProviderForm] = Field(default_factory=list)
     codex_enabled: bool = False
     codex_sessions_dir: str = ""
     codex_raw_output_dir: str = ""

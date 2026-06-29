@@ -8,10 +8,9 @@ from knoarbor.core.schemas.lint_review import LintMaintenanceReview
 
 def create_lint_fixture_vault(vault: Path) -> None:
     (vault / "wiki" / "pages").mkdir(parents=True)
-    (vault / "wiki" / "pages").mkdir()
-    (vault / "sources").mkdir()
-    (vault / "raw" / "notes").mkdir(parents=True)
-    (vault / "raw" / "notes" / "agent.md").write_text("# Agent Loop Source\n\nOriginal source.", encoding="utf-8")
+    (vault / "wiki" / "sources").mkdir(parents=True)
+    (vault / "raw" / "inbox" / "notes").mkdir(parents=True)
+    (vault / "raw" / "inbox" / "notes" / "agent.md").write_text("# Agent Loop Source\n\nOriginal source.", encoding="utf-8")
 
     (vault / "wiki" / "pages" / "Agent-Loop.md").write_text(
         "\n".join(
@@ -102,7 +101,7 @@ def create_lint_fixture_vault(vault: Path) -> None:
         ),
         encoding="utf-8",
     )
-    (vault / "sources" / "Agent-Loop-Source.md").write_text(
+    (vault / "wiki" / "sources" / "Agent-Loop-Source.md").write_text(
         "\n".join(
             [
                 "---",

@@ -305,8 +305,8 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(response.tool_trace[0].result["answer_set"]["kind"], "multi_page")
         self.assertEqual(response.citations[0].role, "primary")
         self.assertIn("full maintained page content", response.tool_trace[0].result["primary_page"]["content"])
-        self.assertEqual(response.tool_trace[0].result["primary_page"]["atom_traces"][0]["atom_id"], "fact_agent_loop_cycle")
-        self.assertEqual(evidence_pack["primary_page"]["atom_traces"][0]["atom_id"], "fact_agent_loop_cycle")
+        self.assertEqual(response.tool_trace[0].result["primary_page"]["atom_traces"][0]["atom_id"], "claim_agent_loop_cycle")
+        self.assertEqual(evidence_pack["primary_page"]["atom_traces"][0]["atom_id"], "claim_agent_loop_cycle")
         self.assertEqual(evidence_pack["citation_pages"][0]["atom_traces"][0]["source_digest_id"], "sd_agent_loop")
         self.assertEqual(response.tool_trace[0].result["supporting_pages"][0]["path"], "Session-Memory-Architecture-for-Agent-Loops.md")
         self.assertIn("production agent loops", response.tool_trace[0].result["supporting_pages"][0]["content"])
@@ -488,7 +488,7 @@ class ChatAgentServiceTest(unittest.TestCase):
         )
 
         self.assertEqual(services.wiki_pages.read_paths, ["Agent-Engineering.md"])
-        self.assertIn("resolving requested page reference Agent-Engineering.md", response.tool_trace[0].summary)
+        self.assertIn("Read wiki page Agent-Engineering.md", response.tool_trace[0].summary)
         self.assertEqual(response.citations[0].path, "Agent-Engineering.md")
 
     def test_provider_does_not_change_chat_retrieval_contract(self) -> None:
@@ -1162,10 +1162,10 @@ class ChatAgentServiceTest(unittest.TestCase):
 
         self.assertEqual(services.wiki_pages.list_calls, 1)
         self.assertEqual(response.tool_trace[0].tool, "list_wiki_pages")
-        self.assertEqual(response.tool_trace[0].result["returned_pages"], 1)
+        self.assertEqual(response.tool_trace[0].result["returned_pages"], 2)
         self.assertEqual(response.tool_trace[0].result["pages"][0]["path"], "Agent-Loop.md")
         self.assertEqual(response.citations, [])
-        self.assertEqual(response.hidden_evidence_count, 1)
+        self.assertEqual(response.hidden_evidence_count, 2)
         self.assertIn('"pages"', client.requests[-1].messages[-1].content)
 
     def test_chat_can_inspect_wiki_relations(self) -> None:
@@ -1336,7 +1336,7 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(third.tool_trace[0].tool, "inspect_wiki_relations")
         self.assertEqual(services.wiki_pages.link_paths, ["Agent-Loop.md"])
         self.assertEqual(fourth.tool_trace[0].tool, "list_wiki_pages")
-        self.assertEqual(services.wiki_pages.list_calls, 1)
+        self.assertEqual(services.wiki_pages.list_calls, 2)
         self.assertEqual(fifth.tool_trace[0].tool, "reuse_context")
         self.assertEqual(fifth.stats["tool_plan"]["tool_calls"][0]["name"], "reuse_context")
         self.assertEqual(fifth.stats["plan_adjustments"][0]["kind"], "context_synthesis_reuse")
