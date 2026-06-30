@@ -4,6 +4,26 @@ All notable public changes to KnoArbor will be documented in this file.
 
 This project follows a simple release-note format for public releases.
 
+## 2.2.0 - 2026-06-30
+
+### Added
+
+- Added desktop-focused API key storage and model configuration paths for chat and image providers.
+- Added vault attachment handling for chat answers, including browser-safe asset URLs for maintained wiki images.
+- Added checkpoint output manifests so missing generated pages or source digests can trigger reprocessing.
+
+### Changed
+
+- Refined ingest contracts around source digests, attachments, wiki rendering, and output tracking.
+- Simplified query, run, report, and token analysis screens for the desktop console.
+- Updated image generation settings to use resolution, inference steps, and guidance parameters.
+
+### Validation
+
+- `uv run python -m unittest tests.test_wiki_attachments tests.test_chat_evidence`
+- `npm --prefix web run build`
+- `npm run pack:mac`
+
 ## 2.1.0 - 2026-06-29
 
 ### Added

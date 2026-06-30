@@ -1,7 +1,7 @@
 {
   "name": "@knoarbor/desktop",
   "private": true,
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "KnoArbor desktop app",
   "author": "pxcg",
   "license": "Apache-2.0",
