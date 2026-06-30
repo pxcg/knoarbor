@@ -4,6 +4,27 @@ All notable public changes to KnoArbor will be documented in this file.
 
 This project follows a simple release-note format for public releases.
 
+## 2.2.1 - 2026-06-30
+
+### Added
+
+- Added Windows desktop packaging support for the Electron app and bundled service.
+- Added a tag-driven desktop release workflow that builds macOS and Windows installers on native GitHub runners.
+
+### Fixed
+
+- Fixed chat evidence payloads so wiki attachment image URLs keep their source vault path through query, read, and chat planning.
+- Fixed chat image generation so runtime model-suggested resolution, step, and guidance values no longer override configured provider defaults.
+- Fixed the desktop chat sidebar so newly created or updated chat sessions refresh after chat completion, retry, regeneration, or turn deletion.
+- Synchronized the Python runtime version metadata with the package version.
+
+### Validation
+
+- `uv run python -m unittest tests.test_wiki_attachments tests.test_chat_citations tests.test_runtime_contracts tests.test_chat_agent tests.test_image_generation tests.test_ui_api`
+- `npm --prefix web run build`
+- `npm --prefix desktop run pack:mac`
+- Manual desktop smoke test with a six-turn AC1 chat covering page retrieval, attachment display, and image generation.
+
 ## 2.2.0 - 2026-06-30
 
 ### Added
