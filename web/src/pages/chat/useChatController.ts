@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
   deleteChatTurn,
@@ -36,6 +37,7 @@ export type ChatContextMenuState = {
 };
 
 export function useChatController(context: AppContext) {
+  const queryClient = useQueryClient();
   const [input, setInput] = useState("");
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -230,6 +232,7 @@ export function useChatController(context: AppContext) {
         hiddenEvidenceCount: response.hidden_evidence_count || 0,
         citationWarnings: response.citation_warnings || [],
       }));
+      refreshSidebarSessions();
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         context.setNotice({ message: context.t("chatStopped") });
@@ -304,6 +307,7 @@ export function useChatController(context: AppContext) {
           citationWarnings: response.citation_warnings || [],
         },
       ]);
+      refreshSidebarSessions();
     } catch (error) {
       setTurns(previousTurns);
       if (error instanceof DOMException && error.name === "AbortError") {
@@ -331,6 +335,7 @@ export function useChatController(context: AppContext) {
     if (!sessionId) return;
     try {
       await deleteChatTurn(context.activeVaultSelector, sessionId, turnIndex);
+      refreshSidebarSessions();
     } catch (error) {
       setTurns(previousTurns);
       context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
@@ -372,6 +377,7 @@ export function useChatController(context: AppContext) {
         hiddenEvidenceCount: response.hidden_evidence_count || 0,
         citationWarnings: response.citation_warnings || [],
       }));
+      refreshSidebarSessions();
     } catch (error) {
       setTurns(previousTurns);
       if (error instanceof DOMException && error.name === "AbortError") {
@@ -422,6 +428,10 @@ export function useChatController(context: AppContext) {
   function clearStageTimers() {
     for (const timer of stageTimersRef.current) window.clearTimeout(timer);
     stageTimersRef.current = [];
+  }
+
+  function refreshSidebarSessions() {
+    void queryClient.invalidateQueries({ queryKey: ["sidebar-chat-sessions"] });
   }
 
   return {

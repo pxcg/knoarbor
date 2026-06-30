@@ -1,0 +1,1 @@
+import{r as e}from"./vendor-markdown-DV7daYwZ.js";import{t}from"./RunPage-BN4mQlBo.js";var n=e();function r({context:e}){return(0,n.jsx)(`section`,{className:`view active`,children:(0,n.jsx)(t,{context:e,embedded:!0,mode:`lint`})})}export{r as LintPage};

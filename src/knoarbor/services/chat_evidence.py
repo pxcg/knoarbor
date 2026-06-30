@@ -403,6 +403,7 @@ class ChatEvidencePlanner:
             "content_truncated": bool(page.get("content_truncated")),
             "vault_id": page.get("vault_id"),
             "vault_name": page.get("vault_name"),
+            "vault_path": page.get("vault_path"),
             "atom_traces": _atom_traces(page),
         }
         return payload
@@ -423,6 +424,7 @@ class ChatEvidencePlanner:
             "content_truncated": bool(page.get("content_truncated")),
             "vault_id": page.get("vault_id"),
             "vault_name": page.get("vault_name"),
+            "vault_path": page.get("vault_path"),
             "atom_traces": _atom_traces(page),
         }
 
@@ -436,6 +438,7 @@ class ChatEvidencePlanner:
             "summary": page.get("summary"),
             "vault_id": page.get("vault_id"),
             "vault_name": page.get("vault_name"),
+            "vault_path": page.get("vault_path"),
             "atom_traces": _atom_traces(page),
         }
 
@@ -449,6 +452,7 @@ class ChatEvidencePlanner:
             "summary": item.get("summary"),
             "vault_id": item.get("vault_id"),
             "vault_name": item.get("vault_name"),
+            "vault_path": item.get("vault_path"),
             "reason": item.get("reason"),
             "atom_traces": _atom_traces(item),
         }
@@ -464,6 +468,7 @@ def search_result_to_chat_payload(item: WikiSearchResult) -> dict[str, Any]:
         "claims": item.claims[:5],
         "vault_id": item.vault_id,
         "vault_name": item.vault_name,
+        "vault_path": item.vault_path,
         "atom_traces": [trace.model_dump() for trace in item.atom_traces],
         "is_primary": item.role == "primary",
     }

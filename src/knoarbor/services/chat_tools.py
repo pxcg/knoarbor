@@ -333,9 +333,6 @@ class ChatToolExecutor:
         request = ImageGenerationRequest(
             prompt=prompt,
             negative_prompt=_optional_text(arguments, "negative_prompt"),
-            resolution=_optional_text(arguments, "resolution"),
-            num_inference_steps=_optional_bounded_int(arguments.get("num_inference_steps"), minimum=1, maximum=200),
-            guidance=_optional_float(arguments.get("guidance")),
             response_format=arguments.get("response_format") if arguments.get("response_format") in {"url", "b64_json"} else None,
             extra_body=arguments.get("extra_body") if isinstance(arguments.get("extra_body"), dict) else {},
         )
@@ -590,6 +587,7 @@ def _chat_supporting_page_payload(item: WikiSearchResult) -> dict[str, object]:
         "content_truncated": item.content_truncated,
         "vault_id": item.vault_id,
         "vault_name": item.vault_name,
+        "vault_path": item.vault_path,
         "atom_traces": [trace.model_dump() for trace in item.atom_traces],
     }
 
@@ -609,6 +607,7 @@ def _chat_primary_page_payload(item: WikiSearchResult) -> dict[str, object]:
         "content_truncated": item.content_truncated,
         "vault_id": item.vault_id,
         "vault_name": item.vault_name,
+        "vault_path": item.vault_path,
         "atom_traces": [trace.model_dump() for trace in item.atom_traces],
     }
 

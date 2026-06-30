@@ -190,14 +190,15 @@ def _vault_stats(vault_path: Path, *, config_path: str | None = None, vault_id: 
 def _annotate_results_with_vault(response: WikiSearchResponse, vault_path: Path) -> None:
     vault_id = response.stats.get("vault_id")
     vault_name = response.stats.get("vault_name")
-    for index, result in enumerate(response.results):
-        response.results[index] = result.model_copy(
-            update={
-                "vault_id": str(vault_id) if vault_id else None,
-                "vault_name": str(vault_name) if vault_name else None,
-                "vault_path": str(vault_path),
-            },
-        )
+    update = {
+        "vault_id": str(vault_id) if vault_id else None,
+        "vault_name": str(vault_name) if vault_name else None,
+        "vault_path": str(vault_path),
+    }
+    for field_name in ("results", "primary_pages", "supporting_pages", "source_pages"):
+        pages = getattr(response, field_name)
+        for index, result in enumerate(pages):
+            pages[index] = result.model_copy(update=update)
 
 
 def _merge_context_packs(responses: list[WikiSearchResponse]) -> str:

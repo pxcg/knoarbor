@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from knoarbor.core.errors import ExternalServiceError
 from knoarbor.core.schemas.chat import ChatCitation, ChatMessageItem, ChatRequest, ChatResponse
+from knoarbor.core.schemas.image_generation import GeneratedImage, ImageGenerationRequest, ImageGenerationResponse
 from knoarbor.core.schemas.vaults import VaultListResponse, VaultProfile
 from knoarbor.core.schemas.wiki_query import WikiAnswerScope, WikiAnswerSet, WikiAtomTrace, WikiEvidenceCoverage, WikiSearchResponse, WikiSearchResult
 from knoarbor.entrypoints.api import create_app
@@ -238,10 +239,26 @@ class FakeVaults:
 
 
 @dataclass
+class FakeImageGeneration:
+    requests: list[ImageGenerationRequest] = field(default_factory=list)
+
+    def generate(self, request: ImageGenerationRequest, *, config_path=None, provider_name=None):
+        self.requests.append(request)
+        return ImageGenerationResponse(
+            provider=provider_name or "sensenova",
+            model="sensenova-u1-fast",
+            prompt=request.prompt,
+            images=[GeneratedImage(b64_json="ZmFrZS1wbmc=", mime_type="image/png")],
+            usage={"total_tokens": 1},
+        )
+
+
+@dataclass
 class FakeServices:
     wiki_search: FakeWikiSearch = field(default_factory=FakeWikiSearch)
     wiki_pages: FakeWikiPages = field(default_factory=FakeWikiPages)
     vaults: FakeVaults = field(default_factory=FakeVaults)
+    image_generation: FakeImageGeneration = field(default_factory=FakeImageGeneration)
     memory: MemoryService = field(default_factory=MemoryService)
     chat_sessions: ChatSessionStore = field(default_factory=ChatSessionStore)
 
@@ -1212,6 +1229,40 @@ class ChatAgentServiceTest(unittest.TestCase):
         self.assertEqual(response.tool_trace[0].result["default_vault_id"], "agent-engineering")
         self.assertEqual(response.tool_trace[0].result["vaults"][0]["name"], "Agent Engineering")
         self.assertIn('"vaults"', client.requests[-1].messages[-1].content)
+
+    def test_generate_image_uses_provider_defaults_for_runtime_parameters(self) -> None:
+        client = FakeChatClient(
+            [
+                {
+                    "tool_calls": [
+                        {
+                            "name": "generate_image",
+                            "arguments": {
+                                "prompt": "A clean product illustration",
+                                "resolution": "1024x1024",
+                                "num_inference_steps": 30,
+                                "guidance": 7.5,
+                            },
+                        }
+                    ],
+                    "reason": "user asked to create an image",
+                    "confidence": 0.9,
+                },
+                {"answer": "已生成图片。", "citations": []},
+            ]
+        )
+        services = FakeServices()
+        with tempfile.TemporaryDirectory() as tmp:
+            response = ChatAgentService(client_factory=lambda _request: client).chat(
+                ChatRequest(messages=[ChatMessageItem(role="user", content="生成一张产品说明图")], vault_path=tmp, append_ledger=False),
+                services,  # type: ignore[arg-type]
+            )
+
+        self.assertEqual(response.tool_trace[0].tool, "generate_image")
+        image_request = services.image_generation.requests[0]
+        self.assertIsNone(image_request.resolution)
+        self.assertIsNone(image_request.num_inference_steps)
+        self.assertIsNone(image_request.guidance)
 
     def test_complex_agent_design_chat_uses_query_read_links_list_and_reuse(self) -> None:
         client = FakeChatClient(
