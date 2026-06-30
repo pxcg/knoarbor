@@ -120,12 +120,10 @@ image_generation:
       endpoint_path: /images/generations
       api_key_env: SN_API_KEY
       model: sensenova-u1-fast
-      response_format: url
-      aspect_ratio: "16:9"
-      image_count: 1
+      resolution: "2720*1536"
+      num_inference_steps: 20
+      guidance: 4
 ```
-
-`aspect_ratio` 这类值建议写成带引号的 YAML 字符串，例如 `"16:9"`。
 
 ## 对话入库
 

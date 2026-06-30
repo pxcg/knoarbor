@@ -12,6 +12,8 @@ from knoarbor.core.vault_selection import resolve_single_vault, resolve_vault_gr
 from knoarbor.retrieval.answer_selection import query_prefers_source_page
 from knoarbor.services.chat_context import latest_user_text
 from knoarbor.services.chat_evidence import CHAT_EVIDENCE_PACK_SCHEMA_VERSION, ChatEvidencePlanner, search_result_to_chat_payload
+from knoarbor.services.chat_generated_images import store_chat_generated_image
+from knoarbor.services.wiki_attachments import attachments_for_wiki_page
 
 if TYPE_CHECKING:
     from knoarbor.services import ApplicationServices
@@ -224,6 +226,7 @@ class ChatToolExecutor:
             "title": page.summary.title,
             "summary": page.summary.summary,
             "content": page.content,
+            "attachments": attachments_for_wiki_page(vault.path, page.content),
             "metadata": page.metadata,
             "vault_id": vault.vault_id,
             "vault_name": vault.vault_name,
@@ -330,9 +333,9 @@ class ChatToolExecutor:
         request = ImageGenerationRequest(
             prompt=prompt,
             negative_prompt=_optional_text(arguments, "negative_prompt"),
-            size=_optional_text(arguments, "size"),
-            aspect_ratio=_optional_text(arguments, "aspect_ratio"),
-            image_count=_bounded_int(arguments.get("image_count"), default=1, minimum=1, maximum=4),
+            resolution=_optional_text(arguments, "resolution"),
+            num_inference_steps=_optional_bounded_int(arguments.get("num_inference_steps"), minimum=1, maximum=200),
+            guidance=_optional_float(arguments.get("guidance")),
             response_format=arguments.get("response_format") if arguments.get("response_format") in {"url", "b64_json"} else None,
             extra_body=arguments.get("extra_body") if isinstance(arguments.get("extra_body"), dict) else {},
         )
@@ -342,13 +345,22 @@ class ChatToolExecutor:
             src = image.markdown_src()
             if not src:
                 continue
+            stored = store_chat_generated_image(
+                image,
+                vault_path=self.request.vault_path,
+                session_id=self.request.session_id,
+                index=index,
+            )
+            display_src = stored.src if stored else src
             images.append(
                 {
                     "index": index,
-                    "src": src,
-                    "markdown": f"![Generated image {index}]({src})",
+                    "src": display_src,
+                    "markdown": f"![Generated image {index}]({display_src})",
                     "mime_type": image.mime_type,
                     "revised_prompt": image.revised_prompt,
+                    "stored_path": stored.path if stored else None,
+                    "original_src": stored.original_src if stored else src,
                 }
             )
         return ChatToolTraceItem(
@@ -574,6 +586,7 @@ def _chat_supporting_page_payload(item: WikiSearchResult) -> dict[str, object]:
         "summary": item.summary,
         "claims": item.claims[:6],
         "content": item.content or "",
+        "attachments": attachments_for_wiki_page(item.vault_path, item.content or ""),
         "content_truncated": item.content_truncated,
         "vault_id": item.vault_id,
         "vault_name": item.vault_name,
@@ -592,6 +605,7 @@ def _chat_primary_page_payload(item: WikiSearchResult) -> dict[str, object]:
         "summary": item.summary,
         "claims": item.claims[:8],
         "content": item.content or "",
+        "attachments": attachments_for_wiki_page(item.vault_path, item.content or ""),
         "content_truncated": item.content_truncated,
         "vault_id": item.vault_id,
         "vault_name": item.vault_name,
@@ -742,6 +756,25 @@ def _bounded_int(value: object, *, default: int, minimum: int, maximum: int) -> 
     except (TypeError, ValueError):
         number = default
     return max(minimum, min(maximum, number))
+
+
+def _optional_bounded_int(value: object, *, minimum: int, maximum: int) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return max(minimum, min(maximum, number))
+
+
+def _optional_float(value: object) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _concrete_argument_vault_id(arguments: dict[str, Any], request_vault_id: str | None) -> str | None:

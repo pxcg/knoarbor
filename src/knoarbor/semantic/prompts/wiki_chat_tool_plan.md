@@ -38,7 +38,7 @@ Return exactly one JSON object without markdown fences or explanatory prose.
 - `reuse_context`: reuse prior evidence from the current chat session when the latest message is a direct follow-up and prior evidence is sufficient.
   - arguments: optional `page_paths` array.
 - `generate_image`: create an image from a user prompt through the configured image generation provider.
-  - arguments: `prompt` string, optional `negative_prompt` string, optional `size` string, optional `aspect_ratio` string, optional `image_count` number, optional `provider` string.
+  - arguments: `prompt` string, optional `negative_prompt` string, optional `resolution` string, optional `num_inference_steps` number, optional `guidance` number, optional `provider` string.
 - `answer_directly`: answer without wiki tools only for greetings, UI questions, or questions outside wiki evidence retrieval.
   - arguments: optional `reason` string.
 - `finish_answer`: stop gathering evidence and let the answer writer synthesize the final response.
@@ -68,7 +68,10 @@ Return exactly one JSON object without markdown fences or explanatory prose.
 - Use `inspect_wiki_relations` when the user asks how a known page relates to nearby pages.
 - Use `list_vaults` when the user asks what knowledge bases are configured or which vault can be queried.
 - Use `query_wiki` when the user introduces a new knowledge topic from their vault, asks a broader or different evidence dimension of local knowledge, current evidence is weak, or current evidence recommends `query_wiki`.
-- Use `generate_image` when the latest user message explicitly asks to generate, draw, create, or produce an image, illustration, poster, diagram-as-image, cover, or visual asset.
+- Image requests have two routes:
+  - Existing attachment route: when the user asks to view, show, explain, compare, cite, or answer from images already in a wiki page, PDF, document, source, or attachment, gather or reuse wiki evidence with `query_wiki`, `read_wiki_page`, or `reuse_context`. The answer writer can render attachment images when evidence contains `attachments[].markdown_src`.
+  - Creation route: use `generate_image` when the latest user message asks to create a new visual asset, such as generating, drawing, designing, or producing a new image, illustration, poster, cover, product diagram, or infographic.
+- Terms such as "附件", "原图", "已有图片", "PDF 里的图", "wiki 页面里的图", "结合图片回答", "显示相关图片", "show the existing image", or "image from the document" indicate the existing attachment route.
 - If the user asks for a Mermaid flowchart or textual diagram, answer with Markdown/Mermaid rather than `generate_image`.
 - If the image should be based on wiki evidence, first gather or reuse the relevant wiki evidence, then call `generate_image` with a concise visual prompt derived from that evidence.
 - When refining a failed or weak search, rewrite the query toward the likely canonical wiki topic instead of repeating an `executed_queries` item.
@@ -112,6 +115,8 @@ Return exactly one JSON object without markdown fences or explanatory prose.
 - User: "我的 Agent 相关页面有哪些？" -> `list_wiki_pages` with query "Agent".
 - User: "Agent Loop 这个页面和哪些页面有关？" with known path `Agent-Loop-and-Control-Patterns.md` -> `inspect_wiki_relations`.
 - User: "我现在有哪些知识库？" -> `list_vaults`.
+- User: "展示 AC1 页面里的图片" -> `query_wiki` for "AC1", then `finish_answer`.
+- User: "AC1 的激光雷达 FOV 图说明什么？回答里显示相关图片" -> `query_wiki` for "AC1 激光雷达 FOV", then `finish_answer`.
 - User: "根据刚才的 Agent Loop 架构生成一张信息图" with prior architecture evidence -> `reuse_context`, then `generate_image` with a concise visual prompt.
 - User: "画一张青绿色的知识库封面图" -> `generate_image`.
 - Current evidence: no primary page, weak coverage, executed query "agent" -> `query_wiki` with a more specific canonical query such as "Agent Loop control patterns".

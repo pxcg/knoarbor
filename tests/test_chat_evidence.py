@@ -71,6 +71,37 @@ class ChatEvidencePlannerTests(unittest.TestCase):
         self.assertEqual(pack["answer_type"], "comparison")
         self.assertTrue(any("central distinction" in item for item in pack["synthesis_outline"]))
 
+    def test_preserves_renderable_attachments_in_primary_page(self) -> None:
+        pack = ChatEvidencePlanner().build_search_pack(
+            query="AC1 的 FOV 图片说明什么？",
+            result_count=1,
+            answer_scope={"kind": "narrow"},
+            answer_set={"kind": "single_page"},
+            evidence_coverage={"status": "strong", "primary_count": 1, "supporting_count": 0, "source_count": 0},
+            primary_page={
+                "path": "pages/AC1.md",
+                "title": "AC1",
+                "type": "page",
+                "summary": "AC1 page.",
+                "content": "AC1 content.",
+                "attachments": [
+                    {
+                        "topic": "图2 AC1 激光雷达 FOV 分布图",
+                        "description": "FOV rendering.",
+                        "markdown_src": "raw/assets/images/ac1-fov.jpg",
+                    }
+                ],
+            },
+            primary_pages=[],
+            supporting_pages=[],
+            source_pages=[],
+            results=[],
+            warnings=[],
+        ).payload
+
+        attachments = pack["primary_pages"][0]["attachments"]
+        self.assertEqual(attachments[0]["markdown_src"], "raw/assets/images/ac1-fov.jpg")
+
 
 if __name__ == "__main__":
     unittest.main()

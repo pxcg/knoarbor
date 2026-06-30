@@ -173,10 +173,9 @@ models:
                             "model": "sensenova-u1-fast",
                             "verify_tls": True,
                             "tls_ca_file": "",
-                            "response_format": "url",
-                            "size": "",
-                            "aspect_ratio": "16:9",
-                            "image_count": 1,
+                            "resolution": "2720*1536",
+                            "num_inference_steps": 20,
+                            "guidance": 4,
                             "extra_body": {},
                             "api_key_configured": False,
                         }
@@ -194,7 +193,7 @@ models:
             payload = form_response.json()
             self.assertEqual(payload["image_default_provider"], "sensenova")
             self.assertEqual(payload["image_providers"][0]["adapter"], "sensenova_image")
-            self.assertEqual(payload["image_providers"][0]["aspect_ratio"], "16:9")
+            self.assertEqual(payload["image_providers"][0]["resolution"], "2720*1536")
 
     def test_ui_config_marks_local_model_provider_ready_without_api_key(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -399,6 +398,38 @@ models:
             self.assertEqual(payload["mineru_start_page_id"], 1)
             self.assertEqual(payload["mineru_end_page_id"], 9)
             self.assertIn("custom_flag", payload["mineru_extra_fields_json"])
+
+    def test_ui_config_form_enables_mineru_when_endpoint_is_configured(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            config_path = root / "config.yaml"
+            client = TestClient(create_app())
+
+            response = client.put(
+                "/ui/api/config/form",
+                json={
+                    "config_path": str(config_path),
+                    "project_name": "KnoArbor",
+                    "vault_path": str(root / "vaults" / "default"),
+                    "server_host": "127.0.0.1",
+                    "server_port": 8000,
+                    "default_provider": "",
+                    "default_max_tokens": 30000,
+                    "request_timeout_seconds": 600,
+                    "providers": [],
+                    "markdown_enabled": True,
+                    "markdown_roots": [],
+                    "mineru_enabled": False,
+                    "mineru_endpoint": "http://127.0.0.1:18080/file_parse",
+                },
+            )
+
+            self.assertEqual(response.status_code, 200)
+            saved = config_path.read_text(encoding="utf-8")
+            self.assertIn("enabled: true", saved)
+            form_response = client.get("/ui/api/config/form", params={"config_path": str(config_path)})
+            self.assertEqual(form_response.status_code, 200)
+            self.assertTrue(form_response.json()["mineru_enabled"])
 
     def test_ui_config_form_uses_default_chat_session_dirs_when_enabled_without_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

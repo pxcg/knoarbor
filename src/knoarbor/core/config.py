@@ -96,9 +96,9 @@ class ImageGenerationProviderConfig(BaseModel):
     verify_tls: bool = True
     tls_ca_file: Path | None = None
     response_format: Literal["url", "b64_json"] = "url"
-    size: str | None = None
-    aspect_ratio: str | None = None
-    image_count: int = Field(default=1, ge=1, le=4)
+    resolution: str | None = "2720*1536"
+    num_inference_steps: int | None = Field(default=20, ge=1)
+    guidance: float | None = Field(default=4, ge=0)
     extra_body: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("tls_ca_file")
@@ -106,7 +106,7 @@ class ImageGenerationProviderConfig(BaseModel):
     def expand_tls_ca_file(cls, value: Path | None) -> Path | None:
         return value.expanduser() if value is not None else None
 
-    @field_validator("size", "aspect_ratio", mode="before")
+    @field_validator("resolution", mode="before")
     @classmethod
     def stringify_dimension(cls, value: Any) -> str | None:
         if value is None:

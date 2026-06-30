@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 import tempfile
@@ -10,9 +11,10 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from knoarbor.core.config import ImageGenerationProviderConfig
-from knoarbor.core.schemas.image_generation import ImageGenerationRequest
+from knoarbor.core.schemas.image_generation import GeneratedImage, ImageGenerationRequest
 from knoarbor.entrypoints.api import create_app
 from knoarbor.semantic.image_generation import ImageGenerationGateway
+from knoarbor.services.chat_generated_images import store_chat_generated_image
 
 
 class _FakeHttpResponse:
@@ -45,7 +47,9 @@ class ImageGenerationTests(unittest.TestCase):
             endpoint_path="/images/generations",
             api_key_env="SN_API_KEY",
             model="sensenova-u1-fast",
-            aspect_ratio="16:9",
+            resolution="2720*1536",
+            num_inference_steps=20,
+            guidance=4,
         )
         with patch.dict(os.environ, {"SN_API_KEY": "test-key"}), patch("knoarbor.semantic.image_generation.urllib.request.urlopen", fake_urlopen):
             gateway = ImageGenerationGateway.from_config("sensenova", provider, timeout_seconds=33)
@@ -58,7 +62,9 @@ class ImageGenerationTests(unittest.TestCase):
         self.assertEqual(captured["url"], "https://token.sensenova.cn/v1/images/generations")
         self.assertEqual(captured["body"]["model"], "sensenova-u1-fast")
         self.assertEqual(captured["body"]["prompt"], "A clean product illustration")
-        self.assertEqual(captured["body"]["aspect_ratio"], "16:9")
+        self.assertEqual(captured["body"]["resolution"], "2720*1536")
+        self.assertEqual(captured["body"]["num_inference_steps"], 20)
+        self.assertEqual(captured["body"]["guidance"], 4)
         self.assertEqual(captured["headers"]["Authorization"], "Bearer test-key")
         self.assertEqual(captured["timeout"], 33)
 
@@ -98,7 +104,9 @@ image_generation:
       endpoint_path: /images/generations
       api_key_env: SN_API_KEY
       model: sensenova-u1-fast
-      aspect_ratio: 16:9
+      resolution: "2720*1536"
+      num_inference_steps: 20
+      guidance: 4
 """,
                 encoding="utf-8",
             )
@@ -112,7 +120,23 @@ image_generation:
         self.assertEqual(payload["default_provider"], "sensenova")
         self.assertEqual(payload["providers"][0]["name"], "sensenova")
         self.assertEqual(payload["providers"][0]["model"], "sensenova-u1-fast")
+        self.assertEqual(payload["providers"][0]["resolution"], "2720*1536")
         self.assertTrue(payload["providers"][0]["api_key_configured"])
+
+    def test_chat_generated_image_is_persisted_under_vault_assets(self) -> None:
+        image_data = base64.b64encode(b"fake-png").decode("ascii")
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            stored = store_chat_generated_image(
+                GeneratedImage(b64_json=image_data, mime_type="image/png"),
+                vault_path=tmp_dir,
+                session_id="chat:demo",
+                index=1,
+            )
+
+            self.assertIsNotNone(stored)
+            assert stored is not None
+            self.assertTrue(stored.src.startswith("raw/assets/images/generated/chat/chat-demo/"))
+            self.assertEqual((Path(tmp_dir) / stored.src).read_bytes(), b"fake-png")
 
 
 if __name__ == "__main__":

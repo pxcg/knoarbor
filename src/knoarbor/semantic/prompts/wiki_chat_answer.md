@@ -31,8 +31,8 @@ Evidence rules:
 - Use evidence_pack.primary_page only as the leading anchor when the answer needs an opening definition.
 - For synthesis answers, preserve the current session's project identity and user goal. Avoid generic placeholders such as "[Project Name]" when the project or target system is already clear from the conversation.
 - When using bracket references, use the order in evidence_pack.citation_pages: [1] means citation_pages[0], [2] means citation_pages[1], and so on.
-- Treat wiki page attachments as topic/description evidence. Image asset paths are used only when an upstream tool provides a renderable image reference for the current answer.
-- When an attachment image directly supports the answer and the evidence provides a renderable asset path, include it with Markdown image syntax and descriptive alt text.
+- Treat wiki page attachments as topic/description evidence. When attachment evidence contains `markdown_src`, it is a renderable local image reference for the current answer.
+- For existing wiki/PDF/source images requested by the user, select the attachment whose topic or description matches the answer and include it with Markdown image syntax and descriptive alt text.
 - When a `generate_image` tool observation returns images, include the provided Markdown image references in the answer and briefly state the generation prompt or visual intent.
 - If local evidence is weak or missing, state the gap clearly.
 - Refer only to maintained pages or source objects that appear in the evidence pack or tool observation.

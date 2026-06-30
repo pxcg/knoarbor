@@ -22,9 +22,9 @@ class GeneratedImage(BaseModel):
 class ImageGenerationRequest(BaseModel):
     prompt: str = Field(..., min_length=1)
     negative_prompt: str | None = None
-    size: str | None = None
-    aspect_ratio: str | None = None
-    image_count: int | None = Field(default=None, ge=1, le=4)
+    resolution: str | None = None
+    num_inference_steps: int | None = Field(default=None, ge=1)
+    guidance: float | None = Field(default=None, ge=0)
     response_format: Literal["url", "b64_json"] | None = None
     extra_body: dict[str, object] = Field(default_factory=dict)
 
@@ -47,13 +47,12 @@ class ImageProviderSummary(BaseModel):
     api_key_env: str | None = None
     api_key_configured: bool = False
     default: bool = False
-    response_format: str = "url"
-    size: str | None = None
-    aspect_ratio: str | None = None
+    resolution: str | None = None
+    num_inference_steps: int | None = None
+    guidance: float | None = None
 
 
 class ImageProvidersResponse(BaseModel):
     schema_version: Literal["image_providers.v1"] = "image_providers.v1"
     default_provider: str | None = None
     providers: list[ImageProviderSummary] = Field(default_factory=list)
-

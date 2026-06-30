@@ -205,10 +205,9 @@ def config_to_form(config: KnoArborConfig) -> UiConfigFormResponse:
                 model=provider.model or "",
                 verify_tls=provider.verify_tls,
                 tls_ca_file=str(provider.tls_ca_file) if provider.tls_ca_file else "",
-                response_format=provider.response_format,
-                size=provider.size or "",
-                aspect_ratio=provider.aspect_ratio or "",
-                image_count=provider.image_count,
+                resolution=provider.resolution or "2720*1536",
+                num_inference_steps=provider.num_inference_steps,
+                guidance=provider.guidance,
                 extra_body=provider.extra_body,
                 api_key_configured=_provider_credentials_ready(provider),
             )
@@ -516,10 +515,9 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
             "model": provider.model.strip() or None,
             "verify_tls": provider.verify_tls,
             "tls_ca_file": provider.tls_ca_file.strip() or None,
-            "response_format": provider.response_format.strip() or "url",
-            "size": provider.size.strip() or None,
-            "aspect_ratio": provider.aspect_ratio.strip() or None,
-            "image_count": provider.image_count,
+            "resolution": provider.resolution.strip() or "2720*1536",
+            "num_inference_steps": provider.num_inference_steps,
+            "guidance": provider.guidance,
             "extra_body": provider.extra_body,
         }
     data = dict(base_data)
@@ -599,8 +597,9 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
 
     document_processing = dict(data.get("document_processing") or {})
     mineru = dict(document_processing.get("mineru") or {})
-    mineru["enabled"] = form.mineru_enabled
-    mineru["endpoint"] = form.mineru_endpoint.strip() or None
+    mineru_endpoint = form.mineru_endpoint.strip()
+    mineru["enabled"] = form.mineru_enabled or bool(mineru_endpoint)
+    mineru["endpoint"] = mineru_endpoint or None
     mineru["input_dir"] = _portable_config_path_or_none(form.mineru_input_dir, base_dir)
     mineru["output_dir"] = _portable_config_path(form.mineru_output_dir or DEFAULT_MINERU_MARKDOWN_OUTPUT_DIR, base_dir)
     mineru["mode"] = form.mineru_parse_method.strip() or None

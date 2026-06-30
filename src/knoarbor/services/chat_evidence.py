@@ -105,6 +105,7 @@ class ChatEvidencePlanner:
                     "summary": item.result.get("summary"),
                     "claims": [],
                     "content": item.result.get("content") or "",
+                    "attachments": item.result.get("attachments", []),
                     "content_truncated": item.result.get("truncated", False),
                     "vault_id": item.result.get("vault_id"),
                     "vault_name": item.result.get("vault_name"),
@@ -203,6 +204,7 @@ class ChatEvidencePlanner:
                     "title": result.get("title"),
                     "summary": result.get("summary"),
                     "content": compact_inline_text(str(result.get("content") or ""), 18000),
+                    "attachments": _attachments(result),
                     "truncated": bool(result.get("truncated")),
                 },
             }
@@ -397,6 +399,7 @@ class ChatEvidencePlanner:
             "summary": page.get("summary"),
             "claims": page.get("claims", []),
             "content": compact_inline_text(str(page.get("content") or ""), 22000),
+            "attachments": _attachments(page),
             "content_truncated": bool(page.get("content_truncated")),
             "vault_id": page.get("vault_id"),
             "vault_name": page.get("vault_name"),
@@ -416,6 +419,7 @@ class ChatEvidencePlanner:
             "summary": page.get("summary"),
             "claims": page.get("claims", []),
             "content": compact_inline_text(str(page.get("content") or ""), 18000),
+            "attachments": _attachments(page),
             "content_truncated": bool(page.get("content_truncated")),
             "vault_id": page.get("vault_id"),
             "vault_name": page.get("vault_name"),
@@ -517,6 +521,24 @@ def _atom_traces(page: dict[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(traces, list):
         return []
     return [trace for trace in traces if isinstance(trace, dict) and trace.get("atom_id")]
+
+
+def _attachments(page: dict[str, Any]) -> list[dict[str, Any]]:
+    attachments = page.get("attachments")
+    if not isinstance(attachments, list):
+        return []
+    return [
+        {
+            "type": item.get("type"),
+            "topic": item.get("topic"),
+            "description": item.get("description"),
+            "markdown_src": item.get("markdown_src"),
+            "mime_type": item.get("mime_type"),
+            "source_range": item.get("source_range"),
+        }
+        for item in attachments
+        if isinstance(item, dict) and item.get("markdown_src")
+    ]
 
 
 def _infer_answer_type(*, query: str, answer_scope: dict[str, Any]) -> str:

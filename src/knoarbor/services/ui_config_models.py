@@ -70,10 +70,9 @@ class UiImageGenerationProviderForm(BaseModel):
     model: str = ""
     verify_tls: bool = True
     tls_ca_file: str = ""
-    response_format: str = "url"
-    size: str = ""
-    aspect_ratio: str = ""
-    image_count: int = Field(default=1, ge=1, le=4)
+    resolution: str = "2720*1536"
+    num_inference_steps: int | None = Field(default=20, ge=1)
+    guidance: float | None = Field(default=4, ge=0)
     extra_body: dict[str, object] = Field(default_factory=dict)
     api_key_configured: bool = False
 

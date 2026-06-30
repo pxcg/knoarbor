@@ -27,9 +27,9 @@ class ImageGenerationService:
                 api_key_env=provider.api_key_env,
                 api_key_configured=bool(provider.api_key()),
                 default=name == config.image_generation.default_provider,
-                response_format=provider.response_format,
-                size=provider.size,
-                aspect_ratio=provider.aspect_ratio,
+                resolution=provider.resolution,
+                num_inference_steps=provider.num_inference_steps,
+                guidance=provider.guidance,
             )
             for name, provider in sorted(config.image_generation.providers.items())
         ]
@@ -55,4 +55,3 @@ class ImageGenerationService:
             timeout_seconds=config.image_generation.request_timeout_seconds,
         )
         return gateway.generate(request)
-

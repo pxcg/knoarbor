@@ -61,9 +61,9 @@ class SenseNovaImageClient:
     verify_tls: bool = True
     tls_ca_file: str | None = None
     default_response_format: str = "url"
-    default_size: str | None = None
-    default_aspect_ratio: str | None = None
-    default_image_count: int = 1
+    default_resolution: str | None = "2720*1536"
+    default_num_inference_steps: int | None = 20
+    default_guidance: float | None = 4
     extra_body: dict[str, object] | None = None
 
     @classmethod
@@ -93,9 +93,9 @@ class SenseNovaImageClient:
             verify_tls=config.verify_tls,
             tls_ca_file=str(config.tls_ca_file) if config.tls_ca_file else None,
             default_response_format=config.response_format,
-            default_size=config.size,
-            default_aspect_ratio=config.aspect_ratio,
-            default_image_count=config.image_count,
+            default_resolution=config.resolution,
+            default_num_inference_steps=config.num_inference_steps,
+            default_guidance=config.guidance,
             extra_body=config.extra_body,
         )
 
@@ -119,17 +119,20 @@ class SenseNovaImageClient:
         payload: dict[str, object] = {
             "model": self.model,
             "prompt": request.prompt,
-            "n": request.image_count or self.default_image_count,
+            "n": 1,
             "response_format": request.response_format or self.default_response_format,
         }
         if request.negative_prompt:
             payload["negative_prompt"] = request.negative_prompt
-        size = request.size or self.default_size
-        if size:
-            payload["size"] = size
-        aspect_ratio = request.aspect_ratio or self.default_aspect_ratio
-        if aspect_ratio:
-            payload["aspect_ratio"] = aspect_ratio
+        resolution = request.resolution or self.default_resolution
+        if resolution:
+            payload["resolution"] = resolution
+        num_inference_steps = request.num_inference_steps or self.default_num_inference_steps
+        if num_inference_steps is not None:
+            payload["num_inference_steps"] = num_inference_steps
+        guidance = request.guidance if request.guidance is not None else self.default_guidance
+        if guidance is not None:
+            payload["guidance"] = guidance
         payload.update(self.extra_body or {})
         payload.update(request.extra_body)
         return payload
