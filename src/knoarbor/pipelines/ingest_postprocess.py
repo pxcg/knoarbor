@@ -9,6 +9,7 @@ from knoarbor.core.errors import error_info
 from knoarbor.core.redaction import redact_display_text
 from knoarbor.core.schemas.ingest_pipeline import IngestSourceResult
 from knoarbor.core.schemas.maintenance import MaintenanceScope, MaintenanceScopeSource
+from knoarbor.core.schemas.source_digest import SourceDigest
 from knoarbor.core.schemas.wiki_lint import LintRunRequest, LintRunResult
 from knoarbor.core.schemas.wiki_write import (
     WikiDraftBatchWriteItem,
@@ -22,6 +23,7 @@ from knoarbor.pipelines.lint import WikiLintPipeline
 from knoarbor.pipelines.write import WikiWritePipeline
 from knoarbor.runtime import current_run_monitor
 from knoarbor.semantic.ingest_workflow import IngestSemanticWorkflowResult
+from knoarbor.semantic.source_digest_drafts import build_source_digest_write_item
 from knoarbor.storage.knowledge_atom_index import KnowledgeAtomPageRef, upsert_knowledge_atom_batches
 from knoarbor.storage.wiki_index import relative_wiki_path
 
@@ -49,6 +51,81 @@ class IngestPostProcessor:
         self.lint_pipeline = lint_pipeline
         self.write_policy = write_policy or IngestWritePolicy()
         self.clear_context_cache = clear_context_cache or (lambda: None)
+
+    def write_source_digest(
+        self,
+        *,
+        vault_path: Path,
+        result: IngestSourceResult,
+        source_digest: SourceDigest,
+        source_file: str,
+        privacy_config: PrivacyConfig,
+    ) -> IngestWriteCommit | None:
+        item = build_source_digest_write_item(
+            vault_path=vault_path,
+            source_digest=source_digest,
+            source_file=source_file,
+            display_source_file=display_source_file(source_file, privacy_config),
+        )
+        monitor = current_run_monitor()
+        observer = IngestObserver.current()
+        observer.started(
+            "source_digest_write",
+            message="Writing source digest audit page.",
+            current_item=result.source_id,
+            payload={"write_action": item.write_action, "target_page": item.target_page},
+        )
+        if monitor:
+            monitor.event(
+                "source_digest_write_started",
+                status="writing",
+                stage="writing",
+                current_item=result.source_id,
+                message="Writing source digest audit page.",
+                payload={"write_action": item.write_action, "target_page": item.target_page},
+            )
+        write_response = self.write_pipeline.run(
+            WikiDraftBatchWriteRequest(
+                vault_path=str(vault_path),
+                drafts=[item],
+            )
+        )
+        generated_pages = [
+            relative_wiki_path(vault_path, Path(write_result.wiki_file_path))
+            for write_result in write_response.results
+        ]
+        result.generated_pages = _dedupe_pages([*result.generated_pages, *generated_pages])
+        result.context["source_digest_commit"] = {
+            "generated_pages": generated_pages,
+            "written_count": len(generated_pages),
+            "write_action": item.write_action,
+            "target_page": item.target_page,
+        }
+        self.clear_context_cache()
+        result.wrote = True
+        if result.status != "failed":
+            result.status = "written"
+        if monitor:
+            monitor.event(
+                "source_digest_written",
+                status="running",
+                stage="writing",
+                current_item=result.source_id,
+                message=f"Wrote {len(generated_pages)} source digest page(s).",
+                payload={"generated_pages": generated_pages},
+            )
+        observer.finished(
+            "source_digest_write",
+            message=f"Wrote {len(generated_pages)} source digest page(s).",
+            current_item=result.source_id,
+            payload={"generated_pages": generated_pages, "written_count": len(generated_pages)},
+        )
+        return IngestWriteCommit(
+            generated_pages=generated_pages,
+            write_results=write_response.results,
+            policy_changes=[],
+            atom_index_path=None,
+        )
 
     def write_approved_items(
         self,
@@ -91,9 +168,11 @@ class IngestPostProcessor:
             relative_wiki_path(vault_path, Path(item.wiki_file_path))
             for item in write_response.results
         ]
-        result.generated_pages = generated_pages
+        all_generated_pages = _dedupe_pages([*result.generated_pages, *generated_pages])
+        result.generated_pages = all_generated_pages
         result.context["write_commit"] = {
             "generated_pages": generated_pages,
+            "all_generated_pages": all_generated_pages,
             "written_count": len(generated_pages),
         }
         if segment_records is not None:
@@ -298,3 +377,11 @@ def _stats_string_list(value: object) -> list[str]:
 
 def _as_dict(value: object) -> dict[str, object]:
     return value if isinstance(value, dict) else {}
+
+
+def _dedupe_pages(pages: list[str]) -> list[str]:
+    result: list[str] = []
+    for page in pages:
+        if page and page not in result:
+            result.append(page)
+    return result

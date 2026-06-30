@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.connectors import ConnectorConfig, ConnectorRegistry, MarkdownConnector
-from knoarbor.core.attachments import attachment_sidecar_path, write_attachment_sidecar
+from knoarbor.core.attachments import attachment_sidecar_path, discover_markdown_image_attachments, write_attachment_sidecar
 
 
 class MarkdownConnectorTests(unittest.TestCase):
@@ -80,6 +80,34 @@ class MarkdownConnectorTests(unittest.TestCase):
             sorted(item["relative_path"] for item in document.content.attachments),
             ["images/linked.png", "images/sidecar.png"],
         )
+
+    def test_discovers_mineru_markdown_image_caption_and_details(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            image_dir = root / "raw" / "assets" / "images"
+            image_dir.mkdir(parents=True)
+            image = image_dir / "ac1-4a55a66bc68f18af912692764d2a6b662f833c229d4e8126af33f1b3ef2fb731.jpg"
+            image.write_bytes(b"image")
+            path = root / "raw" / "normalized" / "markdown" / "AC1中文.md"
+            path.parent.mkdir(parents=True)
+            markdown = (
+                "# AC1\n\n"
+                "![](../../assets/images/ac1-4a55a66bc68f18af912692764d2a6b662f833c229d4e8126af33f1b3ef2fb731.jpg)\n"
+                "<details><summary>natural_image</summary>\n"
+                "3D rendering of the AC1 sensor front and housing.\n"
+                "</details>\n"
+                "图2 AC1 激光雷达 FOV 分布图\n"
+            )
+            path.write_text(markdown, encoding="utf-8")
+
+            attachments = discover_markdown_image_attachments(path, markdown, base_dir=root / "raw" / "assets")
+
+        self.assertEqual(len(attachments), 1)
+        attachment = attachments[0]
+        self.assertEqual(attachment["description"], "3D rendering of the AC1 sensor front and housing.")
+        self.assertEqual(attachment["metadata"]["topic"], "图2 AC1 激光雷达 FOV 分布图")
+        self.assertEqual(attachment["metadata"]["caption"], "图2 AC1 激光雷达 FOV 分布图")
+        self.assertEqual(attachment["metadata"]["sub_type"], "natural_image")
 
     def test_normalized_markdown_sidecar_uses_raw_sidecars(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

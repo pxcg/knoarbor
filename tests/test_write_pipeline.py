@@ -376,9 +376,9 @@ class WikiWritePipelineTests(unittest.TestCase):
             output_path = Path(response.results[0].wiki_file_path)
             content = output_path.read_text(encoding="utf-8")
 
-            self.assertEqual(output_path.resolve().relative_to(vault.resolve()).as_posix(), "wiki/sources/LLM-Wiki-Source.md")
-            self.assertEqual(output_path.name, "LLM-Wiki-Source.md")
-            self.assertIn("# LLM-Wiki Source", content)
+            self.assertEqual(output_path.resolve().relative_to(vault.resolve()).as_posix(), "wiki/sources/LLM-Wiki-Source-Digest.md")
+            self.assertEqual(output_path.name, "LLM-Wiki-Source-Digest.md")
+            self.assertIn("# LLM-Wiki Source Digest", content)
             self.assertIn("## Source Identity", content)
             self.assertIn("## Audit Summary", content)
             self.assertIn("## Source Units", content)

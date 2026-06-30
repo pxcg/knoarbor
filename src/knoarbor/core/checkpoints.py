@@ -103,6 +103,7 @@ class CheckpointStore:
         checkpoint = state.get("sessions", {}).get(session_id)
         last_processed = checkpoint.get("last_processed_raw_index") if checkpoint else None
         version_changed = checkpoint_versions_changed(checkpoint, connector_version, parser_version)
+        missing_output = checkpoint_missing_output(vault_path, checkpoint)
 
         if last_processed is None:
             return SessionCheckpointPlan(
@@ -133,6 +134,22 @@ class CheckpointStore:
                 connector_version=connector_version,
                 parser_version=parser_version,
                 reason="Connector or parser version changed after checkpoint.",
+            )
+
+        if missing_output:
+            return SessionCheckpointPlan(
+                session_id=session_id,
+                source_file=source_file,
+                source_path=str(source_path),
+                should_process=True,
+                mode="output_missing",
+                from_raw_index=None,
+                to_raw_index=latest_raw_index,
+                last_processed_raw_index=int(last_processed),
+                content_hash=content_hash,
+                connector_version=connector_version,
+                parser_version=parser_version,
+                reason=f"Generated output recorded in checkpoint is missing: {missing_output}",
             )
 
         if latest_raw_index <= int(last_processed):
@@ -192,6 +209,7 @@ class CheckpointStore:
             "parser_version": parser_version,
             "last_processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "generated_pages": merged_pages,
+            "generated_outputs": generated_outputs_manifest(vault_path, merged_pages),
         }
         return merged_pages
 
@@ -224,6 +242,7 @@ class CheckpointStore:
         checkpoint = state.get("sources", {}).get(source_id)
         last_hash = checkpoint.get("last_processed_content_hash") if checkpoint else None
         version_changed = checkpoint_versions_changed(checkpoint, connector_version, parser_version)
+        missing_output = checkpoint_missing_output(vault_path, checkpoint)
 
         if last_hash is None:
             return SourceCheckpointPlan(
@@ -253,6 +272,19 @@ class CheckpointStore:
             )
 
         if str(last_hash) == content_hash:
+            if missing_output:
+                return SourceCheckpointPlan(
+                    source_id=source_id,
+                    source_file=source_file,
+                    source_path=str(source_path),
+                    should_process=True,
+                    mode="output_missing",
+                    content_hash=content_hash,
+                    last_processed_content_hash=str(last_hash),
+                    connector_version=connector_version,
+                    parser_version=parser_version,
+                    reason=f"Generated output recorded in checkpoint is missing: {missing_output}",
+                )
             return SourceCheckpointPlan(
                 source_id=source_id,
                 source_file=source_file,
@@ -301,6 +333,7 @@ class CheckpointStore:
             "parser_version": parser_version,
             "last_processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "generated_pages": merged_pages,
+            "generated_outputs": generated_outputs_manifest(vault_path, merged_pages),
         }
         return merged_pages
 
@@ -320,6 +353,72 @@ def merge_pages(existing: Any, new_pages: list[str], vault_path: Path) -> list[s
         if normalized not in pages:
             pages.append(normalized)
     return pages
+
+
+def checkpoint_missing_output(vault_path: Path, checkpoint: Any) -> str | None:
+    if not isinstance(checkpoint, dict):
+        return None
+    records = checkpoint_output_records(checkpoint)
+    if not records:
+        records = [{"path": page} for page in checkpoint.get("generated_pages", []) if str(page).strip()] if "generated_outputs" not in checkpoint else []
+    for record in records:
+        path = str(record.get("path") or "").strip()
+        if not path:
+            continue
+        if not checkpoint_output_path(vault_path, path).is_file():
+            return path
+    return None
+
+
+def generated_outputs_manifest(vault_path: Path, pages: list[str]) -> dict[str, list[dict[str, str]]]:
+    manifest: dict[str, list[dict[str, str]]] = {"wiki_pages": [], "source_digests": []}
+    for page in pages:
+        page_path = checkpoint_output_path(vault_path, page)
+        if not page_path.is_file():
+            continue
+        normalized = normalize_checkpoint_page_path(page)
+        entry = {"path": normalized, "content_hash": file_hash(page_path)}
+        if is_source_digest_output(normalized):
+            manifest["source_digests"].append(entry)
+        else:
+            manifest["wiki_pages"].append(entry)
+    return manifest
+
+
+def checkpoint_output_records(checkpoint: dict[str, Any]) -> list[dict[str, Any]]:
+    outputs = checkpoint.get("generated_outputs")
+    if not isinstance(outputs, dict):
+        return []
+    records: list[dict[str, Any]] = []
+    for key in ("source_digest", "source_digests", "wiki_pages", "attachments"):
+        value = outputs.get(key)
+        if isinstance(value, dict):
+            records.append(value)
+        elif isinstance(value, list):
+            records.extend(item for item in value if isinstance(item, dict))
+    return records
+
+
+def checkpoint_output_path(vault_path: Path, page: str | Path) -> Path:
+    normalized = normalize_checkpoint_page_path(page)
+    relative = Path(normalized)
+    if is_source_digest_output(normalized):
+        return vault_path / "wiki" / "sources" / Path(*relative.parts[1:])
+    return vault_path / "wiki" / "pages" / relative
+
+
+def normalize_checkpoint_page_path(page: str | Path) -> str:
+    text = str(page).replace("\\", "/").strip().lstrip("/")
+    for prefix in ("wiki/pages/", "pages/"):
+        if text.startswith(prefix):
+            return text.removeprefix(prefix)
+    if text.startswith("wiki/sources/"):
+        return f"sources/{text.removeprefix('wiki/sources/')}"
+    return text
+
+
+def is_source_digest_output(page: str) -> bool:
+    return page.replace("\\", "/").lstrip("/").startswith("sources/")
 
 
 def checkpoint_versions_changed(checkpoint: Any, connector_version: str | None, parser_version: str | None) -> bool:

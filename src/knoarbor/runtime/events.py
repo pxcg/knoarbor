@@ -35,6 +35,8 @@ RunEventType = Literal[
     "ingest_step_skipped",
     "pages_write_started",
     "pages_written",
+    "source_digest_write_started",
+    "source_digest_written",
     "scoped_lint_started",
     "scoped_lint_finished",
     "report_write_started",

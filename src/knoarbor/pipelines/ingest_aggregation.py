@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from knoarbor.core.schemas.knowledge_atoms import (
     KnowledgeAtomBatch,
@@ -124,6 +125,7 @@ def _aggregate_knowledge_extracts(
     return (
         first.model_copy(
             update={
+                "source": _aggregate_source(first),
                 "content_units": content_units,
                 "compile_context": compile_context,
                 "confidence": min(extract.confidence for extract in extracts),
@@ -132,6 +134,21 @@ def _aggregate_knowledge_extracts(
         ),
         unit_index_maps,
     )
+
+
+def _aggregate_source(first: KnowledgeExtract):
+    source = first.source
+    title = _source_title_from_path(source.source_path) or source.title
+    return source.model_copy(update={"title": title})
+
+
+def _source_title_from_path(source_path: str | None) -> str | None:
+    if not source_path:
+        return None
+    stem = Path(str(source_path).replace("\\", "/")).stem.strip()
+    if not stem:
+        return None
+    return stem.replace("-", " ").replace("_", " ").strip().title()
 
 
 def _aggregate_atom_batches(

@@ -105,12 +105,18 @@ def _unresolved_items_from_extract(extract: KnowledgeExtract, units: list[Source
 
 def _attachments_from_extract(extract: KnowledgeExtract) -> list[SourceDigestAttachment]:
     attachments: list[SourceDigestAttachment] = []
+    seen: set[str] = set()
     for item in extract.attachments:
         if not isinstance(item, dict):
             continue
         name = str(item.get("name") or item.get("relative_path") or item.get("path") or "").strip()
         if not name:
             continue
+        identity = _attachment_identity(item)
+        if identity and identity in seen:
+            continue
+        if identity:
+            seen.add(identity)
         attachment_type = str(item.get("attachment_type") or "file").strip()
         if attachment_type not in {"image", "file", "table", "other"}:
             attachment_type = "other"
@@ -132,6 +138,14 @@ def _attachments_from_extract(extract: KnowledgeExtract) -> list[SourceDigestAtt
             )
         )
     return attachments
+
+
+def _attachment_identity(item: dict[str, object]) -> str:
+    for field in ("content_hash", "relative_path", "path", "name"):
+        value = str(item.get(field) or "").strip()
+        if value:
+            return f"{field}:{value}"
+    return ""
 
 
 def _attachment_source_range(item: dict[str, object]) -> str:
@@ -174,7 +188,7 @@ def _attachment_topic(item: dict[str, object], fallback_name: str) -> str:
 
 def _attachment_description(item: dict[str, object]) -> str:
     metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
-    for key in ("description", "caption", "image_caption", "table_caption"):
+    for key in ("description", "mineru_description", "caption", "image_caption", "table_caption"):
         text = _attachment_text(item.get(key) if item.get(key) is not None else metadata.get(key))
         if text:
             return text
@@ -202,7 +216,10 @@ def _attachment_text(value: object, *, limit: int = 180) -> str:
 def _looks_like_hash_filename(value: str) -> bool:
     path_name = value.strip().rsplit("/", 1)[-1]
     stem = path_name.rsplit(".", 1)[0]
-    return bool(re.fullmatch(r"[0-9a-fA-F]{24,}", stem))
+    if re.fullmatch(r"[0-9a-fA-F]{24,}", stem):
+        return True
+    parts = re.split(r"[-_]", stem)
+    return any(re.fullmatch(r"[0-9a-fA-F]{24,}", part) for part in parts)
 
 
 def _stable_hash(value: str) -> str:

@@ -277,57 +277,29 @@ def _approved_decision(operation_index: int, *, write_safety: str = "safe_create
 
 class SourceOnlySemanticWorkflow(FakeIngestSemanticWorkflow):
     def plan_pages(self, knowledge_extract, **kwargs):
-        source_digest_id = kwargs["knowledge_atom_batch"].source_digest_id
         return WikiPagePlan(
             operations=[
                 WikiPageOperation(
-                    action="create",
-                    page_dir="sources",
-                    title="Long Source Digest",
-                    knowledge_object="Long source provenance",
-                    source_digest_ids=[source_digest_id],
-                    decision_reason="Create source digest.",
+                    action="skip",
+                    page_dir="pages",
+                    title="Source Audit Only",
+                    knowledge_object="Source audit only",
+                    decision_reason="Source digest audit is handled outside semantic page planning.",
                 )
             ],
-            overall_summary="Create source digest.",
+            overall_summary="Source digest is committed by deterministic postprocess.",
         )
 
     def compile_drafts(self, knowledge_extract, wiki_page_plan, **kwargs):
-        return WikiDraftBatch(
-            drafts=[
-                WikiDraftBatchItem(
-                    operation_index=0,
-                    write_action="create",
-                    title="Long Source Digest",
-                    page_dir="sources",
-                    question="Long source",
-                    summary="Long source digest.",
-                    claims=["C1: Source segments describe long source provenance."],
-                    entities=["[[Long Source]]"],
-                    relations=["[[Long Source]] | has_digest | [[Long Source Digest]] | C1"],
-                    evidence=["C1 | source-level | full-source | source digest aggregates segmented input | high"],
-                    synthesis="The source digest aggregates segmented source provenance into one audit page.",
-                    source_digest_ids=[kwargs["knowledge_atom_batch"].source_digest_id],
-                    model_provider="test",
-                    model_name="fake",
-                )
-            ],
-            batch_summary="One source draft.",
-        )
+        return WikiDraftBatch(drafts=[], batch_summary="No user-facing page draft.")
 
     def review_drafts(self, knowledge_extract, wiki_page_plan, wiki_draft_batch, **kwargs):
-        return IngestDraftReview(
-            decisions=[_approved_decision(0)],
-            batch_decision="approve",
-            summary="Approved source digest.",
-        )
+        return IngestDraftReview(decisions=[], batch_decision="reject", summary="No page drafts.")
 
 
 class SourceOnlyWithSelectedAtomsSemanticWorkflow(SourceOnlySemanticWorkflow):
     def plan_pages(self, knowledge_extract, **kwargs):
         plan = super().plan_pages(knowledge_extract, **kwargs)
-        plan.operations[0].selected_claim_ids = ["claim_agent_loop_control"]
-        plan.operations[0].selected_relation_ids = ["rel_agent_loop_mentions_workflow"]
         return plan
 
 
@@ -338,14 +310,6 @@ class SourceAndConceptSemanticWorkflow(FakeIngestSemanticWorkflow):
             operations=[
                 WikiPageOperation(
                     action="create",
-                    page_dir="sources",
-                    title="Agent Source Digest",
-                    knowledge_object="Agent source provenance",
-                    source_digest_ids=[source_digest_id],
-                    decision_reason="Create source digest.",
-                ),
-                WikiPageOperation(
-                    action="create",
                     page_dir="pages",
                     title="Agent Loop Control",
                     knowledge_object="Agent loop control",
@@ -354,7 +318,7 @@ class SourceAndConceptSemanticWorkflow(FakeIngestSemanticWorkflow):
                     decision_reason="Create durable concept.",
                 ),
             ],
-            overall_summary="Create source and concept.",
+            overall_summary="Create concept page.",
         )
 
     def compile_drafts(self, knowledge_extract, wiki_page_plan, **kwargs):
@@ -362,22 +326,6 @@ class SourceAndConceptSemanticWorkflow(FakeIngestSemanticWorkflow):
             drafts=[
                 WikiDraftBatchItem(
                     operation_index=0,
-                    write_action="create",
-                    title="Agent Source Digest",
-                    page_dir="sources",
-                    question="Agent loop source",
-                    summary="Source digest for agent loop control.",
-                    claims=["C1: Source digest documents agent loop control."],
-                    entities=["[[Agent Loop]]"],
-                    relations=["[[Agent Source]] | includes | [[Agent Loop]] | C1"],
-                    evidence=["C1 | raw/source | source-level | source digest support | medium"],
-                    synthesis="Source digest for agent loop control.",
-                    source_digest_ids=[kwargs["knowledge_atom_batch"].source_digest_id],
-                    model_provider="test",
-                    model_name="fake",
-                ),
-                WikiDraftBatchItem(
-                    operation_index=1,
                     write_action="create",
                     title="Agent Loop Control",
                     page_dir="pages",
@@ -394,14 +342,14 @@ class SourceAndConceptSemanticWorkflow(FakeIngestSemanticWorkflow):
                     model_name="fake",
                 ),
             ],
-            batch_summary="Source plus concept.",
+            batch_summary="Concept page.",
         )
 
     def review_drafts(self, knowledge_extract, wiki_page_plan, wiki_draft_batch, **kwargs):
         return IngestDraftReview(
-            decisions=[_approved_decision(0), _approved_decision(1)],
+            decisions=[_approved_decision(0)],
             batch_decision="approve",
-            summary="Approved source and concept.",
+            summary="Approved concept.",
         )
 
 
@@ -742,7 +690,7 @@ class IngestPipelineTests(unittest.TestCase):
             second = pipeline.run(config, connector_names=["markdown"], write=True)
 
         self.assertEqual(first.stats["processed_count"], 1)
-        self.assertEqual(first.stats["written_count"], 1)
+        self.assertEqual(first.stats["written_count"], 2)
         self.assertEqual(second.stats["processed_count"], 0)
         self.assertEqual(second.stats["skipped_count"], 1)
         self.assertEqual(semantic.calls, 1)
@@ -819,14 +767,11 @@ class IngestPipelineTests(unittest.TestCase):
             self.assertEqual(source.generated_pages, ["sources/Long-Source-Digest.md"])
             self.assertEqual(source.context["segment_semantic_strategy"], "source_level_page_plan")
             self.assertEqual(source.context["segment_aggregation"]["segment_count"], 3)
-            self.assertEqual(source.approved_operation_indexes, [0])
+            self.assertEqual(source.approved_operation_indexes, [])
             self.assertNotIn("write_policy", source.context)
             content = source_pages[0].read_text(encoding="utf-8")
             self.assertIn("## Source Units", content)
-            self.assertIn("Source segments describe long source provenance.", content)
             self.assertIn("## Contribution Map", content)
-            self.assertIn("Long Source \\| has_digest \\| [[Long Source Digest]] \\| C1", content)
-            self.assertIn("source digest aggregates segmented input", content)
             self.assertIn("## Raw Source", content)
             self.assertNotIn("## Claims", content)
             self.assertNotIn("## Entities", content)
@@ -862,7 +807,7 @@ class IngestPipelineTests(unittest.TestCase):
 
         self.assertEqual(source.status, "written")
         self.assertTrue(source.write_gate["passed"])
-        self.assertEqual(source.generated_pages, ["sources/Long-Source-Digest.md"])
+        self.assertEqual(source.generated_pages, ["sources/Source-Digest.md"])
 
     def test_ingest_uses_provenance_links_without_broad_lexical_related_links(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -890,7 +835,7 @@ class IngestPipelineTests(unittest.TestCase):
 
             result = pipeline.run(config, connector_names=["markdown"], write=True, write_report=False, append_ledger=False)
             self.assertEqual(result.stats["written_count"], 2)
-            source_page = (vault / "wiki" / "sources" / "Agent-Source-Digest.md").read_text(encoding="utf-8")
+            source_page = next((vault / "wiki" / "sources").glob("*.md")).read_text(encoding="utf-8")
             concept_page = (vault / "wiki" / "pages" / "Agent-Loop-Control.md").read_text(encoding="utf-8")
             self.assertIn("## Source Units", source_page)
             self.assertIn("## Contribution Map", source_page)
@@ -1135,7 +1080,7 @@ class IngestPipelineTests(unittest.TestCase):
         self.assertEqual(ledger_record["stats"]["processed_count"], 1)
         self.assertEqual(ledger_record["stats"]["segment_count"], 1)
         self.assertEqual(ledger_record["stats"]["failed_segment_count"], 0)
-        self.assertEqual(ledger_record["sources"][0]["generated_pages"], ["Agent-Loop.md"])
+        self.assertEqual(ledger_record["sources"][0]["generated_pages"], ["sources/Agent-Loop-Source-Digest.md", "Agent-Loop.md"])
         self.assertEqual(ledger_record["sources"][0]["scoped_lint"]["scope"], "latest_ingest_source")
         self.assertIn("Agent-Loop.md", ledger_record["sources"][0]["touched_pages"])
         self.assertTrue(ledger_record["sources"][0]["scoped_lint_result"]["deterministic_lint"]["stats"]["scoped"])
@@ -1183,7 +1128,7 @@ class IngestPipelineTests(unittest.TestCase):
             result = IngestPipeline(AtomTraceSemanticWorkflow()).run(config, connector_names=["markdown"], write=True)  # type: ignore[arg-type]
             records = read_knowledge_atom_records(vault)
 
-        self.assertEqual(result.results[0].generated_pages, ["Agent-Loop.md"])
+        self.assertEqual(result.results[0].generated_pages, ["sources/Agent-Loop-Source-Digest.md", "Agent-Loop.md"])
         self.assertEqual(result.results[0].context["knowledge_atom_index_path"], ".knoarbor/index/knowledge_atoms.jsonl")
         self.assertEqual(len(records), 5)
         claim = next(record for record in records if record.atom_id == "claim_agent_loop_control")
@@ -1212,7 +1157,7 @@ class IngestPipelineTests(unittest.TestCase):
 
         source = result.results[0]
         self.assertEqual(source.status, "failed")
-        self.assertEqual(source.generated_pages, ["Agent-Loop.md"])
+        self.assertEqual(source.generated_pages, ["sources/Agent-Loop-Source-Digest.md", "Agent-Loop.md"])
         self.assertEqual(source.context["write_commit"]["generated_pages"], ["Agent-Loop.md"])
         self.assertFalse(source.wrote)
         self.assertEqual(source.error_stage, "source")
@@ -1269,7 +1214,7 @@ class IngestPipelineTests(unittest.TestCase):
             report = (vault / (result.report_path or "")).read_text(encoding="utf-8")
 
         self.assertEqual(result.stats["failed_count"], 1)
-        self.assertEqual(result.stats["written_count"], 1)
+        self.assertEqual(result.stats["written_count"], 2)
         self.assertEqual(len(failed), 1)
         self.assertEqual(len(written), 1)
         self.assertEqual(failed[0].error_stage, "source")
@@ -1479,11 +1424,11 @@ class IngestPipelineTests(unittest.TestCase):
             result = IngestPipeline(semantic).run(config, connector_names=["markdown"], write=True)  # type: ignore[arg-type]
             content = (vault / "wiki" / "pages" / "Existing.md").read_text(encoding="utf-8")
 
-        self.assertEqual(result.stats["written_count"], 1)
+        self.assertEqual(result.stats["written_count"], 2)
         self.assertIn("Scenario answer for pages.", content)
         self.assertIn("## Claims", content)
         self.assertIn("## Evidence", content)
-        self.assertEqual(result.results[0].generated_pages, ["Existing.md"])
+        self.assertEqual(result.results[0].generated_pages, ["sources/update-Source-Digest.md", "Existing.md"])
 
     def test_relation_skip_records_semantic_skip_reason_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1538,11 +1483,12 @@ class IngestPipelineTests(unittest.TestCase):
                     connector_names=["markdown"],
                     write=True,
                 )
-                page = content_root(vault) / result.results[0].generated_pages[0]
+                page_name = next(path for path in result.results[0].generated_pages if not path.startswith("sources/"))
+                page = content_root(vault) / page_name
                 content = page.read_text(encoding="utf-8")
 
             self.assertNotIn("type: page", content)
-            self.assertFalse(result.results[0].generated_pages[0].startswith(f"{page_dir}/"))
+            self.assertFalse(page_name.startswith(f"{page_dir}/"))
 
     def test_hermes_connector_uses_incremental_session_window(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1631,7 +1577,7 @@ class IngestPipelineTests(unittest.TestCase):
 
         self.assertEqual(result.stats["source_count"], 2)
         self.assertEqual(result.stats["failed_count"], 1)
-        self.assertEqual(result.stats["written_count"], 1)
+        self.assertEqual(result.stats["written_count"], 2)
         self.assertEqual(result.results[0].status, "failed")
         self.assertEqual(result.results[0].error_stage, "fetch")
         self.assertEqual(result.results[0].error_code, "KA-INTERNAL-001")
@@ -1662,7 +1608,7 @@ class IngestPipelineTests(unittest.TestCase):
             second = pipeline.run(config, connector_names=["markdown"], write=True)
             report = (vault / (second.report_path or "")).read_text(encoding="utf-8")
 
-        self.assertEqual(first.stats["written_count"], 1)
+        self.assertEqual(first.stats["written_count"], 2)
         self.assertEqual(second.stats["lifecycle_candidate_count"], 1)
         self.assertEqual(second.lifecycle_candidates[0].issue_type, "source_missing")
         self.assertEqual(second.lifecycle_candidates[0].target_page, "Agent-Loop.md")

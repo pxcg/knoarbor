@@ -25,6 +25,6 @@ class IngestWritePolicy:
 
         titles = ", ".join(item.wiki_draft.title for item in source_creates)
         raise ValueError(
-            "Ingest page planning produced multiple source digest creates for one source; "
-            f"expected one source-level source digest. Drafts: {titles}"
+            "Ingest write batch contains multiple source digest creates for one source; "
+            f"expected one deterministic source-level source digest. Drafts: {titles}"
         )

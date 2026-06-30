@@ -50,8 +50,8 @@ class WikiPathsStorageTests(unittest.TestCase):
         self.assertEqual(slugify_title("Architecture.markdown"), "Architecture")
 
     def test_normalize_source_digest_title_is_source_scoped(self) -> None:
-        self.assertEqual(normalize_source_digest_title("LLM-Wiki.md"), "LLM-Wiki Source")
-        self.assertEqual(normalize_source_digest_title("Agent Source"), "Agent Source")
+        self.assertEqual(normalize_source_digest_title("LLM-Wiki.md"), "LLM-Wiki Source Digest")
+        self.assertEqual(normalize_source_digest_title("Agent Source"), "Agent Source Digest")
         self.assertEqual(normalize_source_digest_title("MiniMind 笔记源"), "MiniMind 笔记源")
 
 

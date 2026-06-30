@@ -215,18 +215,14 @@ class IngestSemanticWorkflowTests(unittest.TestCase):
         draft_payload = _dynamic_payload(client.requests[3])
         self.assertEqual(
             [operation["operation_index"] for operation in draft_payload["page_assembly"]["operations"]],
-            [1],
+            [0],
         )
         self.assertEqual(
             [operation["operation_index"] for operation in draft_payload["ingest_compile_context"]["operations"]],
-            [1],
+            [0],
         )
-        self.assertEqual([draft.operation_index for draft in result.wiki_draft_batch.drafts], [0, 1])
-        source_draft = result.wiki_draft_batch.drafts[0]
-        self.assertEqual(source_draft.page_dir, "sources")
-        self.assertEqual(source_draft.model_provider, "knoarbor")
-        self.assertEqual(source_draft.model_name, "deterministic-source-digest")
-        self.assertIn("Audit record for", source_draft.summary)
+        self.assertEqual([draft.operation_index for draft in result.wiki_draft_batch.drafts], [1])
+        self.assertTrue(all(draft.page_dir != "sources" for draft in result.wiki_draft_batch.drafts))
 
 
 def _dynamic_payload(request) -> dict[str, object]:

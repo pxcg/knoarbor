@@ -12,6 +12,11 @@ ATTACHMENT_SIDECAR_SCHEMA = "knoarbor.attachments.v1"
 IMAGE_SUFFIXES = {".apng", ".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"}
 
 _MARKDOWN_IMAGE_RE = re.compile(r"!\[(?P<alt>[^\]]*)\]\((?P<target>[^)\s]+)(?:\s+\"[^\"]*\")?\)")
+_DETAILS_RE = re.compile(
+    r"^\s*<details>\s*<summary>(?P<summary>[^<]*)</summary>\s*(?P<body>.*?)</details>",
+    flags=re.DOTALL | re.IGNORECASE,
+)
+_CAPTION_RE = re.compile(r"^(?:图|表|Figure|Fig\.?|Table)\s*[\dA-Za-z一二三四五六七八九十.-]*\s*[:：.]?\s*\S+")
 
 
 def attachment_sidecar_path(markdown_path: Path) -> Path:
@@ -61,13 +66,18 @@ def discover_markdown_image_attachments(markdown_path: Path, markdown: str | Non
         target_path = _resolve_markdown_target(markdown_path, target)
         if target_path is None or not _is_image_path(target_path):
             continue
+        context = _markdown_image_context(text, match.start(), match.end())
+        metadata = {key: value for key, value in context.items() if value}
+        alt = match.group("alt").strip()
+        description = alt or str(metadata.get("mineru_description") or metadata.get("caption") or "")
         attachments.append(
             normalize_attachment(
                 target_path,
                 base_dir=base_dir or markdown_path.parent,
                 name=target_path.name,
-                description=match.group("alt").strip(),
+                description=description,
                 source="markdown_image_link",
+                metadata=metadata,
             )
         )
     return dedupe_attachments(attachments)
@@ -100,16 +110,76 @@ def normalize_attachment(
 
 def dedupe_attachments(attachments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     deduped: list[dict[str, Any]] = []
-    seen: set[tuple[str, str]] = set()
+    seen: set[str] = set()
     for attachment in attachments:
-        path = str(attachment.get("path") or "").strip()
-        relative_path = str(attachment.get("relative_path") or "").strip()
-        key = (path, relative_path)
-        if not any(key) or key in seen:
+        key = _attachment_identity(attachment)
+        if not key or key in seen:
             continue
         seen.add(key)
         deduped.append(attachment)
     return deduped
+
+
+def _attachment_identity(attachment: dict[str, Any]) -> str:
+    for field in ("content_hash", "relative_path", "path", "name"):
+        value = str(attachment.get(field) or "").strip()
+        if value:
+            return f"{field}:{value}"
+    return ""
+
+
+def _markdown_image_context(text: str, start: int, end: int) -> dict[str, str]:
+    after = text[end:]
+    before = text[:start]
+    metadata: dict[str, str] = {}
+    details_match = _DETAILS_RE.match(after)
+    after_details = after
+    if details_match:
+        summary = _compact_attachment_text(details_match.group("summary"), limit=80)
+        body = _compact_attachment_text(details_match.group("body"), limit=300)
+        if summary:
+            metadata["sub_type"] = summary
+        if body:
+            metadata["mineru_description"] = body
+            metadata["description"] = body
+        after_details = after[details_match.end():]
+
+    caption = _first_caption_after(after_details) or _nearest_caption_before(before)
+    if caption:
+        metadata["caption"] = caption
+        metadata["topic"] = caption
+        metadata.setdefault("description", caption)
+    return metadata
+
+
+def _first_caption_after(value: str) -> str:
+    for line in value.splitlines()[:6]:
+        cleaned = _compact_attachment_text(line, limit=180)
+        if not cleaned:
+            continue
+        if _CAPTION_RE.match(cleaned):
+            return cleaned
+        if cleaned.startswith("<"):
+            continue
+        break
+    return ""
+
+
+def _nearest_caption_before(value: str) -> str:
+    lines = value.splitlines()
+    for line in reversed(lines[-6:]):
+        cleaned = _compact_attachment_text(line, limit=180)
+        if cleaned and _CAPTION_RE.match(cleaned):
+            return cleaned
+    return ""
+
+
+def _compact_attachment_text(value: str, *, limit: int) -> str:
+    text = re.sub(r"<[^>]+>", " ", value or "")
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "…"
 
 
 def _resolve_markdown_target(markdown_path: Path, target: str) -> Path | None:

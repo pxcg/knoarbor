@@ -101,7 +101,7 @@ Return the JSON object without markdown fences or explanatory prose.
 - Patch `items` is only used by `merge_list`. For `append_section` and `replace_section`, use `items: []`.
 - `source_digest_ids` and `atom_ids` must come from the matching operation in `ingest_compile_context.operations` and provided `knowledge_atoms`.
 - Every draft must include `source_digest_ids`. Non-source drafts must include at least one selected `atom_ids` entry unless `knowledge_atoms` is empty.
-- `attachments` is optional. When present, each item must have `name` (matching the attachment name from `ingest_compile_context.attachments`) and `description` (a concise human-readable description in the source language). Use the `caption`, `mineru_description`, `topic`, and `sub_type` fields from the compile context to write the description. `path` and `relative_path` are added by code.
+- `attachments` is optional. When present, each item has `name` matching the attachment name from `ingest_compile_context.attachments` and `description` as a concise human-readable description in the source language. Build each description from that attachment's own `caption`, `mineru_description`, `topic`, and `sub_type` fields. Page-level labels such as "product image" are suitable only when the attachment context contains no more specific content. `path` and `relative_path` are added by code.
 
 ## Drafting Rules
 

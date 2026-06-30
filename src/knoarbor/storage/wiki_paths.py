@@ -63,9 +63,11 @@ def normalize_page_title(title: str) -> str:
 
 def normalize_source_digest_title(title: str) -> str:
     cleaned = normalize_page_title(title)
-    if re.search(r"(source|source digest|source note|笔记源|来源)$", cleaned, flags=re.IGNORECASE):
+    if re.search(r"(source digest|source note|笔记源|来源)$", cleaned, flags=re.IGNORECASE):
         return cleaned
-    return f"{cleaned or 'Untitled'} Source"
+    if re.search(r"source$", cleaned, flags=re.IGNORECASE):
+        return f"{cleaned} Digest"
+    return f"{cleaned or 'Untitled'} Source Digest"
 
 
 def normalize_wiki_page_path(raw_path: str) -> str:

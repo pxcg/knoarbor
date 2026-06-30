@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from knoarbor.core.schemas.knowledge_atoms import KnowledgeEvidenceSpan
 from knoarbor.core.schemas.source_digest import SourceDigest
-from knoarbor.core.schemas.wiki_page_plan import WikiPageOperation, WikiPagePlan
 from knoarbor.semantic.source_digest import build_source_digest_from_extract
-from knoarbor.semantic.source_digest_drafts import build_source_digest_drafts_from_plan
+from knoarbor.semantic.source_digest_drafts import build_source_digest_write_item
 from tests.harness.semantic_cases import source_normalize_output
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 
@@ -77,7 +78,36 @@ class SourceDigestSchemaTest(unittest.TestCase):
         self.assertEqual(digest.attachments[0].source_range, "page_idx:2 bbox:1,2,3,4")
         self.assertEqual(digest.attachments[0].status, "candidate")
 
-    def test_source_digest_update_patch_uses_frozen_attachment_table(self) -> None:
+    def test_digest_dedupes_attachments_by_stable_identity(self) -> None:
+        extract = KnowledgeExtract.model_validate(source_normalize_output()["output"])
+        extract.attachments.extend(
+            [
+                {
+                    "attachment_type": "image",
+                    "name": "ac1-abcdef1234567890abcdef1234567890.jpg",
+                    "description": "AC1 front rendering.",
+                    "relative_path": "images/ac1.jpg",
+                    "content_hash": "same-hash",
+                    "metadata": {"caption": "图1 AC1 外观图"},
+                },
+                {
+                    "attachment_type": "image",
+                    "name": "ac1-copy.jpg",
+                    "description": "Duplicate path from Markdown scan.",
+                    "relative_path": "images/ac1.jpg",
+                    "content_hash": "same-hash",
+                    "metadata": {"caption": "图1 AC1 外观图"},
+                },
+            ]
+        )
+
+        digest = build_source_digest_from_extract(extract)
+
+        self.assertEqual(digest.summary_counts()["attachments"], 1)
+        self.assertEqual(digest.attachments[0].topic, "图1 AC1 外观图")
+        self.assertEqual(digest.attachments[0].description, "AC1 front rendering.")
+
+    def test_source_digest_write_item_resolves_existing_audit_page(self) -> None:
         extract = KnowledgeExtract.model_validate(source_normalize_output()["output"])
         extract.attachments.append(
             {
@@ -89,28 +119,31 @@ class SourceDigestSchemaTest(unittest.TestCase):
             }
         )
         digest = build_source_digest_from_extract(extract)
-        plan = WikiPagePlan(
-            overall_summary="Refresh source digest.",
-            operations=[
-                WikiPageOperation(
-                    action="update",
-                    page_dir="sources",
-                    title="Agent Source",
-                    knowledge_object="Agent Source",
-                    canonical_path="sources/Agent-Source.md",
-                    target_page="sources/Agent-Source.md",
-                    decision_reason="Refresh source digest audit sections.",
-                    source_digest_ids=[digest.digest_id],
-                )
-            ]
-        )
 
-        draft = build_source_digest_drafts_from_plan(plan, digest)[0]
-        attachment_patch = next(patch for patch in draft.patches if patch.section == "Attachments")
+        with TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            source_dir = vault / "wiki" / "sources"
+            source_dir.mkdir(parents=True)
+            (source_dir / "Agent-Source-Digest.md").write_text(
+                "---\n"
+                "source: raw/notes/Agent.md\n"
+                "content_hash: old\n"
+                "---\n\n"
+                "# Agent Source Digest\n\n## Raw Source\n\nraw/notes/Agent.md\n",
+                encoding="utf-8",
+            )
+            write_item = build_source_digest_write_item(
+                vault_path=vault,
+                source_digest=digest,
+                source_file="raw/notes/Agent.md",
+                display_source_file="raw/notes/Agent.md",
+            )
 
-        self.assertIn("| Attachment | Type | Topic | Description | Source Range | Status |", attachment_patch.content)
-        self.assertIn("| A1 | image | Agent loop diagram | System architecture figure. | page_idx:2 | candidate |", attachment_patch.content)
-        self.assertNotIn("images/figure-1.png", attachment_patch.content)
+        self.assertEqual(write_item.write_action, "update")
+        self.assertEqual(write_item.target_page, "sources/Agent-Source-Digest.md")
+        self.assertEqual(write_item.wiki_draft.page_dir, "sources")
+        self.assertEqual(write_item.wiki_draft.attachments[0]["topic"], "Agent loop diagram")
+        self.assertEqual(write_item.wiki_draft.attachments[0]["description"], "System architecture figure.")
 
 
 if __name__ == "__main__":

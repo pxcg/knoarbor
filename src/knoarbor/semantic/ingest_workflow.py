@@ -11,8 +11,8 @@ from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch, KnowledgeA
 from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
 from knoarbor.core.schemas.source_digest import SourceDigest
 from knoarbor.core.schemas.sources import SourceDocument
-from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch, WikiDraftBatchItem
-from knoarbor.core.schemas.wiki_page_plan import WikiPagePlan
+from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
+from knoarbor.core.schemas.wiki_page_plan import WikiPageOperation, WikiPagePlan
 from knoarbor.core.source_unitization import apply_source_units_to_extract
 from knoarbor.semantic.ingest_compile_context import build_ingest_compile_context
 from knoarbor.semantic.knowledge_atom_normalization import normalize_knowledge_atom_batch
@@ -22,7 +22,6 @@ from knoarbor.semantic.page_assembly import build_page_assembly_payload
 from knoarbor.semantic.page_projection import project_draft_batch_from_page_assembly
 from knoarbor.semantic.runner import SemanticRunner
 from knoarbor.semantic.source_digest import build_source_digest_from_extract
-from knoarbor.semantic.source_digest_drafts import build_source_digest_drafts_from_plan
 from knoarbor.semantic.source_normalize import build_source_normalize_input
 
 
@@ -136,7 +135,7 @@ class IngestSemanticWorkflow:
             },
             max_tokens=max_tokens,
         )
-        return _expect_output(result.output, WikiPagePlan)
+        return _without_source_digest_operations(_expect_output(result.output, WikiPagePlan))
 
     def compile_drafts(
         self,
@@ -150,18 +149,15 @@ class IngestSemanticWorkflow:
         max_tokens: int | None = None,
     ) -> WikiDraftBatch:
         resolved_source_digest = source_digest or build_source_digest_from_extract(knowledge_extract)
-        source_drafts = build_source_digest_drafts_from_plan(wiki_page_plan, resolved_source_digest)
-        page_assembly = _without_source_digest_assembly(
-            build_page_assembly_payload(
-                knowledge_atom_batch,
-                wiki_page_plan,
-            )
+        page_assembly = build_page_assembly_payload(
+            knowledge_atom_batch,
+            wiki_page_plan,
         )
         if not _has_non_source_actionable_operations(wiki_page_plan):
             return WikiDraftBatch(
-                drafts=source_drafts,
-                batch_summary="Generated source digest audit draft(s) deterministically.",
-                warnings=["wiki_draft_compile skipped because the plan contains only source digest audit operations."],
+                drafts=[],
+                batch_summary="No non-source wiki page draft required.",
+                warnings=["wiki_draft_compile skipped because the page plan has no non-source operations."],
             )
         compile_context = _compile_context_payload(
             knowledge_extract,
@@ -169,7 +165,6 @@ class IngestSemanticWorkflow:
             candidate_page_context,
             ingest_compile_context,
         )
-        compile_context = _without_source_digest_compile_operations(compile_context)
         result = self.runner.run(
             "wiki_draft_compile",
             {
@@ -190,11 +185,7 @@ class IngestSemanticWorkflow:
             wiki_page_plan,
             resolved_source_digest,
         )
-        return _merge_draft_batches(
-            source_drafts,
-            projected,
-            batch_summary=projected.batch_summary,
-        )
+        return projected
 
     def review_drafts(
         self,
@@ -237,44 +228,31 @@ def _with_runtime_model_metadata(batch: WikiDraftBatch, *, provider: str, model:
     return batch
 
 
-def _without_source_digest_assembly(page_assembly: dict[str, object]) -> dict[str, object]:
-    payload = deepcopy(page_assembly)
-    operations = payload.get("operations")
-    if isinstance(operations, list):
-        payload["operations"] = [
-            operation for operation in operations
-            if not (isinstance(operation, dict) and operation.get("page_dir") == "sources")
-        ]
-    return payload
-
-
 def _has_non_source_actionable_operations(page_plan: WikiPagePlan) -> bool:
     return any(operation.action != "skip" and operation.page_dir != "sources" for operation in page_plan.operations)
 
 
-def _without_source_digest_compile_operations(compile_context: dict[str, Any]) -> dict[str, Any]:
-    payload = deepcopy(compile_context)
-    operations = payload.get("operations")
-    if isinstance(operations, list):
-        payload["operations"] = [
-            operation for operation in operations
-            if not (isinstance(operation, dict) and operation.get("page_dir") == "sources")
+def _without_source_digest_operations(page_plan: WikiPagePlan) -> WikiPagePlan:
+    operations = [operation for operation in page_plan.operations if operation.page_dir != "sources"]
+    if len(operations) == len(page_plan.operations):
+        return page_plan
+    warnings = [
+        *page_plan.warnings,
+        "Source digest audit pages are committed by deterministic ingest postprocess.",
+    ]
+    if not operations:
+        operations = [
+            WikiPageOperation(
+                action="skip",
+                target_page=None,
+                page_dir=None,
+                canonical_path=None,
+                title=None,
+                knowledge_object=None,
+                decision_reason="Source digest audit is handled outside semantic page planning.",
+            )
         ]
-    return payload
-
-
-def _merge_draft_batches(
-    source_drafts: list[WikiDraftBatchItem],
-    model_batch: WikiDraftBatch,
-    *,
-    batch_summary: str,
-) -> WikiDraftBatch:
-    drafts = [*source_drafts, *model_batch.drafts]
-    drafts.sort(key=lambda draft: draft.operation_index)
-    warnings = list(model_batch.warnings)
-    if source_drafts:
-        warnings.append("Source digest audit draft(s) were generated deterministically outside wiki_draft_compile.")
-    return WikiDraftBatch(drafts=drafts, batch_summary=batch_summary, warnings=warnings)
+    return page_plan.model_copy(update={"operations": operations, "warnings": warnings})
 
 
 def _compile_context_payload(

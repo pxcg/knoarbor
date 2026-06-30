@@ -334,7 +334,7 @@ class IngestSemanticRunner:
 
 
 def has_executable_page_plan_operations(page_plan: WikiPagePlan) -> bool:
-    return any(operation.action in {"create", "update"} for operation in page_plan.operations)
+    return any(operation.action in {"create", "update"} and operation.page_dir != "sources" for operation in page_plan.operations)
 
 
 def empty_wiki_draft_batch(page_plan: WikiPagePlan) -> WikiDraftBatch:

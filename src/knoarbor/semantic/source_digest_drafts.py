@@ -1,74 +1,166 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
+from knoarbor.core.markdown import parse_frontmatter
 from knoarbor.core.schemas.source_digest import SourceDigest
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatchItem
-from knoarbor.core.schemas.wiki_page_plan import WikiPageOperation, WikiPagePlan
-from knoarbor.core.schemas.wiki_write import WikiPatchInput
+from knoarbor.core.schemas.wiki_write import WikiDraftBatchWriteItem, WikiDraftInput
+from knoarbor.storage.wiki_paths import (
+    content_relative_path,
+    normalize_source_digest_title,
+    resolve_existing_by_hash,
+    slugify_title,
+    source_digest_root,
+)
 
 
-def build_source_digest_drafts_from_plan(
-    page_plan: WikiPagePlan,
+def build_source_digest_write_item(
+    *,
+    vault_path: Path,
     source_digest: SourceDigest,
-) -> list[WikiDraftBatchItem]:
-    """Build source digest audit drafts without model compilation."""
+    source_file: str,
+    display_source_file: str,
+) -> WikiDraftBatchWriteItem:
+    """Build the deterministic source digest write item for one raw source."""
 
-    return [
-        _source_digest_draft_from_operation(index, operation, source_digest)
-        for index, operation in enumerate(page_plan.operations)
-        if operation.page_dir == "sources" and operation.action in {"create", "update"}
-    ]
-
-
-def _source_digest_draft_from_operation(
-    operation_index: int,
-    operation: WikiPageOperation,
-    source_digest: SourceDigest,
-) -> WikiDraftBatchItem:
-    title = operation.title or source_digest.source.title or "Source Digest"
-    summary = source_digest.summary or _source_digest_audit_summary(source_digest)
-    question = operation.knowledge_object or source_digest.source_focus or title
-    source_file = source_digest.raw_source or source_digest.source.source_path or source_digest.source.source_id
-    evidence = _source_digest_evidence_rows(source_digest)
-    attachments = [attachment.model_dump() for attachment in source_digest.attachments]
-    claims = _source_digest_contribution_rows(source_digest)
-    unresolved = [f"{item.item_id}: {item.reason}" for item in source_digest.unresolved_items]
-    patches = (
-        _source_digest_update_patches(
-            source_digest=source_digest,
-            source_file=source_file or "",
-            summary=summary,
-            evidence=evidence,
-            attachments=attachments,
-            claims=claims,
-            unresolved=unresolved,
-        )
-        if operation.action == "update"
-        else []
+    target_page = resolve_source_digest_target_page(vault_path, source_digest)
+    draft = build_source_digest_draft(
+        source_digest,
+        write_action="update" if target_page else "create",
+        target_page=target_page,
     )
+    return WikiDraftBatchWriteItem(
+        wiki_draft=WikiDraftInput.model_validate(draft.model_dump()),
+        write_action=draft.write_action,
+        target_page=draft.target_page,
+        source_file=source_file,
+        display_source_file=display_source_file,
+        operation_index=None,
+    )
+
+
+def build_source_digest_draft(
+    source_digest: SourceDigest,
+    *,
+    write_action: str,
+    target_page: str | None = None,
+) -> WikiDraftBatchItem:
+    title = source_digest_title(source_digest)
+    source_file = source_digest.raw_source or source_digest.source.source_path or source_digest.source.source_id
+    summary = source_digest.summary or _source_digest_audit_summary(source_digest)
+    question = source_digest.source_focus or source_digest.source.title or title
     return WikiDraftBatchItem(
-        operation_index=operation_index,
-        write_action=operation.action,
-        target_page=operation.target_page,
+        operation_index=0,
+        write_action=write_action,  # type: ignore[arg-type]
+        target_page=target_page,
         source_file=source_file,
         title=title,
         page_dir="sources",
-        canonical_path=operation.canonical_path or "",
-        subject_kind="source",
+        canonical_path=target_page or f"sources/{slugify_title(title)}.md",
         question=question,
         summary=summary,
         synthesis=summary,
-        claims=claims,
-        evidence=evidence,
-        attachments=attachments,
-        unresolved_items=unresolved,
-        source_digest_ids=_merge_strings(list(operation.source_digest_ids), [source_digest.digest_id]),
+        claims=_source_digest_contribution_rows(source_digest),
+        evidence=_source_digest_evidence_rows(source_digest),
+        attachments=[attachment.model_dump() for attachment in source_digest.attachments],
+        unresolved_items=[f"{item.item_id}: {item.reason}" for item in source_digest.unresolved_items],
+        source_digest_ids=[source_digest.digest_id],
         confidence=source_digest.confidence,
         model_provider="knoarbor",
         model_name="deterministic-source-digest",
-        patches=patches,
     )
+
+
+def resolve_source_digest_target_page(vault_path: Path, source_digest: SourceDigest) -> str | None:
+    """Resolve an existing source digest page before creating a new one."""
+
+    if source_digest.content_hash:
+        hash_match = resolve_existing_by_hash(vault_path, "sources", source_digest.content_hash)
+        if hash_match is not None:
+            return content_relative_path(vault_path, hash_match)
+
+    text_match = _resolve_existing_by_source_pointer(vault_path, source_digest)
+    if text_match is not None:
+        return content_relative_path(vault_path, text_match)
+
+    title_path = source_digest_root(vault_path) / f"{slugify_title(source_digest_title(source_digest))}.md"
+    if title_path.exists() and title_path.is_file():
+        return content_relative_path(vault_path, title_path)
+    return None
+
+
+def source_digest_title(source_digest: SourceDigest) -> str:
+    title = source_digest.source.title or source_digest.source_focus or source_digest.source.source_id or "Source Digest"
+    normalized = normalize_source_digest_title(title)
+    if normalized.lower().endswith(" source"):
+        return f"{normalized} Digest"
+    return normalized
+
+
+def _resolve_existing_by_source_pointer(vault_path: Path, source_digest: SourceDigest) -> Path | None:
+    root = source_digest_root(vault_path)
+    if not root.exists():
+        return None
+    pointers = _source_pointers(source_digest)
+    if not pointers:
+        return None
+    for md_path in sorted(root.glob("*.md")):
+        try:
+            content = md_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        frontmatter = parse_frontmatter(content)
+        searchable = "\n".join(
+            [
+                str(frontmatter.get("source") or ""),
+                str(frontmatter.get("source_file") or ""),
+                str(frontmatter.get("raw_source") or ""),
+                content,
+            ]
+        )
+        if _matches_source_pointer(searchable, pointers):
+            return md_path
+    return None
+
+
+def _source_pointers(source_digest: SourceDigest) -> list[str]:
+    values = [
+        source_digest.raw_source,
+        source_digest.source.source_path,
+        source_digest.source.source_id,
+        source_digest.source.title,
+    ]
+    result: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        if text and text not in result:
+            result.append(text)
+        name = Path(text.replace("\\", "/")).name if text else ""
+        if name and name not in result:
+            result.append(name)
+        stem = Path(name).stem if name else ""
+        if stem and len(stem) >= 4 and stem not in result:
+            result.append(stem)
+    return result
+
+
+def _matches_source_pointer(content: str, pointers: list[str]) -> bool:
+    lowered = content.lower()
+    for pointer in pointers:
+        normalized = pointer.strip()
+        if not normalized:
+            continue
+        if normalized.lower() in lowered:
+            return True
+        if _slug_like(normalized).lower() in _slug_like(content).lower():
+            return True
+    return False
+
+
+def _slug_like(value: str) -> str:
+    return re.sub(r"[^0-9a-zA-Z\u4e00-\u9fff]+", "-", value).strip("-")
 
 
 def _source_digest_audit_summary(source_digest: SourceDigest) -> str:
@@ -99,153 +191,3 @@ def _source_digest_contribution_rows(source_digest: SourceDigest) -> list[str]:
         for item in source_digest.contribution_map
         if item.contribution.strip()
     ]
-
-
-def _source_digest_update_patches(
-    *,
-    source_digest: SourceDigest,
-    source_file: str,
-    summary: str,
-    evidence: list[str],
-    attachments: list[dict[str, object]],
-    claims: list[str],
-    unresolved: list[str],
-) -> list[WikiPatchInput]:
-    return [
-        WikiPatchInput(operation="replace_section", section="Audit Summary", content=summary),
-        WikiPatchInput(operation="replace_section", section="Source Units", content=_source_units_table(evidence, source_file)),
-        WikiPatchInput(operation="replace_section", section="Attachments", content=_attachments_table(attachments)),
-        WikiPatchInput(operation="replace_section", section="Contribution Map", content=_contribution_table(claims)),
-        WikiPatchInput(operation="replace_section", section="Unresolved / Rejected", content=_unresolved_list(unresolved)),
-        WikiPatchInput(
-            operation="replace_section",
-            section="Raw Source",
-            content=f"- Raw source: {source_file or source_digest.digest_id}\n- Content hash: {source_digest.content_hash or 'not recorded'}",
-        ),
-    ]
-
-
-def _source_units_table(items: list[str], fallback_source: str) -> str:
-    rows = ["| Unit | Source | Range | Basis | Confidence |", "|---|---|---|---|---|"]
-    for index, item in enumerate(items, start=1):
-        parts = [part.strip() for part in item.split("|")]
-        if len(parts) >= 5:
-            rows.append("| " + " | ".join(parts[:5]) + " |")
-        else:
-            rows.append(f"| U{index} | {fallback_source} | source-level | {item} | medium |")
-    return "\n".join(rows)
-
-
-def _attachments_table(items: list[dict[str, object]]) -> str:
-    if not items:
-        return "- No source attachments recorded."
-    rows = ["| Attachment | Type | Topic | Description | Source Range | Status |", "|---|---|---|---|---|---|"]
-    for index, item in enumerate(items, start=1):
-        attachment_id = str(item.get("attachment_id") or f"A{index}").strip() or f"A{index}"
-        attachment_type = str(item.get("attachment_type") or "file").strip() or "file"
-        source_range = _attachment_source_range_label(item)
-        status = str(item.get("status") or "candidate").strip() or "candidate"
-        rows.append(
-            "| "
-            + " | ".join(
-                [
-                    _table_cell(attachment_id),
-                    _table_cell(attachment_type),
-                    _table_cell(_attachment_topic_label(item, index)),
-                    _table_cell(_attachment_description_label(item)),
-                    _table_cell(source_range),
-                    _table_cell(status),
-                ]
-            )
-            + " |"
-        )
-    return "\n".join(rows)
-
-
-def _contribution_table(items: list[str]) -> str:
-    if not items:
-        return "- No accepted contribution map was generated."
-    rows = ["| Item | Contribution | Evidence Units | Target Page |", "|---|---|---|---|"]
-    for index, item in enumerate(items, start=1):
-        item_id, _, contribution = item.partition(":")
-        rows.append(f"| {item_id.strip() or f'C{index}'} | {contribution.strip() or item} | U{index} | source digest |")
-    return "\n".join(rows)
-
-
-def _unresolved_list(items: list[str]) -> str:
-    return "\n".join(f"- {item}" for item in items) if items else "- No unresolved or rejected material recorded."
-
-
-def _table_cell(value: str) -> str:
-    return " ".join(value.replace("|", "/").split())
-
-
-def _attachment_topic_label(item: dict[str, object], index: int) -> str:
-    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
-    for key in ("topic", "title", "caption", "image_caption", "table_caption", "description", "alt", "name"):
-        value = item.get(key)
-        if value is None and key in metadata:
-            value = metadata.get(key)
-        text = _clean_attachment_text(value)
-        if text and not _looks_like_hash_filename(text):
-            return text
-    return "Image " + str(index) if str(item.get("attachment_type") or "") == "image" else "Attachment " + str(index)
-
-
-def _attachment_description_label(item: dict[str, object]) -> str:
-    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
-    for key in ("description", "mineru_description", "caption", "image_caption", "table_caption", "alt"):
-        value = item.get(key)
-        if value is None and key in metadata:
-            value = metadata.get(key)
-        text = _clean_attachment_text(value)
-        if text and not _looks_like_hash_filename(text):
-            return text
-    return ""
-
-
-def _attachment_source_range_label(item: dict[str, object]) -> str:
-    value = str(item.get("source_range") or "").strip()
-    if value:
-        return value
-    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
-    parts: list[str] = []
-    page_idx = metadata.get("page_idx")
-    if page_idx is not None and str(page_idx).strip():
-        parts.append(f"page_idx:{page_idx}")
-    bbox = metadata.get("bbox")
-    if isinstance(bbox, list) and bbox:
-        parts.append("bbox:" + ",".join(str(part) for part in bbox[:4]))
-    return " ".join(parts) or "source-level"
-
-
-def _clean_attachment_text(value: object, *, limit: int = 180) -> str:
-    if isinstance(value, list):
-        text = " ".join(str(part).strip() for part in value if str(part).strip())
-    else:
-        text = str(value or "").strip()
-    if not text:
-        return ""
-    if re.search(r"<\s*(table|tr|td|th)\b", text, flags=re.IGNORECASE):
-        return ""
-    text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    if _looks_like_hash_filename(text):
-        return ""
-    if len(text) <= limit:
-        return text
-    return text[: limit - 1].rstrip() + "..."
-
-
-def _looks_like_hash_filename(value: str) -> bool:
-    path_name = value.strip().rsplit("/", 1)[-1]
-    stem = path_name.rsplit(".", 1)[0]
-    return bool(re.fullmatch(r"[0-9a-fA-F]{24,}", stem))
-
-
-def _merge_strings(left: list[str], right: list[str]) -> list[str]:
-    result: list[str] = []
-    for item in [*left, *right]:
-        if item and item not in result:
-            result.append(item)
-    return result

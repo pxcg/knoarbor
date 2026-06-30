@@ -216,13 +216,16 @@ def _attachment_source_range_label(item: dict[str, object]) -> str:
 
 def _attachment_topic_label(item: dict[str, object], index: int, *, allow_generic: bool) -> str:
     metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
-    for key in ("topic", "title", "caption", "image_caption", "table_caption", "description", "alt", "name"):
+    for key in ("topic", "title", "caption", "image_caption", "table_caption", "alt"):
         value = item.get(key)
         if value is None and key in metadata:
             value = metadata.get(key)
         value = _clean_attachment_text(value)
         if value and not _looks_like_hash_filename(value):
             return value
+    name = _clean_attachment_text(item.get("name"))
+    if name and not _looks_like_hash_filename(name):
+        return name
     attachment_type = str(item.get("attachment_type") or "attachment").strip()
     if allow_generic and attachment_type == "image":
         return f"Image {index}"
@@ -264,7 +267,10 @@ def _clean_attachment_text(value: object, *, limit: int = 180) -> str:
 def _looks_like_hash_filename(value: str) -> bool:
     path_name = value.strip().rsplit("/", 1)[-1]
     stem = path_name.rsplit(".", 1)[0]
-    return bool(re.fullmatch(r"[0-9a-fA-F]{24,}", stem))
+    if re.fullmatch(r"[0-9a-fA-F]{24,}", stem):
+        return True
+    parts = re.split(r"[-_]", stem)
+    return any(re.fullmatch(r"[0-9a-fA-F]{24,}", part) for part in parts)
 
 
 def _render_contribution_map(draft: WikiDraft) -> str:

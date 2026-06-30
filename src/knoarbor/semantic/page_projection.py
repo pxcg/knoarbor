@@ -89,7 +89,7 @@ def _project_source_digest_draft(draft: WikiDraftBatchItem, source_digest: Sourc
     update: dict[str, object] = {
         "source_digest_ids": _merge_strings(draft.source_digest_ids, [source_digest.digest_id]),
         "evidence": evidence,
-        "attachments": [attachment.model_dump() for attachment in source_digest.attachments],
+        "attachments": _dedupe_attachment_dicts([attachment.model_dump() for attachment in source_digest.attachments]),
         "claims": claims,
         "unresolved_items": [f"{item.item_id}: {item.reason}" for item in source_digest.unresolved_items],
     }
@@ -175,11 +175,13 @@ def _draft_attachments(draft: WikiDraftBatchItem, source_digest: SourceDigest | 
         for attachment in source_digest.attachments:
             item = attachment.model_dump()
             name = str(item.get("name") or "").strip()
-            if name and name in llm_descriptions:
-                item["description"] = llm_descriptions[name]
+            llm_description = llm_descriptions.get(name, "") if name else ""
+            existing_description = str(item.get("description") or "").strip()
+            if llm_description and (not existing_description or not _looks_generic_attachment_description(llm_description)):
+                item["description"] = llm_description
             merged.append(item)
-        return merged
-    return list(draft.attachments)
+        return _dedupe_attachment_dicts(merged)
+    return _dedupe_attachment_dicts(list(draft.attachments))
 
 
 def _llm_attachment_descriptions(draft: WikiDraftBatchItem) -> dict[str, str]:
@@ -192,3 +194,42 @@ def _llm_attachment_descriptions(draft: WikiDraftBatchItem) -> dict[str, str]:
         if name and desc:
             descriptions[name] = desc
     return descriptions
+
+
+def _dedupe_attachment_dicts(items: list[dict[str, object]]) -> list[dict[str, object]]:
+    deduped: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for item in items:
+        identity = _attachment_identity(item)
+        if identity and identity in seen:
+            continue
+        if identity:
+            seen.add(identity)
+        deduped.append(item)
+    return deduped
+
+
+def _attachment_identity(item: dict[str, object]) -> str:
+    for field in ("content_hash", "relative_path", "path", "name"):
+        value = str(item.get(field) or "").strip()
+        if value:
+            return f"{field}:{value}"
+    return ""
+
+
+def _looks_generic_attachment_description(value: str) -> bool:
+    text = " ".join(value.strip().lower().split())
+    if not text:
+        return True
+    generic_values = {
+        "image",
+        "picture",
+        "product image",
+        "product picture",
+        "attachment image",
+        "产品图片",
+        "产品图",
+        "图片",
+        "附件图片",
+    }
+    return text in generic_values or (len(text) <= 18 and any(term in text for term in ("产品图片", "product image")))

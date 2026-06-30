@@ -375,10 +375,18 @@ class IngestSourceExecutor:
         result.semantic_result = semantic_result
         result.approved_operation_indexes = approved_indexes
         result.semantic_skip_reason = _semantic_skip_reason(semantic_result)
-        if result.semantic_skip_reason and not approved_indexes:
+        if result.semantic_skip_reason and not approved_indexes and not result.generated_pages:
             result.status = "skipped"
         if not gate_result.passed:
             _mark_failed_source(result, "write_gate", ValueError(_write_gate_error_message(gate_result.model_dump())))
+        elif write and _should_write_source_digest(semantic_result, approved_indexes):
+            self.post_processor.write_source_digest(
+                vault_path=vault_path,
+                result=result,
+                source_digest=semantic_result.source_digest,
+                source_file=source_file,
+                privacy_config=privacy_config,
+            )
 
         if write and approved_indexes:
             self.post_processor.write_approved_items(
@@ -392,7 +400,7 @@ class IngestSourceExecutor:
                 ),
                 semantic_results=[semantic_result],
             )
-        result.touched_pages = _touched_pages(result, candidate_page_context)
+        result.touched_pages = _dedupe_pages([*result.generated_pages, *_touched_pages(result, candidate_page_context)])
         result.scoped_lint = scoped_lint_payload(result)
         if write and auto_scoped_lint and result.touched_pages:
             self.post_processor.run_scoped_lint(
@@ -615,10 +623,18 @@ class IngestSourceExecutor:
         approved_indexes = gate_result.approved_operation_indexes
         result.approved_operation_indexes = approved_indexes
         result.semantic_skip_reason = _semantic_skip_reason(semantic_result)
-        if result.semantic_skip_reason and not approved_indexes:
+        if result.semantic_skip_reason and not approved_indexes and not result.generated_pages:
             result.status = "skipped"
         if not gate_result.passed:
             _mark_failed_source(result, "write_gate", ValueError(_write_gate_error_message(gate_result.model_dump())))
+        elif write and _should_write_source_digest(semantic_result, approved_indexes):
+            self.post_processor.write_source_digest(
+                vault_path=vault_path,
+                result=result,
+                source_digest=semantic_result.source_digest,
+                source_file=source_file,
+                privacy_config=privacy_config,
+            )
 
         if write and approved_indexes:
             self.post_processor.write_approved_items(
@@ -1117,6 +1133,13 @@ def _semantic_skip_reason(result: IngestSemanticWorkflowResult) -> str | None:
     return operations[0].decision_reason or "Semantic page planning skipped this source."
 
 
+def _should_write_source_digest(result: IngestSemanticWorkflowResult, approved_indexes: list[int]) -> bool:
+    if approved_indexes:
+        return True
+    reason = _semantic_skip_reason(result) or ""
+    return "Source digest audit is handled outside semantic page planning" in reason
+
+
 def _redaction_payload(enabled: bool, counts: dict[str, int]) -> dict[str, object]:
     return {
         "enabled": enabled,
@@ -1181,6 +1204,7 @@ def _failed_source_result_from_pipeline_failure(failure: SourcePipelineFailure) 
 def _mark_failed_source(result: IngestSourceResult, stage: str, exc: Exception) -> None:
     info = error_info(exc)
     result.status = "failed"
+    result.wrote = False
     result.error_stage = stage
     result.error_code = str(info["code"])
     result.error_category = str(info["category"])

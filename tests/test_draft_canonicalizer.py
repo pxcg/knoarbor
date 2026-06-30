@@ -26,7 +26,7 @@ class DraftCanonicalizerTests(unittest.TestCase):
 
         result = DraftCanonicalizer().canonicalize_draft(draft, source_file="raw/inbox/notes/LLM-Wiki.md", write_action="create")
 
-        self.assertEqual(result.draft.title, "LLM-Wiki Source")
+        self.assertEqual(result.draft.title, "LLM-Wiki Source Digest")
         self.assertEqual(result.draft.role, "source_digest")
         self.assertEqual(result.draft.question, "### Source Context")
         self.assertIn("### Overview", result.draft.synthesis)

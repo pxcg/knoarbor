@@ -67,7 +67,11 @@ def checkpoint_source_file(checkpoint: dict[str, object]) -> str | None:
 
 def checkpoint_pages(checkpoint: dict[str, object]) -> list[str]:
     pages = checkpoint.get("generated_pages")
-    return [str(page) for page in pages if str(page).strip()] if isinstance(pages, list) else []
+    return [
+        str(page)
+        for page in pages
+        if str(page).strip() and not str(page).replace("\\", "/").startswith("sources/")
+    ] if isinstance(pages, list) else []
 
 
 def source_file_exists(vault_path: Path, source_file: str) -> bool:
