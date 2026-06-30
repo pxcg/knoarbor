@@ -40,7 +40,11 @@
       ]
     },
     "win": {
-      "icon": "resources/icons/icon.ico"
+      "icon": "resources/icons/icon.ico",
+      "signAndEditExecutable": false,
+      "target": [
+        "nsis"
+      ]
     },
     "linux": {
       "icon": "resources/icons/icon.png"
@@ -50,8 +54,10 @@
     "build": "npm run prepare:web && electron-vite build && tsc -p tsconfig.json --noEmit",
     "build:service": "node scripts/build-service.mjs",
     "dist:mac": "npm run build:service && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip",
+    "dist:win": "npm run build:service && npm run build && set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win nsis",
     "dev": "npm run prepare:web && electron-vite dev",
     "pack:mac": "npm run build:service && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir",
+    "pack:win": "npm run build:service && npm run build && set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win dir",
     "prepare:web": "node scripts/prepare-web.mjs",
     "preview": "electron-vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit"
