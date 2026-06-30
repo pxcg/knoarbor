@@ -104,8 +104,8 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
   }, [activeKind, filteredReports, loadReport, selected]);
 
   return (
-    <section className="view active">
-      <div className="panel-grid pages-workspace">
+    <section className="view active reports-page">
+      <div className="reports-workspace">
         <article className="panel">
           <div className="panel-header">
             <div>
@@ -120,13 +120,6 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
                 <span>{context.t(`reportTab.${item.kind}`)}</span>
                 <strong>{item.count}</strong>
                 <small>{context.t("latestRun")}: {item.latest}</small>
-              </button>
-            ))}
-          </div>
-          <div className="segmented-control report-tabs" aria-label={context.t("reportType")}>
-            {(["ingest", "lint", "query"] as const).map((kind) => (
-              <button className={activeKind === kind ? "active" : ""} key={kind} onClick={() => switchReportKind(kind)} type="button">
-                {context.t(`reportTab.${kind}`)}
               </button>
             ))}
           </div>

@@ -628,6 +628,18 @@ textarea {
   height: 16px;
 }
 
+.run-path-row {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.run-path-row .button {
+  height: 38px;
+  white-space: nowrap;
+}
+
 .config-editor,
 .output {
   min-height: 460px;

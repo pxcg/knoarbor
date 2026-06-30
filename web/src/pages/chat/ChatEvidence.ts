@@ -128,7 +128,14 @@ export function openCitationTarget(citation: ChatCitation, context: AppContext) 
 }
 
 export function resolveChatImageSrc(src: string | undefined, citations: ChatCitation[], context: AppContext): string | undefined {
-  const citationVaultPath = citations.find((citation) => citation.vault_path)?.vault_path;
+  const citationVaultPath =
+    citations.find((citation) => citation.vault_path)?.vault_path ||
+    citations
+      .map((citation) => {
+        if (!citation.vault_id) return undefined;
+        return context.vaultOptions.find((vault) => vault.id === citation.vault_id)?.path;
+      })
+      .find((path): path is string => Boolean(path));
   return resolveVaultAssetImageSrc(src, citationVaultPath || context.activeVaultSelector.vault_path || context.vaultPath);
 }
 

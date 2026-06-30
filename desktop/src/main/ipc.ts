@@ -91,6 +91,30 @@ export function registerDesktopIpc(input: {
       };
     },
   );
+  ipcMain.handle(
+    "knoarbor-desktop:select-file",
+    async (
+      event,
+      options?: {
+        defaultPath?: string;
+        title?: string;
+      },
+    ) => {
+      const parent = BrowserWindow.fromWebContents(event.sender);
+      const dialogOptions: OpenDialogOptions = {
+        defaultPath: options?.defaultPath,
+        properties: ["openFile"],
+        title: options?.title || "Choose File",
+      };
+      const result = parent
+        ? await dialog.showOpenDialog(parent, dialogOptions)
+        : await dialog.showOpenDialog(dialogOptions);
+      return {
+        canceled: result.canceled,
+        path: result.filePaths[0],
+      };
+    },
+  );
 }
 
 function getEnvironment(): DesktopEnvironment {

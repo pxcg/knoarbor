@@ -83,10 +83,9 @@ const IMAGE_PROVIDER_PRESETS: ConfigImageProvider[] = [
     model: "sensenova-u1-fast",
     verify_tls: true,
     tls_ca_file: "",
-    response_format: "url",
-    size: "",
-    aspect_ratio: "16:9",
-    image_count: 1,
+    resolution: "2720*1536",
+    num_inference_steps: 20,
+    guidance: 4,
     extra_body: {},
     api_key_configured: false,
   },
@@ -177,10 +176,9 @@ export function ConfigModelProvidersSection({
       model: "",
       verify_tls: true,
       tls_ca_file: "",
-      response_format: "url",
-      size: "",
-      aspect_ratio: "",
-      image_count: 1,
+      resolution: "2720*1536",
+      num_inference_steps: 20,
+      guidance: 4,
       extra_body: {},
       api_key_configured: false,
     };
@@ -395,16 +393,9 @@ export function ConfigModelProvidersSection({
                 onChange={(value) => updateImageProvider(activeImageProvider, { api_key_value: value })}
               />
               <PathField label={t("tlsCaFile")} value={activeImage.tls_ca_file || ""} onChange={(value) => updateImageProvider(activeImageProvider, { tls_ca_file: value })} />
-              <label className="field">
-                <span>{t("imageResponseFormat")}</span>
-                <select value={activeImage.response_format || "url"} onChange={(event) => updateImageProvider(activeImageProvider, { response_format: event.target.value })}>
-                  <option value="url">url</option>
-                  <option value="b64_json">b64_json</option>
-                </select>
-              </label>
-              <PathField label={t("imageSize")} value={activeImage.size || ""} onChange={(value) => updateImageProvider(activeImageProvider, { size: value })} />
-              <PathField label={t("imageAspectRatio")} value={activeImage.aspect_ratio || ""} onChange={(value) => updateImageProvider(activeImageProvider, { aspect_ratio: value })} />
-              <NumberField label={t("imageCount")} value={activeImage.image_count ?? 1} onChange={(value) => updateImageProvider(activeImageProvider, { image_count: value || 1 })} />
+              <PathField label={t("imageResolution")} value={activeImage.resolution || "2720*1536"} onChange={(value) => updateImageProvider(activeImageProvider, { resolution: value })} />
+              <NumberField label={t("imageSteps")} value={activeImage.num_inference_steps ?? 20} onChange={(value) => updateImageProvider(activeImageProvider, { num_inference_steps: value || 20 })} />
+              <NumberField label={t("imageGuidance")} value={activeImage.guidance ?? 4} min={0} step="any" onChange={(value) => updateImageProvider(activeImageProvider, { guidance: value ?? 4 })} />
             </div>
             <label className="checkbox-field">
               <input type="checkbox" checked={activeImage.verify_tls ?? true} onChange={(event) => updateImageProvider(activeImageProvider, { verify_tls: event.target.checked })} />

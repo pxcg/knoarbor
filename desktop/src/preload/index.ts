@@ -32,6 +32,8 @@ const desktopApi: KnoArborDesktopBridge = {
     ipcRenderer.invoke("knoarbor-desktop:env-secrets-save", secrets),
   selectDirectory: (options) =>
     ipcRenderer.invoke("knoarbor-desktop:select-directory", options),
+  selectFile: (options) =>
+    ipcRenderer.invoke("knoarbor-desktop:select-file", options),
 };
 
 contextBridge.exposeInMainWorld("knoarborDesktop", desktopApi);

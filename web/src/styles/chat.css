@@ -603,6 +603,19 @@
   padding: 0;
 }
 
+.chat-answer-markdown img,
+.chat-preview-content img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: min(560px, 58vh);
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #ffffff;
+  margin: 12px 0;
+}
+
 .chat-mermaid-diagram {
   max-width: 100%;
   margin: 14px 0;

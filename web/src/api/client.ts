@@ -334,6 +334,10 @@ export async function runIngestFile(body: Record<string, unknown>): Promise<unkn
   return requestJson("/ingest", { method: "POST", body: { execution: "queued", kind: "file", ...body } });
 }
 
+export async function runIngestFolder(body: Record<string, unknown>): Promise<unknown> {
+  return requestJson("/ingest", { method: "POST", body: { execution: "queued", kind: "folder", ...body } });
+}
+
 export async function ingestExcerpt(
   selector: VaultSelector,
   body: {

@@ -27,19 +27,20 @@ import {
 export function ActiveRunsPanel({ context, includeRecoverable = false }: { context: AppContext; includeRecoverable?: boolean }) {
   const recoverableRecent = context.recentRuns.filter((run) => canRecoverRun(run));
   const runs = dedupeRuns(context.activeRuns);
-  if (!runs.length && includeRecoverable && recoverableRecent.length) {
-    return <RecoverableRunsPanel context={context} runs={recoverableRecent.slice(0, 4)} />;
-  }
   if (!runs.length) {
     return (
-      <article className="panel run-monitor-panel">
-        <div className="panel-header compact">
-          <div>
-            <h2>{context.t("runMonitor")}</h2>
-            <p className="panel-copy">{context.t("noActiveRuns")}</p>
+      <>
+        <article className="panel run-monitor-panel">
+          <div className="panel-header compact">
+            <div>
+              <h2>{context.t("runMonitor")}</h2>
+              <p className="panel-copy">{context.t("noActiveRuns")}</p>
+            </div>
           </div>
-        </div>
-      </article>
+          <RunFlowPlaceholder context={context} />
+        </article>
+        {includeRecoverable && recoverableRecent.length ? <RecoverableRunsPanel context={context} runs={recoverableRecent.slice(0, 4)} /> : null}
+      </>
     );
   }
   return (
@@ -205,7 +206,7 @@ function RunMonitorItem({ context, run }: { context: AppContext; run: RunRecord 
         </div>
 
         <aside className="run-monitor-sidebar">
-          <RunSummaryBox context={context} run={run} />
+          <RunSummaryBox context={context} events={events} run={run} />
           <div className="run-monitor-actions">
             {reportPath && (
               <button className="button secondary" onClick={() => context.openReport(reportPath)}>
@@ -243,34 +244,63 @@ function RunMonitorItem({ context, run }: { context: AppContext; run: RunRecord 
   );
 }
 
-function RunSummaryBox({ context, run }: { context: AppContext; run: RunRecord }) {
+function RunSummaryBox({ context, events, run }: { context: AppContext; events: RunEvent[]; run: RunRecord }) {
   const metrics = asRecord(run.metrics);
   const stats = asRecord(run.result_summary?.stats);
-  const semanticCalls = numberValue(metrics.semantic_call_count) ?? numberValue(asRecord(metrics.semantic).semantic_call_count);
-  const totalTokens = numberValue(metrics.total_tokens) ?? numberValue(asRecord(metrics.semantic).total_tokens);
-  const writtenPages = writtenPageCount(run.result_summary?.written_pages) ?? numberValue(stats.written_count);
+  const semanticCalls = numberValue(metrics.semantic_call_count) ?? numberValue(asRecord(metrics.semantic).semantic_call_count) ?? latestEventNumber(events, ["semantic_call_count", "semantic_calls"]);
+  const totalTokens = numberValue(metrics.total_tokens) ?? numberValue(asRecord(metrics.semantic).total_tokens) ?? latestEventNumber(events, ["total_tokens"]);
+  const writtenPages = writtenPageCount(run.result_summary?.written_pages) ?? numberValue(stats.written_count) ?? latestEventNumber(events, ["written_pages", "written_count"]);
   const reportPath = reportPathForRun(run);
   const items = [
-    { label: "semanticCallsShort", value: semanticCalls },
-    { label: "totalTokensShort", value: totalTokens },
-    { label: "writtenPagesShort", value: writtenPages },
-  ].filter((item) => item.value !== undefined);
+    { label: context.t("stage"), value: currentStageLabel(run, context.t) },
+    { label: context.t("elapsed"), value: `${Math.round(run.elapsed_seconds)}s` },
+    { label: context.t("recentEvents"), value: String(events.length) },
+    semanticCalls !== undefined ? { label: context.t("semanticCallsShort"), value: semanticCalls.toLocaleString() } : null,
+    totalTokens !== undefined ? { label: context.t("totalTokensShort"), value: totalTokens.toLocaleString() } : null,
+    writtenPages !== undefined ? { label: context.t("writtenPagesShort"), value: writtenPages.toLocaleString() } : null,
+  ].filter((item): item is { label: string; value: string } => Boolean(item));
   return (
     <div className="run-summary-box">
       <h3>{context.t("runSummary")}</h3>
-      {items.length ? (
-        <dl>
-          {items.map((item) => (
-            <div key={item.label}>
-              <dt>{context.t(item.label)}</dt>
-              <dd>{Number(item.value).toLocaleString()}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : (
-        <p>{context.t("noData")}</p>
-      )}
+      <dl>
+        {items.map((item) => (
+          <div key={item.label}>
+            <dt>{item.label}</dt>
+            <dd>{item.value}</dd>
+          </div>
+        ))}
+      </dl>
       <small>{reportPath ? reportPath : context.t("noReportYet")}</small>
+    </div>
+  );
+}
+
+function latestEventNumber(events: RunEvent[], keys: string[]): number | undefined {
+  for (const event of events.slice().reverse()) {
+    const sources = [asRecord(event.metrics), asRecord(asRecord(event.metrics).semantic), asRecord(event.payload)];
+    for (const source of sources) {
+      for (const key of keys) {
+        const value = numberValue(source[key]);
+        if (value !== undefined) return value;
+      }
+    }
+  }
+  return undefined;
+}
+
+function RunFlowPlaceholder({ context }: { context: AppContext }) {
+  const stages = flowStages("ingest");
+  return (
+    <div className="run-flow-placeholder" aria-label={context.t("runStageTrack")}>
+      <div className="run-stage-steps">
+        {stages.map((stage) => (
+          <span className={`run-stage-step placeholder ${stage.kind === "agent" ? "agent" : ""}`} key={stage.key}>
+            <span />
+            <small>{context.t(stage.label)}</small>
+          </span>
+        ))}
+      </div>
+      <div className="run-placeholder-note">{context.t("noRunYet")}</div>
     </div>
   );
 }

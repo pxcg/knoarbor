@@ -13,11 +13,15 @@ type Props = {
 
 export function QueryPage({ context, embedded = false }: Props) {
   const [query, setQuery] = useState("Agent Loop 控制模式");
-  const [vaultScope, setVaultScope] = useState<"current" | "all" | "selected">("current");
-  const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([context.activeVaultId]);
+  const [queryVaultId, setQueryVaultId] = useState(context.activeVaultId === "all" ? "all" : context.activeVaultId);
   const [pageDirs, setPageDirs] = useState("");
   const [scopedResults, setScopedResults] = useState<ScopedQueryResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const vaultChoices = [
+    { id: "all", name: context.t("allVaults") },
+    ...context.vaultOptions.filter((vault) => !vault.virtual).map((vault) => ({ id: vault.id, name: vault.name })),
+  ];
+  const activeQueryVaultId = vaultChoices.some((vault) => vault.id === queryVaultId) ? queryVaultId : "all";
 
   async function handleSearch() {
     if (isSearching) return;
@@ -28,7 +32,7 @@ export function QueryPage({ context, embedded = false }: Props) {
     setIsSearching(true);
     context.setNotice(null);
     try {
-      const targetVaults = resolveQueryVaults(context.vaultOptions, context.activeVaultId, vaultScope, selectedVaultIds);
+      const targetVaults = resolveQueryVaults(context.vaultOptions, activeQueryVaultId);
       const pageDirsValue = pageDirs
         .split(",")
         .map((item) => item.trim())
@@ -36,8 +40,8 @@ export function QueryPage({ context, embedded = false }: Props) {
       const response = await searchWiki(context.activeVaultSelector, query.trim(), {
         mode: "balanced",
         page_dirs: pageDirsValue,
-        all_vaults: vaultScope === "all" || (vaultScope === "current" && context.activeVaultId === "all"),
-        vault_ids: vaultScope === "selected" ? targetVaults.map((vault) => vault.id) : [],
+        all_vaults: activeQueryVaultId === "all",
+        vault_ids: activeQueryVaultId === "all" ? [] : targetVaults.map((vault) => vault.id),
         include_content: true,
       });
       const nextScopedResults = (response.results || []).map((result) => ({
@@ -83,40 +87,30 @@ export function QueryPage({ context, embedded = false }: Props) {
           <input value={query} onChange={(event) => setQuery(event.target.value)} />
         </label>
         <div className="query-controls">
-          <label className="field">
+          <div className="field">
             <span>{context.t("queryVaultScope")}</span>
-            <select value={vaultScope} onChange={(event) => setVaultScope(event.target.value as "current" | "all" | "selected")}>
-              <option value="current">{context.t("queryCurrentVault")}</option>
-              <option value="all">{context.t("queryAllVaults")}</option>
-              <option value="selected">{context.t("querySelectedVaults")}</option>
-            </select>
+            <div className="query-vault-switcher" role="radiogroup" aria-label={context.t("queryVaultScope")}>
+              {vaultChoices.map((vault) => (
+                <button
+                  aria-checked={activeQueryVaultId === vault.id}
+                  className={`query-vault-option ${activeQueryVaultId === vault.id ? "active" : ""}`}
+                  key={vault.id}
+                  onClick={() => setQueryVaultId(vault.id)}
+                  role="radio"
+                  type="button"
+                >
+                  {vault.name}
+                </button>
+              ))}
+            </div>
             <small>{context.t("queryAcrossVaults")}</small>
-          </label>
+          </div>
           <label className="field">
             <span>{context.t("initialPageDirs")}</span>
             <input value={pageDirs} onChange={(event) => setPageDirs(event.target.value)} placeholder="pages" />
             <small>{context.t("initialPageDirsHint")}</small>
           </label>
         </div>
-        {vaultScope === "selected" && (
-          <div className="query-vault-picker">
-            {context.vaultOptions.filter((vault) => !vault.virtual).map((vault) => (
-              <label key={vault.id} className="checkbox-field compact-checkbox">
-                <input
-                  type="checkbox"
-                  checked={selectedVaultIds.includes(vault.id)}
-                  onChange={(event) => {
-                    setSelectedVaultIds((current) => {
-                      if (event.target.checked) return Array.from(new Set([...current, vault.id]));
-                      return current.filter((id) => id !== vault.id);
-                    });
-                  }}
-                />
-                <span>{vault.name}</span>
-              </label>
-            ))}
-          </div>
-        )}
         <div className="query-health">
           <article>
             <span>{context.t("queryTrendSample")}</span>
@@ -196,20 +190,7 @@ export function QueryPage({ context, embedded = false }: Props) {
                 )}
               </article>
             ))
-          ) : (
-            <article className="query-empty-state">
-              <h3>{context.t("queryEmptyTitle")}</h3>
-              <p>{context.t("queryEmptyCopy")}</p>
-              <div className="query-empty-hints">
-                <button type="button" onClick={() => context.navigate("ingest")}>
-                  {context.t("queryEmptyHintIngest")}
-                </button>
-                <button type="button" onClick={context.openSettings}>
-                  {context.t("queryEmptyHintDirs")}
-                </button>
-              </div>
-            </article>
-          )}
+          ) : null}
         </div>
       </article>
       <article className="panel">
@@ -239,17 +220,11 @@ type ScopedQueryResult = {
 
 function resolveQueryVaults(
   vaults: VaultOption[],
-  activeVaultId: string,
-  scope: "current" | "all" | "selected",
-  selectedVaultIds: string[],
+  queryVaultId: string,
 ) {
   const concreteVaults = vaults.filter((vault) => !vault.virtual);
-  if (scope === "all" || activeVaultId === "all") return concreteVaults;
-  if (scope === "selected") {
-    const selected = concreteVaults.filter((vault) => selectedVaultIds.includes(vault.id));
-    return selected.length ? selected : concreteVaults.filter((vault) => vault.id === activeVaultId);
-  }
-  const current = concreteVaults.filter((vault) => vault.id === activeVaultId);
+  if (queryVaultId === "all") return concreteVaults;
+  const current = concreteVaults.filter((vault) => vault.id === queryVaultId);
   return current.length ? current : concreteVaults.slice(0, 1);
 }
 

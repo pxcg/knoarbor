@@ -326,6 +326,25 @@
   gap: 12px;
 }
 
+.run-flow-placeholder {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 12px 14px;
+}
+
+.run-stage-step.placeholder {
+  cursor: default;
+  pointer-events: none;
+}
+
+.run-placeholder-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .run-history-list {
   display: grid;
   gap: 8px;
@@ -734,6 +753,12 @@
   display: flex;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
+}
+
+.run-summary-box dl dd {
+  min-width: 0;
+  text-align: right;
 }
 
 .run-summary-box small,

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { getPage, getReport, getSourceCatalog, ingestChatSession, listChatSessions, runIngest, runIngestFile, runLint, type ReportDetail } from "../api/client";
+import { getPage, getReport, getSourceCatalog, ingestChatSession, listChatSessions, runIngest, runIngestFile, runIngestFolder, runLint, type ReportDetail } from "../api/client";
 import type { AppContext } from "../appContext";
 import { localizeReportKind, localizeReportTitle } from "../components/reportLabels";
 import { ReportSummaryCard } from "../components/report/ReportSummaryCard";
@@ -17,23 +17,22 @@ type Props = {
   context: AppContext;
   embedded?: boolean;
   mode?: "both" | "ingest" | "lint";
+  showFlowGuide?: boolean;
 };
 
-export function RunPage({ context, embedded = false, mode = "both" }: Props) {
+export function RunPage({ context, embedded = false, mode = "both", showFlowGuide }: Props) {
   const [connectors, setConnectors] = useState("");
   const [inputFilePath, setInputFilePath] = useState("");
+  const [inputFolderPath, setInputFolderPath] = useState("");
   const [inputScope, setInputScope] = useState("enabled");
   const [selectedChatSessionId, setSelectedChatSessionId] = useState("");
-  const [ingestWrite, setIngestWrite] = useState(false);
-  const [ingestReport, setIngestReport] = useState(true);
   const [lintMode, setLintMode] = useState("structural");
-  const [lintApplySafe, setLintApplySafe] = useState(true);
-  const [lintApplyReviewed, setLintApplyReviewed] = useState(true);
   const [runOutput, setRunOutput] = useState(() => context.t("noRunYet"));
   const [trackedRunId, setTrackedRunId] = useState<string | null>(null);
   const [terminalNoticeRunId, setTerminalNoticeRunId] = useState<string | null>(null);
   const configReady = context.configExists;
   const isSingleMode = mode !== "both";
+  const shouldShowFlowGuide = showFlowGuide ?? (!embedded && mode === "both");
   const sourceCatalogQuery = useQuery({
     queryKey: queryKeys.sourceCatalog(context.configPath),
     queryFn: () => getSourceCatalog(context.configPath),
@@ -99,9 +98,27 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
     }
   }
 
+  async function chooseInputFile() {
+    if (!window.knoarborDesktop?.selectFile) return;
+    const result = await window.knoarborDesktop.selectFile({
+      defaultPath: inputFilePath || undefined,
+      title: context.t("chooseInputFile"),
+    });
+    if (!result.canceled && result.path) setInputFilePath(result.path);
+  }
+
+  async function chooseInputFolder() {
+    if (!window.knoarborDesktop?.selectDirectory) return;
+    const result = await window.knoarborDesktop.selectDirectory({
+      defaultPath: inputFolderPath || undefined,
+      title: context.t("chooseInputFolder"),
+    });
+    if (!result.canceled && result.path) setInputFolderPath(result.path);
+  }
+
   return (
     <section className={embedded ? "embedded-section" : "view active"}>
-      <RunFlowGuide context={context} mode={mode} />
+      {shouldShowFlowGuide && <RunFlowGuide context={context} mode={mode} />}
 
       <div className={`panel-grid ${isSingleMode ? "single-run-grid" : ""}`}>
         {mode !== "lint" && <article className="panel run-card">
@@ -112,7 +129,12 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
             </div>
             <button
               className="button primary"
-              disabled={!configReady || (inputScope === "file" && !inputFilePath.trim()) || (inputScope === "knoarbor_chat" && !selectedChatSessionId)}
+              disabled={
+                !configReady ||
+                (inputScope === "file" && !inputFilePath.trim()) ||
+                (inputScope === "folder" && !inputFolderPath.trim()) ||
+                (inputScope === "knoarbor_chat" && !selectedChatSessionId)
+              }
               onClick={() =>
                 runOperation(() =>
                   inputScope === "knoarbor_chat"
@@ -122,17 +144,26 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
                         config_path: context.configPath,
                         vault_id: context.activeVaultId,
                         input_path: inputFilePath,
-                        write: ingestWrite,
-                        write_report: ingestReport,
-                        append_ledger: ingestReport,
+                        write: true,
+                        write_report: true,
+                        append_ledger: true,
+                      })
+                    : inputScope === "folder"
+                    ? runIngestFolder({
+                        config_path: context.configPath,
+                        vault_id: context.activeVaultId,
+                        input_path: inputFolderPath,
+                        write: true,
+                        write_report: true,
+                        append_ledger: true,
                       })
                     : runIngest({
                         config_path: context.configPath,
                         vault_id: context.activeVaultId,
                         connector_names: connectorNames(inputScope, connectors),
-                        write: ingestWrite,
-                        write_report: ingestReport,
-                        append_ledger: ingestReport,
+                        write: true,
+                        write_report: true,
+                        append_ledger: true,
                       }),
                 )
               }
@@ -151,6 +182,7 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
                 </option>
               ))}
               <option value="file">{context.t("singleFileInput")}</option>
+              <option value="folder">{context.t("singleFolderInput")}</option>
               <option value="custom">{context.t("customConnectorList")}</option>
             </select>
           </label>
@@ -172,7 +204,27 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
           {inputScope === "file" && (
             <label className="field">
               <span>{context.t("inputFilePath")}</span>
-              <input value={inputFilePath} onChange={(event) => setInputFilePath(event.target.value)} placeholder={context.t("inputFilePathPlaceholder")} />
+              <div className="run-path-row">
+                <input value={inputFilePath} onChange={(event) => setInputFilePath(event.target.value)} placeholder={context.t("inputFilePathPlaceholder")} />
+                {window.knoarborDesktop?.selectFile && (
+                  <button className="button secondary" type="button" onClick={() => void chooseInputFile()}>
+                    {context.t("chooseFile")}
+                  </button>
+                )}
+              </div>
+            </label>
+          )}
+          {inputScope === "folder" && (
+            <label className="field">
+              <span>{context.t("inputFolderPath")}</span>
+              <div className="run-path-row">
+                <input value={inputFolderPath} onChange={(event) => setInputFolderPath(event.target.value)} placeholder={context.t("inputFolderPathPlaceholder")} />
+                {window.knoarborDesktop?.selectDirectory && (
+                  <button className="button secondary" type="button" onClick={() => void chooseInputFolder()}>
+                    {context.t("chooseFolder")}
+                  </button>
+                )}
+              </div>
             </label>
           )}
           {inputScope === "custom" && (
@@ -182,22 +234,6 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
             </label>
           )}
           <p className="panel-copy">{context.t("runIngestCopy")}</p>
-          <div className="switch-row">
-            <label>
-              <input type="checkbox" checked={ingestWrite} onChange={(event) => setIngestWrite(event.target.checked)} />
-              <span>
-                {context.t("writeApprovedPages")}
-                <small>{context.t("writeApprovedPagesHint")}</small>
-              </span>
-            </label>
-            <label>
-              <input type="checkbox" checked={ingestReport} onChange={(event) => setIngestReport(event.target.checked)} />
-              <span>
-                {context.t("writeReport")}
-                <small>{context.t("writeReportHint")}</small>
-              </span>
-            </label>
-          </div>
         </article>}
 
         {mode !== "ingest" && <article className="panel run-card">
@@ -215,8 +251,8 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
                     config_path: context.configPath,
                     vault_id: context.activeVaultId,
                     mode: lintMode,
-                    apply_safe_fixes: lintApplySafe,
-                    auto_apply_reviewed_changes: lintApplyReviewed,
+                    apply_safe_fixes: true,
+                    auto_apply_reviewed_changes: true,
                     write_report: true,
                     append_ledger: true,
                     scope: {
@@ -242,22 +278,6 @@ export function RunPage({ context, embedded = false, mode = "both" }: Props) {
               <option value="full">{context.t("fullMaintenance")}</option>
             </select>
           </label>
-          <div className="switch-row">
-            <label>
-              <input type="checkbox" checked={lintApplySafe} onChange={(event) => setLintApplySafe(event.target.checked)} />
-              <span>
-                {context.t("applySafeFixes")}
-                <small>{context.t("applySafeFixesHint")}</small>
-              </span>
-            </label>
-            <label>
-              <input type="checkbox" checked={lintApplyReviewed} onChange={(event) => setLintApplyReviewed(event.target.checked)} />
-              <span>
-                {context.t("applyReviewedChanges")}
-                <small>{context.t("applyReviewedChangesHint")}</small>
-              </span>
-            </label>
-          </div>
           {!configReady && <p className="panel-copy warning">{context.t("configRequired")}</p>}
         </article>}
       </div>
@@ -360,7 +380,7 @@ function splitList(value: string) {
 }
 
 function connectorNames(inputScope: string, customValue: string) {
-  if (inputScope === "enabled" || inputScope === "file") return null;
+  if (inputScope === "enabled" || inputScope === "file" || inputScope === "folder") return null;
   if (inputScope !== "custom") return [inputScope];
   const custom = splitList(customValue);
   return custom.length ? custom : null;

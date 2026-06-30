@@ -116,17 +116,22 @@ export function NumberField({
   label,
   value,
   onChange,
+  min = 1,
+  step,
 }: {
   label: string;
   value: number | null;
   onChange: (value: number | null) => void;
+  min?: number;
+  step?: number | string;
 }) {
   return (
     <label className="field">
       <span>{label}</span>
       <input
         type="number"
-        min={1}
+        min={min}
+        step={step}
         value={value ?? ""}
         onChange={(event) => onChange(event.target.value ? Number(event.target.value) : null)}
       />

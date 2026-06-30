@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import { getTokenAnalysis, type TokenAnalysis, type TokenCallRecord, type TokenMetricGroup, type TokenPayloadFieldGroup } from "../api/client";
 import { BarChart } from "../components/BarChart";
 import { LoadingBlock } from "../components/LoadingBlock";
-import { MetricCard } from "../components/MetricCard";
 import type { AppContext } from "../appContext";
 
 type Props = {
@@ -42,27 +41,29 @@ export function TokensPage({ context }: Props) {
   const topCall = analysis?.top_calls?.[0];
 
   if (loading && !analysis) {
-    return <section className="panel"><LoadingBlock title={context.t("tokensLoading")} copy={context.t("tokensLoadingCopy")} /></section>;
+    return <section className="view active token-page"><section className="panel"><LoadingBlock title={context.t("tokensLoading")} copy={context.t("tokensLoadingCopy")} /></section></section>;
   }
 
   if (error) {
-    return <section className="panel"><p className="panel-copy">{error}</p></section>;
+    return <section className="view active token-page"><section className="panel"><p className="panel-copy">{error}</p></section></section>;
   }
 
   if (!analysis || analysis.record_count === 0) {
     return (
-      <section className="panel">
-        <div className="section-heading">
-          <h2>{context.t("tokensTitle")}</h2>
-          <p>{context.t("tokenNoData")}</p>
-        </div>
+      <section className="view active token-page">
+        <section className="panel">
+          <div className="section-heading">
+            <h2>{context.t("tokensTitle")}</h2>
+            <p>{context.t("tokenNoData")}</p>
+          </div>
+        </section>
       </section>
     );
   }
 
   const totals = analysis.totals;
   return (
-    <div className="page-stack token-page">
+    <section className="view active token-page">
       <section className="panel token-header">
         <div className="section-heading">
           <h2>{context.t("tokenCostOverview")}</h2>
@@ -80,11 +81,11 @@ export function TokensPage({ context }: Props) {
         </label>
       </section>
 
-      <section className="metric-grid">
-        <MetricCard label={context.t("tokenMetricTotal")} value={formatNumber(totals.total_tokens)} hint={`${context.t("tokenMetricCalls")}: ${formatNumber(totals.call_count)}`} tone="blue" />
-        <MetricCard label={context.t("tokenMetricCacheRate")} value={formatPercent(totals.prompt_cache_rate)} hint={`${context.t("tokenMetricCached")}: ${formatNumber(totals.prompt_cached_tokens)}`} tone="violet" />
-        <MetricCard label={context.t("tokenLatestRun")} value={formatNumber(expensiveRun?.total_tokens)} hint={expensiveRun?.run_id || context.t("unknown")} tone="teal" />
-        <MetricCard label={context.t("tokenMostExpensiveCall")} value={formatNumber(topCall?.total_tokens)} hint={topCall ? `${agentLabel(topCall.agent, context.t)} · ${flowLabel(topCall.flow || "unknown", context.t)}` : context.t("unknown")} tone="amber" />
+      <section className="token-metric-grid">
+        <TokenStatCard label={context.t("tokenMetricTotal")} value={formatNumber(totals.total_tokens)} hint={`${context.t("tokenMetricCalls")}: ${formatNumber(totals.call_count)}`} />
+        <TokenStatCard label={context.t("tokenMetricCacheRate")} value={formatPercent(totals.prompt_cache_rate)} hint={`${context.t("tokenMetricCached")}: ${formatNumber(totals.prompt_cached_tokens)}`} />
+        <TokenStatCard label={context.t("tokenLatestRun")} value={formatNumber(expensiveRun?.total_tokens)} hint={expensiveRun?.run_id || context.t("unknown")} />
+        <TokenStatCard label={context.t("tokenMostExpensiveCall")} value={formatNumber(topCall?.total_tokens)} hint={topCall ? `${agentLabel(topCall.agent, context.t)} · ${flowLabel(topCall.flow || "unknown", context.t)}` : context.t("unknown")} />
       </section>
 
       <section className="panel token-flow-panel">
@@ -143,7 +144,17 @@ export function TokensPage({ context }: Props) {
           </article>
         </div>
       </details>
-    </div>
+    </section>
+  );
+}
+
+function TokenStatCard({ label, value, hint }: { label: string; value: string; hint: string }) {
+  return (
+    <article className="token-stat-card">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{hint}</small>
+    </article>
   );
 }
 

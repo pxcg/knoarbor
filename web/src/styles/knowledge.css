@@ -162,34 +162,6 @@
   background: #fbfdfc;
 }
 
-.wiki-attachment-list {
-  display: grid;
-  gap: 10px;
-}
-
-.wiki-attachment-card {
-  background: #fbfdfc;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  display: grid;
-  gap: 6px;
-  padding: 10px 12px;
-}
-
-.wiki-attachment-card strong {
-  color: var(--text);
-  font-size: 13px;
-}
-
-.wiki-attachment-card p {
-  color: var(--muted-strong);
-  font-size: 13px;
-  line-height: 1.6;
-  margin: 0;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-
 .wiki-relations-table th:nth-child(4),
 .wiki-relations-table td:nth-child(4),
 .wiki-evidence-table th:nth-child(1),

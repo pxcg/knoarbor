@@ -365,6 +365,10 @@ export function ConfigPreprocessingSection({ form, setForm, t }: SectionProps) {
               {advancedOpen ? t("hideAdvanced") : t("showAdvanced")}
             </button>
           </div>
+          <label className="checkbox-field compact">
+            <input type="checkbox" checked={form.mineru_enabled} onChange={(event) => setForm({ ...form, mineru_enabled: event.target.checked })} />
+            <span>{t("nonMarkdownConnector")}</span>
+          </label>
           <PathField label={t("mineruEndpoint")} value={form.mineru_endpoint} onChange={(value) => setForm({ ...form, mineru_endpoint: value })} placeholder="http://127.0.0.1:18000/file_parse" />
           {advancedOpen && (
             <div className="advanced-config-panel">

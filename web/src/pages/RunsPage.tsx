@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import type { AppContext } from "../appContext";
 import { runStatusClass, runStatusLabel } from "../components/runStatus";
-import { ActiveRunsPanel, RunPreflight } from "../components/runs/RunPanels";
+import { ActiveRunsPanel } from "../components/runs/RunPanels";
 import type { RunRecord } from "../types";
 
 type Props = {
@@ -65,7 +65,6 @@ export function RunsPage({ context }: Props) {
           )}
         </div>
       </article>
-      <RunPreflight context={context} />
       <VaultRunsSummary context={context} />
     </section>
   );

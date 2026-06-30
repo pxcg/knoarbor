@@ -120,10 +120,9 @@ export type ConfigImageProvider = {
   model: string;
   verify_tls: boolean;
   tls_ca_file: string;
-  response_format: "url" | "b64_json" | string;
-  size: string;
-  aspect_ratio: string;
-  image_count: number;
+  resolution: string;
+  num_inference_steps?: number | null;
+  guidance?: number | null;
   extra_body?: Record<string, unknown>;
   api_key_configured: boolean;
 };

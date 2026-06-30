@@ -26,6 +26,10 @@ type KnoArborDesktopBridge = {
     canceled: boolean;
     path?: string;
   }>;
+  selectFile(options?: { defaultPath?: string; title?: string }): Promise<{
+    canceled: boolean;
+    path?: string;
+  }>;
 };
 
 interface Window {
