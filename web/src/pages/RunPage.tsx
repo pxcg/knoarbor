@@ -1,4 +1,5 @@
 import type { AppContext } from "../appContext";
+import { LineIcon } from "../components/LineIcon";
 import { RunFlowGuide } from "../components/runs/RunPanels";
 import { sourceTitle } from "../sourceCatalog";
 import { LatestWorkflowReport } from "./run/LatestWorkflowReport";
@@ -15,6 +16,10 @@ export function RunPage({ context, embedded = false, mode = "both", showFlowGuid
   const launcher = useRunLauncher(context, mode);
   const isSingleMode = mode !== "both";
   const shouldShowFlowGuide = showFlowGuide ?? (!embedded && mode === "both");
+  const usesFileInput = launcher.inputScope === "file";
+  const usesFolderInput = launcher.inputScope === "folder";
+  const usesConfiguredSource = !usesFileInput && !usesFolderInput;
+  const configuredInputScope = usesConfiguredSource ? launcher.inputScope : "enabled";
 
   return (
     <section className={embedded ? "embedded-section" : "view active"}>
@@ -40,21 +45,96 @@ export function RunPage({ context, embedded = false, mode = "both", showFlowGuid
               {context.t("runIngest")}
             </button>
           </div>
-          <label className="field">
-            <span>{context.t("inputsToRun")}</span>
-            <select value={launcher.inputScope} onChange={(event) => launcher.setInputScope(event.target.value)}>
-              <option value="enabled">{context.t("enabledConnectors")}</option>
-              <option value="knoarbor_chat">{context.t("knoarborChatConnector")}</option>
-              {launcher.connectorOptions.map((connector) => (
-                <option value={connector.name} key={connector.name}>
-                  {sourceTitle(connector.name, context.t)}
-                </option>
-              ))}
-              <option value="file">{context.t("singleFileInput")}</option>
-              <option value="folder">{context.t("singleFolderInput")}</option>
-              <option value="custom">{context.t("customConnectorList")}</option>
-            </select>
-          </label>
+          <div className="import-source-cards">
+            <section className={`import-source-card ${usesFileInput || usesFolderInput ? "active" : ""}`}>
+              <div className="import-source-card-heading">
+                <span className="import-source-icon">
+                  <LineIcon name="wiki" />
+                </span>
+                <div>
+                  <strong>{context.t("importLocalFilesTitle")}</strong>
+                  <p className="panel-copy">{context.t("importLocalFilesCopy")}</p>
+                </div>
+              </div>
+              <div className="import-primary-actions">
+                {launcher.canSelectFile && (
+                  <button
+                    className={`button ${usesFileInput ? "primary" : "secondary"}`}
+                    type="button"
+                    onClick={() => {
+                      launcher.setInputScope("file");
+                      void launcher.chooseInputFile();
+                    }}
+                  >
+                    {context.t("chooseInputFile")}
+                  </button>
+                )}
+                {launcher.canSelectDirectory && (
+                  <button
+                    className={`button ${usesFolderInput ? "primary" : "secondary"}`}
+                    type="button"
+                    onClick={() => {
+                      launcher.setInputScope("folder");
+                      void launcher.chooseInputFolder();
+                    }}
+                  >
+                    {context.t("chooseInputFolder")}
+                  </button>
+                )}
+              </div>
+            </section>
+
+            <section className={`import-source-card ${usesConfiguredSource ? "active" : ""}`}>
+              <div className="import-source-card-heading">
+                <span className="import-source-icon">
+                  <LineIcon name="sources" />
+                </span>
+                <div>
+                  <strong>{context.t("importConfiguredSourcesTitle")}</strong>
+                  <p className="panel-copy">{context.t("importConfiguredSourcesCopy")}</p>
+                </div>
+              </div>
+              <label className="field compact-field">
+                <span>{context.t("inputsToRun")}</span>
+                <select value={configuredInputScope} onFocus={() => launcher.setInputScope(configuredInputScope)} onChange={(event) => launcher.setInputScope(event.target.value)}>
+                  <option value="enabled">{context.t("enabledConnectors")}</option>
+                  <option value="knoarbor_chat">{context.t("knoarborChatConnector")}</option>
+                  {launcher.connectorOptions.map((connector) => (
+                    <option value={connector.name} key={connector.name}>
+                      {sourceTitle(connector.name, context.t)}
+                    </option>
+                  ))}
+                  <option value="custom">{context.t("customConnectorList")}</option>
+                </select>
+              </label>
+            </section>
+          </div>
+          {usesFileInput && (
+            <label className="field">
+              <span>{context.t("inputFilePath")}</span>
+              <div className="run-path-row">
+                <input value={launcher.inputFilePath} onChange={(event) => launcher.setInputFilePath(event.target.value)} placeholder={context.t("inputFilePathPlaceholder")} />
+                {launcher.canSelectFile && (
+                  <button className="button secondary" type="button" onClick={() => void launcher.chooseInputFile()}>
+                    {context.t("chooseFile")}
+                  </button>
+                )}
+              </div>
+            </label>
+          )}
+          {usesFolderInput && (
+            <label className="field">
+              <span>{context.t("inputFolderPath")}</span>
+              <div className="run-path-row">
+                <input value={launcher.inputFolderPath} onChange={(event) => launcher.setInputFolderPath(event.target.value)} placeholder={context.t("inputFolderPathPlaceholder")} />
+                {launcher.canSelectDirectory && (
+                  <button className="button secondary" type="button" onClick={() => void launcher.chooseInputFolder()}>
+                    {context.t("chooseFolder")}
+                  </button>
+                )}
+              </div>
+            </label>
+          )}
           {launcher.inputScope === "knoarbor_chat" && (
             <label className="field">
               <span>{context.t("selectChatSession")}</span>
@@ -72,32 +152,6 @@ export function RunPage({ context, embedded = false, mode = "both", showFlowGuid
                 )}
               </select>
               <small>{context.t("knoarborChatInputHint")}</small>
-            </label>
-          )}
-          {launcher.inputScope === "file" && (
-            <label className="field">
-              <span>{context.t("inputFilePath")}</span>
-              <div className="run-path-row">
-                <input value={launcher.inputFilePath} onChange={(event) => launcher.setInputFilePath(event.target.value)} placeholder={context.t("inputFilePathPlaceholder")} />
-                {launcher.canSelectFile && (
-                  <button className="button secondary" type="button" onClick={() => void launcher.chooseInputFile()}>
-                    {context.t("chooseFile")}
-                  </button>
-                )}
-              </div>
-            </label>
-          )}
-          {launcher.inputScope === "folder" && (
-            <label className="field">
-              <span>{context.t("inputFolderPath")}</span>
-              <div className="run-path-row">
-                <input value={launcher.inputFolderPath} onChange={(event) => launcher.setInputFolderPath(event.target.value)} placeholder={context.t("inputFolderPathPlaceholder")} />
-                {launcher.canSelectDirectory && (
-                  <button className="button secondary" type="button" onClick={() => void launcher.chooseInputFolder()}>
-                    {context.t("chooseFolder")}
-                  </button>
-                )}
-              </div>
             </label>
           )}
           {launcher.inputScope === "custom" && (

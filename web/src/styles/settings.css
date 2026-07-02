@@ -121,22 +121,29 @@
 }
 
 .settings-workspace {
+  height: 100%;
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(210px, 0.32fr) minmax(0, 1fr);
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .settings-section-rail {
+  min-height: 0;
+  max-height: 100%;
+  overflow: auto;
+  padding-right: 8px;
   display: grid;
-  position: sticky;
-  top: 0;
   align-self: start;
   align-content: start;
 }
 
 .settings-section-panel {
+  max-height: 100%;
   min-width: 0;
+  overflow: auto;
+  padding-right: 6px;
 }
 
 .advanced-yaml-section {
