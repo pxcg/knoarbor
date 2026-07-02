@@ -21,10 +21,13 @@ from knoarbor.core.schemas.sources import (
 class CodexConnector:
     name = "codex"
     version = "codex@1"
+    default_sessions_dir = "~/.codex/sessions"
 
     def discover(self, config: ConnectorConfig) -> list[SourceRef]:
         sessions_dir = config.settings.get("sessions_dir") or config.settings.get("root")
         explicit_files = _as_list(config.settings.get("session_files"))
+        if not sessions_dir and not explicit_files:
+            sessions_dir = self.default_sessions_dir
         pattern = str(config.settings.get("pattern") or "rollout-*.jsonl")
         recursive = bool(config.settings.get("recursive", True))
 

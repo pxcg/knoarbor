@@ -431,7 +431,7 @@ models:
             self.assertEqual(form_response.status_code, 200)
             self.assertTrue(form_response.json()["mineru_enabled"])
 
-    def test_ui_config_form_uses_default_chat_session_dirs_when_enabled_without_path(self) -> None:
+    def test_ui_config_form_does_not_persist_default_chat_session_dirs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             config_path = root / "config.yaml"
@@ -465,10 +465,10 @@ models:
 
             self.assertEqual(response.status_code, 200)
             saved = config_path.read_text(encoding="utf-8")
-            self.assertIn("sessions_dir: ~/.codex/sessions", saved)
-            self.assertIn("sessions_dir: ~/.hermes/sessions", saved)
-            self.assertIn("sessions_dir: ~/.openclaw/agents/main/sessions", saved)
-            self.assertIn("sessions_dir: ~/.claude/projects", saved)
+            self.assertNotIn("sessions_dir: ~/.codex/sessions", saved)
+            self.assertNotIn("sessions_dir: ~/.hermes/sessions", saved)
+            self.assertNotIn("sessions_dir: ~/.openclaw/agents/main/sessions", saved)
+            self.assertNotIn("sessions_dir: ~/.claude/projects", saved)
 
     def test_ui_config_diagnostics_include_connector_contracts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

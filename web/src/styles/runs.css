@@ -83,6 +83,47 @@
   min-height: 38px;
 }
 
+.import-card-run {
+  justify-self: end;
+  min-height: 36px;
+  padding: 8px 14px;
+}
+
+.lint-mode-picker {
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: inline-grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(128px, 1fr));
+  padding: 5px;
+  width: min(360px, 100%);
+}
+
+.lint-mode-option {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-strong);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 720;
+  line-height: 1.2;
+  min-height: 40px;
+  padding: 8px 14px;
+}
+
+.lint-mode-option:hover {
+  background: #f4f8f6;
+  color: var(--text);
+}
+
+.lint-mode-option.active {
+  background: var(--accent);
+  color: #ffffff;
+}
+
 .run-event-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

@@ -10,40 +10,28 @@ export function ConfigInputsSection({ form, setForm, t }: SectionProps) {
       icon: "codex",
       title: t("codexConnector"),
       enabled: form.codex_enabled,
-      path: form.codex_sessions_dir,
-      setEnabled: (checked) => setForm({ ...form, codex_enabled: checked }),
-      setPath: (value) => setForm({ ...form, codex_sessions_dir: value }),
-      placeholder: "~/.codex/sessions",
+      setEnabled: (checked) => setForm({ ...form, codex_enabled: checked, codex_sessions_dir: "" }),
     },
     {
       key: "hermes",
       icon: "hermes",
       title: t("hermesConnector"),
       enabled: form.hermes_enabled,
-      path: form.hermes_sessions_dir,
-      setEnabled: (checked) => setForm({ ...form, hermes_enabled: checked }),
-      setPath: (value) => setForm({ ...form, hermes_sessions_dir: value }),
-      placeholder: "~/.hermes/sessions",
+      setEnabled: (checked) => setForm({ ...form, hermes_enabled: checked, hermes_sessions_dir: "" }),
     },
     {
       key: "openclaw",
       icon: "openclaw",
       title: t("openclawConnector"),
       enabled: form.openclaw_enabled,
-      path: form.openclaw_sessions_dir,
-      setEnabled: (checked) => setForm({ ...form, openclaw_enabled: checked }),
-      setPath: (value) => setForm({ ...form, openclaw_sessions_dir: value }),
-      placeholder: "~/.openclaw/agents/main/sessions",
+      setEnabled: (checked) => setForm({ ...form, openclaw_enabled: checked, openclaw_sessions_dir: "" }),
     },
     {
       key: "claude_code",
       icon: "claude_code",
       title: t("claudeCodeConnector"),
       enabled: form.claude_code_enabled,
-      path: form.claude_code_sessions_dir,
-      setEnabled: (checked) => setForm({ ...form, claude_code_enabled: checked }),
-      setPath: (value) => setForm({ ...form, claude_code_sessions_dir: value }),
-      placeholder: "~/.claude/projects",
+      setEnabled: (checked) => setForm({ ...form, claude_code_enabled: checked, claude_code_sessions_dir: "" }),
     },
   ];
 
@@ -114,10 +102,7 @@ type ChatSourceRow = {
   icon: BrandIconName;
   title: string;
   enabled: boolean;
-  path: string;
   setEnabled: (checked: boolean) => void;
-  setPath: (value: string) => void;
-  placeholder: string;
 };
 
 function ChatSourceField({ source, t }: { source: ChatSourceRow; t: (key: string) => string }) {
@@ -132,7 +117,7 @@ function ChatSourceField({ source, t }: { source: ChatSourceRow; t: (key: string
           {source.title}
         </span>
       </label>
-      <PathField label="" value={source.path} onChange={source.setPath} className="chat-source-path" placeholder={source.placeholder} ariaLabel={source.title} selectDirectoryTitle={source.title} t={t} />
+      <div className="chat-source-auto-path">{t("autoDetect")}</div>
     </div>
   );
 }

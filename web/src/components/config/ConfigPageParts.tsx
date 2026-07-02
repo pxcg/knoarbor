@@ -1,7 +1,7 @@
 import type { ConfigForm } from "../../api/client";
 import type { AppContext } from "../../appContext";
 
-export type ConfigSectionId = "general" | "basic" | "inputs" | "preprocessing" | "runtime" | "models" | "diagnostics" | "advanced";
+export type ConfigSectionId = "general" | "basic" | "inputs" | "preprocessing" | "runtime" | "models" | "advanced";
 
 export type DesktopDiagnosticsView = {
   appData?: {
@@ -46,14 +46,13 @@ const CONFIG_SECTIONS: Array<{ id: ConfigSectionId; titleKey: string; copyKey: s
   { id: "preprocessing", titleKey: "settingsSectionPreprocessing", copyKey: "settingsSectionPreprocessingCopy" },
   { id: "runtime", titleKey: "settingsSectionRuntime", copyKey: "settingsSectionRuntimeCopy" },
   { id: "models", titleKey: "settingsSectionModels", copyKey: "settingsSectionModelsCopy" },
-  { id: "diagnostics", titleKey: "settingsSectionDiagnostics", copyKey: "settingsSectionDiagnosticsCopy" },
   { id: "advanced", titleKey: "advancedYaml", copyKey: "advancedYamlCopy" },
 ];
 
 const CONFIG_SECTION_GROUPS: Array<{ titleKey: string; items: ConfigSectionId[] }> = [
   { titleKey: "settingsGroupGeneral", items: ["general"] },
   { titleKey: "settingsGroupKnowledgeBase", items: ["basic", "inputs", "preprocessing"] },
-  { titleKey: "settingsGroupRuntime", items: ["runtime", "models", "diagnostics"] },
+  { titleKey: "settingsGroupRuntime", items: ["runtime", "models"] },
   { titleKey: "settingsGroupAdvanced", items: ["advanced"] },
 ];
 

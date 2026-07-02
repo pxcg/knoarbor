@@ -215,16 +215,16 @@ def config_to_form(config: KnoArborConfig) -> UiConfigFormResponse:
         ],
         enabled_connectors=config.enabled_connectors(),
         codex_enabled=bool(codex.enabled) if codex else False,
-        codex_sessions_dir=str(codex_settings.get("sessions_dir") or ""),
+        codex_sessions_dir="",
         codex_raw_output_dir=str(codex_settings.get("raw_output_dir") or ""),
         hermes_enabled=bool(hermes.enabled) if hermes else False,
-        hermes_sessions_dir=str(hermes_settings.get("sessions_dir") or ""),
+        hermes_sessions_dir="",
         hermes_raw_output_dir=str(hermes_settings.get("raw_output_dir") or ""),
         openclaw_enabled=bool(openclaw.enabled) if openclaw else False,
-        openclaw_sessions_dir=str(openclaw_settings.get("sessions_dir") or ""),
+        openclaw_sessions_dir="",
         openclaw_raw_output_dir=str(openclaw_settings.get("raw_output_dir") or ""),
         claude_code_enabled=bool(claude_code.enabled) if claude_code else False,
-        claude_code_sessions_dir=str(claude_code_settings.get("sessions_dir") or ""),
+        claude_code_sessions_dir="",
         claude_code_raw_output_dir=str(claude_code_settings.get("raw_output_dir") or ""),
         generic_chat_enabled=bool(generic_chat.enabled) if generic_chat else False,
         generic_chat_roots=[str(item) for item in generic_chat_settings.get("roots", []) if item],
@@ -697,7 +697,7 @@ def _upsert_chat_connector(
         settings.setdefault("pattern", pattern)
     if recursive is not None:
         settings.setdefault("recursive", recursive)
-    next_sessions_dir = sessions_dir.strip() or (default_sessions_dir if enabled else "")
+    next_sessions_dir = sessions_dir.strip()
     if next_sessions_dir:
         settings["sessions_dir"] = _portable_config_path(next_sessions_dir, base_dir)
     elif "sessions_dir" in settings:

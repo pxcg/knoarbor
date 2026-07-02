@@ -21,10 +21,13 @@ from knoarbor.core.schemas.sources import (
 class OpenClawConnector:
     name = "openclaw"
     version = "openclaw@1"
+    default_sessions_dir = "~/.openclaw/agents/main/sessions"
 
     def discover(self, config: ConnectorConfig) -> list[SourceRef]:
         sessions_dir = config.settings.get("sessions_dir") or config.settings.get("root")
         explicit_files = _as_list(config.settings.get("session_files"))
+        if not sessions_dir and not explicit_files:
+            sessions_dir = self.default_sessions_dir
         pattern = str(config.settings.get("pattern") or "*.jsonl")
         recursive = bool(config.settings.get("recursive", False))
 

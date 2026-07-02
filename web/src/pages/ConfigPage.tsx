@@ -1,7 +1,6 @@
 import { useState } from "react";
 
 import type { AppContext } from "../appContext";
-import { ConfigDiagnosticsPanel } from "../components/config/ConfigDiagnosticsPanel";
 import {
   ConfigGeneralSection,
   SettingsDirectory,
@@ -26,7 +25,7 @@ type Props = {
 export function ConfigPage({ context, embedded = false }: Props) {
   const [activeSection, setActiveSection] = useState<ConfigSectionId>("basic");
   const controller = useConfigController(context);
-  const { diagnosticsQuery, form, formQuery, saving, setForm } = controller;
+  const { form, formQuery, saving, setForm } = controller;
 
   return (
     <section className={embedded ? "settings-embedded" : "view active"}>
@@ -45,7 +44,7 @@ export function ConfigPage({ context, embedded = false }: Props) {
                 canSave={Boolean(form)}
                 onSave={controller.saveStructured}
                 onReload={controller.reloadSettings}
-                reloading={formQuery.isFetching || diagnosticsQuery.isFetching}
+                reloading={formQuery.isFetching}
               />
               {activeSection === "basic" && <ConfigBasicSection form={form} setForm={setForm} t={context.t} />}
               {activeSection === "general" && <ConfigGeneralSection context={context} />}
@@ -63,7 +62,6 @@ export function ConfigPage({ context, embedded = false }: Props) {
                   onProbe={controller.startProbe}
                 />
               )}
-              {activeSection === "diagnostics" && <ConfigDiagnosticsPanel diagnostics={diagnosticsQuery.data} loading={diagnosticsQuery.isFetching} t={context.t} />}
               {activeSection === "advanced" && (
                 <div className="advanced-yaml-section" id="settings-advanced">
                   <textarea className="config-editor" spellCheck={false} value={context.configContent} onChange={(event) => context.setConfigContent(event.target.value)} />
