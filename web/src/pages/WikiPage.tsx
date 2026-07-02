@@ -121,12 +121,9 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
                 <WikiPageRow key={page.path} page={page} active={selectedPath === page.path} onClick={() => setSelectedPath(page.path)} />
               ))
             ) : wikiPages.length === 0 ? (
-              <article className="result-item wiki-empty-action">
+              <article className="result-item">
                 <strong>{context.t("wikiEmptyTitle")}</strong>
-                <p>{context.t("wikiEmptyCopy")}</p>
-                <button className="button primary" type="button" onClick={() => context.navigate("ingest")}>
-                  {context.t("importMaterials")}
-                </button>
+                <p>{context.t("noPages")}</p>
               </article>
             ) : (
               <article className="result-item">
@@ -157,9 +154,7 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
               <WikiStructuredPreview detail={selectedDetail} context={context} />
               <RelatedPagesSection title={context.t("relatedWikiPages")} pages={relatedPages} onOpen={context.openWikiPage} emptyText={context.t("none")} />
             </>
-          ) : (
-            !loading && <p className="panel-copy">{context.t("wikiNoSelection")}</p>
-          )}
+          ) : null}
         </aside>
       </div>
 

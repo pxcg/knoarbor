@@ -48,17 +48,21 @@ export function AppShell({
         sidebarSlot={sidebarSlot}
       />
       <main className="main">
-        <header className="topbar">
-          <div className="topbar-heading">
-            <p className="topbar-kicker">{viewTitles[language][activeView]}</p>
-            {activeView !== "chat" && <p className="topbar-subtitle">{viewSubtitles[language][activeView]}</p>}
-          </div>
-          <div className="topbar-actions">
-            <a className="button icon-button" href="https://github.com/pxcg/knoarbor" target="_blank" rel="noreferrer" aria-label="GitHub">
-              <LineIcon name="github" />
-            </a>
-          </div>
-        </header>
+        {activeView !== "chat" && (
+          <header className="topbar">
+            {activeView !== "chat" && (
+              <div className="topbar-heading">
+                <p className="topbar-kicker">{viewTitles[language][activeView]}</p>
+                <p className="topbar-subtitle">{viewSubtitles[language][activeView]}</p>
+              </div>
+            )}
+            <div className="topbar-actions">
+              <a className="button icon-button" href="https://github.com/pxcg/knoarbor" target="_blank" rel="noreferrer" aria-label="GitHub">
+                <LineIcon name="github" />
+              </a>
+            </div>
+          </header>
+        )}
         {secondaryItems.length > 1 && (
           <nav className="secondary-nav" aria-label={t("secondaryNavigation")}>
             {secondaryItems.map((item) => (

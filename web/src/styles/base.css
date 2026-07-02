@@ -726,7 +726,6 @@ h2 {
 .settings-modal-content {
   display: grid;
   grid-template-rows: minmax(0, 1fr);
-  height: 100%;
   min-height: 0;
   overflow: hidden;
   padding: 16px;
@@ -752,6 +751,7 @@ h2 {
 
 .settings-embedded,
 .settings-embedded-panel {
+  height: 100%;
   min-height: 0;
 }
 

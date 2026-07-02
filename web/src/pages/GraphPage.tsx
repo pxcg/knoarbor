@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { type GraphEdge, type GraphNode, type GraphResponse } from "../api/client";
 import { MetricCard } from "../components/MetricCard";
 import type { AppContext } from "../appContext";
-import { buildGraphElements, filterVisibleGraph, graphNodeTypeCounts, mapEdgesByNodeId, mapNodesById, nodeColors } from "./graph/GraphModel";
+import { buildGraphElements, filterVisibleGraph, mapEdgesByNodeId, mapNodesById, nodeColors } from "./graph/GraphModel";
 import { GraphNodeDetail } from "./graph/GraphNodeDetail";
 
 type Props = {
@@ -30,7 +30,6 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
   const visibleGraph = useMemo(() => filterVisibleGraph(activeGraph, nodeSearch), [activeGraph, nodeSearch]);
   const nodeById = useMemo(() => mapNodesById(activeGraph), [activeGraph]);
   const edgeByNodeId = useMemo(() => mapEdgesByNodeId(activeGraph), [activeGraph]);
-  const typeCounts = useMemo(() => graphNodeTypeCounts(activeGraph), [activeGraph]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -166,7 +165,7 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
   return (
     <section className={embedded ? "embedded-section" : "view active"}>
       <div className="graph-metrics">
-        <MetricCard label={t("wikiPages")} value={graphData.stats.page_count} hint={t("maintainedPages")} />
+        <MetricCard label={t("pages")} value={graphData.stats.page_count} hint={t("maintainedPages")} />
         <MetricCard label={t("graphEdges")} value={graphData.stats.edge_count} hint={t("resolvedWikilinks")} />
         <MetricCard label={t("orphans")} value={graphData.stats.orphan_count} hint={t("orphanHint")} />
         <MetricCard label={t("unresolvedLinks")} value={graphData.stats.unresolved_link_count} hint={t("unresolvedHint")} />
@@ -185,12 +184,6 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
                 <input value={nodeSearch} onChange={(event) => setNodeSearch(event.target.value)} placeholder={t("graphSearchPlaceholder")} />
               </label>
             </div>
-          </div>
-          <div className="graph-legend" aria-label={t("graphLegend")}>
-            <span>
-              <i style={{ background: nodeColors.wiki_page }} />
-              {t("wikiPages")} · {typeCounts.get("wiki_page") || 0}
-            </span>
           </div>
           <div className="graph-canvas" ref={containerRef}>
             {!visibleGraph.nodes.length && <div className="graph-empty">{t("noPagesToDisplay")}</div>}

@@ -48,17 +48,25 @@ export function RunSummaryBox({ context, events, run }: { context: AppContext; e
 }
 
 export function RunFlowPlaceholder({ context }: { context: AppContext }) {
-  const stages = flowStages("ingest");
+  const flows = [
+    { key: "ingest", title: context.t("importMaterials"), stages: flowStages("ingest") },
+    { key: "lint", title: context.t("lintTitle"), stages: flowStages("lint") },
+  ];
   return (
     <div className="run-flow-placeholder" aria-label={context.t("runStageTrack")}>
-      <div className="run-stage-steps">
-        {stages.map((stage) => (
-          <span className={`run-stage-step placeholder ${stage.kind === "agent" ? "agent" : ""}`} key={stage.key}>
-            <span />
-            <small>{context.t(stage.label)}</small>
-          </span>
-        ))}
-      </div>
+      {flows.map((flow) => (
+        <section className="run-placeholder-flow" key={flow.key}>
+          <h3>{flow.title}</h3>
+          <div className="run-stage-steps">
+            {flow.stages.map((stage) => (
+              <span className={`run-stage-step placeholder ${stage.kind === "agent" ? "agent" : ""}`} key={stage.key}>
+                <span />
+                <small>{context.t(stage.label)}</small>
+              </span>
+            ))}
+          </div>
+        </section>
+      ))}
       <div className="run-placeholder-note">{context.t("noRunYet")}</div>
     </div>
   );

@@ -418,9 +418,21 @@
   border: 1px dashed var(--border);
   border-radius: 8px;
   display: grid;
-  gap: 10px;
+  gap: 14px;
   margin-top: 8px;
   padding: 12px 14px;
+}
+
+.run-placeholder-flow {
+  display: grid;
+  gap: 8px;
+}
+
+.run-placeholder-flow h3 {
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 760;
+  margin: 0;
 }
 
 .run-stage-step.placeholder {
