@@ -130,16 +130,19 @@
 }
 
 .settings-section-rail {
+  height: 100%;
   min-height: 0;
   max-height: 100%;
   overflow: auto;
   padding-right: 8px;
   display: grid;
-  align-self: start;
+  align-self: stretch;
   align-content: start;
 }
 
 .settings-section-panel {
+  height: 100%;
+  min-height: 0;
   max-height: 100%;
   min-width: 0;
   overflow: auto;

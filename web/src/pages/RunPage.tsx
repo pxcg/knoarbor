@@ -76,12 +76,38 @@ export function RunPage({ context, embedded = false, mode = "both", showFlowGuid
                     onClick={() => {
                       launcher.setInputScope("folder");
                       void launcher.chooseInputFolder();
-                    }}
-                  >
+                  }}
+                >
                     {context.t("chooseInputFolder")}
                   </button>
                 )}
               </div>
+              {usesFileInput && (
+                <label className="field import-path-field">
+                  <span>{context.t("inputFilePath")}</span>
+                  <div className="run-path-row">
+                    <input value={launcher.inputFilePath} onChange={(event) => launcher.setInputFilePath(event.target.value)} placeholder={context.t("inputFilePathPlaceholder")} />
+                    {launcher.canSelectFile && (
+                      <button className="button secondary" type="button" onClick={() => void launcher.chooseInputFile()}>
+                        {context.t("chooseFile")}
+                      </button>
+                    )}
+                  </div>
+                </label>
+              )}
+              {usesFolderInput && (
+                <label className="field import-path-field">
+                  <span>{context.t("inputFolderPath")}</span>
+                  <div className="run-path-row">
+                    <input value={launcher.inputFolderPath} onChange={(event) => launcher.setInputFolderPath(event.target.value)} placeholder={context.t("inputFolderPathPlaceholder")} />
+                    {launcher.canSelectDirectory && (
+                      <button className="button secondary" type="button" onClick={() => void launcher.chooseInputFolder()}>
+                        {context.t("chooseFolder")}
+                      </button>
+                    )}
+                  </div>
+                </label>
+              )}
             </section>
 
             <section className={`import-source-card ${usesConfiguredSource ? "active" : ""}`}>
@@ -109,32 +135,6 @@ export function RunPage({ context, embedded = false, mode = "both", showFlowGuid
               </label>
             </section>
           </div>
-          {usesFileInput && (
-            <label className="field">
-              <span>{context.t("inputFilePath")}</span>
-              <div className="run-path-row">
-                <input value={launcher.inputFilePath} onChange={(event) => launcher.setInputFilePath(event.target.value)} placeholder={context.t("inputFilePathPlaceholder")} />
-                {launcher.canSelectFile && (
-                  <button className="button secondary" type="button" onClick={() => void launcher.chooseInputFile()}>
-                    {context.t("chooseFile")}
-                  </button>
-                )}
-              </div>
-            </label>
-          )}
-          {usesFolderInput && (
-            <label className="field">
-              <span>{context.t("inputFolderPath")}</span>
-              <div className="run-path-row">
-                <input value={launcher.inputFolderPath} onChange={(event) => launcher.setInputFolderPath(event.target.value)} placeholder={context.t("inputFolderPathPlaceholder")} />
-                {launcher.canSelectDirectory && (
-                  <button className="button secondary" type="button" onClick={() => void launcher.chooseInputFolder()}>
-                    {context.t("chooseFolder")}
-                  </button>
-                )}
-              </div>
-            </label>
-          )}
           {launcher.inputScope === "knoarbor_chat" && (
             <label className="field">
               <span>{context.t("selectChatSession")}</span>

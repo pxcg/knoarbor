@@ -5,7 +5,7 @@
 
 .import-source-cards {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -14,9 +14,9 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   display: grid;
-  gap: 16px;
-  min-height: 154px;
-  padding: 14px;
+  gap: 10px;
+  min-height: 128px;
+  padding: 12px;
 }
 
 .import-source-card.active {
@@ -27,17 +27,17 @@
 .import-source-card-heading {
   align-items: flex-start;
   display: flex;
-  gap: 11px;
+  gap: 10px;
   min-width: 0;
 }
 
 .import-source-card-heading strong {
   color: var(--text);
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .import-source-card-heading .panel-copy {
-  margin-top: 4px;
+  margin-top: 3px;
 }
 
 .import-source-icon {
@@ -48,14 +48,14 @@
   color: var(--accent-strong);
   display: inline-flex;
   flex: 0 0 auto;
-  height: 38px;
+  height: 34px;
   justify-content: center;
-  width: 38px;
+  width: 34px;
 }
 
 .import-source-icon svg {
-  height: 19px;
-  width: 19px;
+  height: 18px;
+  width: 18px;
 }
 
 .import-primary-actions {
@@ -64,6 +64,23 @@
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.import-primary-actions .button {
+  min-height: 34px;
+  padding: 7px 11px;
+}
+
+.import-path-field {
+  gap: 6px;
+}
+
+.import-path-field .run-path-row input {
+  min-height: 38px;
+}
+
+.import-path-field .run-path-row .button {
+  min-height: 38px;
 }
 
 .run-event-item {
