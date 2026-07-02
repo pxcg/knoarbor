@@ -180,7 +180,7 @@ connectors:
       sessions_dir: ~/.codex/sessions
       pattern: "rollout-*.jsonl"
       recursive: true
-      raw_output_dir: ./vaults/default/raw/normalized/chats
+      raw_output_dir: ./vaults/default/raw/inbox/chats
 ```
 
 启用 Hermes 需要本地存在 Hermes 会话目录：
@@ -191,7 +191,7 @@ connectors:
     enabled: true
     settings:
       sessions_dir: ~/.hermes/sessions
-      raw_output_dir: ./vaults/default/raw/normalized/chats
+      raw_output_dir: ./vaults/default/raw/inbox/chats
 ```
 
 启用 OpenClaw 需要本地存在 OpenClaw 会话目录。该 connector 只读取主会话 `.jsonl`，默认排除 `.trajectory.jsonl` 运行轨迹文件。
@@ -204,7 +204,7 @@ connectors:
       sessions_dir: ~/.openclaw/agents/main/sessions
       pattern: "*.jsonl"
       recursive: false
-      raw_output_dir: ./vaults/default/raw/normalized/chats
+      raw_output_dir: ./vaults/default/raw/inbox/chats
 ```
 
 启用 Claude Code 需要本地存在 Claude Code 项目会话目录：
@@ -217,7 +217,7 @@ connectors:
       sessions_dir: ~/.claude/projects
       pattern: "*.jsonl"
       recursive: true
-      raw_output_dir: ./vaults/default/raw/normalized/chats
+      raw_output_dir: ./vaults/default/raw/inbox/chats
 ```
 
 当没有专用 connector 时，可以使用 `generic_chat` 读取常见 `role`/`content` 结构的本地 JSONL 或 SQLite 聊天导出：
@@ -234,7 +234,7 @@ connectors:
         - "*.sqlite"
         - "*.db"
       recursive: true
-      raw_output_dir: ./vaults/default/raw/normalized/chats
+      raw_output_dir: ./vaults/default/raw/inbox/chats
 ```
 
 Markdown 是默认稳定入口。可以把笔记放入 `./vaults/default/raw/inbox/notes`，也可以添加自己的 Markdown 目录：
@@ -267,7 +267,7 @@ document_processing:
     enabled: true
     endpoint: http://127.0.0.1:18000/file_parse
     input_dir: ./vaults/default/raw/inbox/documents
-    output_dir: ./vaults/default/raw/normalized/markdown
+    output_dir: ./vaults/default/raw/derived/markdown
     mode: auto
     timeout_seconds: 600
     patterns:

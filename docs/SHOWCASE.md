@@ -10,47 +10,25 @@ Sources -> Ingest -> Maintained wiki -> Lint -> Query context -> Host AI
 
 ## Product Snapshot
 
-The local console provides a single place to inspect readiness, run workflows, browse reports, and explore page relationships.
+The desktop workspace is organized around three primary areas: Chat, Flows, and Knowledge.
 
-### Overview
+### Chat
 
-![KnoArbor console overview](assets/knoarbor-console-overview.png)
+![KnoArbor desktop chat](assets/knoarbor-desktop-chat.png)
 
-Check service readiness, vault health, page counts, and recommended next steps before starting a workflow.
+Ask the maintained wiki directly and keep local session history for later review or ingest.
 
-### Source Coverage
+### Flows
 
-![Sources page](assets/knoarbor-console-sources.png)
+![KnoArbor desktop flows](assets/knoarbor-desktop-flows.png)
 
-Inspect enabled source connectors and understand how raw inputs enter the shared ingest pipeline.
+Run and monitor ingest, lint, query, report, and token-analysis workflows.
 
-### Run Monitor
+### Knowledge Graph
 
-![Runs page](assets/knoarbor-console-runs.png)
+![KnoArbor desktop graph](assets/knoarbor-desktop-graph.png)
 
-Follow long-running ingest, lint, and query workflows with queue state, heartbeats, cancellation, and recent run records.
-
-### Knowledge Base Browser
-
-![Knowledge base page](assets/knoarbor-console-wiki.png)
-
-Browse generated wiki pages, inspect structured metadata, entity relations, source evidence, and open workflow artifacts without leaving the console.
-
-### Query Context
-
-![Query page](assets/knoarbor-console-query.png)
-
-Retrieve wiki pages, excerpts, source pointers, and a context pack for a host AI.
-
-### Reports And Graph
-
-![Reports page](assets/knoarbor-console-reports.png)
-
-Read human-friendly run reports.
-
-![Graph page](assets/knoarbor-console-graph.png)
-
-Inspect the generated knowledge network.
+Inspect page-level wiki relationships without switching to an entity-relationship view.
 
 ## What It Builds
 
@@ -98,7 +76,7 @@ Lint scans structure, links, source provenance, graph health, and quality candid
 
 ### 4. Query From Host AI Tools
 
-Query returns ranked pages, excerpts, related context, source pointers, trace data, and a context pack. KnoArbor does not generate the final chat answer; tools such as Codex, Hermes, OpenClaw, Claude Code, or a local CLI can decide how to use the returned evidence.
+Query returns ranked pages, excerpts, related context, source pointers, trace data, and a context pack for host AI tools. Wiki Chat can synthesize an evidence-backed answer inside KnoArbor when the user asks through the chat surface.
 
 ## Why This Is Different From Plain RAG
 
@@ -119,11 +97,9 @@ RAG can still be useful later as a retrieval backend. KnoArbor's first goal is t
 For a short demo, use the built-in Agent Loop example:
 
 ```bash
-uv run knoar init --vault ./vaults/default
-mkdir -p vaults/default/raw/inbox/notes
-cp examples/agent-loop.md vaults/default/raw/inbox/notes/agent-loop.md
+uv run knoar first-run --vault ./vaults/default
 uv run knoar ingest --connector markdown --write
-uv run knoar lint --mode structural
+uv run knoar lint --mode deterministic
 uv run knoar query "Agent Loop 是什么？"
 uv run knoar serve
 ```
@@ -150,7 +126,7 @@ KnoArbor currently focuses on local-first, single-user operation:
 - It does not provide hosted SaaS deployment.
 - It does not require a database.
 - It does not bundle MinerU or document parsing model weights.
-- It does not replace the final answer generation of host AI tools.
+- Query does not require answer generation; Chat uses configured model providers for evidence-backed answers.
 - It does not require vector search for small personal vaults.
 
 These constraints keep the first public version understandable, reproducible, and easy to run on a personal machine.

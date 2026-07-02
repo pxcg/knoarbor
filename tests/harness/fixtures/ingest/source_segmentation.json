@@ -201,7 +201,7 @@
         "warnings": []
       }
     ],
-    "source_file": "raw/normalized/chats/codex-golden-session.json",
+    "source_file": "raw/inbox/chats/codex-golden-session.json",
     "source_id": "codex:golden-session",
     "summary": {
       "enabled": true,

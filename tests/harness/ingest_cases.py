@@ -68,7 +68,7 @@ def codex_chat_source_document() -> SourceDocument:
     return SourceDocument(
         source_id="codex:golden-session",
         source_type="codex_chat",
-        origin=SourceOrigin(connector="codex", uri="file:///raw/normalized/chats/codex-golden-session.json", raw_path="raw/normalized/chats/codex-golden-session.json"),
+        origin=SourceOrigin(connector="codex", uri="file:///raw/inbox/chats/codex-golden-session.json", raw_path="raw/inbox/chats/codex-golden-session.json"),
         content=SourceContent(format="json", text=json.dumps(codex_chat_payload(), ensure_ascii=False, indent=2)),
         metadata={"title": "Codex Golden Session"},
         fingerprint=SourceFingerprint(content_hash="golden-codex-session", connector_version="codex@1"),

@@ -1,8 +1,8 @@
 # API Compatibility
 
-KnoArbor 1.x exposes a public local API for the CLI, web console, skills, and
-external tools. The 1.x line favors a compact and clear surface while the
-project continues toward the 2.0 long-term compatibility baseline.
+KnoArbor exposes a public local API for the CLI, desktop app, host-AI skills,
+and external tools. The API favors a compact and clear surface while the
+desktop-first product line continues to evolve.
 
 ## Public API Surface
 
@@ -18,8 +18,8 @@ response schema, and error envelope form one contract.
 | `GET` | `/models/providers` | List configured model providers. |
 | `GET` | `/models/image-providers` | List configured image-generation providers. |
 | `POST` | `/models/discover` | Discover models from a provider endpoint. |
-| `POST` | `/models/probe` | Probe model availability and capabilities. |
-| `POST` | `/models/apply-capabilities` | Persist detected model capabilities. |
+| `POST` | `/models/probe` | Check provider API connectivity without sending a chat completion request. |
+| `POST` | `/models/apply-capabilities` | Persist selected model limits. |
 | `POST` | `/chat` | Run one chat turn. |
 | `POST` | `/chat/stream` | Run one streaming chat turn. |
 | `GET` | `/chat/sessions` | List chat sessions. |

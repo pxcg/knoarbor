@@ -61,7 +61,7 @@ Multi-source pages use multiple rows in `## Evidence`:
 | Claim | Source | Range | Basis | Confidence |
 |---|---|---|---|---|
 | C1 | raw/inbox/notes/Agent.md | unit:0 | Agent Loop control cycle. | high |
-| C2 | raw/normalized/chats/session_20260505_173432_47d596.json | turn:4-6 | Production memory discussion. | medium |
+| C2 | raw/inbox/chats/session_20260505_173432_47d596.json | turn:4-6 | Production memory discussion. | medium |
 ```
 
 Retrieval, lint, and relation logic read `## Evidence` and source digest trace sections as the source of truth.

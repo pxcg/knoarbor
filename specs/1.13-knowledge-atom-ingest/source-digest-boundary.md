@@ -279,8 +279,8 @@ Attachment sidecars keep the audit details:
 - extracted image structure, table structure, or model output.
 
 For images parsed by MinerU VLM or hybrid backends, the raw image file is kept
-under `raw/assets/**`, while the VLM/OCR extraction is stored in
-`raw/sidecars/**`. The semantic ingest pipeline may read the attachment
+under `raw/derived/assets/**`, while the VLM/OCR extraction is stored in
+`raw/derived/metadata/**`. The semantic ingest pipeline may read the attachment
 metadata to understand the source. Image-backed claims are represented through
 normal evidence rows that point to the source digest, source range, and basis.
 

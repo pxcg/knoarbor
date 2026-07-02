@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from knoarbor.core.config import PrivacyConfig
+from knoarbor.core.errors import ModelOutputError
 from knoarbor.core.schemas.lint_candidates import MaintenanceCandidate, MaintenanceCandidates
 from knoarbor.core.schemas.lint_review import LintMaintenanceReview, LintMaintenanceReviewDecision
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
@@ -62,12 +63,14 @@ class LintExecutionRouter:
         approved = _supported_draft_write_decisions(candidates, review)
         if not approved:
             return None
+        approved_payload = [_approved_draft_payload(candidates, decision) for decision in approved]
         payload = {
-            "maintenance_candidates": candidates.model_dump(),
-            "maintenance_review": review.model_dump(),
-            "approved_operations": [decision.model_dump() for decision in approved],
+            "approved_candidates": approved_payload,
+            "approved_operations": [item["review_decision"] for item in approved_payload],
         }
-        return semantic_workflow.compile_drafts(payload, max_tokens=request.max_tokens)
+        draft_batch = semantic_workflow.compile_drafts(payload, max_tokens=request.max_tokens)
+        _validate_reviewed_draft_batch(draft_batch, candidates, approved)
+        return draft_batch
 
     def write_drafts(self, request: LintRunRequest, draft_batch: WikiDraftBatch) -> WikiDraftBatchWriteResponse:
         return self.write_pipeline.run(
@@ -185,6 +188,14 @@ _WIKI_OPERATION_ACTIONS = {
     "redact_sensitive_text",
 }
 
+_SUPPORTED_DRAFT_WRITE_ACTIONS = {
+    "rewrite_section",
+    "improve_summary",
+    "remove_chatty_content",
+    "strengthen_provenance",
+}
+
+
 def _approved_decisions(review: LintMaintenanceReview, executor_fit: str) -> list[LintMaintenanceReviewDecision]:
     return [
         decision
@@ -194,20 +205,47 @@ def _approved_decisions(review: LintMaintenanceReview, executor_fit: str) -> lis
 
 
 def _supported_draft_write_decisions(candidates: MaintenanceCandidates, review: LintMaintenanceReview) -> list[LintMaintenanceReviewDecision]:
-    supported_actions = {
-        "rewrite_section",
-        "improve_summary",
-        "remove_chatty_content",
-        "strengthen_provenance",
-    }
     decisions: list[LintMaintenanceReviewDecision] = []
     for decision in _approved_decisions(review, "supported_by_draft_write"):
         if decision.operation_index >= len(candidates.candidates):
             continue
         action = candidates.candidates[decision.operation_index].recommended_action.action
-        if action in supported_actions:
+        if action in _SUPPORTED_DRAFT_WRITE_ACTIONS:
             decisions.append(decision)
     return decisions
+
+
+def _approved_draft_payload(candidates: MaintenanceCandidates, decision: LintMaintenanceReviewDecision) -> dict[str, object]:
+    candidate = candidates.candidates[decision.operation_index]
+    return {
+        "operation_index": decision.operation_index,
+        "candidate": candidate.model_dump(),
+        "review_decision": decision.model_dump(),
+    }
+
+
+def _validate_reviewed_draft_batch(
+    draft_batch: WikiDraftBatch,
+    candidates: MaintenanceCandidates,
+    approved: list[LintMaintenanceReviewDecision],
+) -> None:
+    approved_indexes = {decision.operation_index for decision in approved}
+    for draft in draft_batch.drafts:
+        if draft.operation_index not in approved_indexes:
+            raise ModelOutputError(f"Lint draft compile returned unapproved operation_index {draft.operation_index}.")
+        candidate = candidates.candidates[draft.operation_index]
+        if candidate.executor_hint != "draft_write":
+            raise ModelOutputError(f"Lint draft compile returned draft for non-draft candidate {candidate.candidate_id}.")
+        if candidate.recommended_action.action not in _SUPPORTED_DRAFT_WRITE_ACTIONS:
+            raise ModelOutputError(f"Lint draft compile returned unsupported action {candidate.recommended_action.action}.")
+        if draft.write_action not in {"update", "merge"}:
+            raise ModelOutputError("Lint draft compile can only update or merge existing wiki pages.")
+        if draft.target_page != candidate.target_page:
+            raise ModelOutputError(
+                f"Lint draft target {draft.target_page or '<none>'} does not match approved candidate {candidate.target_page}."
+            )
+        if not draft.patches:
+            raise ModelOutputError("Lint draft compile must return local patches for approved lint draft writes.")
 
 
 def _candidate_to_wiki_operation(

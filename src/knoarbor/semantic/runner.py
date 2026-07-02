@@ -279,7 +279,7 @@ def semantic_payload_char_breakdown(payload: dict[str, Any]) -> dict[str, int]:
     breakdown: dict[str, int] = {}
     for key, value in payload.items():
         try:
-            rendered = json.dumps(value, ensure_ascii=False, sort_keys=True)
+            rendered = _compact_json(value)
         except TypeError:
             rendered = str(value)
         breakdown[str(key)] = len(rendered)
@@ -318,8 +318,12 @@ def _build_user_content(payload: dict[str, Any], user_instruction: str | None) -
     lines = []
     if user_instruction:
         lines.extend([user_instruction.strip(), ""])
-    lines.extend(["Input JSON:", json.dumps(payload, ensure_ascii=False, indent=2)])
+    lines.extend(["Input JSON:", _compact_json(payload)])
     return "\n".join(lines)
+
+
+def _compact_json(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
 def build_semantic_prompt_package(

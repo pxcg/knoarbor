@@ -9,7 +9,7 @@ const loadChatPage = () => import("./pages/ChatPage").then((module) => ({ defaul
 const loadOverviewPage = () => import("./pages/OverviewPage").then((module) => ({ default: module.OverviewPage }));
 const loadRunsPage = () => import("./pages/RunsPage").then((module) => ({ default: module.RunsPage }));
 const loadSourcesPage = () => import("./pages/SourcesPage").then((module) => ({ default: module.SourcesPage }));
-const loadIngestPage = () => import("./pages/IngestPage").then((module) => ({ default: module.IngestPage }));
+const loadIngestPage = () => import("./pages/ImportPage").then((module) => ({ default: module.ImportPage }));
 const loadLintPage = () => import("./pages/LintPage").then((module) => ({ default: module.LintPage }));
 const loadQueryPage = () => import("./pages/QueryPage").then((module) => ({ default: module.QueryPage }));
 const loadWikiPage = () => import("./pages/WikiPage").then((module) => ({ default: module.WikiPage }));
@@ -17,7 +17,6 @@ const loadGraphPage = () => import("./pages/GraphPage").then((module) => ({ defa
 const loadReportsPage = () => import("./pages/ReportsPage").then((module) => ({ default: module.ReportsPage }));
 const loadTokensPage = () => import("./pages/TokensPage").then((module) => ({ default: module.TokensPage }));
 const loadConfigPage = () => import("./pages/ConfigPage").then((module) => ({ default: module.ConfigPage }));
-const loadDocsPage = () => import("./pages/DocsPage").then((module) => ({ default: module.DocsPage }));
 
 const routePreloaders = {
   chat: loadChatPage,
@@ -32,7 +31,6 @@ const routePreloaders = {
   reports: loadReportsPage,
   tokens: loadTokensPage,
   settings: loadConfigPage,
-  docs: loadDocsPage,
 } satisfies Record<ViewName, () => Promise<unknown>>;
 
 const preloadedRoutes = new Set<ViewName>();
@@ -57,7 +55,6 @@ const GraphPage = lazy(loadGraphPage);
 const ReportsPage = lazy(loadReportsPage);
 const TokensPage = lazy(loadTokensPage);
 const ConfigPage = lazy(loadConfigPage);
-const DocsPage = lazy(loadDocsPage);
 
 export function AppRoutes({ activeView, context, onNavigate }: { activeView: ViewName; context: AppContext; onNavigate: (view: ViewName) => void }) {
   const t = context.t;
@@ -81,7 +78,6 @@ export function AppRoutes({ activeView, context, onNavigate }: { activeView: Vie
         {activeView === "reports" && <ReportsPage context={context} focusedReportPath={context.focusedReportPath} />}
         {activeView === "tokens" && <TokensPage context={context} />}
         {activeView === "settings" && <ConfigPage context={context} />}
-        {activeView === "docs" && <DocsPage context={context} />}
       </Suspense>
     </RouteErrorBoundary>
   );

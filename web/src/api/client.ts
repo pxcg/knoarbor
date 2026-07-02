@@ -29,7 +29,6 @@ import type {
   UiStatusResponse,
   GraphNode,
   GraphEdge,
-  GraphView,
   GraphResponse,
   QueryResult,
   QueryGapSuggestion,
@@ -57,8 +56,7 @@ import type {
   TokenMetricGroup,
   TokenPayloadFieldGroup,
   TokenCallRecord,
-  TokenAnalysis,
-  ProjectDoc
+  TokenAnalysis
 } from "./types";
 
 export type {
@@ -91,7 +89,6 @@ export type {
   UiStatusResponse,
   GraphNode,
   GraphEdge,
-  GraphView,
   GraphResponse,
   QueryResult,
   QueryGapSuggestion,
@@ -119,8 +116,7 @@ export type {
   TokenMetricGroup,
   TokenPayloadFieldGroup,
   TokenCallRecord,
-  TokenAnalysis,
-  ProjectDoc
+  TokenAnalysis
 } from "./types";
 
 export async function getHealth(): Promise<HealthResponse> {
@@ -206,10 +202,10 @@ export async function discoverModelProvider(configPath: string | null, provider:
   });
 }
 
-export async function probeModelProvider(configPath: string | null, provider: string, level: "minimal" | "structured"): Promise<ModelProbeResponse> {
+export async function probeModelProvider(configPath: string | null, provider: string): Promise<ModelProbeResponse> {
   return requestJson("/models/probe", {
     method: "POST",
-    body: { config_path: configPath, provider, level },
+    body: { config_path: configPath, provider },
   });
 }
 
@@ -234,7 +230,7 @@ export async function getStatus(vaultPath: string): Promise<UiStatusResponse> {
   return requestJson(`/ui/api/status?vault_path=${encodeURIComponent(vaultPath)}`);
 }
 
-export async function getGraph(vaultPath: string, view: GraphView = "entity"): Promise<GraphResponse> {
+export async function getGraph(vaultPath: string, view: "page" = "page"): Promise<GraphResponse> {
   return requestJson(`/ui/api/graph?vault_path=${encodeURIComponent(vaultPath)}&view=${encodeURIComponent(view)}`);
 }
 
@@ -319,11 +315,6 @@ export async function getReport(selector: VaultSelector, path: string): Promise<
 
 export async function getTokenAnalysis(vaultPath: string, limit = 5000): Promise<TokenAnalysis> {
   return requestJson(`/ui/api/tokens?vault_path=${encodeURIComponent(vaultPath)}&limit=${limit}`);
-}
-
-export async function getProjectDoc(path: string): Promise<ProjectDoc> {
-  const safePath = path.split("/").map(encodeURIComponent).join("/");
-  return requestJson(`/ui/api/docs/${safePath}`);
 }
 
 export async function runIngest(body: Record<string, unknown>): Promise<unknown> {

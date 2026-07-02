@@ -20,7 +20,7 @@ const processorCards = [
 
 export function SourcesPage({ context }: Props) {
   const diagnosticsQuery = useQuery({
-    queryKey: ["config-diagnostics", context.configPath],
+    queryKey: queryKeys.configDiagnostics(context.configPath),
     queryFn: () => getConfigDiagnostics(context.configPath),
   });
   const catalogQuery = useQuery({
@@ -29,7 +29,7 @@ export function SourcesPage({ context }: Props) {
     staleTime: 60_000,
   });
   const chatSessionsQuery = useQuery({
-    queryKey: ["source-knoarbor-chat-sessions", context.activeVaultId],
+    queryKey: queryKeys.sourceChatSessions(context.activeVaultId),
     queryFn: () => listChatSessions(context.activeVaultSelector, 50),
     staleTime: 30_000,
   });

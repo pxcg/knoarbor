@@ -9,7 +9,7 @@ import yaml
 from fastapi.testclient import TestClient
 
 from knoarbor.entrypoints.api import create_app
-from knoarbor.semantic.llm import ChatCompletionResponse, ProviderModelDiscovery
+from knoarbor.semantic.llm import ProviderModelDiscovery
 
 
 def _write_config(path: Path, *, api_key_env: str | None = None, model: str = "qwen-local") -> None:
@@ -113,14 +113,11 @@ class ModelProbeApiTests(unittest.TestCase):
         self.assertEqual(payload["model"], "")
         self.assertEqual(payload["model_ids"], ["qwen3:14b", "qwen3.6:27b-q4_K_M"])
 
-    def test_probe_endpoint_validates_structured_output(self) -> None:
-        discovery = ProviderModelDiscovery(available=True, message="ok", details={"detected_context_window": 32768})
-        completion = ChatCompletionResponse(
-            content='{"ok": true, "value": 1}',
-            provider="local",
-            model="qwen-local",
-            usage={"prompt_tokens": 12, "completion_tokens": 5, "total_tokens": 17},
-            elapsed_seconds=0.25,
+    def test_probe_endpoint_checks_api_connectivity_without_chat_completion(self) -> None:
+        discovery = ProviderModelDiscovery(
+            available=True,
+            message="ok",
+            details={"detected_context_window": 32768, "elapsed_seconds": 0.25, "configured_model_found": True},
         )
         with tempfile.TemporaryDirectory() as tmp_dir:
             config = Path(tmp_dir) / "config.yaml"
@@ -129,96 +126,66 @@ class ModelProbeApiTests(unittest.TestCase):
 
             with (
                 patch("knoarbor.services.model_probe.ModelGateway.discover_models", return_value=discovery),
-                patch("knoarbor.services.model_probe.ModelGateway.complete", return_value=completion),
+                patch("knoarbor.services.model_probe.ModelGateway.complete") as complete,
             ):
                 response = client.post(
                     "/models/probe",
-                    json={"config_path": str(config), "provider": "local", "level": "structured"},
+                    json={"config_path": str(config), "provider": "local"},
                 )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["schema_version"], "model_probe.v1")
-        self.assertEqual(payload["status"], "ok")
-        self.assertTrue(payload["output_valid"])
-        self.assertTrue(payload["structured_output"])
-        self.assertEqual(payload["usage"]["total_tokens"], 17)
-
-    def test_probe_endpoint_validates_minimal_output(self) -> None:
-        discovery = ProviderModelDiscovery(available=True, message="ok", details={})
-        completion = ChatCompletionResponse(content="OK", provider="local", model="qwen-local", elapsed_seconds=0.1)
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            config = Path(tmp_dir) / "config.yaml"
-            _write_config(config)
-            client = TestClient(create_app())
-
-            with (
-                patch("knoarbor.services.model_probe.ModelGateway.discover_models", return_value=discovery),
-                patch("knoarbor.services.model_probe.ModelGateway.complete", return_value=completion),
-            ):
-                response = client.post(
-                    "/models/probe",
-                    json={"config_path": str(config), "provider": "local", "level": "minimal"},
-                )
-
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
+        self.assertEqual(payload["level"], "connectivity")
         self.assertEqual(payload["status"], "ok")
         self.assertTrue(payload["output_valid"])
         self.assertIsNone(payload["structured_output"])
+        self.assertEqual(payload["latency_ms"], 250)
+        self.assertIn("No chat completion request was sent.", payload["message"])
+        complete.assert_not_called()
 
-    def test_probe_requests_leave_budget_for_reasoning_models(self) -> None:
-        captured = []
-        discovery = ProviderModelDiscovery(available=True, message="ok", details={})
-
-        def complete(request):
-            captured.append(request)
-            return ChatCompletionResponse(
-                content='{"ok": true, "value": 1}' if len(captured) == 2 else "OK",
-                provider="local",
-                model="qwen-local",
-                elapsed_seconds=0.1,
-            )
-
+    def test_probe_endpoint_warns_when_configured_model_is_missing(self) -> None:
+        discovery = ProviderModelDiscovery(
+            available=True,
+            message="ok",
+            details={"model_ids": ["other-model"], "model_count": 1, "configured_model_found": False},
+        )
         with tempfile.TemporaryDirectory() as tmp_dir:
             config = Path(tmp_dir) / "config.yaml"
             _write_config(config)
             client = TestClient(create_app())
 
-            with (
-                patch("knoarbor.services.model_probe.ModelGateway.discover_models", return_value=discovery),
-                patch("knoarbor.services.model_probe.ModelGateway.complete", side_effect=complete),
-            ):
-                minimal = client.post("/models/probe", json={"config_path": str(config), "provider": "local", "level": "minimal"})
-                structured = client.post("/models/probe", json={"config_path": str(config), "provider": "local", "level": "structured"})
-
-        self.assertEqual(minimal.status_code, 200)
-        self.assertEqual(structured.status_code, 200)
-        self.assertGreaterEqual(captured[0].max_tokens or 0, 64)
-        self.assertGreaterEqual(captured[1].max_tokens or 0, 128)
-
-    def test_probe_endpoint_reports_contract_warning_without_throwing(self) -> None:
-        discovery = ProviderModelDiscovery(available=True, message="ok", details={})
-        completion = ChatCompletionResponse(content="not json", provider="local", model="qwen-local", elapsed_seconds=0.1)
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            config = Path(tmp_dir) / "config.yaml"
-            _write_config(config)
-            client = TestClient(create_app())
-
-            with (
-                patch("knoarbor.services.model_probe.ModelGateway.discover_models", return_value=discovery),
-                patch("knoarbor.services.model_probe.ModelGateway.complete", return_value=completion),
-            ):
+            with patch("knoarbor.services.model_probe.ModelGateway.discover_models", return_value=discovery):
                 response = client.post(
                     "/models/probe",
-                    json={"config_path": str(config), "provider": "local", "level": "structured"},
+                    json={"config_path": str(config), "provider": "local"},
                 )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["status"], "warning")
+        self.assertTrue(payload["available"])
+        self.assertIn("Configured model was not found", payload["message"])
+
+    def test_probe_endpoint_reports_api_connectivity_failure(self) -> None:
+        discovery = ProviderModelDiscovery(available=False, message="Provider endpoint request failed: refused", details={})
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config = Path(tmp_dir) / "config.yaml"
+            _write_config(config)
+            client = TestClient(create_app())
+
+            with patch("knoarbor.services.model_probe.ModelGateway.discover_models", return_value=discovery):
+                response = client.post(
+                    "/models/probe",
+                    json={"config_path": str(config), "provider": "local"},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["status"], "error")
+        self.assertFalse(payload["available"])
         self.assertFalse(payload["output_valid"])
-        self.assertFalse(payload["structured_output"])
+        self.assertIn("No chat completion request was sent.", payload["message"])
 
     def test_apply_capabilities_explicitly_writes_selected_provider_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

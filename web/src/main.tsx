@@ -3,9 +3,10 @@ import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { App } from "./App";
+import { isDesktopApp } from "./desktop/desktopBridge";
 import "./styles/app.css";
 
-if (window.knoarborDesktop) {
+if (isDesktopApp()) {
   document.documentElement.classList.add("desktop-shell");
 }
 

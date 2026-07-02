@@ -99,6 +99,7 @@ class ProvenanceRefreshExecutor:
             page_dir="sources",
             question=f"Source digest for {source}",
             summary=f"Source digest for `{source}` created during lint provenance refresh.",
+            claims=[f"{target_page}: provenance association refreshed from {source}" for target_page in target_pages],
             synthesis=(
                 "This page records provenance for a raw source used by generated wiki pages. "
                 "It is intentionally source-focused and does not add claims beyond the raw source path "
@@ -218,12 +219,12 @@ def _source_aliases(source: str) -> list[str]:
     if stem:
         aliases.append(stem)
         aliases.append(f"raw/inbox/notes/{stem}.md")
-        aliases.append(f"raw/normalized/markdown/{stem}.md")
-        aliases.append(f"raw/normalized/chats/{stem}.json")
-        aliases.append(f"raw/normalized/chats/{stem}.jsonl")
+        aliases.append(f"raw/derived/markdown/{stem}.md")
+        aliases.append(f"raw/inbox/chats/{stem}.json")
+        aliases.append(f"raw/inbox/chats/{stem}.jsonl")
     if suffix and stem:
         aliases.append(f"raw/inbox/notes/{stem}{suffix}")
-        aliases.append(f"raw/normalized/chats/{stem}{suffix}")
+        aliases.append(f"raw/inbox/chats/{stem}{suffix}")
 
     normalized: list[str] = []
     seen: set[str] = set()

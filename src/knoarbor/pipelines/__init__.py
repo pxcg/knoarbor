@@ -16,6 +16,7 @@ from knoarbor.pipelines.ingest_review_policy import IngestDraftReviewPolicy, Ing
 from knoarbor.pipelines.ingest_write_gate import IngestWriteGate, IngestWriteGateResult
 from knoarbor.pipelines.ingest_write_policy import IngestWritePolicy, IngestWritePolicyResult
 from knoarbor.pipelines.lint import WikiLintPipeline
+from knoarbor.pipelines.lint_observer import LintObserver
 from knoarbor.pipelines.operation import WikiOperationPipeline
 from knoarbor.pipelines.query import QueryPipeline, QueryPipelineRequest, QueryPipelineResult
 from knoarbor.pipelines.write import WikiWritePipeline
@@ -47,6 +48,7 @@ __all__ = [
     "SourceUnitizer",
     "attach_source_unitization",
     "WikiLintPipeline",
+    "LintObserver",
     "WikiOperationPipeline",
     "WikiWritePipeline",
 ]

@@ -32,7 +32,6 @@ htmlcov/
 eval_results/
 tmp/
 output/
-notebooks/tmp.md
 dist/
 build/
 *.egg-info/
@@ -53,7 +52,6 @@ desktop/resources/service/
 desktop/*.tsbuildinfo
 .playwright-cli/
 knoarbor_logo_asset_kit/
-n8n/
 
 # Internal maintainer planning docs are kept locally, not in public releases.
 docs/maintainer/

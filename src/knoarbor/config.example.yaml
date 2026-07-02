@@ -115,7 +115,7 @@ document_processing:
     #   .venv/bin/mineru-api --host 127.0.0.1 --port 18000
     endpoint: http://127.0.0.1:18000/file_parse
     input_dir: ./vaults/default/raw/inbox/documents
-    output_dir: ./vaults/default/raw/normalized/markdown
+    output_dir: ./vaults/default/raw/derived/markdown
     recursive: true
     patterns:
       - "*.pdf"
@@ -150,26 +150,26 @@ connectors:
       sessions_dir: ~/.codex/sessions
       pattern: "rollout-*.jsonl"
       recursive: true
-      raw_output_dir: ./vaults/default/raw/normalized/chats
+      raw_output_dir: ./vaults/default/raw/inbox/chats
   hermes:
     enabled: false
     settings:
       sessions_dir: ~/.hermes/sessions
-      raw_output_dir: ./vaults/default/raw/normalized/chats
+      raw_output_dir: ./vaults/default/raw/inbox/chats
   openclaw:
     enabled: false
     settings:
       sessions_dir: ~/.openclaw/agents/main/sessions
       pattern: "*.jsonl"
       recursive: false
-      raw_output_dir: ./vaults/default/raw/normalized/chats
+      raw_output_dir: ./vaults/default/raw/inbox/chats
   claude_code:
     enabled: false
     settings:
       sessions_dir: ~/.claude/projects
       pattern: "*.jsonl"
       recursive: true
-      raw_output_dir: ./vaults/default/raw/normalized/chats
+      raw_output_dir: ./vaults/default/raw/inbox/chats
   generic_chat:
     enabled: false
     settings:
@@ -181,13 +181,13 @@ connectors:
         - "*.sqlite"
         - "*.db"
       recursive: true
-      raw_output_dir: ./vaults/default/raw/normalized/chats
+      raw_output_dir: ./vaults/default/raw/inbox/chats
   markdown:
     enabled: true
     settings:
       roots:
         - ./vaults/default/raw/inbox/notes
-        - ./vaults/default/raw/normalized/markdown
+        - ./vaults/default/raw/derived/markdown
       recursive: true
       raw_output_dir: ./vaults/default/raw/inbox/notes
       preserve_relative_paths: true

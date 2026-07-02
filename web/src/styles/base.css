@@ -732,21 +732,18 @@ h2 {
 }
 
 .settings-modal-content::-webkit-scrollbar,
-.docs-directory::-webkit-scrollbar,
-.docs-preview-panel::-webkit-scrollbar {
+.settings-section-rail::-webkit-scrollbar {
   width: 8px;
 }
 
 .settings-modal-content::-webkit-scrollbar-thumb,
-.docs-directory::-webkit-scrollbar-thumb,
-.docs-preview-panel::-webkit-scrollbar-thumb {
+.settings-section-rail::-webkit-scrollbar-thumb {
   background: rgba(71, 86, 79, 0.22);
   border-radius: 999px;
 }
 
 .settings-modal-content::-webkit-scrollbar-track,
-.docs-directory::-webkit-scrollbar-track,
-.docs-preview-panel::-webkit-scrollbar-track {
+.settings-section-rail::-webkit-scrollbar-track {
   background: transparent;
 }
 

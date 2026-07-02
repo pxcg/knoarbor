@@ -120,6 +120,14 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
               filteredPages.map((page) => (
                 <WikiPageRow key={page.path} page={page} active={selectedPath === page.path} onClick={() => setSelectedPath(page.path)} />
               ))
+            ) : wikiPages.length === 0 ? (
+              <article className="result-item wiki-empty-action">
+                <strong>{context.t("wikiEmptyTitle")}</strong>
+                <p>{context.t("wikiEmptyCopy")}</p>
+                <button className="button primary" type="button" onClick={() => context.navigate("ingest")}>
+                  {context.t("importMaterials")}
+                </button>
+              </article>
             ) : (
               <article className="result-item">
                 <p>{context.t("noPages")}</p>

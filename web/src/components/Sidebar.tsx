@@ -3,10 +3,10 @@ import { LineIcon } from "./LineIcon";
 import type { Language, ViewName } from "../types";
 import type { ReactNode } from "react";
 
-export type PrimaryNavId = "chat" | "flows" | "knowledge" | "docs";
+export type PrimaryNavId = "chat" | "flows" | "knowledge";
 
 type PrimaryNavItem = {
-  id: "flows" | "knowledge" | "docs";
+  id: "flows" | "knowledge";
   icon: ViewName;
   labelKey: string;
   subtitleKey: string;
@@ -30,14 +30,6 @@ const primaryNavItems: PrimaryNavItem[] = [
     subtitleKey: "navCollectionKnowledgeCopy",
     target: "wiki",
     items: ["wiki", "graph"],
-  },
-  {
-    id: "docs",
-    icon: "docs",
-    labelKey: "navCollectionDocs",
-    subtitleKey: "navCollectionDocsCopy",
-    target: "docs",
-    items: ["docs"],
   },
 ];
 
@@ -135,6 +127,5 @@ export function Sidebar({ activeView, collapsed, serviceOnline, language, t, onC
 function primaryNavForView(view: ViewName): PrimaryNavId {
   if (view === "chat") return "chat";
   if (view === "wiki" || view === "graph") return "knowledge";
-  if (view === "docs") return "docs";
   return "flows";
 }

@@ -369,7 +369,7 @@ connectors:
             self.assertTrue((root / "config.yaml").exists())
             self.assertTrue((vault / ".knoarbor" / "index" / "manifest.json").exists())
             self.assertTrue((vault / ".knoarbor" / "index" / "graph_index.json").exists())
-            self.assertTrue((vault / "raw" / "notes" / "agent-loop.md").exists())
+            self.assertTrue((vault / "raw" / "inbox" / "notes" / "agent-loop.md").exists())
             self.assertIn("Next steps:", output.getvalue())
             self.assertIn("example:", output.getvalue())
 
@@ -383,7 +383,7 @@ connectors:
                 exit_code = main(["first-run", "--vault", str(vault), "--no-example"])
 
             self.assertIn(exit_code, {0, 1})
-            self.assertFalse((vault / "raw" / "notes" / "agent-loop.md").exists())
+            self.assertFalse((vault / "raw" / "inbox" / "notes" / "agent-loop.md").exists())
             self.assertNotIn("example:", output.getvalue())
             self.assertNotIn("bundled example", output.getvalue())
             self.assertIn("Put Markdown notes", output.getvalue())
@@ -506,7 +506,7 @@ connectors:
         self.assertEqual(run_cancel_args.runs_command, "cancel")
         self.assertEqual(run_cancel_args.run_id, "run-1")
         self.assertEqual(lint_primary_args.command, "lint")
-        self.assertEqual(lint_primary_args.mode, "structural")
+        self.assertEqual(lint_primary_args.mode, "deterministic")
         self.assertEqual(lint_args.command, "lint-plan")
         self.assertEqual(pages_list_args.pages_command, "list")
         self.assertEqual(pages_read_args.pages_command, "read")
@@ -588,7 +588,7 @@ connectors:
                 exit_code = main(["--config", str(config), "lint", "--no-follow"])
 
         self.assertEqual(exit_code, 0)
-        self.assertIn("mode: semantic_structural", output.getvalue())
+        self.assertIn("mode: deterministic", output.getvalue())
         self.assertIn("recommended_mode:", output.getvalue())
 
     def test_lint_run_follow_without_model_uses_structural_scan(self) -> None:

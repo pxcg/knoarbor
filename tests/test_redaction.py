@@ -89,7 +89,7 @@ class RedactionTests(unittest.TestCase):
                 "Fix: set max_tokens=1024 timeout=120s",
                 "Prefill effective tokens = prompt length; Decode effective tokens = 1 per request.",
                 "FEISHU_APP_SECRET=your_secret",
-                "docker path /home/node/.n8n",
+                "cache path /home/app/.cache/tool",
             ]
         )
 
@@ -98,7 +98,7 @@ class RedactionTests(unittest.TestCase):
         self.assertIn("content_hash: 5537701672cc", result.text)
         self.assertIn("max_tokens=1024", result.text)
         self.assertIn("effective tokens = prompt length", result.text)
-        self.assertIn("/home/node/.n8n", result.text)
+        self.assertIn("/home/app/.cache/tool", result.text)
         self.assertIn("FEISHU_APP_SECRET=[REDACTED_SECRET]", result.text)
         self.assertEqual(result.counts, {"env_secrets": 1})
         self.assertEqual(detect_sensitive_text(result.text, PrivacyConfig()), {})

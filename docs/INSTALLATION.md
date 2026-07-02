@@ -1,8 +1,9 @@
 # Installation
 
-KnoArbor is a local-first Python service with a bundled management UI. A first
-installation usually means cloning the repository, creating local config files,
-starting the FastAPI service, and opening the UI in a browser.
+KnoArbor is a local-first Python service with a bundled management UI and a
+desktop shell. Public release builds are the easiest path for desktop users;
+source installation remains the reference path for contributors and for users
+who want to run the local service directly.
 
 ## Requirements
 
@@ -76,7 +77,7 @@ Run the bundled Markdown example:
 
 ```bash
 uv run knoar ingest --connector markdown --write
-uv run knoar lint --mode structural
+uv run knoar lint --mode deterministic
 uv run knoar query "Agent Loop 是什么？"
 ```
 

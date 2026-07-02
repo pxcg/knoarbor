@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.entrypoints.api import create_app
 from knoarbor.storage.wiki_init import init_wiki_vault
-from knoarbor.storage.vault_layout import raw_asset_images_root
+from knoarbor.storage.vault_layout import raw_derived_asset_images_root
 from knoarbor.storage.wiki_paths import content_root, source_digest_root
 
 
@@ -35,11 +35,11 @@ class UiApiTests(unittest.TestCase):
             asset = client.get(f"/ui/{root_asset}")
             self.assertEqual(asset.status_code, 200)
 
-    def test_vault_assets_read_raw_asset_files(self) -> None:
+    def test_vault_assets_read_raw_derived_asset_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault_path = Path(tmp_dir) / "vault"
             init_wiki_vault(vault_path)
-            asset_dir = raw_asset_images_root(vault_path)
+            asset_dir = raw_derived_asset_images_root(vault_path)
             asset_dir.mkdir(parents=True, exist_ok=True)
             asset_path = asset_dir / "figure.png"
             asset_path.write_bytes(b"fake-png")
@@ -319,9 +319,9 @@ models:
             saved = config_path.read_text(encoding="utf-8")
             self.assertIn("path: ./vaults/all", saved)
             self.assertIn("- ./vaults/all/raw/inbox/notes", saved)
-            self.assertIn("raw_output_dir: ./vaults/all/raw/normalized/chats", saved)
+            self.assertIn("raw_output_dir: ./vaults/all/raw/inbox/chats", saved)
             self.assertIn("input_dir: ./vaults/all/raw/inbox/documents", saved)
-            self.assertIn("output_dir: ./vaults/all/raw/normalized/markdown", saved)
+            self.assertIn("output_dir: ./vaults/all/raw/derived/markdown", saved)
             self.assertIn(f"sessions_dir: {external_sessions.as_posix()}", saved)
 
     def test_ui_config_form_round_trips_mineru_advanced_options(self) -> None:
@@ -649,40 +649,31 @@ connectors: {{}}
             self.assertEqual(payload["edges"][0]["source"], "sources/Source.md")
             self.assertEqual(payload["edges"][0]["target"], "Agent-Loop.md")
 
-    def test_ui_graph_defaults_to_entity_relation_graph(self) -> None:
+    def test_ui_graph_defaults_to_page_graph(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault_path = Path(tmp_dir) / "vaults" / "default"
             init_wiki_vault(vault_path)
-            concept_path = content_root(vault_path) / "Agent-Loop.md"
-            concept_path.write_text(
-                "# Agent Loop\n\n---\nrole: knowledge_page\n---\n\n"
-                "## Summary\n\nAgent Loop coordinates tool-using agent execution.\n\n"
-                "## Claims\n\n"
-                "- C1: Agent Loop coordinates [[Tool Call]] and [[Memory]] during execution.\n\n"
-                "## Relations\n\n"
-                "| Subject | Predicate | Object | Claim |\n"
-                "| --- | --- | --- | --- |\n"
-                "| [[Agent Loop]] | coordinates | [[Tool Call]] | C1 |\n"
-                "| [[Agent Loop]] | updates | [[Memory]] | C1 |\n\n"
-                "## Entities\n\n"
-                "- Agent Loop\n"
-                "- Tool Call\n"
-                "- Memory\n",
+            (content_root(vault_path) / "Agent-Loop.md").write_text(
+                "---\nrole: knowledge_page\n---\n# Agent Loop\n\n## Summary\n\nAgent Loop coordinates tool-using agent execution.\n\n[[Tool-Call]]\n",
+                encoding="utf-8",
+            )
+            (content_root(vault_path) / "Tool-Call.md").write_text(
+                "---\nrole: knowledge_page\n---\n# Tool Call\n\n## Summary\n\nA tool call page.\n",
                 encoding="utf-8",
             )
             client = TestClient(create_app())
 
-            response = client.get("/ui/api/graph", params={"vault_path": str(vault_path)})
+            default_response = client.get("/ui/api/graph", params={"vault_path": str(vault_path)})
+            explicit_response = client.get("/ui/api/graph", params={"vault_path": str(vault_path), "view": "page"})
 
-            self.assertEqual(response.status_code, 200)
-            payload = response.json()
-            self.assertEqual(payload["graph_kind"], "entity")
-            self.assertEqual(payload["stats"]["edge_count"], 2)
-            self.assertEqual({node["id"] for node in payload["nodes"]}, {"Agent Loop", "Tool Call", "Memory"})
-            first_edge = payload["edges"][0]
-            self.assertIn(first_edge["label"], {"coordinates", "updates"})
-            self.assertEqual(first_edge["kind"], "relation")
-            self.assertEqual(first_edge["page"], "Agent-Loop.md")
+            self.assertEqual(default_response.status_code, 200)
+            self.assertEqual(explicit_response.status_code, 200)
+            for payload in (default_response.json(), explicit_response.json()):
+                self.assertEqual(payload["graph_kind"], "page")
+                self.assertEqual(payload["stats"]["page_count"], 2)
+                self.assertEqual(payload["stats"]["edge_count"], 1)
+                self.assertEqual({node["id"] for node in payload["nodes"]}, {"Agent-Loop.md", "Tool-Call.md"})
+                self.assertEqual(payload["edges"][0]["kind"], "wikilink")
 
 
 if __name__ == "__main__":

@@ -1,17 +1,5 @@
-import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
-import {
-  applyModelCapabilities,
-  discoverModelProvider,
-  getConfigDiagnostics,
-  getConfigForm,
-  probeModelProvider,
-  saveConfig,
-  saveConfigForm,
-  type ConfigForm,
-  type ModelCapabilitySuggestion,
-} from "../api/client";
 import type { AppContext } from "../appContext";
 import { ConfigDiagnosticsPanel } from "../components/config/ConfigDiagnosticsPanel";
 import {
@@ -19,8 +7,6 @@ import {
   SettingsDirectory,
   SettingsLoadingState,
   SettingsSectionIntro,
-  modelActionKey,
-  normalizeConfigForm,
   type ConfigSectionId,
 } from "../components/config/ConfigPageParts";
 import {
@@ -30,6 +16,7 @@ import {
   ConfigRuntimeSection,
 } from "../components/config/ConfigSettingsSections";
 import { ConfigModelProvidersSection } from "../components/config/ConfigModelProvidersSection";
+import { useConfigController } from "./config/useConfigController";
 
 type Props = {
   context: AppContext;
@@ -37,168 +24,9 @@ type Props = {
 };
 
 export function ConfigPage({ context, embedded = false }: Props) {
-  const queryClient = useQueryClient();
-  const [form, setForm] = useState<ConfigForm | null>(null);
   const [activeSection, setActiveSection] = useState<ConfigSectionId>("basic");
-
-  const formQuery = useQuery({
-    queryKey: ["config-form", context.configPath],
-    queryFn: () => getConfigForm(context.configPath),
-    staleTime: 5 * 60_000,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-  });
-
-  const diagnosticsQuery = useQuery({
-    queryKey: ["config-diagnostics", context.configPath],
-    queryFn: () => getConfigDiagnostics(context.configPath),
-    enabled: Boolean(formQuery.data),
-    staleTime: 5 * 60_000,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-  });
-
-  useEffect(() => {
-    if (formQuery.data) setForm(normalizeConfigForm(formQuery.data));
-  }, [formQuery.data]);
-
-  useEffect(() => {
-    const error = formQuery.error || diagnosticsQuery.error;
-    if (error) context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
-  }, [context, diagnosticsQuery.error, formQuery.error]);
-
-  async function updateSettingsFromDisk() {
-    await queryClient.invalidateQueries({ queryKey: ["config-form"] });
-    await queryClient.invalidateQueries({ queryKey: ["config-diagnostics"] });
-    await queryClient.invalidateQueries({ queryKey: ["models", "providers"] });
-    await formQuery.refetch();
-    await diagnosticsQuery.refetch();
-    await context.refreshAll();
-  }
-
-  function clearDesktopEnvSecretInputs() {
-    setForm((current) =>
-      current
-        ? {
-            ...current,
-            providers: current.providers.map((provider) => ({
-              ...provider,
-              api_key_value: "",
-              api_key_configured: provider.api_key_configured || Boolean(provider.api_key_value?.trim()),
-            })),
-            image_providers: current.image_providers.map((provider) => ({
-              ...provider,
-              api_key_value: "",
-              api_key_configured: provider.api_key_configured || Boolean(provider.api_key_value?.trim()),
-            })),
-          }
-        : current,
-    );
-  }
-
-  const structuredSave = useMutation({
-    mutationFn: async () => {
-      if (!form) throw new Error("Configuration form is not loaded.");
-      const envSecrets = collectDesktopEnvSecrets(form);
-      if (Object.keys(envSecrets).length && window.knoarborDesktop?.saveEnvSecrets) {
-        const result = await window.knoarborDesktop.saveEnvSecrets(envSecrets);
-        if (result.error) throw new Error(result.error);
-      }
-      const response = await saveConfigForm(context.configPath, form);
-      if (Object.keys(envSecrets).length && window.knoarborDesktop?.restartService) {
-        await window.knoarborDesktop.restartService();
-      }
-      return response;
-    },
-    onSuccess: async (response) => {
-      context.setConfigPath(response.config_path);
-      context.setConfigExists(true);
-      context.setSummary(response.summary || {});
-      clearDesktopEnvSecretInputs();
-      await updateSettingsFromDisk();
-      context.setNotice({ message: `${context.t("configurationSaved")} ${response.config_path}` });
-    },
-    onError: (error) => context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true }),
-  });
-
-  const yamlSave = useMutation({
-    mutationFn: () => saveConfig(context.configPath, context.configContent),
-    onSuccess: async (response) => {
-      context.setConfigPath(response.config_path);
-      context.setConfigExists(true);
-      context.setSummary(response.summary || {});
-      await updateSettingsFromDisk();
-      context.setNotice({ message: `${context.t("yamlConfigurationSaved")} ${response.config_path}` });
-    },
-    onError: (error) => context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true }),
-  });
-
-  const saving = structuredSave.isPending || yamlSave.isPending;
-
-  async function saveCurrentFormForModelAction(): Promise<string | null> {
-    if (!form) throw new Error("Configuration form is not loaded.");
-    const envSecrets = collectDesktopEnvSecrets(form);
-    if (Object.keys(envSecrets).length && window.knoarborDesktop?.saveEnvSecrets) {
-      const result = await window.knoarborDesktop.saveEnvSecrets(envSecrets);
-      if (result.error) throw new Error(result.error);
-    }
-    const response = await saveConfigForm(context.configPath, form);
-    context.setConfigPath(response.config_path);
-    context.setConfigExists(true);
-    context.setSummary(response.summary || {});
-    if (Object.keys(envSecrets).length && window.knoarborDesktop?.restartService) {
-      await window.knoarborDesktop.restartService();
-      clearDesktopEnvSecretInputs();
-    }
-    await queryClient.invalidateQueries({ queryKey: ["config-form"] });
-    await queryClient.invalidateQueries({ queryKey: ["config-diagnostics"] });
-    await queryClient.invalidateQueries({ queryKey: ["models", "providers"] });
-    return response.config_path;
-  }
-
-  const discoverMutation = useMutation({
-    mutationFn: async (provider: string) => {
-      const configPath = await saveCurrentFormForModelAction();
-      return discoverModelProvider(configPath, provider);
-    },
-    onSuccess: (result) => {
-      context.setModelProbeResults((current) => ({
-        ...current,
-        [result.provider]: { ...(current[result.provider] || {}), discovery: result, lastAction: "discover" },
-      }));
-      void diagnosticsQuery.refetch();
-      context.setNotice({ message: result.message, error: !result.available });
-    },
-    onError: (error) => context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true }),
-  });
-
-  const probeMutation = useMutation({
-    mutationFn: async ({ provider, level }: { provider: string; level: "minimal" | "structured" }) => {
-      const configPath = await saveCurrentFormForModelAction();
-      return probeModelProvider(configPath, provider, level);
-    },
-    onSuccess: (result) => {
-      context.setModelProbeResults((current) => ({
-        ...current,
-        [result.provider]: { ...(current[result.provider] || {}), probe: result, lastAction: result.level },
-      }));
-      void diagnosticsQuery.refetch();
-      context.setNotice({ message: result.message, error: result.status === "error" });
-    },
-    onError: (error) => context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true }),
-  });
-
-  const applyCapabilitiesMutation = useMutation({
-    mutationFn: async ({ provider, values }: { provider: string; values: ModelCapabilitySuggestion }) => {
-      const configPath = await saveCurrentFormForModelAction();
-      return applyModelCapabilities(configPath, provider, values);
-    },
-    onSuccess: async (result) => {
-      await updateSettingsFromDisk();
-      context.setNotice({ message: `${context.t("modelCapabilitiesApplied")} ${Object.keys(result.applied).join(", ")}` });
-    },
-    onError: (error) => context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true }),
-  });
+  const controller = useConfigController(context);
+  const { diagnosticsQuery, form, formQuery, saving, setForm } = controller;
 
   return (
     <section className={embedded ? "settings-embedded" : "view active"}>
@@ -215,11 +43,8 @@ export function ConfigPage({ context, embedded = false }: Props) {
                 t={context.t}
                 saving={saving}
                 canSave={Boolean(form)}
-                onSave={() => structuredSave.mutate()}
-                onReload={async () => {
-                  await updateSettingsFromDisk();
-                  context.setNotice({ message: context.t("refreshComplete") });
-                }}
+                onSave={controller.saveStructured}
+                onReload={controller.reloadSettings}
                 reloading={formQuery.isFetching || diagnosticsQuery.isFetching}
               />
               {activeSection === "basic" && <ConfigBasicSection form={form} setForm={setForm} t={context.t} />}
@@ -233,17 +58,16 @@ export function ConfigPage({ context, embedded = false }: Props) {
                   setForm={setForm}
                   t={context.t}
                   probeResults={context.modelProbeResults}
-                  pendingAction={modelActionKey(discoverMutation.variables, "discover", discoverMutation.isPending) || modelActionKey(probeMutation.variables, undefined, probeMutation.isPending) || modelActionKey(applyCapabilitiesMutation.variables, "apply", applyCapabilitiesMutation.isPending)}
-                  onDiscover={(provider) => discoverMutation.mutate(provider)}
-                  onProbe={(provider, level) => probeMutation.mutate({ provider, level })}
-                  onApplyCapabilities={(provider, values) => applyCapabilitiesMutation.mutate({ provider, values })}
+                  pendingAction={controller.modelPendingAction}
+                  onDiscover={controller.startDiscover}
+                  onProbe={controller.startProbe}
                 />
               )}
               {activeSection === "diagnostics" && <ConfigDiagnosticsPanel diagnostics={diagnosticsQuery.data} loading={diagnosticsQuery.isFetching} t={context.t} />}
               {activeSection === "advanced" && (
                 <div className="advanced-yaml-section" id="settings-advanced">
                   <textarea className="config-editor" spellCheck={false} value={context.configContent} onChange={(event) => context.setConfigContent(event.target.value)} />
-                  <button className="button primary" onClick={() => yamlSave.mutate()} disabled={saving}>
+                  <button className="button primary" onClick={controller.saveYaml} disabled={saving}>
                     {saving ? context.t("running") : context.t("saveYaml")}
                   </button>
                 </div>
@@ -254,19 +78,4 @@ export function ConfigPage({ context, embedded = false }: Props) {
       </article>
     </section>
   );
-}
-
-function collectDesktopEnvSecrets(form: ConfigForm): Record<string, string> {
-  const secrets: Record<string, string> = {};
-  for (const provider of form.providers) {
-    const name = provider.api_key_env?.trim();
-    const value = provider.api_key_value?.trim();
-    if (name && value) secrets[name] = value;
-  }
-  for (const provider of form.image_providers) {
-    const name = provider.api_key_env?.trim();
-    const value = provider.api_key_value?.trim();
-    if (name && value) secrets[name] = value;
-  }
-  return secrets;
 }

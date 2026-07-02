@@ -9,7 +9,7 @@ class ModelProbeBase(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
 
-ProbeLevel = Literal["minimal", "structured"]
+ProbeLevel = Literal["connectivity"]
 ModelProbeStatus = Literal["ok", "warning", "error"]
 
 
@@ -68,7 +68,7 @@ class ModelDiscoveryResponse(ModelProbeBase):
 class ModelProbeRequest(ModelProbeBase):
     config_path: str | None = None
     provider: str | None = None
-    level: ProbeLevel = "minimal"
+    level: ProbeLevel = "connectivity"
 
 
 class ModelProbeResponse(ModelProbeBase):

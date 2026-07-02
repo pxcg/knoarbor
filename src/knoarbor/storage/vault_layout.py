@@ -5,9 +5,9 @@ from pathlib import Path
 
 RAW_ROOT_DIR = "raw"
 RAW_INBOX_DIR = "inbox"
-RAW_NORMALIZED_DIR = "normalized"
-RAW_ASSETS_DIR = "assets"
-RAW_SIDECARS_DIR = "sidecars"
+RAW_DERIVED_DIR = "derived"
+RAW_DERIVED_ASSETS_DIR = "assets"
+RAW_DERIVED_METADATA_DIR = "metadata"
 WIKI_ROOT_DIR = "wiki"
 WIKI_PAGES_DIR = "pages"
 WIKI_SOURCES_DIR = "sources"
@@ -27,16 +27,16 @@ def raw_inbox_root(vault_path: Path) -> Path:
     return raw_root(vault_path) / RAW_INBOX_DIR
 
 
-def raw_normalized_root(vault_path: Path) -> Path:
-    return raw_root(vault_path) / RAW_NORMALIZED_DIR
+def raw_derived_root(vault_path: Path) -> Path:
+    return raw_root(vault_path) / RAW_DERIVED_DIR
 
 
-def raw_assets_root(vault_path: Path) -> Path:
-    return raw_root(vault_path) / RAW_ASSETS_DIR
+def raw_derived_assets_root(vault_path: Path) -> Path:
+    return raw_derived_root(vault_path) / RAW_DERIVED_ASSETS_DIR
 
 
-def raw_sidecars_root(vault_path: Path) -> Path:
-    return raw_root(vault_path) / RAW_SIDECARS_DIR
+def raw_derived_metadata_root(vault_path: Path) -> Path:
+    return raw_derived_root(vault_path) / RAW_DERIVED_METADATA_DIR
 
 
 def raw_inbox_documents_root(vault_path: Path) -> Path:
@@ -51,20 +51,20 @@ def raw_inbox_media_root(vault_path: Path) -> Path:
     return raw_inbox_root(vault_path) / "media"
 
 
-def raw_normalized_markdown_root(vault_path: Path) -> Path:
-    return raw_normalized_root(vault_path) / "markdown"
+def raw_inbox_chats_root(vault_path: Path) -> Path:
+    return raw_inbox_root(vault_path) / "chats"
 
 
-def raw_normalized_chats_root(vault_path: Path) -> Path:
-    return raw_normalized_root(vault_path) / "chats"
+def raw_derived_markdown_root(vault_path: Path) -> Path:
+    return raw_derived_root(vault_path) / "markdown"
 
 
-def raw_normalized_excerpts_root(vault_path: Path) -> Path:
-    return raw_normalized_root(vault_path) / "excerpts"
+def raw_derived_excerpts_root(vault_path: Path) -> Path:
+    return raw_derived_root(vault_path) / "excerpts"
 
 
-def raw_asset_images_root(vault_path: Path) -> Path:
-    return raw_assets_root(vault_path) / "images"
+def raw_derived_asset_images_root(vault_path: Path) -> Path:
+    return raw_derived_assets_root(vault_path) / "images"
 
 
 def wiki_root(vault_path: Path) -> Path:

@@ -4,8 +4,6 @@ import type { GraphEdge, GraphNode, GraphResponse } from "../../api/client";
 
 export const nodeColors: Record<string, string> = {
   wiki_page: "#dcfce7",
-  source_audit: "#eef2f7",
-  entity: "#ccfbf1",
 };
 
 export function filterVisibleGraph(graph: GraphResponse | null, search: string) {
@@ -13,7 +11,7 @@ export function filterVisibleGraph(graph: GraphResponse | null, search: string) 
   const normalizedSearch = search.trim().toLowerCase();
   const nodes = graph.nodes.filter((node) => {
     if (!normalizedSearch) return true;
-    return `${node.title} ${node.id} ${node.summary} ${node.entities.join(" ")}`.toLowerCase().includes(normalizedSearch);
+    return `${node.title} ${node.id} ${node.summary}`.toLowerCase().includes(normalizedSearch);
   });
   const visibleIds = new Set(nodes.map((node) => node.id));
   const edges = graph.edges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target));
@@ -65,9 +63,8 @@ export function buildGraphElements(nodes: GraphNode[], edges: GraphEdge[]): Elem
   ];
 }
 
-export function nodeViewOf(node: GraphNode) {
-  if (node.type === "entity" || node.role === "entity") return "entity";
-  return node.role === "source_digest" || node.id.startsWith("sources/") ? "source_audit" : "wiki_page";
+export function nodeViewOf(_node: GraphNode) {
+  return "wiki_page";
 }
 
 function buildDegreeMap(edges: Array<{ source: string; target: string }>) {

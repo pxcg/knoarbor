@@ -135,7 +135,7 @@ image_generation:
 
             self.assertIsNotNone(stored)
             assert stored is not None
-            self.assertTrue(stored.src.startswith("raw/assets/images/generated/chat/chat-demo/"))
+            self.assertTrue(stored.src.startswith("raw/derived/assets/images/generated/chat/chat-demo/"))
             self.assertEqual((Path(tmp_dir) / stored.src).read_bytes(), b"fake-png")
 
 

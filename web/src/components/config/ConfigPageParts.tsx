@@ -25,7 +25,7 @@ export function normalizeDesktopDiagnostics(value: unknown): DesktopDiagnosticsV
 
 export function modelActionKey(
   variables: unknown,
-  forcedAction: "discover" | "minimal" | "structured" | "apply" | undefined,
+  forcedAction: "discover" | "connectivity" | "apply" | undefined,
   pending: boolean,
 ): string | null {
   if (!pending) return null;
@@ -197,17 +197,17 @@ export function SettingsDirectory({
   return (
     <aside className="settings-section-rail" role="tablist" aria-label={t("settingsSections")}>
       <div className="panel-header compact">
-        <h2>{t("docsDirectory")}</h2>
+        <h2>{t("settingsDirectory")}</h2>
       </div>
       {CONFIG_SECTION_GROUPS.map((group) => (
-        <section className="docs-group" key={group.titleKey}>
+        <section className="settings-section-group" key={group.titleKey}>
           <h3>{t(group.titleKey)}</h3>
-          <div className="docs-link-list">
+          <div className="settings-section-link-list">
             {group.items.map((sectionId) => {
               const section = CONFIG_SECTIONS.find((item) => item.id === sectionId) || CONFIG_SECTIONS[0];
               return (
                 <button
-                  className={`docs-link ${activeSection === section.id ? "active" : ""}`}
+                  className={`settings-section-link ${activeSection === section.id ? "active" : ""}`}
                   disabled={disabled}
                   key={section.id}
                   type="button"

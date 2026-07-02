@@ -51,18 +51,22 @@ def select_lint_candidates(
     mode: str,
     max_candidates: int,
     max_chars_per_page: int,
+    scope_pages: list[str] | None = None,
+    include_related: bool = True,
     privacy_config: PrivacyConfig | None = None,
 ) -> tuple[list[WikiLintCandidatePage], dict[str, Any], list[str]]:
-    pages, issues, scan_stats = scan_vault(vault_path, max_chars_per_page, privacy_config=privacy_config)
+    pages, issues, scan_stats = scan_vault(
+        vault_path,
+        max_chars_per_page,
+        scope_pages=scope_pages or [],
+        include_related=include_related,
+        privacy_config=privacy_config,
+    )
     issues_by_path: dict[str, list[WikiLintIssue]] = defaultdict(list)
     for issue in issues:
         issues_by_path[issue.path].append(issue)
 
-    candidates = [
-        score_lint_candidate(page, issues_by_path.get(page.path, []), mode)
-        for page in pages
-        if page.directory != "maintenance"
-    ]
+    candidates = [score_lint_candidate(page, issues_by_path.get(page.path, [])) for page in pages if page.directory != "maintenance"]
     candidates = [candidate for candidate in candidates if candidate.score > 0]
     candidates.sort(key=lambda item: (-item.score, item.directory, item.path))
 
@@ -73,10 +77,7 @@ def select_lint_candidates(
         "candidate_mode": mode,
     }
     warnings: list[str] = []
-    if mode in {"quality", "full"}:
-        warnings.append("Quality candidates are deterministic routing hints; semantic judgement belongs to the Quality Diagnose Agent.")
-    if mode in {"freshness", "full"}:
-        warnings.append("Freshness candidates identify pages that may need review; online verification belongs to a refresh workflow.")
+    warnings.append("Semantic candidates are deterministic routing hints; model review decides whether maintenance is needed.")
     return candidates[:max_candidates], stats, warnings
 
 

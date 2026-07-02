@@ -51,7 +51,6 @@ export type DesktopDiagnostics = {
 
 export type DesktopCommand =
   | "chat.new"
-  | "docs.open"
   | "settings.open"
   | "service.restart"
   | "logs.open";
@@ -62,7 +61,6 @@ export type KnoArborDesktopBridge = {
   getServiceState(): Promise<DesktopServiceState>;
   onCommand(listener: (command: DesktopCommand) => void): () => void;
   onServiceStateChanged(listener: (state: DesktopServiceState) => void): () => void;
-  openApiDocs(): Promise<{ opened: boolean; url?: string }>;
   openLogs(): Promise<{ opened: boolean; path?: string }>;
   openPath(path: string): Promise<{ opened: boolean; path?: string; error?: string }>;
   restartService(): Promise<DesktopServiceState>;

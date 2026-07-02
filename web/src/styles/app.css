@@ -9,7 +9,6 @@
 @import "./sources.css";
 @import "./query.css";
 @import "./reports.css";
-@import "./docs.css";
 
 
 .panel-copy.warning {
@@ -217,6 +216,32 @@
 
 .embedded-section {
   display: block;
+}
+
+.import-page {
+  display: grid;
+  gap: 16px;
+}
+
+.wiki-empty-action {
+  display: grid;
+  gap: 9px;
+}
+
+.wiki-empty-action strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.wiki-empty-action p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.wiki-empty-action .button {
+  justify-self: start;
 }
 
 .section-divider {
@@ -732,7 +757,6 @@ textarea {
 
   .metric-grid,
   .panel-grid,
-  .docs-workspace,
   .action-grid,
   .next-steps-panel,
   .next-step-grid,
@@ -783,10 +807,6 @@ textarea {
   }
 
   .graph-side {
-    position: static;
-  }
-
-  .docs-directory {
     position: static;
   }
 

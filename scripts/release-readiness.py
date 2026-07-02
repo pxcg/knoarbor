@@ -30,7 +30,6 @@ PRIVATE_PATTERNS = [
     ".venv",
     ".uv-cache",
     "wiki",
-    "n8n",
     "knoarbor_logo_asset_kit",
     "docs/slides",
 ]

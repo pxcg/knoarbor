@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from typing import Literal
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -42,84 +41,14 @@ class WikiGraphStats(BaseModel):
 
 class WikiGraph(BaseModel):
     vault_path: str
-    graph_kind: Literal["entity", "page"] = "entity"
+    graph_kind: str = "page"
     nodes: list[WikiGraphNode] = Field(default_factory=list)
     edges: list[WikiGraphEdge] = Field(default_factory=list)
     stats: WikiGraphStats
 
 
-def build_wiki_graph(vault_path: Path, *, view: Literal["entity", "page"] = "entity") -> WikiGraph:
-    if view == "page":
-        return build_page_graph(vault_path)
-    return build_entity_graph(vault_path)
-
-
-def build_entity_graph(vault_path: Path) -> WikiGraph:
-    """Build an entity-relation graph from the graph machine index."""
-
-    vault_path = vault_path.expanduser().resolve()
-    index_dir = machine_index_dir(vault_path)
-    graph_path = index_dir / "graph_index.json"
-    ensure_machine_index(vault_path)
-
-    graph_payload = _read_json(graph_path)
-    node_records = [item for item in graph_payload.get("nodes", []) if isinstance(item, dict)]
-    edge_records = [item for item in graph_payload.get("edges", []) if isinstance(item, dict)]
-
-    nodes: list[WikiGraphNode] = []
-    edges: list[WikiGraphEdge] = []
-    page_counts: dict[str, int] = {}
-    page_ids: set[str] = set()
-
-    for item in node_records:
-        node_id = str(item.get("id") or "").strip()
-        if not node_id:
-            continue
-        pages = [str(page) for page in item.get("pages", []) if isinstance(page, str)]
-        for page in pages:
-            page_ids.add(page)
-            page_counts[page] = page_counts.get(page, 0) + 1
-        nodes.append(
-            WikiGraphNode(
-                id=node_id,
-                title=node_id,
-                type="entity",
-                role="entity",
-                summary=str(item.get("summary") or ""),
-                entities=[node_id],
-                pages=pages,
-            )
-        )
-
-    node_ids = {node.id for node in nodes}
-    seen_edges: set[tuple[str, str, str, str]] = set()
-    for item in edge_records:
-        source = str(item.get("source") or "").strip()
-        target = str(item.get("target") or "").strip()
-        predicate = str(item.get("predicate") or "").strip()
-        page = str(item.get("page") or "").strip()
-        claim = str(item.get("claim") or "").strip()
-        if not source or not target or not predicate:
-            continue
-        if source not in node_ids or target not in node_ids:
-            continue
-        edge_key = (source, target, predicate, page)
-        if edge_key in seen_edges:
-            continue
-        seen_edges.add(edge_key)
-        edges.append(WikiGraphEdge(source=source, target=target, kind="relation", label=predicate, page=page or None, claim=claim or None))
-
-    connected = {edge.source for edge in edges} | {edge.target for edge in edges}
-    stats = WikiGraphStats(
-        page_count=len(nodes),
-        edge_count=len(edges),
-        orphan_count=sum(1 for node in nodes if node.id not in connected),
-        unresolved_link_count=0,
-        directory_counts={"entity_nodes": len(nodes), "wiki_pages": len(page_ids)},
-        role_counts={"entity": len(nodes)},
-        entity_counts={},
-    )
-    return WikiGraph(vault_path=str(vault_path), graph_kind="entity", nodes=nodes, edges=edges, stats=stats)
+def build_wiki_graph(vault_path: Path) -> WikiGraph:
+    return build_page_graph(vault_path)
 
 
 def build_page_graph(vault_path: Path) -> WikiGraph:
@@ -133,7 +62,7 @@ def build_page_graph(vault_path: Path) -> WikiGraph:
 
     pages_payload = _read_json(pages_path)
     links_payload = _read_json(links_path)
-    page_records = [item for item in pages_payload.get("pages", []) if isinstance(item, dict)]
+    page_records = [item for item in pages_payload.get("pages", []) if isinstance(item, dict) and _is_visible_wiki_page(item)]
     link_records = [item for item in links_payload.get("links", []) if isinstance(item, dict)]
     nodes: list[WikiGraphNode] = []
     edges: list[WikiGraphEdge] = []
@@ -208,6 +137,12 @@ def _read_json(path: Path) -> dict[str, object]:
 
 def _edge_key(source: str, target: str) -> tuple[str, str]:
     return (source, target) if source <= target else (target, source)
+
+
+def _is_visible_wiki_page(page: dict[str, object]) -> bool:
+    page_id = str(page.get("path") or "")
+    role = str(page.get("role") or "")
+    return bool(page_id) and not page_id.startswith("sources/") and role != "source_digest"
 
 
 def _semantic_page_edges(vault_path: Path, page_ids: set[str]) -> list[tuple[str, str]]:

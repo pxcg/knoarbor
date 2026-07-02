@@ -195,22 +195,16 @@ Run the unified lint maintenance workflow.
 uv run knoar lint
 uv run knoar lint --vault-id personal
 uv run knoar lint --mode deterministic
-uv run knoar lint --mode structural
-uv run knoar lint --mode quality
-uv run knoar lint --mode full --profile deep
-uv run knoar lint --mode full --apply-reviewed
+uv run knoar lint --mode semantic
+uv run knoar lint --mode semantic --no-apply-reviewed
 ```
 
 Modes:
 
 - `deterministic`: scan and apply deterministic safe fixes only.
-- `structural`: structural/provenance maintenance with semantic review when needed.
-- `quality`: page quality diagnosis and reviewed maintenance.
-- `full`: structural plus quality maintenance.
+- `semantic`: first run deterministic structured maintenance, then run semantic maintenance over structural, provenance, and quality candidates. Approved changes are applied by default.
 
-`--profile standard|deep` controls audit budget only. `deep` keeps the same lint
-contract but reads more page context and returns more candidates for scheduled or
-occasional deep audits.
+Use `--no-apply-reviewed` when you want semantic review and reports without page writes.
 
 Like ingest, `lint` follows progress by default for human-readable output. Use
 `--json` for machine-readable output or `--no-follow` for synchronous summary
@@ -344,8 +338,8 @@ These commands are intended for prompt/schema debugging, not ordinary use.
 Run semantic lint diagnosis and review without writing changes.
 
 ```bash
-uv run knoar lint-plan --mode structural
-uv run knoar lint-plan --mode quality --json
+uv run knoar lint-plan --mode deterministic
+uv run knoar lint-plan --mode semantic --json
 ```
 
 ### `contracts`

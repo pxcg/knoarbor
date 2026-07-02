@@ -255,8 +255,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _add_lint_run_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--mode", choices=["deterministic", "structural", "quality", "full"], default="structural")
-    parser.add_argument("--profile", choices=["standard", "deep"], default="standard")
+    parser.add_argument("--mode", choices=["deterministic", "semantic"], default="deterministic")
     parser.add_argument("--scope-page", action="append", dest="scope_pages", default=None, help="Page path to include in maintenance scope. Can be repeated. Defaults to full vault.")
     parser.add_argument("--provider", default=None, help="Model provider name for semantic modes. Defaults to models.default_provider.")
     parser.add_argument("--max-candidates", type=int, default=None)
@@ -284,7 +283,7 @@ def _add_dev_commands(subparsers: argparse._SubParsersAction[argparse.ArgumentPa
     )
     add_vault_argument(lint_plan_parser)
     lint_plan_parser.add_argument("--provider", default=None, help="Model provider name. Defaults to models.default_provider.")
-    lint_plan_parser.add_argument("--mode", choices=["structural", "quality"], default="structural")
+    lint_plan_parser.add_argument("--mode", choices=["deterministic", "semantic"], default="semantic")
     lint_plan_parser.add_argument("--max-candidates", type=int, default=8)
     lint_plan_parser.add_argument("--max-chars-per-page", type=int, default=2500)
     lint_plan_parser.add_argument("--max-tokens", type=int, default=None)

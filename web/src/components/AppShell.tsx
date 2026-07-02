@@ -15,7 +15,6 @@ type AppShellProps = {
   onPreloadView?: (view: ViewName) => void;
   onToggleSidebar: () => void;
   onOpenWorkspaceSettings: () => void;
-  onOpenApiDocs?: () => void;
   sidebarSlot?: ReactNode;
 };
 
@@ -30,7 +29,6 @@ export function AppShell({
   onPreloadView,
   onToggleSidebar,
   onOpenWorkspaceSettings,
-  onOpenApiDocs,
   sidebarSlot,
 }: AppShellProps) {
   const secondaryItems = secondaryNavItems(activeView);
@@ -59,15 +57,6 @@ export function AppShell({
             <a className="button icon-button" href="https://github.com/pxcg/knoarbor" target="_blank" rel="noreferrer" aria-label="GitHub">
               <LineIcon name="github" />
             </a>
-            {onOpenApiDocs ? (
-              <button className="button ghost" type="button" onClick={onOpenApiDocs}>
-                {t("apiDocs")}
-              </button>
-            ) : (
-              <a className="button ghost" href="/docs" target="_blank" rel="noreferrer">
-                {t("apiDocs")}
-              </a>
-            )}
           </div>
         </header>
         {secondaryItems.length > 1 && (
@@ -100,7 +89,6 @@ export function AppShell({
 
 function secondaryNavItems(activeView: ViewName): ViewName[] {
   if (activeView === "wiki" || activeView === "graph") return ["wiki", "graph"];
-  if (activeView === "docs") return ["docs"];
   if (activeView === "chat") return [];
   return ["runs", "ingest", "lint", "query", "reports", "tokens"];
 }

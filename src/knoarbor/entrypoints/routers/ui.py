@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 import re
-import os
-import sys
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
@@ -22,7 +20,7 @@ from knoarbor.services.ui_config_models import (
     UiConfigUpdateResponse,
 )
 from knoarbor.services.wiki_graph import WikiGraph, build_wiki_graph
-from knoarbor.storage.vault_layout import maintenance_reports_root, raw_assets_root
+from knoarbor.storage.vault_layout import maintenance_reports_root, raw_derived_assets_root
 from knoarbor.storage.wiki_index import ensure_machine_index, machine_index_dir
 from knoarbor.storage.wiki_paths import content_root
 
@@ -38,11 +36,6 @@ class UiStatusResponse(BaseModel):
     info: int
     directories: dict[str, int] = Field(default_factory=dict)
     roles: dict[str, int] = Field(default_factory=dict)
-
-
-class UiProjectDoc(BaseModel):
-    path: str
-    content: str
 
 
 def create_ui_router() -> APIRouter:
@@ -112,25 +105,13 @@ def create_ui_router() -> APIRouter:
         )
 
     @router.get("/ui/api/graph", response_model=WikiGraph, tags=["ui"])
-    async def read_ui_graph(vault_path: str | None = Query(default=None), view: str = Query(default="entity")) -> WikiGraph:
+    async def read_ui_graph(vault_path: str | None = Query(default=None), view: str = Query(default="page")) -> WikiGraph:
         path = Path(vault_path or _summary_from_default_config().get("vault_path") or DEFAULT_VAULT_PATH).expanduser().resolve()
-        graph_view = "page" if view == "page" else "entity"
-        return build_wiki_graph(path, view=graph_view)
+        return build_wiki_graph(path)
 
     @router.get("/ui/api/tokens", tags=["ui"])
     async def read_ui_tokens(vault_path: str | None = Query(default=None), limit: int = Query(default=5000, ge=1, le=50000)) -> dict[str, object]:
         return read_token_analysis(_resolve_vault_path(vault_path), limit=limit)
-
-    @router.get("/ui/api/docs/{doc_path:path}", response_model=UiProjectDoc, tags=["ui"])
-    async def read_ui_doc(doc_path: str) -> UiProjectDoc:
-        docs_root = _project_docs_root()
-        doc = _resolve_project_doc(doc_path)
-        return UiProjectDoc(path=doc.relative_to(docs_root).as_posix(), content=doc.read_text(encoding="utf-8"))
-
-    @router.get("/ui/api/docs-assets/{asset_path:path}", tags=["ui"])
-    async def read_ui_doc_asset(asset_path: str) -> FileResponse:
-        asset = _resolve_doc_asset(asset_path)
-        return FileResponse(asset)
 
     @router.get("/ui/api/vault-assets/{asset_path:path}", tags=["ui"])
     async def read_vault_asset(
@@ -180,45 +161,19 @@ def _resolve_ui_asset(name: str) -> Path:
     return asset_path
 
 
-def _resolve_project_doc(name: str) -> Path:
-    docs_root = _project_docs_root().resolve()
-    doc_path = (docs_root / name).resolve()
-    try:
-        doc_path.relative_to(docs_root.resolve())
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Unknown project document") from exc
-    if not doc_path.exists() or not doc_path.is_file() or doc_path.suffix.lower() != ".md":
-        raise HTTPException(status_code=404, detail="Project document not found")
-    return doc_path
-
-
-def _resolve_doc_asset(name: str) -> Path:
-    docs_root = _project_docs_root().resolve()
-    asset_path = (docs_root / name).resolve()
-    try:
-        asset_path.relative_to(docs_root.resolve())
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Unknown doc asset") from exc
-    if not asset_path.exists() or not asset_path.is_file():
-        raise HTTPException(status_code=404, detail="Doc asset not found")
-    if asset_path.suffix.lower() == ".md":
-        raise HTTPException(status_code=404, detail="Not a doc asset")
-    return asset_path
-
-
 def _resolve_vault_asset(vault_path: str, asset_path: str) -> Path:
     vault = Path(vault_path).expanduser().resolve()
     if not vault.exists() or not vault.is_dir():
         raise HTTPException(status_code=404, detail="Vault directory not found")
     cleaned = asset_path.replace("\\", "/").lstrip("/")
-    if cleaned.startswith("raw/assets/"):
-        cleaned = cleaned.removeprefix("raw/assets/")
+    if cleaned.startswith("raw/derived/assets/"):
+        cleaned = cleaned.removeprefix("raw/derived/assets/")
     elif cleaned.startswith("assets/"):
         cleaned = cleaned.removeprefix("assets/")
     if not cleaned or ".." in cleaned.split("/"):
         raise HTTPException(status_code=400, detail="Invalid asset path")
 
-    asset_root = raw_assets_root(vault).resolve()
+    asset_root = raw_derived_assets_root(vault).resolve()
     candidate = (asset_root / cleaned).resolve()
     try:
         candidate.relative_to(asset_root)
@@ -227,30 +182,6 @@ def _resolve_vault_asset(vault_path: str, asset_path: str) -> Path:
     if not candidate.exists() or not candidate.is_file():
         raise HTTPException(status_code=404, detail="Vault asset not found")
     return candidate
-
-
-def _project_docs_root() -> Path:
-    candidates: list[Path] = []
-    env_root = os.getenv("KNOARBOR_DOCS_ROOT", "").strip()
-    if env_root:
-        candidates.append(Path(env_root).expanduser())
-
-    if getattr(sys, "frozen", False):
-        executable = Path(sys.executable).resolve()
-        candidates.extend(
-            [
-                executable.parent.parent / "docs",
-                executable.parent.parent.parent / "docs",
-                Path(getattr(sys, "_MEIPASS", "")) / "docs",
-            ]
-        )
-
-    candidates.append(Path(__file__).resolve().parents[4] / "docs")
-
-    for candidate in candidates:
-        if candidate.exists() and candidate.is_dir():
-            return candidate.resolve()
-    return candidates[-1].resolve()
 
 
 def _summary_from_default_config() -> dict[str, object]:

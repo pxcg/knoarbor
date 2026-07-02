@@ -90,7 +90,7 @@ export function ChatContextMenu({
           disabled={isSending || ingestingExcerptKey !== null}
           onClick={() => { onCompileExcerpt(turn, messageIndex); onClose(); }}
         >
-          {ingestingExcerptKey?.startsWith(`${messageIndex}:`) ? (zh ? "编译中..." : "Compiling...") : (zh ? "编译摘录" : "Compile excerpt")}
+          {ingestingExcerptKey?.startsWith(`${messageIndex}:`) ? (zh ? "导入中..." : "Importing...") : (zh ? "导入摘录" : "Import excerpt")}
         </button>
       )}
       {selectedMessageIndices.size > 0 && (

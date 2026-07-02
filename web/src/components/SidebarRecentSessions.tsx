@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-quer
 
 import { deleteChatSession, ingestChatSession, listChatSessions, updateChatSession, type ChatSessionSummary, type VaultSelector } from "../api/client";
 import type { AppContext } from "../appContext";
+import { queryKeys } from "../queryKeys";
 import { LineIcon } from "./LineIcon";
 
 const RECENT_SESSION_LIMIT = 80;
@@ -17,7 +18,7 @@ export function SidebarRecentSessions({ context }: Props) {
   const vaultKey = vaults.map((vault) => `${vault.id}:${vault.path}`).join("|");
   const enabled = context.configExists && vaults.length > 0;
   const sessionsQuery = useQuery({
-    queryKey: ["sidebar-chat-sessions", context.configPath, vaultKey],
+    queryKey: queryKeys.sidebarChatSessions(context.configPath, vaultKey),
     queryFn: async () => {
       const scoped = vaults.map((vault) =>
           listChatSessions(vaultSelectorFor(context, vault), RECENT_SESSION_LIMIT)
@@ -53,7 +54,7 @@ export function SidebarRecentSessions({ context }: Props) {
   });
 
   const invalidateSessions = () => {
-    queryClient.invalidateQueries({ queryKey: ["sidebar-chat-sessions", context.configPath, vaultKey] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.sidebarChatSessions(context.configPath, vaultKey) });
   };
 
   const sessions = sessionsQuery.data || [];
@@ -174,7 +175,7 @@ function SessionButton({ session, context, onInvalidate }: { session: ChatSessio
         <button type="button" className="chat-session-menu-trigger" onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }} aria-label="Session menu">···</button>
         {menuOpen && (
           <div className="chat-session-menu-popover">
-            <button type="button" onClick={handleIngest}>{context.language === "zh" ? "编译" : "Compile"}</button>
+            <button type="button" onClick={handleIngest}>{context.language === "zh" ? "导入" : "Import"}</button>
             <button type="button" onClick={handleRename}>{context.language === "zh" ? "重命名" : "Rename"}</button>
             <button className="danger" type="button" onClick={handleDelete}>{context.language === "zh" ? "删除" : "Delete"}</button>
           </div>

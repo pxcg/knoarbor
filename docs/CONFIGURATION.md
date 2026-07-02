@@ -210,7 +210,7 @@ Temporary CLI override:
 
 ```bash
 uv run knoar ingest --provider openrouter --write
-uv run knoar lint --provider deepseek --mode quality
+uv run knoar lint --provider deepseek --mode semantic
 ```
 
 ## Chat Session Ingest
@@ -299,7 +299,7 @@ connectors:
     settings:
       roots:
         - ./vaults/default/raw/inbox/notes
-        - ./vaults/default/raw/normalized/markdown
+        - ./vaults/default/raw/derived/markdown
       recursive: true
       raw_output_dir: ./vaults/default/raw/inbox/notes
       preserve_relative_paths: true
@@ -324,7 +324,7 @@ connectors:
       sessions_dir: ~/.codex/sessions
       pattern: "rollout-*.jsonl"
       recursive: true
-      raw_output_dir: ./vaults/default/raw/normalized/chats
+      raw_output_dir: ./vaults/default/raw/inbox/chats
 ```
 
 Enable Hermes only when the local Hermes session directory exists:
@@ -335,7 +335,7 @@ connectors:
     enabled: true
     settings:
       sessions_dir: ~/.hermes/sessions
-      raw_output_dir: ./vaults/default/raw/normalized/chats
+      raw_output_dir: ./vaults/default/raw/inbox/chats
 ```
 
 Enable OpenClaw only when the local OpenClaw session directory exists. The
@@ -350,7 +350,7 @@ connectors:
       sessions_dir: ~/.openclaw/agents/main/sessions
       pattern: "*.jsonl"
       recursive: false
-      raw_output_dir: ./vaults/default/raw/normalized/chats
+      raw_output_dir: ./vaults/default/raw/inbox/chats
 ```
 
 Enable Claude Code only when the local Claude Code project transcript directory exists:
@@ -363,7 +363,7 @@ connectors:
       sessions_dir: ~/.claude/projects
       pattern: "*.jsonl"
       recursive: true
-      raw_output_dir: ./vaults/default/raw/normalized/chats
+      raw_output_dir: ./vaults/default/raw/inbox/chats
 ```
 
 Use `generic_chat` for custom local chat exports only when no dedicated connector exists:
@@ -380,7 +380,7 @@ connectors:
         - "*.sqlite"
         - "*.db"
       recursive: true
-      raw_output_dir: ./vaults/default/raw/normalized/chats
+      raw_output_dir: ./vaults/default/raw/inbox/chats
 ```
 
 Markdown is the default stable input path. Put notes under a configured root, such as `./vaults/default/raw/inbox/notes`, or add another root:
@@ -399,7 +399,7 @@ connectors:
 Optional document processors live under `document_processing`, not under
 `connectors`. For example, `document_processing.mineru` can call a user-managed
 MinerU-compatible HTTP service and write Markdown into
-`vaults/default/raw/normalized/markdown/`; the normal `markdown` connector then ingests that
+`vaults/default/raw/derived/markdown/`; the normal `markdown` connector then ingests that
 directory.
 
 Enable MinerU preprocessing only if you already run a compatible service. For a
@@ -419,7 +419,7 @@ document_processing:
     enabled: true
     endpoint: http://127.0.0.1:18000/file_parse
     input_dir: ./vaults/default/raw/inbox/documents
-    output_dir: ./vaults/default/raw/normalized/markdown
+    output_dir: ./vaults/default/raw/derived/markdown
     mode: auto
     timeout_seconds: 600
     patterns:

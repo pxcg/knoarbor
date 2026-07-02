@@ -13,7 +13,6 @@ KnoArbor uses a chat-first interface with secondary workspaces.
 | Chat | Ask maintained wiki pages and continue sessions | chat sessions, evidence packs, citations |
 | Flows | Run and inspect workflows | runs, reports, ingest/lint/query requests |
 | Knowledge | Browse maintained pages and graph views | wiki pages, graph index, page content |
-| Docs | Read project documentation | bundled docs |
 | Settings | Configure vaults, inputs, preprocessing, models, runtime | config form, diagnostics, models |
 
 ## Chat
@@ -59,7 +58,7 @@ Knowledge groups:
 - maintained wiki pages from `wiki/pages`;
 - source audit pages from `wiki/sources` when the view is explicitly source or
   provenance oriented;
-- graph views derived from `.knoarbor/index/graph_index.json`.
+- page graph views derived from the wiki index provider.
 
 The default page browser displays maintained wiki pages. Source digests are
 shown through provenance/source-audit views, graph side panels, reports, and
@@ -67,14 +66,8 @@ citations.
 
 Graph views:
 
-- Entity graph: nodes are knowledge objects, edges are claim-backed relations.
-- Page graph: nodes are wiki/source pages, edges are link or contribution
-  relations.
-
-## Docs
-
-Docs displays public project documentation. Internal specs are developer
-references and do not need to appear as primary user-facing docs.
+- Page graph: nodes are wiki/source pages; edges are page links or semantic
+  page-neighborhood edges exposed by the index provider.
 
 ## Settings
 
@@ -94,7 +87,7 @@ or service adapters; they do not write config files directly.
 ## UI-Only API Adapters
 
 Routes under `/ui/api/*` are bundled UI adapters. They can aggregate public API,
-config, local asset serving, and documentation helpers for the console.
+config, local asset serving, diagnostics, and report helpers for the console.
 
 External integrations use the public API in `docs/API_COMPATIBILITY.md`.
 
@@ -105,4 +98,3 @@ External integrations use the public API in `docs/API_COMPATIBILITY.md`.
 - Attachment tables wrap long text and use readable labels.
 - Raw asset paths and parser metadata are hidden from default page rendering
   unless the user opens an audit/source detail view.
-

@@ -206,7 +206,7 @@ reports must preserve generated page paths even if a later index step fails.
 
 - [x] Materialize MinerU native response images from base64 payloads into
   generated Markdown `images/` folders.
-- [x] Record image attachments in `raw/sidecars/**` sidecars for normalized
+- [x] Record image attachments in `raw/derived/metadata/**` sidecars for normalized
   vault sources.
 - [x] Preserve MinerU image caption, raw extracted content, subtype, page index,
   and bounding box in attachment metadata.

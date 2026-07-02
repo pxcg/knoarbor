@@ -59,7 +59,6 @@ def build_lint_run_record(result: LintRunResult, *, run_id: str, previous_record
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "scope": result.scope.model_dump(),
         "mode": result.mode,
-        "profile": result.profile,
         "policy_decision": result.policy_decision.model_dump(),
         "deterministic_lint": {
             "stats": deterministic.stats,
@@ -115,7 +114,6 @@ def render_lint_run_report(record: dict[str, object]) -> str:
         f"- run_id: {record.get('run_id')}",
         f"- created_at: {record.get('created_at')}",
         f"- mode: {record.get('mode')}",
-        f"- profile: {record.get('profile')}",
         f"- scope_id: {as_dict(record.get('scope')).get('scope_id')}",
         f"- deterministic_issues: {deterministic_stats.get('issue_count', 0)}",
         f"- deterministic_fixes: {len(as_list(deterministic.get('fixes')))}",

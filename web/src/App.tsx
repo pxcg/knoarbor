@@ -30,7 +30,6 @@ export function App() {
       onPreloadView={preloadView}
       onToggleSidebar={toggleSidebar}
       onOpenWorkspaceSettings={() => setWorkspaceSettingsOpen(true)}
-      onOpenApiDocs={window.knoarborDesktop ? () => void window.knoarborDesktop?.openApiDocs() : undefined}
       sidebarSlot={<SidebarRecentSessions context={context} />}
     >
       <AppRoutes activeView={activeView} context={context} onNavigate={setActiveView} />

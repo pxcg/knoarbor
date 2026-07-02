@@ -38,7 +38,7 @@ Use these examples to map user phrasing to the smallest useful operation:
 | "KnoArbor 支持哪些资料来源？" | `python3 scripts/knoarbor.py sources catalog` |
 | "Codex 来源怎么配置？" | `python3 scripts/knoarbor.py --format json sources catalog --connector codex` |
 | "检查知识库有没有问题，不要修改" | `python3 scripts/knoarbor.py lint --mode deterministic --no-apply-safe-fixes --no-auto-apply-reviewed` |
-| "自动维护这个知识库" | `python3 scripts/knoarbor.py lint --mode semantic_structural` |
+| "自动维护这个知识库" | `python3 scripts/knoarbor.py lint --mode semantic` |
 | "刚才运行到哪了？" | `python3 scripts/knoarbor.py runs list` then `python3 scripts/knoarbor.py runs get RUN_ID` |
 | "为什么失败？看报告" | `python3 scripts/knoarbor.py report list` then `python3 scripts/knoarbor.py report read <report.path>` |
 | "这次写入了哪些页面？" | `python3 scripts/knoarbor.py report read <report.path>` |
@@ -167,10 +167,9 @@ capabilities only; it does not scan local files and does not start ingest.
 ```bash
 python3 scripts/knoarbor.py lint --mode deterministic --no-apply-safe-fixes --no-auto-apply-reviewed
 python3 scripts/knoarbor.py lint --mode deterministic
-python3 scripts/knoarbor.py lint --mode semantic_structural
-python3 scripts/knoarbor.py lint --mode semantic_full --profile deep
+python3 scripts/knoarbor.py lint --mode semantic
 python3 scripts/knoarbor.py lint --scope-page Agent-Loop-and-Control-Patterns.md
-python3 scripts/knoarbor.py --vault-id personal lint --mode semantic_structural
+python3 scripts/knoarbor.py --vault-id personal lint --mode semantic
 ```
 
 Use lint when the user asks to check, maintain, repair, or explain wiki quality.

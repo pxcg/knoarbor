@@ -140,10 +140,33 @@ export function resolveChatImageSrc(src: string | undefined, citations: ChatCita
 }
 
 export function resolveVaultAssetImageSrc(src: string | undefined, vaultPath: string | undefined): string | undefined {
-  if (!src || /^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//") || src.startsWith("/")) return src;
+  if (!src) return src;
+  const existingVaultAssetPath = vaultAssetPathFromApiSrc(src);
+  if (existingVaultAssetPath && vaultPath) {
+    return `/ui/api/vault-assets/${encodeURIComponent(existingVaultAssetPath)}?vault_path=${encodeURIComponent(vaultPath)}`;
+  }
+  if (/^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//") || src.startsWith("/")) return src;
   const assetPath = vaultAssetPathFromSrc(src);
   if (!assetPath || !vaultPath) return src;
   return `/ui/api/vault-assets/${encodeURIComponent(assetPath)}?vault_path=${encodeURIComponent(vaultPath)}`;
+}
+
+function vaultAssetPathFromApiSrc(src: string): string | null {
+  let pathname = src;
+  try {
+    pathname = new URL(src, "http://knoarbor.local").pathname;
+  } catch {
+    pathname = src.split("?", 1)[0];
+  }
+  const prefix = "/ui/api/vault-assets/";
+  if (!pathname.startsWith(prefix)) return null;
+  const encoded = pathname.slice(prefix.length);
+  if (!encoded) return null;
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return encoded;
+  }
 }
 
 export function vaultAssetPathFromSrc(src: string): string | null {

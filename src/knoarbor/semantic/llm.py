@@ -292,62 +292,11 @@ class OpenAICompatibleChatClient:
 
     def check(self) -> ProviderHealthCheck:
         discovery = self.discover_models()
-        if not discovery.available:
-            completion_probe = self._completion_health_probe(discovery)
-            if completion_probe is not None:
-                return completion_probe
         return ProviderHealthCheck(
             available=discovery.available,
             structured_output=self.json_mode,
             message=discovery.message,
             details=discovery.details,
-        )
-
-    def _completion_health_probe(self, discovery: ProviderModelDiscovery) -> ProviderHealthCheck | None:
-        """Validate generation when model discovery is unavailable or slow.
-
-        Some OpenAI-compatible providers expose `/chat/completions` reliably but
-        have slow or restricted `/models` endpoints. Runtime health should
-        reflect whether semantic workflows can actually generate structured
-        output, not only whether model discovery responded quickly.
-        """
-
-        prompt = 'Return one JSON object exactly like {"ok": true}.'
-        request = ChatCompletionRequest(
-            messages=[
-                ChatMessage(role="system", content="You are a model health probe. Return only JSON."),
-                ChatMessage(role="user", content=prompt if self.json_mode else "Reply with exactly: OK"),
-            ],
-            temperature=0,
-            max_tokens=32,
-        )
-        try:
-            response = self.complete(request)
-        except (ExternalServiceError, ModelOutputError, UserInputError):
-            return None
-        content = response.content.strip()
-        valid = False
-        if self.json_mode:
-            try:
-                payload = json.loads(content)
-            except json.JSONDecodeError:
-                payload = None
-            valid = isinstance(payload, dict) and payload.get("ok") is True
-        else:
-            valid = content == "OK"
-        if not valid:
-            return None
-        return ProviderHealthCheck(
-            available=True,
-            structured_output=self.json_mode,
-            message="Provider chat completion probe succeeded; model discovery was unavailable or slow.",
-            details={
-                **discovery.details,
-                "discovery_message": discovery.message,
-                "completion_probe": "ok",
-                "completion_elapsed_seconds": round(response.elapsed_seconds, 3),
-                "completion_usage": response.usage,
-            },
         )
 
     def discover_models(self) -> ProviderModelDiscovery:
@@ -607,47 +556,11 @@ class OllamaNativeChatClient:
 
     def check(self) -> ProviderHealthCheck:
         discovery = self.discover_models()
-        if not discovery.available:
-            completion_probe = self._completion_health_probe(discovery)
-            if completion_probe is not None:
-                return completion_probe
         return ProviderHealthCheck(
             available=discovery.available,
             structured_output=self.json_mode,
             message=discovery.message,
             details=discovery.details,
-        )
-
-    def _completion_health_probe(self, discovery: ProviderModelDiscovery) -> ProviderHealthCheck | None:
-        request = ChatCompletionRequest(
-            messages=[
-                ChatMessage(role="system", content="You are a model health probe. Return only JSON."),
-                ChatMessage(role="user", content='Return exactly {"ok": true}.'),
-            ],
-            temperature=0,
-            max_tokens=64,
-        )
-        try:
-            response = self.complete(request)
-        except (ExternalServiceError, ModelOutputError, UserInputError):
-            return None
-        try:
-            payload = json.loads(response.content.strip())
-        except json.JSONDecodeError:
-            payload = None
-        if not isinstance(payload, dict) or payload.get("ok") is not True:
-            return None
-        return ProviderHealthCheck(
-            available=True,
-            structured_output=self.json_mode,
-            message="Ollama chat probe succeeded; model discovery was unavailable or slow.",
-            details={
-                **discovery.details,
-                "discovery_message": discovery.message,
-                "completion_probe": "ok",
-                "completion_elapsed_seconds": round(response.elapsed_seconds, 3),
-                "completion_usage": response.usage,
-            },
         )
 
     def discover_models(self) -> ProviderModelDiscovery:

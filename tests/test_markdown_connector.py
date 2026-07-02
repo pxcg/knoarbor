@@ -109,10 +109,10 @@ class MarkdownConnectorTests(unittest.TestCase):
         self.assertEqual(attachment["metadata"]["caption"], "图2 AC1 激光雷达 FOV 分布图")
         self.assertEqual(attachment["metadata"]["sub_type"], "natural_image")
 
-    def test_normalized_markdown_sidecar_uses_raw_sidecars(self) -> None:
+    def test_derived_markdown_sidecar_uses_raw_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = (Path(tmp_dir) / "vault").resolve()
-            markdown_path = vault / "raw" / "normalized" / "markdown" / "paper.md"
+            markdown_path = vault / "raw" / "derived" / "markdown" / "paper.md"
             markdown_path.parent.mkdir(parents=True)
             markdown_path.write_text("# Paper\n", encoding="utf-8")
 
@@ -120,9 +120,9 @@ class MarkdownConnectorTests(unittest.TestCase):
 
             self.assertEqual(
                 attachment_sidecar_path(markdown_path),
-                vault / "raw" / "sidecars" / "sources" / "paper.attachments.json",
+                vault / "raw" / "derived" / "metadata" / "sources" / "paper.attachments.json",
             )
-            self.assertTrue((vault / "raw" / "sidecars" / "sources" / "paper.attachments.json").exists())
+            self.assertTrue((vault / "raw" / "derived" / "metadata" / "sources" / "paper.attachments.json").exists())
 
     def test_registry_returns_markdown_connector(self) -> None:
         registry = ConnectorRegistry()

@@ -178,7 +178,7 @@ export type ModelProbeResponse = {
   schema_version: "model_probe.v1";
   provider: string;
   model: string;
-  level: "minimal" | "structured";
+  level: "connectivity";
   status: "ok" | "warning" | "error";
   available: boolean;
   message: string;
@@ -205,7 +205,7 @@ export type ModelApplyCapabilitiesResponse = {
 export type ModelProviderProbeState = {
   discovery?: ModelDiscoveryResponse;
   probe?: ModelProbeResponse;
-  lastAction?: "discover" | "minimal" | "structured";
+  lastAction?: "discover" | "connectivity";
 };
 
 export type ConfigVaultProfile = {
@@ -331,11 +331,9 @@ export type GraphEdge = {
   claim?: string | null;
 };
 
-export type GraphView = "entity" | "page";
-
 export type GraphResponse = {
   vault_path: string;
-  graph_kind?: GraphView;
+  graph_kind?: "page";
   nodes: GraphNode[];
   edges: GraphEdge[];
   stats: {
@@ -670,9 +668,4 @@ export type TokenAnalysis = {
   by_payload_field: TokenPayloadFieldGroup[];
   top_calls: TokenCallRecord[];
   recent_runs: Array<TokenMetricGroup & { run_id: string; flow?: string; created_at?: string | null; finished_at?: string | null }>;
-};
-
-export type ProjectDoc = {
-  path: string;
-  content: string;
 };

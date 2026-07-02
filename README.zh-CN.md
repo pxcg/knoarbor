@@ -9,7 +9,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-3776AB.svg" alt="Python 3.12+">
-  <img src="https://img.shields.io/badge/status-1.3%20wiki--chat%20release-0f766e.svg" alt="1.3 wiki chat release status">
+  <img src="https://img.shields.io/badge/status-2.2.1%20desktop%20release-0f766e.svg" alt="2.2.1 desktop release status">
   <a href="docs/zh/QUICKSTART.md"><img src="https://img.shields.io/badge/docs-quickstart-111827.svg" alt="Quickstart"></a>
 </p>
 
@@ -27,7 +27,7 @@ KnoArbor 提供一层长期知识基础设施，为 Hermes、Codex、Obsidian、
 | --- | --- |
 | 输入 | Markdown 笔记、AI 聊天记录、通用聊天日志，以及可选 MinerU 预处理后的富文档 |
 | 输出 | 本地 Markdown Wiki，包括维护后的知识页、来源审计页、raw 附件、运行报告、账本和图索引 |
-| 使用方式 | CLI、FastAPI、本地管理控制台，以及宿主 AI skill 模板 |
+| 使用方式 | 桌面应用、CLI、FastAPI、本地管理控制台，以及宿主 AI skill 模板 |
 | 运行模型 | 本地优先、单用户、文件型多知识库，带队列、文件锁、断点和报告 |
 
 ## 为什么需要 KnoArbor
@@ -52,63 +52,35 @@ KnoArbor 提供一层长期知识基础设施，为 Hermes、Codex、Obsidian、
 - **来源溯源**：区分 raw source、source digest 和生成知识页面。
 - **多知识库配置**：在一份配置中管理多个命名本地知识库，并支持单库或多库查询。
 - **模型适配**：支持 DeepSeek、OpenAI、OpenRouter、LM Studio、vLLM 兼容端点，以及 Ollama 原生端点。
-- **CLI、API 和本地控制台**：可以通过终端、本地 HTTP API 或内置 Web 控制台使用。
+- **桌面应用、CLI、API 和本地控制台**：有发布包时优先使用桌面应用；源码运行时也可以通过终端、本地 HTTP API 或内置 Web 控制台使用。
 - **Skill 集成**：提供通用本地 Wiki skill 模板，方便接入支持本地技能的 AI 工具。
 
 ## 产品导览
 
-本地控制台用于配置资料来源、启动知识编译/校验维护/知识查询流程、查看运行状态、浏览报告和探索知识图谱。
+桌面应用内嵌同一套本地控制台。源码运行时，本地控制台也使用同样的核心工作区：Chat 用于向已维护 Wiki 提问，Flows 用于知识编译/校验/查询流程，Knowledge 用于页面和图谱检查。
 
-### 总览
+### Chat
 
-在启动流程前查看服务就绪状态、知识库健康度、页面数量和推荐下一步。
+在桌面工作区中直接提问，将会话历史保存在本地 vault，并查看回答背后的引用证据。
 
 <p align="center">
-  <img src="docs/assets/knoarbor-console-overview.png" alt="KnoArbor 控制台总览" width="920">
+  <img src="docs/assets/knoarbor-desktop-chat.png" alt="KnoArbor 桌面端对话工作区" width="920">
 </p>
 
-### 资料来源
+### Flows
 
-查看已启用的来源连接器，并理解 raw 输入如何进入统一的知识编译流程。
+在同一个操作界面中启动和监控知识编译、校验维护、查询、报告和 token 分析流程。
 
 <p align="center">
-  <img src="docs/assets/knoarbor-console-sources.png" alt="资料来源页面" width="920">
+  <img src="docs/assets/knoarbor-desktop-flows.png" alt="KnoArbor 桌面端流程工作区" width="920">
 </p>
 
-### 运行监控
+### 知识图谱
 
-跟踪长时间运行的知识编译、校验维护和查询流程，包括队列状态、心跳、取消和近期运行记录。
-
-<p align="center">
-  <img src="docs/assets/knoarbor-console-runs.png" alt="运行监控页面" width="920">
-</p>
-
-### 知识库浏览
-
-浏览生成后的 Wiki 页面，查看结构化元数据、实体关系、来源证据，并从运行结果直接打开本次写入或维护的页面。
+以页面关系浏览已维护 Wiki，图谱边来自 Wiki 链接和语义页面邻域。
 
 <p align="center">
-  <img src="docs/assets/knoarbor-console-wiki.png" alt="知识库浏览页面" width="920">
-</p>
-
-### Wiki 对话与知识查询
-
-可以在本地控制台直接提问、查看回答背后的引用页面，也可以通过 Query 和 Skill 集成为宿主 AI 返回同一套页面优先上下文包。
-
-<p align="center">
-  <img src="docs/assets/knoarbor-console-query.png" alt="知识查询页面" width="920">
-</p>
-
-### 运行报告与知识图谱
-
-查看可读的运行报告，并检查生成后的知识网络。
-
-<p align="center">
-  <img src="docs/assets/knoarbor-console-reports.png" alt="运行报告页面" width="920">
-</p>
-
-<p align="center">
-  <img src="docs/assets/knoarbor-console-graph.png" alt="知识图谱页面" width="920">
+  <img src="docs/assets/knoarbor-desktop-graph.png" alt="KnoArbor 桌面端知识图谱" width="920">
 </p>
 
 ## 安装
@@ -161,7 +133,7 @@ uv run knoar doctor
 
 ```bash
 uv run knoar ingest --connector markdown --write
-uv run knoar lint --mode structural
+uv run knoar lint --mode deterministic
 ```
 
 启动本地服务：
@@ -252,22 +224,22 @@ Markdown 文件会直接进入编译流程。文件夹输入默认递归发现 M
 
 ### 维护 Wiki
 
-结构维护：
+结构化维护：
 
 ```bash
-uv run knoar lint --mode structural
+uv run knoar lint --mode deterministic
 ```
 
-质量审查：
+语义维护：
 
 ```bash
-uv run knoar lint --mode quality
+uv run knoar lint --mode semantic
 ```
 
-完整维护并应用通过评审的操作：
+语义维护默认会应用通过评审的操作。如需只评审不写入，可加 `--no-apply-reviewed`。
 
 ```bash
-uv run knoar lint --mode full --apply-reviewed
+uv run knoar lint --mode semantic
 ```
 
 ### 查询上下文
@@ -277,17 +249,18 @@ uv run knoar query "Agent Loop 是什么？"
 uv run knoar query --json "Agent Loop control patterns"
 ```
 
-Query 只负责检索上下文和证据，最终回答由宿主 AI 生成。
+Query 只负责检索上下文和证据，供宿主 AI 使用。需要 KnoArbor 在应用内基于证据生成回答时，请使用 Wiki Chat。
 
 ## 当前状态
 
-KnoArbor 处于 1.x 本地优先版本线。核心本地流程、CLI、稳定 HTTP API、内置控制台、多知识库配置和宿主 AI skill 模板，目标是作为单用户本地知识引擎一起使用。
+KnoArbor 处于 2.2 桌面端优先版本线。桌面端壳、源码本地服务、CLI、稳定 HTTP API、内置控制台、多知识库配置和宿主 AI skill 模板，目标是作为单用户本地知识引擎一起使用。
 
 已经实现：
 
 - Markdown、Hermes、Codex、OpenClaw、Claude Code 和通用聊天记录来源连接器。
 - 可选的 MinerU 兼容文档预处理。
 - Python Core 中的 ingest、lint、query 流程。
+- Wiki Chat，支持基于证据的回答、引用、会话历史、重试和会话入库。
 - FastAPI 服务和 CLI 入口。
 - 随 Python 包分发的本地 React 控制台。
 - 运行时 Wiki 初始化、机器索引、队列、文件锁、账本、报告和断点。
@@ -297,7 +270,6 @@ KnoArbor 处于 1.x 本地优先版本线。核心本地流程、CLI、稳定 HT
 
 - 托管 SaaS 部署。
 - 内置向量数据库。
-- 内置聊天回答生成。
 - 内置 MinerU 模型或运行时。
 - 打包好的外部工作流模板。
 

@@ -25,10 +25,6 @@
       {
         "from": "resources/service",
         "to": "service"
-      },
-      {
-        "from": "../docs",
-        "to": "docs"
       }
     ],
     "mac": {

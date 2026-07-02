@@ -10,7 +10,7 @@ def test_build_ingest_token_records_from_segment_metrics():
             {
                 "connector": "codex",
                 "source_id": "codex:1",
-                "source_file": "raw/normalized/chats/example.jsonl",
+                "source_file": "raw/inbox/chats/example.jsonl",
                 "status": "processed",
                 "mode": "new_source",
                 "segments": [
@@ -54,7 +54,7 @@ def test_build_ingest_token_records_from_segment_metrics():
     assert len(rows) == 1
     assert rows[0]["flow"] == "ingest"
     assert rows[0]["agent"] == "wiki_page_plan"
-    assert rows[0]["source_file"] == "raw/normalized/chats/example.jsonl"
+    assert rows[0]["source_file"] == "raw/inbox/chats/example.jsonl"
     assert rows[0]["page_paths"] == ["Agent-Loop.md"]
     assert rows[0]["prompt_cache_rate"] == 0.4
     assert rows[0]["prompt_stable_chars"] == 1000

@@ -16,7 +16,6 @@ SKIP_DIRS = {
     ".venv",
     "build",
     "dist",
-    "notebooks",
     "node_modules",
     "output",
     "tmp",

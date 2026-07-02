@@ -56,10 +56,10 @@ vaults/<id>/
 ## Content Ownership
 
 - `raw/inbox/**` stores user-provided input locations or copied input files.
-- `raw/normalized/**` stores source-faithful normalized text and Markdown.
-- `raw/assets/**` stores retained parsed assets such as images, media, page
+- `raw/derived/markdown/**` stores source-faithful normalized text and Markdown.
+- `raw/derived/assets/**` stores retained parsed assets such as images, media, page
   renders, and table assets.
-- `raw/sidecars/**` stores parser and attachment metadata. The sidecar is the
+- `raw/derived/metadata/**` stores parser and attachment metadata. The sidecar is the
   place for asset paths, hashes, MIME types, coordinates, OCR/VLM output, and
   parser-specific payloads.
 - `wiki/pages/**` stores maintained knowledge pages using the frozen wiki page

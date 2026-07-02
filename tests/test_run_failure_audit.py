@@ -57,7 +57,7 @@ class RunFailureAuditTests(unittest.TestCase):
                     trigger="manual",
                     source=MaintenanceScopeSource(kind="test"),
                 ),
-                mode="semantic_quality",
+                mode="semantic",
                 write_report=True,
                 append_ledger=True,
             )

@@ -278,7 +278,7 @@ def _discover_output_attachments(
     output_dir: Path,
     response: MinerUResponse,
 ) -> list[dict[str, object]]:
-    assets_root = _raw_assets_root_for_output_dir(output_dir)
+    assets_root = _raw_derived_assets_root_for_output_dir(output_dir)
     link_rewrites: dict[str, str] = {}
     link_rewrites.update(_materialize_payload_images(input_path, markdown_path, response, assets_root))
     output_attachments, output_rewrites = _output_directory_image_attachments(input_path, markdown_path, output_dir, assets_root)
@@ -314,7 +314,7 @@ def _output_directory_image_attachments(
         if not directory.exists() or not directory.is_dir():
             continue
         for image_path in sorted(path for path in directory.rglob("*") if path.is_file()):
-            asset_path = _copy_to_raw_assets(input_path, image_path, assets_root)
+            asset_path = _copy_to_raw_derived_assets(input_path, image_path, assets_root)
             rewrites[image_path.name] = _markdown_link_to_asset(markdown_path, asset_path)
             try:
                 rewrites[image_path.relative_to(markdown_path.parent).as_posix()] = _markdown_link_to_asset(markdown_path, asset_path)
@@ -354,7 +354,7 @@ def _materialize_payload_images(input_path: Path, markdown_path: Path, response:
             image_bytes = _decode_image_payload(value)
             if not image_bytes:
                 continue
-            image_path = _raw_asset_image_path(input_path, name, image_bytes, assets_root)
+            image_path = _raw_derived_asset_image_path(input_path, name, image_bytes, assets_root)
             image_path.parent.mkdir(parents=True, exist_ok=True)
             image_path.write_bytes(image_bytes)
             rewrites[name] = _markdown_link_to_asset(markdown_path, image_path)
@@ -399,15 +399,15 @@ def _payload_image_attachments(markdown_path: Path, response: MinerUResponse, as
     return attachments
 
 
-def _raw_assets_root_for_output_dir(output_dir: Path) -> Path:
+def _raw_derived_assets_root_for_output_dir(output_dir: Path) -> Path:
     resolved = output_dir.expanduser().resolve()
     for candidate in (resolved, *resolved.parents):
         if candidate.name == "raw":
-            return candidate / "assets"
+            return candidate / "derived" / "assets"
     return resolved.parent / "assets"
 
 
-def _raw_asset_image_path(input_path: Path, name: str, image_bytes: bytes, assets_root: Path) -> Path:
+def _raw_derived_asset_image_path(input_path: Path, name: str, image_bytes: bytes, assets_root: Path) -> Path:
     suffix = Path(name).suffix.lower() or ".png"
     stem = _safe_asset_stem(input_path.stem)
     name_stem = _safe_asset_stem(Path(name).stem)
@@ -415,9 +415,9 @@ def _raw_asset_image_path(input_path: Path, name: str, image_bytes: bytes, asset
     return (assets_root / "images" / f"{stem}-{name_stem}-{digest}{suffix}").resolve()
 
 
-def _copy_to_raw_assets(input_path: Path, image_path: Path, assets_root: Path) -> Path:
+def _copy_to_raw_derived_assets(input_path: Path, image_path: Path, assets_root: Path) -> Path:
     data = image_path.read_bytes()
-    target = _raw_asset_image_path(input_path, image_path.name, data, assets_root)
+    target = _raw_derived_asset_image_path(input_path, image_path.name, data, assets_root)
     target.parent.mkdir(parents=True, exist_ok=True)
     if not target.exists():
         shutil.copy2(image_path, target)

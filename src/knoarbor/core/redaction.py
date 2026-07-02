@@ -165,7 +165,7 @@ def _redact_text(text: str, config: PrivacyConfig, counts: dict[str, int]) -> st
     if config.redact_local_paths:
         redacted = _sub_counted(
             "local_paths",
-            r"(?<!\w)/(?:Users|home)/(?!(?:\[REDACTED_USER\]|node)(?:/|\s|`|$))[^/\s`]+",
+            r"(?<!\w)/(?:Users|home)/(?!(?:\[REDACTED_USER\]|app|node)(?:/|\s|`|$))[^/\s`]+",
             lambda match: "/".join([match.group(0).split("/")[0], match.group(0).split("/")[1], "[REDACTED_USER]"]),
             redacted,
             counts,

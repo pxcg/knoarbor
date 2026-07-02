@@ -69,7 +69,7 @@ def lint_issue_execution_class(code: str) -> str:
     if code in DETERMINISTIC_ONLY_ISSUE_CODES:
         return "deterministic_only"
     if code in SEMANTIC_STRUCTURAL_ISSUE_CODES:
-        return "semantic_structural"
+        return "semantic"
     if code in GOVERNANCE_QUEUE_ISSUE_CODES:
         return "governance_queue"
     if code in QUALITY_SEMANTIC_ISSUE_CODES:
@@ -78,7 +78,7 @@ def lint_issue_execution_class(code: str) -> str:
 
 
 def is_structural_semantic_issue(code: str) -> bool:
-    return lint_issue_execution_class(code) in {"semantic_structural", "governance_queue"}
+    return lint_issue_execution_class(code) in {"semantic", "governance_queue"}
 
 
 def is_deterministic_only_issue(code: str) -> bool:

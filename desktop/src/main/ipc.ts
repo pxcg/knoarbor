@@ -30,17 +30,6 @@ export function registerDesktopIpc(input: {
     },
     service: input.serviceManager.getState(),
   }));
-  ipcMain.handle("knoarbor-desktop:api-docs-open", async () => {
-    const state = input.serviceManager.getState();
-    const baseUrl =
-      input.config.appServer.mode === "external"
-        ? input.config.appServer.url
-        : state.endpoint;
-    if (!baseUrl) return { opened: false };
-    const url = new URL("/docs", baseUrl).toString();
-    await shell.openExternal(url);
-    return { opened: true, url };
-  });
   ipcMain.handle("knoarbor-desktop:logs-open", async () => {
     const filePath = getLogFilePath();
     if (!filePath) return { opened: false };

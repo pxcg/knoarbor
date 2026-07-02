@@ -88,7 +88,7 @@ class ChatEvidencePlannerTests(unittest.TestCase):
                     {
                         "topic": "图2 AC1 激光雷达 FOV 分布图",
                         "description": "FOV rendering.",
-                        "markdown_src": "raw/assets/images/ac1-fov.jpg",
+                        "markdown_src": "raw/derived/assets/images/ac1-fov.jpg",
                     }
                 ],
             },
@@ -100,7 +100,7 @@ class ChatEvidencePlannerTests(unittest.TestCase):
         ).payload
 
         attachments = pack["primary_pages"][0]["attachments"]
-        self.assertEqual(attachments[0]["markdown_src"], "raw/assets/images/ac1-fov.jpg")
+        self.assertEqual(attachments[0]["markdown_src"], "raw/derived/assets/images/ac1-fov.jpg")
 
 
 if __name__ == "__main__":

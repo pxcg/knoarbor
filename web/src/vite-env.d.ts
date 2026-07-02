@@ -2,7 +2,6 @@
 
 type KnoArborDesktopCommand =
   | "chat.new"
-  | "docs.open"
   | "settings.open"
   | "service.restart"
   | "logs.open";
@@ -13,7 +12,6 @@ type KnoArborDesktopBridge = {
   getServiceState(): Promise<unknown>;
   onCommand(listener: (command: KnoArborDesktopCommand) => void): () => void;
   onServiceStateChanged(listener: (state: unknown) => void): () => void;
-  openApiDocs(): Promise<{ opened: boolean; url?: string }>;
   openLogs(): Promise<{ opened: boolean; path?: string }>;
   openPath(path: string): Promise<{ opened: boolean; path?: string; error?: string }>;
   restartService(): Promise<unknown>;

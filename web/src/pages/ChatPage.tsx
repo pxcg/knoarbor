@@ -19,6 +19,9 @@ export function ChatPage({ context }: Props) {
   const chat = useChatController(context);
   const hasConversation = chat.turns.length > 0 || chat.isSending;
   const selectionActive = chat.selectedMessageIndices.size > 0;
+  const modelProvidersReady = context.modelProviders !== null;
+  const needsModelSetup = modelProvidersReady && !chat.chatModelProviders.length;
+  const needsImport = context.status?.pages === 0;
 
   return (
     <section className="view active chat-page">
@@ -31,6 +34,24 @@ export function ChatPage({ context }: Props) {
                   <h2>{context.t("chatIntroTitle")}</h2>
                   <p>{context.t("chatIntroCopy")}</p>
                 </div>
+                {(needsModelSetup || needsImport) && (
+                  <div className="chat-readiness-grid">
+                    {needsModelSetup && (
+                      <button className="chat-readiness-card" type="button" onClick={context.openSettings}>
+                        <strong>{context.t("chatReadinessModelTitle")}</strong>
+                        <span>{context.t("chatReadinessModelCopy")}</span>
+                        <em>{context.t("configureModel")}</em>
+                      </button>
+                    )}
+                    {needsImport && (
+                      <button className="chat-readiness-card" type="button" onClick={() => context.navigate("ingest")}>
+                        <strong>{context.t("chatReadinessImportTitle")}</strong>
+                        <span>{context.t("chatReadinessImportCopy")}</span>
+                        <em>{context.t("importMaterials")}</em>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -187,6 +208,10 @@ export function ChatPage({ context }: Props) {
                       ))}
                     </select>
                   </div>
+                ) : modelProvidersReady ? (
+                  <button className="button secondary compact" type="button" onClick={context.openSettings}>
+                    {context.t("configureModel")}
+                  </button>
                 ) : (
                   <span />
                 )}
@@ -194,7 +219,7 @@ export function ChatPage({ context }: Props) {
                   className={`button ${chat.isSending ? "secondary" : "primary"} chat-send-button`}
                   type="button"
                   onClick={chat.isSending ? chat.stopSending : () => void chat.submit()}
-                  disabled={!chat.isSending && !chat.input.trim()}
+                  disabled={!chat.isSending && (!chat.input.trim() || !modelProvidersReady || needsModelSetup)}
                   title={chat.isSending ? context.t("chatStop") : context.t("chatSend")}
                 >
                   {chat.isSending ? context.t("chatStop") : context.t("chatSend")}

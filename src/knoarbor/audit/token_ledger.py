@@ -91,7 +91,6 @@ def build_lint_token_records(record: dict[str, object]) -> list[dict[str, object
         "run_id": record.get("run_id"),
         "created_at": record.get("created_at"),
         "mode": record.get("mode"),
-        "profile": record.get("profile"),
         "page_paths": _lint_page_paths(record),
     }
     return _call_records(base, as_dict(as_dict(record.get("metrics")).get("semantic")), page_paths=as_list(base.get("page_paths")))

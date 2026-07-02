@@ -8,14 +8,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.core.schemas.maintenance import MaintenanceScope, MaintenanceScopeSource
+from knoarbor.core.errors import ModelOutputError
 from knoarbor.core.schemas.lint_candidates import MaintenanceCandidates
 from knoarbor.core.schemas.lint_review import LintMaintenanceReview
 from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
-from knoarbor.core.schemas.wiki_lint import LintRunRequest, WikiLintIssue, WikiLintRequest, WikiScanPage, WikiScanRequest, WikiScanResponse
+from knoarbor.core.schemas.wiki_lint import LintRunRequest, WikiLintCandidateSelectRequest, WikiLintIssue, WikiLintRequest, WikiScanPage, WikiScanRequest, WikiScanResponse
 from knoarbor.maintenance.lint_candidates import score_lint_candidate
 from knoarbor.pipelines import WikiLintPipeline
 from knoarbor.pipelines.lint import _merge_candidates, _structural_diagnose_payload
 from knoarbor.runtime import RunMonitor, run_monitor_context
+from knoarbor.runtime.run_monitor import read_run_events
 
 
 class WikiLintPipelineTests(unittest.TestCase):
@@ -71,6 +73,37 @@ class WikiLintPipelineTests(unittest.TestCase):
         self.assertEqual(content.lower().count("- agent"), 1)
         self.assertTrue(any(fix.mode == "auto_applied" and fix.action == "remove_adjacent_duplicate_headings" for fix in response.fixes))
         self.assertTrue(any(fix.mode == "auto_applied" and fix.action == "deduplicate_section_items" for fix in response.fixes))
+
+    def test_semantic_maintenance_first_applies_safe_structured_fixes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            (vault / "wiki" / "pages").mkdir(parents=True)
+            page = vault / "wiki" / "pages" / "Agent.md"
+            page.write_text(
+                "---\ncreated: 2026-05-01\nupdated: 2026-05-01\ncontent_hash: a\n---\n"
+                "# Agent\n\n## Summary\n\n### Loop\n\n### Loop\n\nAgent loop notes.\n\n"
+                "## Entities\n\n- Agent\n- agent\n",
+                encoding="utf-8",
+            )
+
+            response = WikiLintPipeline(FakeLintSemanticWorkflow()).run_maintenance(
+                LintRunRequest(
+                    vault_path=str(vault),
+                    scope=MaintenanceScope(
+                        scope_id="manual:test",
+                        trigger="manual",
+                        source=MaintenanceScopeSource(kind="test"),
+                        changed_pages=["Agent.md"],
+                    ),
+                    mode="semantic",
+                    auto_retry_deferred_actions=False,
+                )
+            )
+            content = page.read_text(encoding="utf-8")
+
+        self.assertEqual(content.count("### Loop"), 1)
+        self.assertEqual(content.lower().count("- agent"), 1)
+        self.assertTrue(any(fix.mode == "auto_applied" for fix in response.deterministic_lint.fixes))
 
     def test_structural_diagnose_payload_excludes_deterministic_and_quality_issues(self) -> None:
         scan = WikiScanResponse(
@@ -134,7 +167,7 @@ class WikiLintPipelineTests(unittest.TestCase):
         self.assertEqual([issue["code"] for issue in issues], ["knowledge_without_source_digest"])
         self.assertEqual([page["path"] for page in pages], ["Agent.md"])
 
-    def test_quality_candidate_scoring_prioritizes_quality_issues(self) -> None:
+    def test_semantic_candidate_scoring_prioritizes_quality_issues(self) -> None:
         missing_contract = score_lint_candidate(
             WikiScanPage(
                 path="Agent.md",
@@ -154,7 +187,6 @@ class WikiLintPipelineTests(unittest.TestCase):
                     message="Page is missing required Claims section.",
                 )
             ],
-            "quality",
         )
         provenance_only = score_lint_candidate(
             WikiScanPage(
@@ -175,12 +207,11 @@ class WikiLintPipelineTests(unittest.TestCase):
                     message="Generated knowledge page points to a raw source without a matching source digest page.",
                 )
             ],
-            "quality",
         )
 
         self.assertGreater(missing_contract.score, provenance_only.score)
 
-    def test_quality_candidate_scoring_ignores_deterministic_only_issues(self) -> None:
+    def test_semantic_candidate_scoring_ignores_deterministic_only_issues(self) -> None:
         candidate = score_lint_candidate(
             WikiScanPage(
                 path="Agent.md",
@@ -202,7 +233,6 @@ class WikiLintPipelineTests(unittest.TestCase):
                     message="Wiki link target does not exist.",
                 )
             ],
-            "quality",
         )
 
         self.assertEqual(candidate.score, 0)
@@ -294,6 +324,35 @@ class WikiLintPipelineTests(unittest.TestCase):
         self.assertEqual({page.path for page in scoped.pages}, {"Agent.md", "OpenClaw.md"})
         self.assertEqual([page.path for page in strict.pages], ["Agent.md"])
         self.assertTrue(scoped.stats["scoped"])
+
+    def test_candidate_selection_respects_explicit_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            (vault / "wiki" / "pages").mkdir(parents=True, exist_ok=True)
+            (vault / "wiki" / "pages" / "Agent.md").write_text(
+                "---\ncreated: 2026-05-01\nupdated: 2026-05-01\ncontent_hash: a\n---\n"
+                "# Agent\n\n## Summary\n\nAgent loop notes.\n\n## Claims\n\n- C1: Agent loop coordinates tools.\n\n"
+                "## Entities\n\n- Agent loop\n\n## Relations\n\n| Subject | Predicate | Object | Claim |\n|---|---|---|---|\n| Agent loop | coordinates | tools | C1 |\n\n"
+                "## Evidence\n\n| Claim | Source | Range | Basis | Confidence |\n|---|---|---|---|---|\n| C1 | raw/inbox/notes/agent.md | unit:0 | Agent notes. | medium |\n\n"
+                "## Synthesis\n\nAgent loop notes.\n",
+                encoding="utf-8",
+            )
+            (vault / "wiki" / "pages" / "OutOfScope.md").write_text(
+                "---\ncreated: 2025-01-01\nupdated: 2025-01-01\ncontent_hash: b\n---\n"
+                "# Out Of Scope\n\n## Summary\n\nLatest ranking and current API price notes.\n",
+                encoding="utf-8",
+            )
+
+            response = WikiLintPipeline().select_candidates(
+                WikiLintCandidateSelectRequest(
+                    vault_path=str(vault),
+                    scope_pages=["Agent.md"],
+                    include_related=False,
+                )
+            )
+
+        self.assertNotIn("OutOfScope.md", {candidate.path for candidate in response.candidates})
+        self.assertEqual(response.stats["scope_pages"], ["Agent.md"])
 
     def test_scan_reports_sensitive_generated_page_content(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -554,6 +613,7 @@ class WikiLintPipelineTests(unittest.TestCase):
             )
 
             monitor = RunMonitor(vault_path=vault, flow="lint", run_id="lint-report-test")
+            monitor.start(message="lint test started")
             with run_monitor_context(monitor):
                 response = WikiLintPipeline().run_maintenance(
                     LintRunRequest(
@@ -567,11 +627,18 @@ class WikiLintPipelineTests(unittest.TestCase):
                     )
                 )
 
-        self.assertEqual(response.schema_version, "lint_run.v1")
-        self.assertTrue(response.deterministic_lint.stats["scoped"])
-        self.assertEqual(response.policy_decision.mode, "deterministic")
-        self.assertEqual(response.report_path, "maintenance/reports/lint/lint_run_report_lint-report-test.md")
-        self.assertIsNotNone(response.ledger_path)
+            self.assertEqual(response.schema_version, "lint_run.v1")
+            self.assertTrue(response.deterministic_lint.stats["scoped"])
+            self.assertEqual(response.policy_decision.mode, "deterministic")
+            self.assertEqual(response.report_path, "maintenance/reports/lint/lint_run_report_lint-report-test.md")
+            self.assertIsNotNone(response.ledger_path)
+            events = read_run_events(vault, "lint-report-test")
+            lint_steps = [
+                event.payload.get("lint_step")
+                for event in events
+                if event.event_type in {"lint_step_finished", "lint_step_skipped"}
+            ]
+            self.assertEqual(lint_steps, ["scan", "diagnose", "review", "execute", "verify", "report"])
 
     def test_run_maintenance_can_disable_artifact_writes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -594,7 +661,7 @@ class WikiLintPipelineTests(unittest.TestCase):
         self.assertIsNone(response.ledger_path)
         self.assertFalse(maintenance_path.exists())
 
-    def test_run_maintenance_can_execute_semantic_structural_review(self) -> None:
+    def test_run_maintenance_can_execute_semantic_maintenance(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
             (vault / "wiki" / "pages").mkdir(parents=True)
@@ -613,16 +680,16 @@ class WikiLintPipelineTests(unittest.TestCase):
                         source=MaintenanceScopeSource(kind="test"),
                         changed_pages=["Agent.md"],
                     ),
-                    mode="semantic_structural",
+                    mode="semantic",
                     auto_retry_deferred_actions=False,
                 )
             )
 
-        self.assertEqual(response.mode, "semantic_structural")
+        self.assertEqual(response.mode, "semantic")
         self.assertEqual(response.semantic_candidates["summary"], "One semantic candidate.")
         self.assertEqual(response.maintenance_review["decisions"][0]["decision"], "approve")
 
-    def test_semantic_structural_skips_model_when_scan_has_no_issues(self) -> None:
+    def test_semantic_skips_model_when_scan_has_no_issues(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
             (vault / "index.md").write_text("# Index\n", encoding="utf-8")
@@ -636,7 +703,7 @@ class WikiLintPipelineTests(unittest.TestCase):
                         source=MaintenanceScopeSource(kind="test"),
                         changed_pages=[],
                     ),
-                    mode="semantic_structural",
+                    mode="semantic",
                     auto_retry_deferred_actions=False,
                 )
             )
@@ -665,7 +732,7 @@ class WikiLintPipelineTests(unittest.TestCase):
                         source=MaintenanceScopeSource(kind="test"),
                         changed_pages=["Agent.md"],
                     ),
-                    mode="semantic_structural",
+                    mode="semantic",
                     auto_apply_reviewed_changes=True,
                 )
             )
@@ -710,7 +777,7 @@ class WikiLintPipelineTests(unittest.TestCase):
                         source=MaintenanceScopeSource(kind="test"),
                         changed_pages=["RAG.md"],
                     ),
-                    mode="semantic_structural",
+                    mode="semantic",
                     auto_apply_reviewed_changes=True,
                 )
             )
@@ -734,7 +801,8 @@ class WikiLintPipelineTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            response = WikiLintPipeline(DraftWriteLintSemanticWorkflow()).run_maintenance(
+            workflow = DraftWriteLintSemanticWorkflow()
+            response = WikiLintPipeline(workflow).run_maintenance(
                 LintRunRequest(
                     vault_path=str(vault),
                     scope=MaintenanceScope(
@@ -743,7 +811,7 @@ class WikiLintPipelineTests(unittest.TestCase):
                         source=MaintenanceScopeSource(kind="test"),
                         changed_pages=["Agent.md"],
                     ),
-                    mode="semantic_quality",
+                    mode="semantic",
                     auto_apply_reviewed_changes=True,
                 )
             )
@@ -755,6 +823,9 @@ class WikiLintPipelineTests(unittest.TestCase):
         self.assertEqual(response.verifications[0]["action"], "improve_summary")
         self.assertIn("Improved summary.", content)
         self.assertIsNotNone(response.rescan)
+        self.assertEqual(response.draft_batch["drafts"][0]["target_page"], "Agent.md")
+        self.assertIn("approved_candidates", workflow.compile_payload)
+        self.assertNotIn("maintenance_candidates", workflow.compile_payload)
 
     def test_quality_lint_rewrites_claims_as_local_patch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -781,7 +852,7 @@ class WikiLintPipelineTests(unittest.TestCase):
                         source=MaintenanceScopeSource(kind="test"),
                         changed_pages=["Agent.md"],
                     ),
-                    mode="semantic_quality",
+                    mode="semantic",
                     auto_apply_reviewed_changes=True,
                 )
             )
@@ -795,6 +866,38 @@ class WikiLintPipelineTests(unittest.TestCase):
         self.assertIn("Agent loop", content)
         self.assertNotIn("暂无内容", content)
         self.assertIsNotNone(response.rescan)
+
+    def test_lint_draft_compile_rejects_unapproved_target_page(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            (vault / "wiki" / "pages").mkdir(parents=True)
+            (vault / "wiki" / "pages" / "Agent.md").write_text(
+                "---\ncreated: 2026-05-01\nupdated: 2026-05-01\ncontent_hash: a\n---\n"
+                "# Agent\n\n## Summary\n\nOld summary.\n\n## Claims\n\n- C1: Agent loop has notes.\n\n"
+                "## Entities\n\n- Agent loop\n\n## Relations\n\n| Subject | Predicate | Object | Claim |\n|---|---|---|---|\n| Agent loop | has | notes | C1 |\n\n"
+                "## Evidence\n\n| Claim | Source | Range | Basis | Confidence |\n|---|---|---|---|---|\n| C1 | raw/inbox/notes/agent.md | unit:0 | Old source. | medium |\n\n"
+                "## Synthesis\n\nOld answer.\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(ModelOutputError):
+                WikiLintPipeline(OverreachingDraftWriteLintSemanticWorkflow()).run_maintenance(
+                    LintRunRequest(
+                        vault_path=str(vault),
+                        scope=MaintenanceScope(
+                            scope_id="manual:test",
+                            trigger="manual",
+                            source=MaintenanceScopeSource(kind="test"),
+                            changed_pages=["Agent.md"],
+                        ),
+                        mode="semantic",
+                        auto_apply_reviewed_changes=True,
+                    )
+                )
+
+            content = (vault / "wiki" / "pages" / "Agent.md").read_text(encoding="utf-8")
+
+        self.assertIn("Old summary.", content)
 
     def test_run_maintenance_does_not_compile_source_digest_from_lint(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -817,7 +920,7 @@ class WikiLintPipelineTests(unittest.TestCase):
                         source=MaintenanceScopeSource(kind="test"),
                         changed_pages=["Agent.md"],
                     ),
-                    mode="semantic_structural",
+                    mode="semantic",
                     auto_apply_reviewed_changes=True,
                 )
             )
@@ -847,7 +950,7 @@ class WikiLintPipelineTests(unittest.TestCase):
                         source=MaintenanceScopeSource(kind="test"),
                         changed_pages=["Agent.md"],
                     ),
-                    mode="semantic_structural",
+                    mode="semantic",
                     auto_retry_deferred_actions=False,
                 )
             )
@@ -880,7 +983,7 @@ class WikiLintPipelineTests(unittest.TestCase):
                         source=MaintenanceScopeSource(kind="test"),
                         changed_pages=["Agent.md"],
                     ),
-                    mode="semantic_structural",
+                    mode="semantic",
                     auto_apply_reviewed_changes=True,
                     auto_retry_deferred_actions=False,
                 )
@@ -896,9 +999,12 @@ class WikiLintPipelineTests(unittest.TestCase):
         self.assertIn("## Source Units", source_content)
         self.assertIn("| U1 | raw/inbox/notes/agent.md | source-level | source digest compiled from this raw source | medium |", source_content)
         self.assertIn("## Contribution Map", source_content)
+        self.assertIn("Agent.md", source_content)
         self.assertIn("## Unresolved / Rejected", source_content)
         self.assertNotIn("[[sources/", target_content)
         self.assertIsNotNone(response.rescan)
+        refresh_verifications = [item for item in response.verifications if item["action"] in {"create_source_digest", "record_source_digest"}]
+        self.assertEqual([item["status"] for item in refresh_verifications], ["verified", "verified"])
         self.assertNotIn("knowledge_without_source_digest", {issue.code for issue in response.rescan.issues})
 
     def test_run_maintenance_executes_refresh_request_with_existing_source_digest_alias(self) -> None:
@@ -928,7 +1034,7 @@ class WikiLintPipelineTests(unittest.TestCase):
                         source=MaintenanceScopeSource(kind="test"),
                         changed_pages=["Agent.md"],
                     ),
-                    mode="semantic_structural",
+                    mode="semantic",
                     auto_apply_reviewed_changes=True,
                     auto_retry_deferred_actions=False,
                 )
@@ -940,6 +1046,8 @@ class WikiLintPipelineTests(unittest.TestCase):
         self.assertEqual(len(source_pages), 1)
         self.assertFalse(response.written_pages)
         self.assertTrue(any(operation["action"] == "record_source_digest" for operation in response.applied_operations))
+        refresh_verifications = [item for item in response.verifications if item["action"] == "record_source_digest"]
+        self.assertEqual([item["status"] for item in refresh_verifications], ["verified"])
         self.assertNotIn("[[Agent|Agent]]", source_content)
         self.assertNotIn("[[sources/Agent-Source|Agent Source]]", target_content)
 
@@ -967,7 +1075,7 @@ class WikiLintPipelineTests(unittest.TestCase):
                         source=MaintenanceScopeSource(kind="test"),
                         changed_pages=["Agent.md", "Agent-Duplicate.md"],
                     ),
-                    mode="semantic_structural",
+                    mode="semantic",
                     auto_apply_reviewed_changes=True,
                     auto_retry_deferred_actions=True,
                 )
@@ -979,24 +1087,6 @@ class WikiLintPipelineTests(unittest.TestCase):
         self.assertEqual(response.applied_operations[-1]["action"], "merge_pages")
         self.assertIn("## Merged Notes", merged_content)
         self.assertEqual(len(archived), 1)
-
-    def test_run_maintenance_supports_deep_profile(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            response = WikiLintPipeline().run_maintenance(
-                LintRunRequest(
-                    vault_path=tmp_dir,
-                    scope=MaintenanceScope(
-                        scope_id="manual:test",
-                        trigger="manual",
-                        source=MaintenanceScopeSource(kind="test"),
-                    ),
-                    profile="deep",
-                    write_report=False,
-                    append_ledger=False,
-                )
-            )
-
-        self.assertEqual(response.profile, "deep")
 
     def test_lint_run_report_records_trend_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1196,6 +1286,12 @@ class MissingSectionWikiOperationWorkflow(FakeLintSemanticWorkflow):
 
 
 class DraftWriteLintSemanticWorkflow(FakeLintSemanticWorkflow):
+    def __init__(self) -> None:
+        self.compile_payload = {}
+
+    def diagnose_structural(self, scan_payload, *, max_tokens=None):
+        return MaintenanceCandidates(candidates=[], summary="No structural candidates.")
+
     def diagnose_quality(self, quality_payload, *, max_tokens=None):
         return MaintenanceCandidates.model_validate(
             {
@@ -1246,6 +1342,7 @@ class DraftWriteLintSemanticWorkflow(FakeLintSemanticWorkflow):
         )
 
     def compile_drafts(self, draft_payload, *, max_tokens=None):
+        self.compile_payload = draft_payload
         return WikiDraftBatch.model_validate(
             {
                 "drafts": [
@@ -1368,6 +1465,9 @@ class DeferredMergeRetryWorkflow(FakeLintSemanticWorkflow):
 
 
 class ClaimsDraftWriteLintSemanticWorkflow(FakeLintSemanticWorkflow):
+    def diagnose_structural(self, scan_payload, *, max_tokens=None):
+        return MaintenanceCandidates(candidates=[], summary="No structural candidates.")
+
     def diagnose_quality(self, quality_payload, *, max_tokens=None):
         return MaintenanceCandidates.model_validate(
             {
@@ -1456,6 +1556,41 @@ class ClaimsDraftWriteLintSemanticWorkflow(FakeLintSemanticWorkflow):
                 "warnings": [],
             }
         )
+
+
+class OverreachingDraftWriteLintSemanticWorkflow(DraftWriteLintSemanticWorkflow):
+    def compile_drafts(self, draft_payload, *, max_tokens=None):
+        self.compile_payload = draft_payload
+        return WikiDraftBatch.model_validate(
+            {
+                "drafts": [
+                    {
+                        "operation_index": 0,
+                        "write_action": "update",
+                        "target_page": "Other.md",
+                        "source_file": None,
+                        "title": "Other",
+                        "page_dir": "pages",
+                        "question": "Overreach",
+                        "summary": "Wrong target.",
+                        "synthesis": "Wrong target.",
+                        "patches": [
+                            {
+                                "operation": "replace_section",
+                                "section": "Summary",
+                                "content": "Wrong target.",
+                            }
+                        ],
+                        "confidence": 0.9,
+                        "model_provider": "fake",
+                        "model_name": "unit",
+                    }
+                ],
+                "batch_summary": "Wrong target.",
+                "warnings": [],
+            }
+        )
+
 
 class UnsupportedCreateSourceDigestWorkflow(FakeLintSemanticWorkflow):
     def diagnose_structural(self, scan_payload, *, max_tokens=None):

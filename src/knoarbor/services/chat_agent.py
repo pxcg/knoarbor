@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from pydantic import ValidationError
 
-from knoarbor.audit.token_ledger import append_chat_token_records, current_timestamp
+from knoarbor.audit.token_ledger import current_timestamp
 from knoarbor.core.config import ModelRetryConfig, default_config_path, load_config
 from knoarbor.core.errors import ModelOutputError, UserInputError
 from knoarbor.core.schemas.chat import (
@@ -27,6 +27,7 @@ from knoarbor.core.schemas.memory import MemoryCandidate, MemoryRecord
 from knoarbor.services.chat_answer import ChatAnswerSynthesizer, messages_chars, parse_json_object
 from knoarbor.services.chat_context import ChatContextEngine, latest_user_text, memory_target, session_target
 from knoarbor.services.chat_model_call import run_chat_model_call
+from knoarbor.services.chat_persistence import ChatPersistenceCoordinator
 from knoarbor.services.chat_reference_resolver import answer_cleanup_citations, clean_answer_citation_paths, resolve_answer_presentation
 from knoarbor.services.chat_retrieval_policy import ChatPlanAdjustment, ChatRetrievalPolicy
 from knoarbor.services.chat_topic_anchor import ChatTopicAnchorBuilder, update_anchor_after_evidence, update_anchor_answer_type
@@ -50,6 +51,7 @@ class ChatAgentService:
 
     client_factory: Callable[[ChatRequest], ChatClient] | None = None
     context_engine: ChatContextEngine = field(default_factory=ChatContextEngine)
+    persistence: ChatPersistenceCoordinator = field(default_factory=ChatPersistenceCoordinator)
 
     def chat(
         self,
@@ -61,18 +63,19 @@ class ChatAgentService:
         started = time.perf_counter()
         client = self.client_factory(request) if self.client_factory else _client_from_request(request)
         chat_target = session_target(request)
-        existing_session = services.chat_sessions.load_existing(chat_target.path, request.session_id)
-        chat_id = request.session_id or (existing_session.session_id if existing_session else None)
+        resolved_request = request.model_copy(update={"vault_path": str(chat_target.path), "vault_id": chat_target.vault_id})
+        existing_session = services.chat_sessions.load_existing(chat_target.path, resolved_request.session_id)
+        chat_id = resolved_request.session_id or (existing_session.session_id if existing_session else None)
         if chat_id is None:
             chat_id = services.chat_sessions.new_session_id()
         context = self.context_engine.build(
-            request,
+            resolved_request,
             services,
             chat_id=chat_id,
             existing_session=existing_session,
             system_prompt=ANSWER_SYNTHESIS_PROMPT,
         )
-        effective_request = request.model_copy(update={"messages": context.conversation_messages, "session_id": chat_id})
+        effective_request = resolved_request.model_copy(update={"messages": context.conversation_messages, "session_id": chat_id})
         topic_anchor = ChatTopicAnchorBuilder().build(
             latest_user_text(context.conversation_messages),
             existing_session=existing_session,
@@ -103,17 +106,14 @@ class ChatAgentService:
                 "session_vault_name": chat_target.vault_name,
             }
         )
-        record = services.chat_sessions.persist_response(
-            chat_target.path,
+        return self.persistence.persist_response(
+            services,
+            chat_target=chat_target,
+            request=resolved_request,
             response=response,
             request_messages=context.conversation_messages,
-            vault_id=chat_target.vault_id,
-            vault_name=chat_target.vault_name,
+            call_records=loop.call_records,
         )
-        response.session_id = record.session_id
-        if request.append_ledger:
-            _append_chat_ledger(request, response, loop.call_records)
-        return response
 
 
 @dataclass
@@ -386,28 +386,6 @@ def _max_tokens(request: ChatRequest) -> int | None:
         return request.max_tokens
     config = load_config(Path(request.config_path).expanduser().resolve() if request.config_path else default_config_path())
     return config.models.resolve_max_tokens(request.provider)
-
-
-def _append_chat_ledger(request: ChatRequest, response: ChatResponse, calls: list[dict[str, object]]) -> None:
-    vault = session_target(request)
-    tool_plan = response.stats.get("tool_plan") if isinstance(response.stats.get("tool_plan"), dict) else {}
-    first_call = (tool_plan.get("tool_calls") or [{}])[0] if isinstance(tool_plan.get("tool_calls"), list) else {}
-    first_arguments = first_call.get("arguments") if isinstance(first_call, dict) else {}
-    retrieval_mode = first_arguments.get("mode") if isinstance(first_arguments, dict) else None
-    append_chat_token_records(
-        vault.path,
-        {
-            "chat_id": response.stats.get("chat_id"),
-            "created_at": current_timestamp(),
-            "finished_at": current_timestamp(),
-            "mode": retrieval_mode or "model_planned",
-            "provider": response.stats.get("provider"),
-            "model": response.stats.get("model"),
-            "calls": calls,
-            "citations": [citation.model_dump() for citation in response.citations],
-            "tool_trace": [item.model_dump() for item in response.tool_trace],
-        },
-    )
 
 
 def _event_usage(payload: dict[str, Any] | None) -> str:

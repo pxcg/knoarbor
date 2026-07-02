@@ -73,7 +73,7 @@ uv run knoar ingest --connector markdown --write
 Run structural maintenance:
 
 ```bash
-uv run knoar lint --mode structural
+uv run knoar lint --mode deterministic
 ```
 
 The generated wiki pages are written under:
@@ -152,13 +152,13 @@ uv run knoar lint
 Quality review:
 
 ```bash
-uv run knoar lint --mode quality
+uv run knoar lint --mode semantic
 ```
 
 Apply reviewed semantic maintenance operations:
 
 ```bash
-uv run knoar lint --mode full --apply-reviewed
+uv run knoar lint --mode semantic --apply-reviewed
 ```
 
 ## Next Documents

@@ -50,7 +50,7 @@ lint 维护和 query context 如何共享同一个“来源”语义。
 | Claim | Source | Range | Basis | Confidence |
 |---|---|---|---|---|
 | C1 | raw/inbox/notes/Agent.md | unit:0 | Agent Loop 控制循环。 | high |
-| C2 | raw/normalized/chats/session_20260505_173432_47d596.json | turn:4-6 | 生产环境记忆设计讨论。 | medium |
+| C2 | raw/inbox/chats/session_20260505_173432_47d596.json | turn:4-6 | 生产环境记忆设计讨论。 | medium |
 ```
 
 检索、lint 和关系判断以 `## Evidence` 与 source digest trace 为准。

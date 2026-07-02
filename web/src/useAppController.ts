@@ -7,21 +7,13 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { keepPreviousData, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
-  getConfig,
-  getDoctor,
   getPages,
   getGraph,
-  getHealth,
-  getModelProviders,
-  getVaults,
   getQueryTrends,
-  getActiveRuns,
   getRuns,
-  getReports,
-  getStatus,
   type ConfigSummary,
   type DoctorReport,
   type GraphResponse,
@@ -33,19 +25,25 @@ import {
   type UiStatusResponse,
 } from "./api/client";
 import { preloadRoute } from "./appRoutes";
-import type { AppContext, AppNotice, PendingChatSessionRequest, VaultRefreshScope } from "./appContext";
-import { fetchVaultOverview, readStoredModelProbeResults } from "./appRuntime";
-import { detectLanguage, translate } from "./i18n";
+import type { AppContext, AppNotice } from "./appContext";
+import { useAppNavigation } from "./appNavigation";
+import { useLanguagePreference, useSidebarPreference } from "./appPreferences";
+import { useAppQueries } from "./appQueries";
+import { useAppRefresh } from "./appRefresh";
+import { readStoredModelProbeResults } from "./appRuntime";
+import { translate } from "./i18n";
+import { useDesktopCommands } from "./desktop/useDesktopCommands";
 import { queryKeys } from "./queryKeys";
-import type { Language, ViewName } from "./types";
+import type { ViewName } from "./types";
 import type { RunRecord } from "./types";
-import { buildVaultOptions, buildVaultSelector, concreteVaultOptions, nextValidVaultId, resolveActiveVault, resolveConcreteVault, type VaultOption } from "./vaultRuntime";
+import { nextValidVaultId } from "./vaultRuntime";
 
 export function useAppController() {
   const [activeView, setActiveView] = useState<ViewName>("chat");
-  const [language, setLanguageState] = useState<Language>(() => detectLanguage());
+  const { language, setLanguage, t } = useLanguagePreference();
+  const { sidebarCollapsed, toggleSidebar } = useSidebarPreference();
   const [serviceOnline, setServiceOnline] = useState<boolean | null>(null);
-  const [healthHint, setHealthHint] = useState(() => translate(detectLanguage(), "healthCheck"));
+  const [healthHint, setHealthHint] = useState(() => translate(language, "healthCheck"));
   const [configPath, setConfigPath] = useState<string | null>(null);
   const [configContent, setConfigContent] = useState("");
   const [configExists, setConfigExists] = useState(false);
@@ -53,15 +51,9 @@ export function useAppController() {
   const [, setNotice] = useState<AppNotice | null>(null);
   const [queryResults, setQueryResults] = useState<QueryResult[]>([]);
   const [queryContextPack, setQueryContextPack] = useState("");
-  const [focusedPageId, setFocusedPageId] = useState<string | null>(null);
-  const [focusedWikiPath, setFocusedWikiPath] = useState<string | null>(null);
-  const [pendingChatPrompt, setPendingChatPrompt] = useState("");
-  const [pendingChatSessionRequest, setPendingChatSessionRequest] = useState<PendingChatSessionRequest | null>(null);
-  const [focusedReportPath, setFocusedReportPath] = useState<string | null>(null);
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
   const [modelProbeResults, setModelProbeResultsState] = useState<Record<string, ModelProviderProbeState>>(() => readStoredModelProbeResults());
   const [selectedChatProvider, setSelectedChatProviderState] = useState(() => localStorage.getItem("knoarbor.chatProvider") || "");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("knoarbor.sidebarCollapsed") === "true");
   const [selectedVaultId, setSelectedVaultId] = useState(() =>
     localStorage.getItem("knoarbor.activeVaultId.userSet") === "true"
       ? localStorage.getItem("knoarbor.activeVaultId") || ""
@@ -70,181 +62,50 @@ export function useAppController() {
   const previousActiveRunCountRef = useRef(0);
   const queryClient = useQueryClient();
 
-  const t = useCallback((key: string) => translate(language, key), [language]);
-  const isRunView = activeView === "runs" || activeView === "ingest" || activeView === "lint";
-  const needsVaultStatus = activeView === "overview" || activeView === "sources";
-  const needsReports = activeView === "overview" || activeView === "runs" || activeView === "reports";
-  const needsRecentRuns = activeView === "overview" || isRunView;
-  const needsVaultOverview = activeView === "overview" || activeView === "runs" || activeView === "reports";
-  const shouldPollRuns = activeView === "overview" || isRunView;
-
-  const healthQuery = useQuery({
-    queryKey: queryKeys.health,
-    queryFn: getHealth,
-    staleTime: 30_000,
-    placeholderData: keepPreviousData,
+  const {
+    activeConcreteVault,
+    activeRuns,
+    activeVaultId,
+    activeVaultSelector,
+    configQuery,
+    doctorReport,
+    effectiveConfigPath,
+    effectiveSummary,
+    graph,
+    healthQuery,
+    modelProviders,
+    needsRecentRuns,
+    needsReports,
+    needsVaultStatus,
+    pages,
+    queryTrend,
+    recentRuns,
+    reports,
+    shouldPollRuns,
+    status,
+    vaultOptions,
+    vaultOverviews,
+    vaultPath,
+  } = useAppQueries({
+    activeView,
+    configPath,
+    selectedVaultId,
+    summary,
+    t,
   });
-
-  const configQuery = useQuery({
-    queryKey: queryKeys.config,
-    queryFn: getConfig,
-    staleTime: 30_000,
-    placeholderData: keepPreviousData,
+  const navigation = useAppNavigation({ activeVaultId, setActiveView, setSelectedVaultId });
+  const { loadVaultState, refreshAll } = useAppRefresh({
+    activeConcreteVault,
+    activeView,
+    effectiveConfigPath,
+    needsRecentRuns,
+    needsReports,
+    needsVaultStatus,
+    selectedVaultId,
+    setNotice,
+    shouldPollRuns,
+    t,
   });
-
-  const effectiveConfigPath = configQuery.data?.config_path ?? configPath;
-  const effectiveSummary = configQuery.data?.summary || summary;
-  const modelProvidersQuery = useQuery({
-    queryKey: queryKeys.modelProviders(effectiveConfigPath),
-    queryFn: () => getModelProviders(effectiveConfigPath),
-    enabled: configQuery.isSuccess,
-    staleTime: 60_000,
-    placeholderData: keepPreviousData,
-  });
-  const vaultsQuery = useQuery({
-    queryKey: queryKeys.vaults(effectiveConfigPath),
-    queryFn: () => getVaults(effectiveConfigPath),
-    enabled: configQuery.isSuccess,
-    staleTime: 30_000,
-    placeholderData: keepPreviousData,
-  });
-  const vaultOptions = useMemo(() => buildVaultOptions(effectiveSummary, vaultsQuery.data), [effectiveSummary, vaultsQuery.data]);
-  const activeVault = useMemo(() => resolveActiveVault(vaultOptions, selectedVaultId, effectiveSummary), [effectiveSummary, selectedVaultId, vaultOptions]);
-  const concreteOptions = useMemo(() => concreteVaultOptions(vaultOptions), [vaultOptions]);
-  const activeConcreteVault = useMemo(() => resolveConcreteVault(vaultOptions, selectedVaultId, effectiveSummary), [effectiveSummary, selectedVaultId, vaultOptions]);
-  const vaultPath = activeConcreteVault.path;
-  const activeVaultId = activeVault.id;
-  const activeVaultSelector = useMemo(() => buildVaultSelector(effectiveConfigPath, activeConcreteVault), [activeConcreteVault, effectiveConfigPath]);
-
-  const doctorQuery = useQuery({
-    queryKey: queryKeys.doctor(effectiveConfigPath),
-    queryFn: () => getDoctor(effectiveConfigPath, { checkModelRuntime: false, checkConnectorRuntime: false }),
-    enabled: configQuery.isSuccess && activeView === "overview",
-    staleTime: 60_000,
-    placeholderData: keepPreviousData,
-  });
-
-  const statusQuery = useQuery({
-    queryKey: queryKeys.status(activeVaultId),
-    queryFn: () => getStatus(vaultPath),
-    enabled: configQuery.isSuccess && Boolean(vaultPath) && needsVaultStatus,
-    staleTime: 20_000,
-    placeholderData: keepPreviousData,
-  });
-
-  const reportsQuery = useQuery({
-    queryKey: queryKeys.reports(activeVaultId),
-    queryFn: () => getReports(activeVaultSelector),
-    enabled: configQuery.isSuccess && Boolean(vaultPath) && needsReports,
-    staleTime: 30_000,
-    placeholderData: keepPreviousData,
-  });
-
-  const activeRunsQuery = useQuery({
-    queryKey: queryKeys.activeRuns(activeVaultId),
-    queryFn: () => getActiveRuns(activeVaultSelector),
-    enabled: configQuery.isSuccess && Boolean(vaultPath),
-    refetchInterval: (query) => {
-      const runs = query.state.data?.runs || [];
-      return shouldPollRuns || runs.length > 0 ? 2500 : false;
-    },
-    staleTime: 1500,
-    placeholderData: keepPreviousData,
-  });
-
-  const recentRunsQuery = useQuery({
-    queryKey: queryKeys.recentRuns(activeVaultId),
-    queryFn: () => getRuns(activeVaultSelector, false, 12),
-    enabled: configQuery.isSuccess && Boolean(vaultPath) && needsRecentRuns,
-    staleTime: 20_000,
-    placeholderData: keepPreviousData,
-  });
-
-  const graphQuery = useQuery({
-    queryKey: queryKeys.graph(activeVaultId),
-    queryFn: () => getGraph(vaultPath),
-    enabled: configQuery.isSuccess && activeView === "graph",
-    staleTime: 60_000,
-    placeholderData: keepPreviousData,
-  });
-
-  const pagesQuery = useQuery({
-    queryKey: queryKeys.pages(activeVaultId),
-    queryFn: () => getPages(activeVaultSelector),
-    enabled: configQuery.isSuccess && activeView === "wiki",
-    staleTime: 60_000,
-    placeholderData: keepPreviousData,
-  });
-
-  const queryTrendQuery = useQuery({
-    queryKey: queryKeys.queryTrends(activeVaultId),
-    queryFn: () => getQueryTrends(activeVaultSelector),
-    enabled: configQuery.isSuccess && activeView === "query",
-    staleTime: 60_000,
-    placeholderData: keepPreviousData,
-  });
-
-  const vaultOverviewQueries = useQueries({
-    queries: concreteOptions.map((vault) => ({
-      queryKey: queryKeys.overview(vault.id),
-      queryFn: () => fetchVaultOverview(vault, effectiveConfigPath),
-      enabled: configQuery.isSuccess && concreteOptions.length > 1 && needsVaultOverview,
-      staleTime: 20_000,
-      placeholderData: keepPreviousData,
-    })),
-  });
-
-  const doctorReport = doctorQuery.data || null;
-  const status = statusQuery.data || null;
-  const graph = graphQuery.data || null;
-  const pages = pagesQuery.data?.pages || [];
-  const reports = reportsQuery.data?.reports || [];
-  const queryTrend = queryTrendQuery.data || null;
-  const activeRuns = activeRunsQuery.data?.runs || [];
-  const recentRuns = recentRunsQuery.data?.runs || [];
-  const modelProviders = modelProvidersQuery.data || null;
-  const vaultOverviews = vaultOptions.length > 1
-    ? concreteOptions.map((vault, index) => {
-      const query = vaultOverviewQueries[index];
-      return query?.data || {
-        vault,
-        status: vault.id === activeVaultId ? status : null,
-        activeRuns: vault.id === activeVaultId ? activeRuns : [],
-        recentRuns: vault.id === activeVaultId ? recentRuns : [],
-        reports: vault.id === activeVaultId ? reports : [],
-        error: query?.error instanceof Error ? query.error.message : query?.isError ? t("vaultRefreshFailed") : null,
-      };
-    })
-    : [{
-      vault: activeConcreteVault,
-      status,
-      activeRuns,
-      recentRuns,
-      reports,
-      error: null,
-    }];
-
-  const setLanguage = useCallback((next: Language) => {
-    localStorage.setItem("knoarbor.language", next);
-    setLanguageState(next);
-  }, []);
-
-  const toggleSidebar = useCallback(() => {
-    setSidebarCollapsed((current) => {
-      const next = !current;
-      localStorage.setItem("knoarbor.sidebarCollapsed", String(next));
-      return next;
-    });
-  }, []);
-
-  const setActiveVaultId = useCallback((next: string) => {
-    localStorage.setItem("knoarbor.activeVaultId", next);
-    localStorage.setItem("knoarbor.activeVaultId.userSet", "true");
-    setSelectedVaultId(next);
-    setFocusedPageId(null);
-    setFocusedWikiPath(null);
-    setFocusedReportPath(null);
-  }, []);
 
   const setModelProbeResults: Dispatch<SetStateAction<Record<string, ModelProviderProbeState>>> = useCallback((value) => {
     setModelProbeResultsState((current) => {
@@ -259,27 +120,6 @@ export function useAppController() {
     else localStorage.removeItem("knoarbor.chatProvider");
     setSelectedChatProviderState(next);
   }, []);
-
-  const loadVaultState = useCallback(async (vault: VaultOption = activeConcreteVault, scope: VaultRefreshScope = {}) => {
-    const normalizedScope = {
-      status: scope.status ?? true,
-      reports: scope.reports ?? true,
-      activeRuns: scope.activeRuns ?? true,
-      recentRuns: scope.recentRuns ?? true,
-    };
-    const tasks: Promise<unknown>[] = [];
-    if (normalizedScope.status) tasks.push(queryClient.fetchQuery({ queryKey: queryKeys.status(vault.id), queryFn: () => getStatus(vault.path), staleTime: 0 }));
-    const selector = buildVaultSelector(effectiveConfigPath, vault);
-    if (normalizedScope.reports) tasks.push(queryClient.fetchQuery({ queryKey: queryKeys.reports(vault.id), queryFn: () => getReports(selector), staleTime: 0 }));
-    if (normalizedScope.activeRuns) tasks.push(queryClient.fetchQuery({ queryKey: queryKeys.activeRuns(vault.id), queryFn: () => getActiveRuns(selector), staleTime: 0 }));
-    if (normalizedScope.recentRuns) tasks.push(queryClient.fetchQuery({ queryKey: queryKeys.recentRuns(vault.id), queryFn: () => getRuns(selector, false, 12), staleTime: 0 }));
-    const results = await Promise.allSettled(tasks);
-    const failure = results.find((result) => result.status === "rejected");
-    if (failure?.status === "rejected") {
-      const reason = failure.reason || t("vaultRefreshFailed");
-      setNotice({ message: reason instanceof Error ? reason.message : String(reason), error: true });
-    }
-  }, [activeConcreteVault, effectiveConfigPath, queryClient, t]);
 
   useEffect(() => {
     const preloadCommonRoutes = () => {
@@ -336,150 +176,17 @@ export function useAppController() {
     if (previousRuns > 0 && activeRuns.length === 0) void loadVaultState();
   }, [activeRuns.length, loadVaultState]);
 
-  const refreshAll = useCallback(async () => {
-    setNotice(null);
-    try {
-      const configResult = await queryClient.fetchQuery({ queryKey: queryKeys.config, queryFn: getConfig });
-      const nextRegistry = await queryClient.fetchQuery({
-        queryKey: queryKeys.vaults(configResult.config_path),
-        queryFn: () => getVaults(configResult.config_path),
-      });
-      const nextVaultOptions = buildVaultOptions(configResult.summary || {}, nextRegistry);
-      const nextVault = resolveConcreteVault(nextVaultOptions, selectedVaultId, configResult.summary || {});
-      const nextSelector = buildVaultSelector(configResult.config_path, nextVault);
-      const refreshTasks: Promise<unknown>[] = [
-        queryClient.fetchQuery({ queryKey: queryKeys.health, queryFn: getHealth, staleTime: 0 }),
-      ];
-      if (activeView === "overview") {
-        refreshTasks.push(queryClient.fetchQuery({
-          queryKey: queryKeys.doctor(configResult.config_path),
-          queryFn: () => getDoctor(configResult.config_path, { checkModelRuntime: false, checkConnectorRuntime: false }),
-          staleTime: 0,
-        }));
-      }
-      if (needsVaultStatus || needsReports || needsRecentRuns || shouldPollRuns) {
-        refreshTasks.push(loadVaultState(nextVault, {
-          status: needsVaultStatus,
-          reports: needsReports,
-          activeRuns: shouldPollRuns,
-          recentRuns: needsRecentRuns,
-        }));
-      }
-      if (activeView === "graph") {
-        refreshTasks.push(queryClient.fetchQuery({ queryKey: queryKeys.graph(nextVault.id), queryFn: () => getGraph(nextVault.path), staleTime: 0 }));
-      }
-      if (activeView === "wiki") {
-        refreshTasks.push(queryClient.fetchQuery({ queryKey: queryKeys.pages(nextVault.id), queryFn: () => getPages(nextSelector), staleTime: 0 }));
-      }
-      if (activeView === "query") {
-        refreshTasks.push(queryClient.fetchQuery({ queryKey: queryKeys.queryTrends(nextVault.id), queryFn: () => getQueryTrends(nextSelector), staleTime: 0 }));
-      }
-      if (activeView === "chat" || activeView === "settings") {
-        refreshTasks.push(queryClient.fetchQuery({
-          queryKey: queryKeys.modelProviders(configResult.config_path),
-          queryFn: () => getModelProviders(configResult.config_path),
-          staleTime: 0,
-        }));
-      }
-      await Promise.all(refreshTasks);
-      return true;
-    } catch (error) {
-      setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
-      return false;
-    }
-  }, [activeView, loadVaultState, needsRecentRuns, needsReports, needsVaultStatus, queryClient, selectedVaultId, shouldPollRuns]);
-
-  useEffect(() => {
-    const desktop = window.knoarborDesktop;
-    if (!desktop) return undefined;
-    return desktop.onCommand((command) => {
-      if (command === "settings.open") {
-        setWorkspaceSettingsOpen(true);
-        return;
-      }
-      if (command === "chat.new") {
-        setPendingChatPrompt("");
-        setFocusedPageId(null);
-        setFocusedReportPath(null);
-        setFocusedWikiPath(null);
-        setActiveView("chat");
-        return;
-      }
-      if (command === "docs.open") {
-        void desktop.openApiDocs();
-        return;
-      }
-      if (command === "service.restart") {
-        setNotice({ message: t("serviceRestarting") });
-        void desktop.restartService().then(() => refreshAll());
-        return;
-      }
-      if (command === "logs.open") {
-        void desktop.openLogs();
-      }
-    });
-  }, [refreshAll, t]);
-
-  const openPageInGraph = useCallback((pageId: string) => {
-    setFocusedPageId(pageId);
-    setActiveView("graph");
+  const openWorkspaceSettings = useCallback(() => {
+    setWorkspaceSettingsOpen(true);
   }, []);
 
-  const openReport = useCallback((path: string) => {
-    setFocusedReportPath(path);
-    setActiveView("reports");
-  }, []);
-
-  const openWikiPage = useCallback((path: string) => {
-    setFocusedWikiPath(path);
-    setActiveView("wiki");
-  }, []);
-
-  const openWikiPageInVault = useCallback((vaultId: string | null | undefined, path: string) => {
-    if (vaultId && vaultId !== activeVaultId) {
-      localStorage.setItem("knoarbor.activeVaultId", vaultId);
-      localStorage.setItem("knoarbor.activeVaultId.userSet", "true");
-      setSelectedVaultId(vaultId);
-    }
-    setFocusedPageId(null);
-    setFocusedReportPath(null);
-    setFocusedWikiPath(path);
-    setActiveView("wiki");
-  }, [activeVaultId]);
-
-  const openChatWithPrompt = useCallback((prompt: string, vaultId?: string | null) => {
-    if (vaultId && vaultId !== activeVaultId) {
-      localStorage.setItem("knoarbor.activeVaultId", vaultId);
-      localStorage.setItem("knoarbor.activeVaultId.userSet", "true");
-      setSelectedVaultId(vaultId);
-    }
-    setFocusedPageId(null);
-    setFocusedReportPath(null);
-    setFocusedWikiPath(null);
-    setPendingChatPrompt(prompt);
-    setActiveView("chat");
-  }, [activeVaultId]);
-
-  const clearPendingChatPrompt = useCallback(() => {
-    setPendingChatPrompt("");
-  }, []);
-
-  const openChatSession = useCallback((sessionId: string | null, vaultId?: string | null) => {
-    if (vaultId && vaultId !== activeVaultId) {
-      localStorage.setItem("knoarbor.activeVaultId", vaultId);
-      localStorage.setItem("knoarbor.activeVaultId.userSet", "true");
-      setSelectedVaultId(vaultId);
-    }
-    setFocusedPageId(null);
-    setFocusedReportPath(null);
-    setFocusedWikiPath(null);
-    setPendingChatSessionRequest({ sessionId, vaultId: vaultId || null, requestId: Date.now() });
-    setActiveView("chat");
-  }, [activeVaultId]);
-
-  const clearPendingChatSessionRequest = useCallback(() => {
-    setPendingChatSessionRequest(null);
-  }, []);
+  useDesktopCommands({
+    onNewChat: navigation.openNewChat,
+    onOpenSettings: openWorkspaceSettings,
+    refreshAll,
+    setNotice,
+    t,
+  });
 
   const setDoctorReportCached: Dispatch<SetStateAction<DoctorReport | null>> = useCallback((value) => {
     queryClient.setQueryData(queryKeys.doctor(configPath), (current: DoctorReport | null | undefined) =>
@@ -548,11 +255,11 @@ export function useAppController() {
       configExists,
       doctorReport,
       graph,
-      focusedPageId,
-      focusedWikiPath,
-      focusedReportPath,
-      pendingChatPrompt,
-      pendingChatSessionRequest,
+      focusedPageId: navigation.focusedPageId,
+      focusedWikiPath: navigation.focusedWikiPath,
+      focusedReportPath: navigation.focusedReportPath,
+      pendingChatPrompt: navigation.pendingChatPrompt,
+      pendingChatSessionRequest: navigation.pendingChatSessionRequest,
       healthHint,
       pages,
       queryResults,
@@ -583,22 +290,22 @@ export function useAppController() {
       setPages: setPagesCached,
       setReports: setReportsCached,
       navigate: setActiveView,
-      openPageInGraph,
-      openWikiPage,
-      openWikiPageInVault,
-      openChatWithPrompt,
-      clearPendingChatPrompt,
-      openChatSession,
-      clearPendingChatSessionRequest,
-      openReport,
-      openSettings: () => setWorkspaceSettingsOpen(true),
+      openPageInGraph: navigation.openPageInGraph,
+      openWikiPage: navigation.openWikiPage,
+      openWikiPageInVault: navigation.openWikiPageInVault,
+      openChatWithPrompt: navigation.openChatWithPrompt,
+      clearPendingChatPrompt: navigation.clearPendingChatPrompt,
+      openChatSession: navigation.openChatSession,
+      clearPendingChatSessionRequest: navigation.clearPendingChatSessionRequest,
+      openReport: navigation.openReport,
+      openSettings: openWorkspaceSettings,
       status,
       summary: effectiveSummary,
       activeVaultId,
       activeVaultSelector,
       vaultOptions,
       vaultOverviews,
-      setActiveVaultId,
+      setActiveVaultId: navigation.setActiveVaultId,
       vaultPath,
       refreshAll,
       loadVaultState,
@@ -612,11 +319,11 @@ export function useAppController() {
       configExists,
       doctorReport,
       graph,
-      focusedPageId,
-      pendingChatPrompt,
-      pendingChatSessionRequest,
-      focusedReportPath,
-      focusedWikiPath,
+      navigation.focusedPageId,
+      navigation.pendingChatPrompt,
+      navigation.pendingChatSessionRequest,
+      navigation.focusedReportPath,
+      navigation.focusedWikiPath,
       healthHint,
       pages,
       queryResults,
@@ -637,20 +344,21 @@ export function useAppController() {
       activeVaultSelector,
       vaultOptions,
       vaultOverviews,
-      setActiveVaultId,
+      navigation.setActiveVaultId,
       vaultPath,
       refreshAll,
       loadVaultState,
       language,
       setLanguage,
-      openPageInGraph,
-      openWikiPage,
-      openWikiPageInVault,
-      openChatWithPrompt,
-      clearPendingChatPrompt,
-      openChatSession,
-      clearPendingChatSessionRequest,
-      openReport,
+      navigation.openPageInGraph,
+      navigation.openWikiPage,
+      navigation.openWikiPageInVault,
+      navigation.openChatWithPrompt,
+      navigation.clearPendingChatPrompt,
+      navigation.openChatSession,
+      navigation.clearPendingChatSessionRequest,
+      navigation.openReport,
+      openWorkspaceSettings,
       setDoctorReportCached,
       setStatusCached,
       setGraphCached,

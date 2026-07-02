@@ -86,7 +86,7 @@ It does not store full claims, full evidence, full synthesis, or full page text.
   "sources": [
     {
       "source": "sources/Agent-Loop-Source.md",
-      "raw": "raw/normalized/chats/session_xxx.jsonl",
+      "raw": "raw/inbox/chats/session_xxx.jsonl",
       "pages": ["pages/Agent-Loop.md", "pages/Workflow.md"]
     }
   ]

@@ -31,11 +31,11 @@ Public endpoints are organized by product capability, not by internal workflow s
 | Vault registry | `GET /vaults` | List configured knowledge-base vaults with IDs, names, paths, and availability |
 | Diagnostics | `GET /doctor` | Read-only setup checks |
 | Sources | `GET /sources` | Read source connector capability catalog |
-| Models | `GET /models/providers`, `POST /models/discover`, `POST /models/probe`, `POST /models/apply-capabilities` | List configured providers, discover runtime model metadata, run bounded model probes, and explicitly apply detected limits |
+| Models | `GET /models/providers`, `GET /models/image-providers`, `POST /models/discover`, `POST /models/probe`, `POST /models/apply-capabilities` | List configured text/image providers, discover runtime model metadata, check provider API connectivity, and explicitly apply selected limits |
 | Ingest | `POST /ingest` | Compile configured sources, one normalized document, one file or folder, or recover a failed ingest |
-| Lint | `POST /lint` | Run deterministic, structural, quality, or full maintenance |
+| Lint | `POST /lint` | Run deterministic structured maintenance or semantic maintenance |
 | Query | `POST /query` | Retrieve wiki context for a host AI |
-| Chat | `POST /chat`, `POST /chat/stream` | Ask the selected vault through the bounded KnoArbor Wiki Chat Agent |
+| Chat | `POST /chat`, `POST /chat/stream`, `GET /chat/sessions`, `GET/PATCH/DELETE /chat/sessions/{session_id}`, `POST /chat/sessions/{session_id}/ingest`, `POST /chat/sessions/{session_id}/close`, `POST /chat/sessions/{session_id}/retry` | Ask the selected vault, stream answers, manage sessions, compile sessions, close sessions, and retry failed answers |
 | Query telemetry | `POST /query/feedback`, `GET /query/trends` | Record and inspect query usefulness signals |
 | Reports | `GET /reports`, `GET /reports/content` | List and read workflow reports |
 | Run monitor | `GET /runs`, `GET /runs/{run_id}` | Inspect queued/running/completed workflows |
@@ -441,23 +441,22 @@ Discovery does not generate model tokens.
 }
 ```
 
-`POST /models/probe` performs a bounded generation request. `level:
-"minimal"` verifies chat completion connectivity with a tiny `OK` response.
-`level: "structured"` verifies whether the selected model can satisfy the
-structured JSON contract used by KnoArbor agents.
+`POST /models/probe` performs the same provider API connectivity check as
+runtime discovery and does not send a chat completion request. It validates the
+model-list endpoint, TLS, credentials, and whether the configured model appears
+in the provider metadata when that metadata is available.
 
 ```json
 {
   "config_path": "/path/to/config.yaml",
-  "provider": "deepseek",
-  "level": "structured"
+  "provider": "deepseek"
 }
 ```
 
 `POST /models/apply-capabilities` is the only model endpoint that writes
-configuration. It explicitly stores detected or user-selected fields such as
-`context_window`, `max_output_tokens`, and `json_mode`; discovery and probe
-responses only suggest values.
+configuration. It explicitly stores user-selected fields such as
+`context_window`, `max_output_tokens`, and `json_mode`; discovery and probe do
+not automatically modify `config.yaml`.
 
 ```json
 {
@@ -593,12 +592,10 @@ The response always uses the workflow envelope described in [Execution Model](#e
 POST /lint
 ```
 
-Runs deterministic lint plus optional semantic structural or quality maintenance. `mode` controls behavior:
+Runs lint maintenance for one vault. `mode` controls behavior:
 
 - `deterministic`
-- `semantic_structural`
-- `semantic_quality`
-- `semantic_full`
+- `semantic`
 
 Lint is also a write-capable maintenance workflow and targets one vault per
 request. Use `vault_path`, or use `config_path` plus `vault_id` for a configured
@@ -612,13 +609,13 @@ Example:
   "execution": "queued",
   "config_path": "./config.yaml",
   "vault_id": "personal",
-  "mode": "semantic_structural",
+  "mode": "semantic",
   "scope": {
     "scope_id": "manual:api",
     "trigger": "manual",
     "source": { "kind": "api" },
     "changed_pages": [],
-    "recommended_lint_modes": ["semantic_structural"],
+    "recommended_lint_modes": ["semantic"],
     "reason": "Manual maintenance run."
   }
 }

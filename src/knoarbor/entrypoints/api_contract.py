@@ -1,8 +1,9 @@
 """Public HTTP API compatibility contract.
 
 This module is the single machine-readable list of routes that are intended to
-remain stable across 1.x releases. Tests, documentation checks, and release
-readiness scripts should read this contract instead of duplicating route lists.
+remain stable for public local integrations. Tests, documentation checks, and
+release readiness scripts should read this contract instead of duplicating
+route lists.
 """
 
 from __future__ import annotations
@@ -70,7 +71,6 @@ UI_PUBLIC_ROUTES: tuple[str, ...] = (
     "/ui/api/status",
     "/ui/api/graph",
     "/ui/api/tokens",
-    "/ui/api/docs/{doc_path}",
     "/ui/{asset_path}",
 )
 

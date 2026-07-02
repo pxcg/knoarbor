@@ -13,7 +13,7 @@ runtime contract.
 | Vault layout | `vaults/<id>/raw`, `wiki`, `maintenance`, `.knoarbor` | `storage.vault_layout` |
 | Wiki page | `wiki/pages/*.md` frontmatter and body sections | `core.wiki_schema`, `semantic.wiki_render` |
 | Source digest | `wiki/sources/*.md` audit sections | `core.schemas.source_digest`, `semantic.source_digest` |
-| Raw attachments | `raw/assets/**` plus `raw/sidecars/**` metadata | `core.attachments`, document processors |
+| Raw attachments | `raw/derived/assets/**` plus `raw/derived/metadata/**` metadata | `core.attachments`, document processors |
 | Machine index | `.knoarbor/index/manifest.json`, `graph_index.json` | `storage.wiki_index`, `retrieval.graph_index` |
 | Ingest flow | source input to checkpoint commit stage objects | `pipelines.ingest*`, `semantic.*` |
 | Query flow | graph-first recall, BM25 rerank, answer-set response | `pipelines.query`, `retrieval.*` |
@@ -31,20 +31,20 @@ vaults/<id>/
   raw/
     inbox/
       documents/
-      media/
       notes/
-    normalized/
       chats/
-      excerpts/
-      markdown/
-    assets/
-      images/
       media/
-      pages/
-      tables/
-    sidecars/
-      documents/
-      sources/
+    derived/
+      markdown/
+      excerpts/
+      assets/
+        images/
+        tables/
+        pages/
+        media/
+      metadata/
+        documents/
+        sources/
   wiki/
     pages/
     sources/
@@ -147,20 +147,20 @@ binary data live in raw sidecars and assets.
 
 ## Raw Attachment Contract
 
-Raw assets live under `raw/assets/**`.
+Raw assets live under `raw/derived/assets/**`.
 
 Attachment sidecars use `knoarbor.attachments.v1`:
 
 ```json
 {
   "schema_version": "knoarbor.attachments.v1",
-  "source": "raw/normalized/markdown/example.md",
+  "source": "raw/derived/markdown/example.md",
   "attachments": [
     {
       "attachment_type": "image",
       "name": "figure.jpg",
       "description": "Figure caption or model-produced summary.",
-      "relative_path": "raw/assets/images/figure.jpg",
+      "relative_path": "raw/derived/assets/images/figure.jpg",
       "mime_type": "image/jpeg",
       "content_hash": "sha256...",
       "metadata": {
@@ -370,5 +370,4 @@ Public product surfaces:
 - Chat: conversation, selected vault scope, evidence-backed answers, citations.
 - Flows: run status, ingest, lint, query, reports, token analysis.
 - Knowledge: maintained pages and graph views.
-- Docs: project documentation.
 - Settings: vaults, inputs, preprocessing, models, runtime, diagnostics.

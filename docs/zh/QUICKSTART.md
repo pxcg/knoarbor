@@ -70,7 +70,7 @@ uv run knoar ingest --connector markdown --write
 运行结构维护：
 
 ```bash
-uv run knoar lint --mode structural
+uv run knoar lint --mode deterministic
 ```
 
 生成后的 Wiki 页面位于：
@@ -146,13 +146,13 @@ uv run knoar lint
 质量审查：
 
 ```bash
-uv run knoar lint --mode quality
+uv run knoar lint --mode semantic
 ```
 
 应用通过审查的语义维护操作：
 
 ```bash
-uv run knoar lint --mode full --apply-reviewed
+uv run knoar lint --mode semantic --apply-reviewed
 ```
 
 ## 下一步文档

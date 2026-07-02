@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 
+import { canSelectDesktopDirectory, selectDesktopDirectory } from "../../desktop/desktopBridge";
+
 export function PresetMenu({
   ariaLabel,
   customLabel,
@@ -88,10 +90,9 @@ export function PathField({
   selectDirectoryTitle?: string;
   t?: (key: string) => string;
 }) {
-  const canSelectDirectory = Boolean(window.knoarborDesktop?.selectDirectory && selectDirectoryTitle);
+  const canSelectDirectory = Boolean(canSelectDesktopDirectory() && selectDirectoryTitle);
   const chooseDirectory = async () => {
-    if (!window.knoarborDesktop?.selectDirectory) return;
-    const result = await window.knoarborDesktop.selectDirectory({
+    const result = await selectDesktopDirectory({
       defaultPath: value || placeholder,
       title: selectDirectoryTitle,
     });

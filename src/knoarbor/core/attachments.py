@@ -231,7 +231,7 @@ def _canonical_sidecar_path(markdown_path: Path) -> Path | None:
     raw_root = _raw_root_for_normalized_path(resolved)
     if raw_root is None:
         return None
-    return raw_root / "sidecars" / "sources" / f"{resolved.stem}.attachments.json"
+    return raw_root / "derived" / "metadata" / "sources" / f"{resolved.stem}.attachments.json"
 
 
 def _raw_root_for_normalized_path(path: Path) -> Path | None:
@@ -239,6 +239,6 @@ def _raw_root_for_normalized_path(path: Path) -> Path | None:
     for index, part in enumerate(parts):
         if part != "raw":
             continue
-        if index + 1 < len(parts) and parts[index + 1] == "normalized":
+        if index + 1 < len(parts) and parts[index + 1] == "derived":
             return Path(*parts[: index + 1])
     return None

@@ -47,7 +47,7 @@ def store_chat_generated_image(
     ext = _extension_for_image(image, mime_type)
     digest = hashlib.sha256(data).hexdigest()[:20]
     safe_session = _safe_path_part(session_id or "ad-hoc")
-    rel_path = Path("raw/assets/images/generated/chat") / safe_session / f"image-{index}-{digest}{ext}"
+    rel_path = Path("raw/derived/assets/images/generated/chat") / safe_session / f"image-{index}-{digest}{ext}"
     full_path = Path(vault_path).expanduser() / rel_path
     full_path.parent.mkdir(parents=True, exist_ok=True)
     if not full_path.exists():

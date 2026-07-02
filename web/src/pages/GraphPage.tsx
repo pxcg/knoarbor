@@ -1,8 +1,7 @@
 import cytoscape, { type Core, type NodeCollection, type NodeSingular } from "cytoscape";
-import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { getGraph, type GraphEdge, type GraphNode, type GraphResponse, type GraphView } from "../api/client";
+import { type GraphEdge, type GraphNode, type GraphResponse } from "../api/client";
 import { MetricCard } from "../components/MetricCard";
 import type { AppContext } from "../appContext";
 import { buildGraphElements, filterVisibleGraph, graphNodeTypeCounts, mapEdgesByNodeId, mapNodesById, nodeColors } from "./graph/GraphModel";
@@ -19,26 +18,14 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
   const cyRef = useRef<Core | null>(null);
   const [nodeSearch, setNodeSearch] = useState("");
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
-  const [graphView, setGraphView] = useState<GraphView>("entity");
   const t = context?.t ?? ((key: string) => key);
   const focusedPageId = context?.focusedPageId || null;
-  const pageGraphQuery = useQuery({
-    queryKey: ["graph-page-view", context?.activeVaultId || "default"],
-    queryFn: () => getGraph(context?.vaultPath || "", "page"),
-    enabled: graphView === "page" && Boolean(context?.vaultPath),
-    staleTime: 60_000,
-  });
-  const activeGraph = graphView === "page" ? pageGraphQuery.data || null : graph;
+  const activeGraph = graph;
 
   useEffect(() => {
     if (!focusedPageId) return;
     setNodeSearch("");
   }, [focusedPageId]);
-
-  useEffect(() => {
-    setSelectedNode(null);
-    setNodeSearch("");
-  }, [graphView]);
 
   const visibleGraph = useMemo(() => filterVisibleGraph(activeGraph, nodeSearch), [activeGraph, nodeSearch]);
   const nodeById = useMemo(() => mapNodesById(activeGraph), [activeGraph]);
@@ -166,14 +153,7 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
     return () => cy.destroy();
   }, [focusedPageId, nodeById, visibleGraph]);
 
-  if (!activeGraph && graphView === "entity") {
-    return (
-      <section className="view active">
-        <article className="panel">{t("graphLoading")}</article>
-      </section>
-    );
-  }
-  if (!activeGraph && graphView === "page") {
+  if (!activeGraph) {
     return (
       <section className={embedded ? "embedded-section" : "view active"}>
         <article className="panel">{t("graphLoading")}</article>
@@ -186,9 +166,9 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
   return (
     <section className={embedded ? "embedded-section" : "view active"}>
       <div className="graph-metrics">
-        <MetricCard label={graphView === "entity" ? t("entityNodes") : t("graphNodes")} value={graphData.stats.page_count} hint={graphView === "entity" ? t("entityNodesHint") : t("maintainedPages")} />
-        <MetricCard label={graphView === "entity" ? t("relationEdges") : t("graphEdges")} value={graphData.stats.edge_count} hint={graphView === "entity" ? t("relationEdgesHint") : t("resolvedWikilinks")} />
-        <MetricCard label={t("orphans")} value={graphData.stats.orphan_count} hint={graphView === "entity" ? t("entityOrphanHint") : t("orphanHint")} />
+        <MetricCard label={t("wikiPages")} value={graphData.stats.page_count} hint={t("maintainedPages")} />
+        <MetricCard label={t("graphEdges")} value={graphData.stats.edge_count} hint={t("resolvedWikilinks")} />
+        <MetricCard label={t("orphans")} value={graphData.stats.orphan_count} hint={t("orphanHint")} />
         <MetricCard label={t("unresolvedLinks")} value={graphData.stats.unresolved_link_count} hint={t("unresolvedHint")} />
       </div>
 
@@ -196,18 +176,10 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
         <article className="panel graph-panel">
           <div className="panel-header">
             <div>
-              <h2>{graphView === "entity" ? t("entityRelationGraph") : t("pageLinkGraph")}</h2>
-              <p className="panel-copy">{graphView === "entity" ? t("entityGraphSubtitle") : t("pageGraphSubtitle")}</p>
+              <h2>{t("pageLinkGraph")}</h2>
+              <p className="panel-copy">{t("pageGraphSubtitle")}</p>
             </div>
             <div className="graph-toolbar">
-              <div className="segmented-control compact" role="tablist" aria-label={t("graphMode")}>
-                <button className={graphView === "entity" ? "active" : ""} type="button" onClick={() => setGraphView("entity")}>
-                  {t("entityGraphMode")}
-                </button>
-                <button className={graphView === "page" ? "active" : ""} type="button" onClick={() => setGraphView("page")}>
-                  {t("pageGraphMode")}
-                </button>
-              </div>
               <label className="field graph-toolbar-search">
                 <span>{t("graphSearch")}</span>
                 <input value={nodeSearch} onChange={(event) => setNodeSearch(event.target.value)} placeholder={t("graphSearchPlaceholder")} />
@@ -215,17 +187,10 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
             </div>
           </div>
           <div className="graph-legend" aria-label={t("graphLegend")}>
-            {graphView === "entity" ? (
-              <span>
-                <i style={{ background: nodeColors.entity }} />
-                {t("entityNodes")} · {typeCounts.get("entity") || 0}
-              </span>
-            ) : (
-              <span>
-                <i style={{ background: nodeColors.wiki_page }} />
-                {t("wikiPages")} · {typeCounts.get("wiki_page") || 0}
-              </span>
-            )}
+            <span>
+              <i style={{ background: nodeColors.wiki_page }} />
+              {t("wikiPages")} · {typeCounts.get("wiki_page") || 0}
+            </span>
           </div>
           <div className="graph-canvas" ref={containerRef}>
             {!visibleGraph.nodes.length && <div className="graph-empty">{t("noPagesToDisplay")}</div>}
@@ -234,9 +199,9 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
 
         <aside className="panel graph-side">
           <div className="panel-header">
-            <h2>{graphView === "entity" ? t("selectedEntity") : t("selectedPage")}</h2>
+            <h2>{t("selectedPage")}</h2>
           </div>
-          <GraphNodeDetail node={selectedNode} edges={selectedNode ? edgeByNodeId.get(selectedNode.id) || [] : []} graphView={graphView} t={t} onOpenPage={context?.openWikiPage} />
+          <GraphNodeDetail node={selectedNode} edges={selectedNode ? edgeByNodeId.get(selectedNode.id) || [] : []} t={t} onOpenPage={context?.openWikiPage} />
         </aside>
       </div>
     </section>

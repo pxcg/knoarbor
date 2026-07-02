@@ -10,14 +10,14 @@
 | 知识库目录 | `raw/`、`wiki/`、`maintenance/`、`.knoarbor/` |
 | Wiki 页面 | `wiki/pages/*.md` |
 | Source Digest | `wiki/sources/*.md` |
-| Raw 附件 | `raw/assets/**` 与 `raw/sidecars/**` |
+| Raw 附件 | `raw/derived/assets/**` 与 `raw/derived/metadata/**` |
 | 机器索引 | `.knoarbor/index/manifest.json` 与 `graph_index.json` |
 | Ingest | 从 Source Input 到 Report / Checkpoint Commit 的阶段对象 |
 | Query | 图索引召回、BM25 重排、answer-set 输出 |
 | Chat | 工具调用、evidence pack、回答、引用解析 |
 | 报告与账本 | Markdown 报告、JSONL 账本、失败记录、token 账本 |
 | API | method-aware 本地 HTTP API |
-| UI | Chat、Flows、Knowledge、Docs、Settings 五类界面 |
+| UI | Chat、Flows、Knowledge、Settings 四类界面 |
 
 ## 目录边界
 
@@ -25,9 +25,15 @@
 vaults/<id>/
   raw/
     inbox/
-    normalized/
-    assets/
-    sidecars/
+      notes/
+      documents/
+      chats/
+      media/
+    derived/
+      markdown/
+      excerpts/
+      assets/
+      metadata/
   wiki/
     pages/
     sources/
@@ -45,7 +51,8 @@ vaults/<id>/
     chat/sessions/
 ```
 
-- `raw/` 保存原始输入、标准化文本、解析资产和 sidecar。
+- `raw/inbox/` 保存用户提供或导入的原始资料。
+- `raw/derived/` 保存预处理器和系统生成的 Markdown、摘录、附件和元数据。
 - `wiki/pages/` 保存最终知识页。
 - `wiki/sources/` 保存来源审计页。
 - `maintenance/` 保存运行报告。
@@ -89,7 +96,7 @@ Source Digest 保存 raw 到 wiki 的审计记录。
 ```
 
 路径、hash、MIME、坐标、OCR/VLM 原始输出和 parser 细节保存在
-`raw/sidecars/**` 与机器元数据中。
+`raw/derived/metadata/**` 与机器元数据中。
 
 ## 检索与对话
 

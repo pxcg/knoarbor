@@ -69,12 +69,12 @@ def _attachments_from_raw_sources(vault: Path, raw_sources: list[Path]) -> list[
 
 
 def _attachments_from_matching_sidecars(vault: Path, page_content: str) -> list[dict[str, Any]]:
-    sidecars_dir = vault / "raw" / "sidecars" / "sources"
+    sidecars_dir = vault / "raw" / "derived" / "metadata" / "sources"
     if not sidecars_dir.exists():
         return []
     matched: list[dict[str, Any]] = []
     for sidecar in sorted(sidecars_dir.glob("*.attachments.json")):
-        raw_source = vault / "raw" / "normalized" / "markdown" / f"{sidecar.name.removesuffix('.attachments.json')}.md"
+        raw_source = vault / "raw" / "derived" / "markdown" / f"{sidecar.name.removesuffix('.attachments.json')}.md"
         attachments = read_attachment_sidecar(raw_source)
         selected = [item for item in attachments if _attachment_matches_page(item, page_content)]
         matched.extend(selected)
@@ -163,17 +163,17 @@ def _attachment_description(attachment: dict[str, Any]) -> str:
 
 def _markdown_src(relative_path: str) -> str:
     cleaned = relative_path.strip().replace("\\", "/").lstrip("/")
-    if cleaned.startswith("raw/assets/"):
+    if cleaned.startswith("raw/derived/assets/"):
         return cleaned
     if cleaned.startswith("assets/"):
-        return f"raw/{cleaned}"
-    return f"raw/assets/{cleaned}"
+        return f"raw/derived/{cleaned}"
+    return f"raw/derived/assets/{cleaned}"
 
 
 def _ui_asset_src(relative_path: str, vault: Path) -> str:
     cleaned = relative_path.strip().replace("\\", "/").lstrip("/")
-    if cleaned.startswith("raw/assets/"):
-        cleaned = cleaned.removeprefix("raw/assets/")
+    if cleaned.startswith("raw/derived/assets/"):
+        cleaned = cleaned.removeprefix("raw/derived/assets/")
     elif cleaned.startswith("assets/"):
         cleaned = cleaned.removeprefix("assets/")
     return f"/ui/api/vault-assets/{quote(cleaned, safe='')}?vault_path={quote(str(vault.expanduser().resolve()), safe='')}"

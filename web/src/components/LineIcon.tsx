@@ -1,5 +1,4 @@
 import {
-  BookOpen,
   Bot,
   Boxes,
   Braces,
@@ -35,7 +34,6 @@ export type IconName =
   | "reports"
   | "tokens"
   | "settings"
-  | "docs"
   | "github"
   | "markdown"
   | "codex"
@@ -57,7 +55,6 @@ const iconMap: Record<Exclude<IconName, "github">, LucideIcon> = {
   reports: FileBarChart,
   tokens: Gauge,
   settings: SlidersHorizontal,
-  docs: BookOpen,
   markdown: FileText,
   codex: Braces,
   hermes: Bot,

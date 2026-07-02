@@ -1,7 +1,6 @@
 # 安装部署
 
-KnoArbor 是本地优先的 Python 服务，并内置管理界面。首次部署通常包括：
-克隆仓库、创建本地配置、启动 FastAPI 服务，并在浏览器中打开界面。
+KnoArbor 是本地优先的 Python 服务，并提供内置管理界面和桌面端壳。公开发布包是桌面用户最简单的路径；源码安装仍是贡献者和希望直接运行本地服务的用户的参考路径。
 
 ## 环境要求
 
@@ -75,7 +74,7 @@ http://127.0.0.1:8000
 
 ```bash
 uv run knoar ingest --connector markdown --write
-uv run knoar lint --mode structural
+uv run knoar lint --mode deterministic
 uv run knoar query "Agent Loop 是什么？"
 ```
 

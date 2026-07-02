@@ -7,7 +7,7 @@ from typing import Any
 
 import yaml
 
-from knoarbor.core.config import KnoArborConfig, default_config_path, prepare_config_data
+from knoarbor.core.config import KnoArborConfig, default_config_path, modernize_raw_layout_path, prepare_config_data
 from knoarbor.core.errors import UserInputError
 from knoarbor.core.schemas.connectors import SourceConnectorCatalogItem
 from knoarbor.semantic.llm import is_local_or_private_model_endpoint
@@ -733,7 +733,7 @@ def _portable_config_path_or_none(value: str, base_dir: Path) -> str | None:
 
 
 def _portable_config_path(value: str, base_dir: Path) -> str:
-    text = value.strip()
+    text = modernize_raw_layout_path(value.strip())
     if not text:
         return ""
     path = Path(text).expanduser()

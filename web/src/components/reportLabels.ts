@@ -17,7 +17,6 @@ const reportLabelKeys: Record<string, string> = {
   duration_seconds: "reportLabel.durationSeconds",
   status: "reportLabel.status",
   mode: "reportLabel.mode",
-  profile: "reportLabel.profile",
   scope_id: "reportLabel.scopeId",
   recommended_mode: "reportLabel.recommendedMode",
   policy_triggered: "reportLabel.policyTriggered",

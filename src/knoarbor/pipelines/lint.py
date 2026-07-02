@@ -33,6 +33,7 @@ from knoarbor.maintenance.lint_rules import is_structural_semantic_issue
 from knoarbor.audit.lint_report import write_lint_run_artifacts
 from knoarbor.maintenance.operation_verification import verify_lint_post_fixes
 from knoarbor.pipelines.lint_execution import LintExecutionRouter
+from knoarbor.pipelines.lint_observer import LintObserver
 from knoarbor.semantic.metrics import summarize_semantic_runs
 from knoarbor.runtime import current_run_monitor, runtime_logger, vault_write_lock
 
@@ -78,6 +79,8 @@ class WikiLintPipeline:
             request.mode,
             request.max_candidates,
             request.max_chars_per_page,
+            scope_pages=request.scope_pages,
+            include_related=request.include_related,
             privacy_config=self.privacy_config,
         )
         return WikiLintCandidateSelectResponse(mode=request.mode, candidates=candidates, stats=stats, warnings=warnings)
@@ -122,13 +125,12 @@ class WikiLintPipeline:
         the caller explicitly enables reviewed writes.
         """
 
-        monitor = current_run_monitor()
+        observer = LintObserver.current()
         started = time.perf_counter()
-        if monitor:
-            monitor.event("lint_started", stage="lint", message=f"Starting lint maintenance in {request.mode} mode.")
         semantic_history_start = _semantic_history_length(self.semantic_workflow)
-        mode = normalize_lint_run_mode(request.mode)
+        mode = request.mode
         scope_pages = _scope_pages(request)
+        observer.started("scan", message=f"Starting lint maintenance in {request.mode} mode.")
         deterministic_lint = self.lint(
             WikiLintRequest(
                 vault_path=request.vault_path,
@@ -139,64 +141,59 @@ class WikiLintPipeline:
                 include_related=request.include_related,
             )
         )
-        if monitor:
-            monitor.event(
-                "deterministic_lint_finished",
-                stage="lint",
-                message=f"Deterministic lint found {len(deterministic_lint.issues)} issue(s).",
-                payload={"issue_count": len(deterministic_lint.issues)},
-            )
-            monitor.raise_if_cancelled()
+        observer.finished(
+            "scan",
+            message=f"Deterministic lint found {len(deterministic_lint.issues)} issue(s).",
+            payload={"issue_count": len(deterministic_lint.issues), "fix_count": len(deterministic_lint.fixes)},
+        )
         policy_decision = _decide_lint_policy(deterministic_lint.issues, mode)
         if mode == "deterministic":
+            observer.skipped("diagnose", message="Deterministic lint mode does not run semantic diagnosis.")
+            observer.skipped("review", message="Deterministic lint mode does not run model review.")
+            observer.skipped("execute", message="No semantic maintenance decisions to execute.")
+            observer.skipped("verify", message="No semantic writes require verification.")
             result = LintRunResult(
                 scope=request.scope,
                 mode=mode,
-                profile=request.profile,
                 deterministic_lint=deterministic_lint,
                 policy_decision=policy_decision,
                 metrics=_lint_run_metrics(started, self.semantic_workflow, semantic_history_start),
             )
-            return _write_lint_run_artifacts_if_requested(request, result)
-        if mode == "semantic_structural" and not _eligible_structural_issues(deterministic_lint.issues):
-            result = LintRunResult(
-                scope=request.scope,
-                mode=mode,
-                profile=request.profile,
-                deterministic_lint=deterministic_lint,
-                policy_decision=policy_decision,
-                semantic_candidates=_empty_maintenance_candidates("No eligible structural lint issues found.").model_dump(),
-                maintenance_review=_empty_maintenance_review("No structural lint changes to review.").model_dump(),
-                metrics=_lint_run_metrics(started, self.semantic_workflow, semantic_history_start),
-            )
-            return _write_lint_run_artifacts_if_requested(request, result)
+            return _write_lint_run_artifacts_if_requested(request, result, observer)
         if self.semantic_workflow is None:
             raise InvalidConfig("Semantic lint mode requires a LintSemanticWorkflow.")
 
-        semantic_candidates = _run_semantic_diagnose(self, request, mode)
-        if monitor:
-            monitor.event(
-                "semantic_candidates_ready",
-                stage="semantic_review",
-                message=f"Prepared {len(semantic_candidates.candidates)} maintenance candidate(s).",
-                payload={"candidate_count": len(semantic_candidates.candidates)},
+        observer.started("diagnose", message="Preparing semantic maintenance candidates.")
+        semantic_candidates = _run_semantic_diagnose(self, request)
+        observer.finished(
+            "diagnose",
+            message=f"Prepared {len(semantic_candidates.candidates)} maintenance candidate(s).",
+            payload={"candidate_count": len(semantic_candidates.candidates)},
+        )
+        if not semantic_candidates.candidates:
+            observer.skipped("review", message="No semantic maintenance candidates to review.")
+            observer.skipped("execute", message="No reviewed maintenance decisions to execute.")
+            observer.skipped("verify", message="No semantic writes require verification.")
+            result = LintRunResult(
+                scope=request.scope,
+                mode=mode,
+                deterministic_lint=deterministic_lint,
+                policy_decision=policy_decision,
+                semantic_candidates=semantic_candidates.model_dump(),
+                maintenance_review=_empty_maintenance_review("No semantic maintenance candidates to review.").model_dump(),
+                metrics=_lint_run_metrics(started, self.semantic_workflow, semantic_history_start),
             )
-            monitor.raise_if_cancelled()
+            return _write_lint_run_artifacts_if_requested(request, result, observer)
+        observer.started("review", message="Reviewing semantic maintenance candidates.")
         maintenance_review = self.semantic_workflow.review(
-            {
-                "maintenance_candidates": semantic_candidates.model_dump(),
-                "items": [candidate.model_dump() for candidate in semantic_candidates.candidates],
-            },
+            _maintenance_review_payload(semantic_candidates),
             max_tokens=request.max_tokens,
         )
-        if monitor:
-            monitor.event(
-                "maintenance_review_finished",
-                stage="semantic_review",
-                message=f"Reviewed {len(maintenance_review.decisions)} maintenance decision(s).",
-                payload={"decision_count": len(maintenance_review.decisions)},
-            )
-            monitor.raise_if_cancelled()
+        observer.finished(
+            "review",
+            message=f"Reviewed {len(maintenance_review.decisions)} maintenance decision(s).",
+            payload={"decision_count": len(maintenance_review.decisions)},
+        )
         applied_operations: list[dict[str, object]] = []
         queued_actions = self.execution_router.collect_queued_actions(semantic_candidates, maintenance_review)
         written_pages: list[str] = []
@@ -208,14 +205,19 @@ class WikiLintPipeline:
         draft_batch = None
         draft_write_response = None
         if request.auto_apply_reviewed_changes:
-            if monitor:
-                monitor.event("reviewed_apply_started", status="writing", stage="execute", message="Applying approved maintenance changes.")
+            observer.started("execute", message="Applying approved maintenance changes.")
             applied_operations = self.execution_router.apply_wiki_operations(request, semantic_candidates, maintenance_review)
             draft_batch = self.execution_router.compile_reviewed_drafts(self.semantic_workflow, request, semantic_candidates, maintenance_review)
             if draft_batch is not None:
                 draft_write_response = self.execution_router.write_drafts(request, draft_batch)
                 written_pages = self.execution_router.written_page_paths(request, draft_write_response)
                 written_page_details = self.execution_router.written_page_details(request, draft_write_response)
+            observer.finished(
+                "execute",
+                message=f"Applied {len(applied_operations)} operation(s) and wrote {len(written_pages)} page(s).",
+                payload={"applied_operations": len(applied_operations), "written_pages": len(written_pages), "queued_actions": len(queued_actions)},
+            )
+            observer.started("verify", message="Verifying reviewed maintenance changes.")
             raw_verifications = verify_lint_post_fixes(
                 Path(request.vault_path).expanduser().resolve(),
                 applied_operations=applied_operations,
@@ -226,8 +228,6 @@ class WikiLintPipeline:
             )
             verifications = [item.model_dump() for item in raw_verifications]
             if applied_operations or written_pages:
-                if monitor:
-                    monitor.event("rescan_started", status="linting", stage="rescan", message="Rescanning after maintenance changes.")
                 rescan = self.lint(
                     WikiLintRequest(
                         vault_path=request.vault_path,
@@ -237,8 +237,14 @@ class WikiLintPipeline:
                         include_related=request.include_related,
                     )
                 )
-                if monitor:
-                    monitor.event("rescan_finished", status="running", stage="rescan", message=f"Rescan found {len(rescan.issues)} issue(s).", payload={"issue_count": len(rescan.issues)})
+            observer.finished(
+                "verify",
+                message=f"Verification produced {len(verifications)} result(s).",
+                payload={"verification_count": len(verifications), "rescan_issue_count": len(rescan.issues) if rescan else None},
+            )
+        else:
+            observer.skipped("execute", message="Reviewed maintenance writes are disabled.")
+            observer.skipped("verify", message="No reviewed writes require verification.")
         if request.auto_apply_reviewed_changes and request.auto_retry_deferred_actions and request.max_deferred_retry_rounds > 0:
             retry_queue = queued_actions
             for retry_round in range(1, request.max_deferred_retry_rounds + 1):
@@ -254,7 +260,7 @@ class WikiLintPipeline:
                 if not retry["queued_actions"] or not (retry["applied_operations"] or retry["written_pages"]):
                     break
                 retry_queue = retry["queued_actions"]
-                if (retry["applied_operations"] or retry["written_pages"]) and rescan is None:
+                if retry["applied_operations"] or retry["written_pages"]:
                     rescan = self.lint(
                         WikiLintRequest(
                             vault_path=request.vault_path,
@@ -270,14 +276,12 @@ class WikiLintPipeline:
                 applied_operations.extend(refresh_result.applied_operations)
                 written_pages.extend(refresh_result.written_pages)
                 written_page_details.extend(refresh_result.written_page_details)
-                if monitor:
-                    monitor.event(
-                        "refresh_requests_applied",
-                        status="linting",
-                        stage="execute",
-                        message=f"Applied {len(refresh_result.applied_operations)} provenance refresh operation(s).",
-                        payload={"applied_operations": len(refresh_result.applied_operations), "written_pages": len(refresh_result.written_pages)},
-                    )
+                refresh_verifications = verify_lint_post_fixes(
+                    Path(request.vault_path).expanduser().resolve(),
+                    applied_operations=refresh_result.applied_operations,
+                    privacy_config=self.privacy_config,
+                )
+                verifications.extend(item.model_dump() for item in refresh_verifications)
                 rescan = self.lint(
                     WikiLintRequest(
                         vault_path=request.vault_path,
@@ -291,11 +295,11 @@ class WikiLintPipeline:
         result = LintRunResult(
             scope=request.scope,
             mode=mode,
-            profile=request.profile,
             deterministic_lint=deterministic_lint,
             policy_decision=policy_decision,
             semantic_candidates=semantic_candidates.model_dump(),
             maintenance_review=maintenance_review.model_dump(),
+            draft_batch=draft_batch.model_dump() if draft_batch is not None else None,
             queued_actions=queued_actions,
             deferred_retries=deferred_retries,
             written_pages=written_pages,
@@ -306,17 +310,7 @@ class WikiLintPipeline:
             warnings=[*_verification_warnings(verifications), *refresh_warnings],
             metrics=_lint_run_metrics(started, self.semantic_workflow, semantic_history_start),
         )
-        return _write_lint_run_artifacts_if_requested(request, result)
-
-
-def normalize_lint_run_mode(mode: LintRunMode) -> LintRunMode:
-    if mode == "structural":
-        return "semantic_structural"
-    if mode == "quality":
-        return "semantic_quality"
-    if mode == "full":
-        return "semantic_full"
-    return mode
+        return _write_lint_run_artifacts_if_requested(request, result, observer)
 
 
 def _scope_pages(request: LintRunRequest) -> list[str]:
@@ -329,6 +323,38 @@ def _scope_pages(request: LintRunRequest) -> list[str]:
     return pages
 
 
+def _maintenance_review_payload(
+    candidates: MaintenanceCandidates,
+    *,
+    extra: dict[str, object] | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "maintenance_candidates": candidates.model_dump(),
+        "items": [_review_item(index, candidate) for index, candidate in enumerate(candidates.candidates)],
+    }
+    if extra:
+        payload.update(extra)
+    return payload
+
+
+def _review_item(index: int, candidate: MaintenanceCandidate) -> dict[str, object]:
+    return {
+        "operation_index": index,
+        "candidate_id": candidate.candidate_id,
+        "source": candidate.source,
+        "target_page": candidate.target_page,
+        "issue_type": candidate.issue_type,
+        "severity": candidate.severity,
+        "confidence": candidate.confidence,
+        "risk_hint": candidate.risk_hint,
+        "executor_hint": candidate.executor_hint,
+        "recommended_action": candidate.recommended_action.model_dump(),
+        "expected_effect": candidate.expected_effect,
+        "review_notes": candidate.review_notes,
+        "evidence_count": len(candidate.evidence),
+    }
+
+
 def _decide_lint_policy(issues: list[WikiLintIssue], requested_mode: LintRunMode) -> LintPolicyDecision:
     if not issues:
         return LintPolicyDecision(
@@ -338,7 +364,7 @@ def _decide_lint_policy(issues: list[WikiLintIssue], requested_mode: LintRunMode
         )
 
     semantic_reasons = _semantic_trigger_reasons(issues)
-    recommended_mode: LintRunMode = "semantic_structural" if semantic_reasons else "deterministic"
+    recommended_mode: LintRunMode = "semantic" if semantic_reasons else "deterministic"
     triggered = requested_mode != "deterministic" and recommended_mode != "deterministic"
     return LintPolicyDecision(
         triggered=triggered,
@@ -364,30 +390,7 @@ def _eligible_structural_issues(issues: list[WikiLintIssue]) -> list[WikiLintIss
     return [issue for issue in issues if is_structural_semantic_issue(issue.code)]
 
 
-def _run_semantic_diagnose(pipeline: WikiLintPipeline, request: LintRunRequest, mode: LintRunMode) -> MaintenanceCandidates:
-    if mode == "semantic_structural":
-        scan = pipeline.scan(
-            WikiScanRequest(
-                vault_path=request.vault_path,
-                max_chars_per_page=request.max_chars_per_page,
-                scope_pages=_scope_pages(request),
-                include_related=request.include_related,
-            )
-        )
-        return pipeline.semantic_workflow.diagnose_structural(_structural_diagnose_payload(scan), max_tokens=request.max_tokens)
-
-    if mode == "semantic_quality":
-        selected = pipeline.select_candidates(
-            WikiLintCandidateSelectRequest(
-                vault_path=request.vault_path,
-                mode="quality",
-                max_candidates=request.max_candidates,
-                max_chars_per_page=request.max_chars_per_page,
-            )
-        )
-        model_candidates = pipeline.semantic_workflow.diagnose_quality({"selected_pages": selected.model_dump()}, max_tokens=request.max_tokens)
-        return model_candidates
-
+def _run_semantic_diagnose(pipeline: WikiLintPipeline, request: LintRunRequest) -> MaintenanceCandidates:
     structural_scan = pipeline.scan(
         WikiScanRequest(
             vault_path=request.vault_path,
@@ -396,16 +399,31 @@ def _run_semantic_diagnose(pipeline: WikiLintPipeline, request: LintRunRequest, 
             include_related=request.include_related,
         )
     )
-    structural = pipeline.semantic_workflow.diagnose_structural(_structural_diagnose_payload(structural_scan), max_tokens=request.max_tokens)
+    structural_payload = _structural_diagnose_payload(structural_scan)
+    structural = (
+        pipeline.semantic_workflow.diagnose_structural(structural_payload, max_tokens=request.max_tokens)
+        if structural_payload["scan"]["issues"]
+        else _empty_maintenance_candidates("No eligible structural lint issues found.")
+    )
     selected = pipeline.select_candidates(
         WikiLintCandidateSelectRequest(
             vault_path=request.vault_path,
-            mode="quality",
+            mode="semantic",
             max_candidates=request.max_candidates,
             max_chars_per_page=request.max_chars_per_page,
+            scope_pages=_scope_pages(request),
+            include_related=request.include_related,
         )
     )
-    quality = pipeline.semantic_workflow.diagnose_quality({"selected_pages": selected.model_dump()}, max_tokens=request.max_tokens)
+    quality = (
+        pipeline.semantic_workflow.diagnose_quality({"selected_pages": selected.model_dump()}, max_tokens=request.max_tokens)
+        if selected.candidates
+        else _empty_maintenance_candidates("No semantic quality candidates selected.")
+    )
+    if not structural.candidates:
+        return quality
+    if not quality.candidates:
+        return structural
     return _merge_candidates(structural, quality)
 
 
@@ -421,15 +439,12 @@ def _run_deferred_retry(
     retry_pages = _deferred_retry_pages(queued_actions)
     if not retry_pages:
         return None
-    monitor = current_run_monitor()
-    if monitor:
-        monitor.event(
-            "deferred_retry_started",
-            stage="semantic_review",
-            message=f"Retrying {len(retry_pages)} deferred page(s) with enriched context.",
-            payload={"page_count": len(retry_pages)},
-        )
-        monitor.raise_if_cancelled()
+    observer = LintObserver.current()
+    observer.started(
+        "diagnose",
+        message=f"Retrying {len(retry_pages)} deferred page(s) with enriched context.",
+        payload={"page_count": len(retry_pages), "retry_round": retry_round},
+    )
     retry_scope = request.scope.model_copy(
         update={
             "scope_id": f"{request.scope.scope_id}:deferred-retry",
@@ -458,18 +473,31 @@ def _run_deferred_retry(
         _structural_diagnose_payload(scan, include_content=True),
         max_tokens=retry_request.max_tokens,
     )
+    observer.finished(
+        "diagnose",
+        message=f"Prepared {len(candidates.candidates)} deferred retry candidate(s).",
+        payload={"candidate_count": len(candidates.candidates), "retry_round": retry_round},
+    )
+    observer.started("review", message="Reviewing deferred retry candidates.", payload={"retry_round": retry_round})
     review = pipeline.semantic_workflow.review(
-        {
-            "maintenance_candidates": candidates.model_dump(),
-            "items": [candidate.model_dump() for candidate in candidates.candidates],
+        _maintenance_review_payload(
+            candidates,
+            extra={
             "deferred_retry": {
                 "source_queue_count": len(queued_actions),
                 "retry_pages": retry_pages,
                 "round": retry_round,
             },
-        },
+            },
+        ),
         max_tokens=retry_request.max_tokens,
     )
+    observer.finished(
+        "review",
+        message=f"Reviewed {len(review.decisions)} deferred retry decision(s).",
+        payload={"decision_count": len(review.decisions), "retry_round": retry_round},
+    )
+    observer.started("execute", message="Applying deferred retry maintenance changes.", payload={"retry_round": retry_round})
     applied_operations = pipeline.execution_router.apply_wiki_operations(retry_request, candidates, review)
     draft_batch = pipeline.execution_router.compile_reviewed_drafts(pipeline.semantic_workflow, retry_request, candidates, review)
     written_pages: list[str] = []
@@ -479,6 +507,12 @@ def _run_deferred_retry(
         draft_write_response = pipeline.execution_router.write_drafts(retry_request, draft_batch)
         written_pages = pipeline.execution_router.written_page_paths(retry_request, draft_write_response)
         written_page_details = pipeline.execution_router.written_page_details(retry_request, draft_write_response)
+    observer.finished(
+        "execute",
+        message=f"Deferred retry applied {len(applied_operations)} operation(s) and wrote {len(written_pages)} page(s).",
+        payload={"applied_operations": len(applied_operations), "written_pages": len(written_pages), "retry_round": retry_round},
+    )
+    observer.started("verify", message="Verifying deferred retry changes.", payload={"retry_round": retry_round})
     raw_verifications = verify_lint_post_fixes(
         Path(retry_request.vault_path).expanduser().resolve(),
         applied_operations=applied_operations,
@@ -489,13 +523,11 @@ def _run_deferred_retry(
     )
     retry_queued = pipeline.execution_router.collect_queued_actions(candidates, review)
     verifications = [item.model_dump() for item in raw_verifications]
-    if monitor:
-        monitor.event(
-            "deferred_retry_finished",
-            stage="semantic_review",
-            message=f"Deferred retry applied {len(applied_operations)} operation(s) and wrote {len(written_pages)} page(s).",
-            payload={"applied_operations": len(applied_operations), "written_pages": len(written_pages), "queued_actions": len(retry_queued)},
-        )
+    observer.finished(
+        "verify",
+        message=f"Deferred retry verification produced {len(verifications)} result(s).",
+        payload={"verification_count": len(verifications), "queued_actions": len(retry_queued), "retry_round": retry_round},
+    )
     return {
         "summary": {
             "round": retry_round,
@@ -627,11 +659,13 @@ def _empty_maintenance_review(summary: str) -> LintMaintenanceReview:
     return LintMaintenanceReview(decisions=[], summary=summary, warnings=[])
 
 
-def _write_lint_run_artifacts_if_requested(request: LintRunRequest, result: LintRunResult) -> LintRunResult:
+def _write_lint_run_artifacts_if_requested(request: LintRunRequest, result: LintRunResult, observer: LintObserver) -> LintRunResult:
     if not request.write_report and not request.append_ledger:
+        observer.skipped("report", message="Lint report and ledger writing are disabled.")
         return result
     vault_path = Path(request.vault_path).expanduser().resolve()
     monitor = current_run_monitor()
+    observer.started("report", message="Writing lint run artifacts.")
     ledger_path, report_path = write_lint_run_artifacts(
         vault_path,
         result,
@@ -643,6 +677,11 @@ def _write_lint_run_artifacts_if_requested(request: LintRunRequest, result: Lint
     )
     result.ledger_path = ledger_path
     result.report_path = report_path
+    observer.finished(
+        "report",
+        message="Lint run artifacts written.",
+        payload={"ledger_path": ledger_path, "report_path": report_path},
+    )
     return result
 
 

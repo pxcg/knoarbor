@@ -13,6 +13,13 @@ from knoarbor.core.errors import ConfigNotFound, InvalidConfig, VaultPathError
 SUPPORTED_CONFIG_VERSION = 1
 MIN_CONFIG_VERSION = 1
 DEFAULT_VAULT_PATH = Path("./vaults/default")
+RAW_LAYOUT_PATH_REPLACEMENTS = (
+    ("raw/normalized/chats", "raw/inbox/chats"),
+    ("raw/normalized/markdown", "raw/derived/markdown"),
+    ("raw/normalized/excerpts", "raw/derived/excerpts"),
+    ("raw/assets", "raw/derived/assets"),
+    ("raw/sidecars", "raw/derived/metadata"),
+)
 
 
 class ConfigMigrationError(ValueError):
@@ -168,7 +175,7 @@ class MinerUDocumentProcessingConfig(BaseModel):
     enabled: bool = False
     endpoint: str | None = None
     input_dir: Path | None = None
-    output_dir: Path = DEFAULT_VAULT_PATH / "raw/normalized/markdown"
+    output_dir: Path = DEFAULT_VAULT_PATH / "raw/derived/markdown"
     recursive: bool = True
     patterns: list[str] = Field(default_factory=lambda: ["*.pdf", "*.docx", "*.pptx"])
     mode: str | None = "auto"
@@ -398,7 +405,7 @@ def migrate_config_data(data: dict[str, Any]) -> dict[str, Any]:
         version = _parse_config_version(migrated.get("config_version"))
     migrated["config_version"] = SUPPORTED_CONFIG_VERSION
     migrated = _ensure_vault_contract(migrated)
-    return migrated
+    return _migrate_raw_layout_paths(migrated)
 
 
 def _parse_config_version(value: object) -> int:
@@ -410,6 +417,23 @@ def _parse_config_version(value: object) -> int:
 
 
 _CONFIG_MIGRATIONS: dict[int, Callable[[dict[str, Any]], dict[str, Any]]] = {}
+
+
+def modernize_raw_layout_path(value: str) -> str:
+    modernized = value
+    for old, new in RAW_LAYOUT_PATH_REPLACEMENTS:
+        modernized = modernized.replace(old, new)
+    return modernized
+
+
+def _migrate_raw_layout_paths(value: Any) -> Any:
+    if isinstance(value, str):
+        return modernize_raw_layout_path(value)
+    if isinstance(value, list):
+        return [_migrate_raw_layout_paths(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _migrate_raw_layout_paths(item) for key, item in value.items()}
+    return value
 
 
 def load_env_file(path: Path) -> None:

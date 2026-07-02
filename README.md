@@ -9,7 +9,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-3776AB.svg" alt="Python 3.12+">
-  <img src="https://img.shields.io/badge/status-1.3%20wiki--chat%20release-0f766e.svg" alt="1.3 wiki chat release status">
+  <img src="https://img.shields.io/badge/status-2.2.1%20desktop%20release-0f766e.svg" alt="2.2.1 desktop release status">
   <a href="docs/QUICKSTART.md"><img src="https://img.shields.io/badge/docs-quickstart-111827.svg" alt="Quickstart"></a>
 </p>
 
@@ -27,7 +27,7 @@ Raw sources -> Ingest -> Markdown wiki -> Lint -> Query context
 | --- | --- |
 | Input | Markdown notes, AI chat sessions, generic chat logs, and optional MinerU-preprocessed rich documents |
 | Output | A local Markdown wiki with maintained pages, source digest audit pages, raw assets, reports, ledgers, and graph indexes |
-| Interfaces | CLI, FastAPI, local management console, and host-AI skill template |
+| Interfaces | Desktop app, CLI, FastAPI, local management console, and host-AI skill template |
 | Runtime model | Local-first, single-user, file-based vaults with queue, locks, checkpoints, and reports |
 
 ## Why KnoArbor
@@ -52,63 +52,35 @@ This makes the wiki a reusable artifact, not a transient retrieval result.
 - **Source provenance**: separates raw sources, source digest pages, and generated knowledge pages.
 - **Multi-vault profiles**: manage multiple named local knowledge bases from one configuration and query one or many vaults.
 - **Model adapters**: works with DeepSeek, OpenAI, OpenRouter, LM Studio, vLLM-compatible endpoints, and native Ollama.
-- **CLI, API, and local console**: run from terminal, HTTP API, or the bundled web UI served at `/` with `/ui` kept as a compatibility alias.
+- **Desktop app, CLI, API, and local console**: use the packaged desktop app when available, or run from source through terminal, HTTP API, or the bundled web UI served at `/` with `/ui` kept as a compatibility alias.
 - **Skill integration**: includes a generic local wiki skill template for AI tools that can call a local HTTP service.
 
 ## Product Tour
 
-The bundled local console helps configure sources, launch ingest/lint/query runs, inspect run state, view reports, and browse the generated wiki graph.
+The desktop app embeds the same local console. When running from source, the bundled local console exposes the same core workspace: Chat for asking the maintained wiki, Flows for ingest/lint/query operations, and Knowledge for page and graph inspection.
 
-### Overview
+### Chat
 
-Check service readiness, vault health, page counts, and recommended next steps before starting a workflow.
+Ask questions directly from the desktop workspace, keep session history in the local vault, and inspect citations behind answers.
 
 <p align="center">
-  <img src="docs/assets/knoarbor-console-overview.png" alt="KnoArbor local console overview" width="920">
+  <img src="docs/assets/knoarbor-desktop-chat.png" alt="KnoArbor desktop chat workspace" width="920">
 </p>
 
-### Source Coverage
+### Flows
 
-Inspect enabled source connectors and understand how raw inputs enter the shared ingest pipeline.
+Launch and monitor ingest, lint, query, report, and token-analysis workflows from one operational surface.
 
 <p align="center">
-  <img src="docs/assets/knoarbor-console-sources.png" alt="KnoArbor sources page" width="920">
+  <img src="docs/assets/knoarbor-desktop-flows.png" alt="KnoArbor desktop flows workspace" width="920">
 </p>
 
-### Run Monitor
+### Knowledge Graph
 
-Follow long-running ingest, lint, and query workflows with queue state, heartbeats, cancellation, and recent run records.
-
-<p align="center">
-  <img src="docs/assets/knoarbor-console-runs.png" alt="KnoArbor runs page" width="920">
-</p>
-
-### Knowledge Base Browser
-
-Browse generated wiki pages, inspect structured metadata, entity relations, source evidence, and open the exact pages written or modified by a workflow run.
+Browse the maintained wiki as page-level relationships, with wiki links and semantic page neighborhoods shown as graph edges.
 
 <p align="center">
-  <img src="docs/assets/knoarbor-console-wiki.png" alt="KnoArbor knowledge base browser" width="920">
-</p>
-
-### Wiki Chat And Query Context
-
-Ask questions directly in the local console, inspect the cited wiki pages behind an answer, or retrieve the same page-first context pack for a host AI through Query and Skill integrations.
-
-<p align="center">
-  <img src="docs/assets/knoarbor-console-query.png" alt="KnoArbor query page" width="920">
-</p>
-
-### Reports And Graph
-
-Read human-friendly run reports and inspect the generated knowledge network.
-
-<p align="center">
-  <img src="docs/assets/knoarbor-console-reports.png" alt="KnoArbor reports page" width="920">
-</p>
-
-<p align="center">
-  <img src="docs/assets/knoarbor-console-graph.png" alt="KnoArbor graph page" width="920">
+  <img src="docs/assets/knoarbor-desktop-graph.png" alt="KnoArbor desktop knowledge graph" width="920">
 </p>
 
 ## Installation
@@ -161,7 +133,7 @@ Compile the bundled example into wiki pages:
 
 ```bash
 uv run knoar ingest --connector markdown --write
-uv run knoar lint --mode structural
+uv run knoar lint --mode deterministic
 ```
 
 Start the local service:
@@ -277,22 +249,22 @@ license and attribution requirements.
 
 ### Maintain the wiki
 
-Structural repair:
+Structured maintenance:
 
 ```bash
-uv run knoar lint --mode structural
+uv run knoar lint --mode deterministic
 ```
 
-Quality review:
+Semantic maintenance:
 
 ```bash
-uv run knoar lint --mode quality
+uv run knoar lint --mode semantic
 ```
 
-Full maintenance with approved writes:
+Semantic maintenance applies approved writes by default. To review without writing, add `--no-apply-reviewed`.
 
 ```bash
-uv run knoar lint --mode full --apply-reviewed
+uv run knoar lint --mode semantic
 ```
 
 ### Query context
@@ -302,17 +274,18 @@ uv run knoar query "What does this wiki know about Agent Loop?"
 uv run knoar query --json "Agent Loop control patterns"
 ```
 
-Query is retrieval-only. KnoArbor returns context and evidence; the host AI is responsible for the final answer.
+Query is retrieval-only and returns context for host AI tools. Use Wiki Chat when KnoArbor should synthesize an evidence-backed answer inside the app.
 
 ## Current Status
 
-KnoArbor is in the 1.x local-first release line. The core local workflows, CLI, stable HTTP API, bundled console, multi-vault configuration, and host-AI skill template are intended to be usable as a single-user local knowledge engine.
+KnoArbor is in the 2.2 desktop-focused release line. The desktop shell, source-based local service, CLI, stable HTTP API, bundled console, multi-vault configuration, and host-AI skill template are intended to be usable as a single-user local knowledge engine.
 
 Implemented today:
 
 - Markdown, Hermes session, Codex session, OpenClaw session, Claude Code session, and generic chat source connectors.
 - Optional MinerU-compatible document preprocessing into Markdown.
 - Ingest, lint, and query pipelines in Python Core.
+- Wiki Chat with evidence-backed answers, citations, session history, retry, and session ingest.
 - FastAPI service and CLI entry points.
 - Local React console bundled with the Python package.
 - Runtime wiki initialization, machine index, queue, locks, ledgers, reports, and checkpoints.
@@ -322,7 +295,6 @@ Not included in the current local-first release:
 
 - Hosted SaaS deployment.
 - Built-in vector database.
-- Built-in chat answer generation.
 - Built-in MinerU model/runtime.
 - Packaged external workflow templates.
 

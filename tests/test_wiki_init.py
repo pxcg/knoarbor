@@ -30,8 +30,8 @@ class WikiInitTests(unittest.TestCase):
             self.assertTrue((vault / "wiki" / "pages").is_dir())
             self.assertFalse((vault / "wiki" / "pages" / "_views").exists())
             self.assertTrue((vault / "raw" / "inbox" / "documents").exists())
-            self.assertTrue((vault / "raw" / "normalized" / "markdown").exists())
-            self.assertTrue((vault / "raw" / "assets" / "images").exists())
+            self.assertTrue((vault / "raw" / "derived" / "markdown").exists())
+            self.assertTrue((vault / "raw" / "derived" / "assets" / "images").exists())
             self.assertIn("wiki/log.md", result.created_paths)
             self.assertEqual(source_digest_root(vault), vault.resolve() / "wiki" / "sources")
 

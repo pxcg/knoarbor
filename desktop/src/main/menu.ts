@@ -79,7 +79,6 @@ export function installDesktopMenu(input: { githubUrl: string }): void {
     {
       label: "Help",
       submenu: [
-        commandItem("API Docs", undefined, "docs.open"),
         {
           click: () => {
             void shell.openExternal(input.githubUrl);

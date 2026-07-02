@@ -147,17 +147,13 @@ uv run knoar ingest --vault-id personal --recover-run-id RUN_ID --write
 uv run knoar lint
 uv run knoar lint --vault-id personal
 uv run knoar lint --mode deterministic
-uv run knoar lint --mode structural
-uv run knoar lint --mode quality
-uv run knoar lint --mode full --profile deep
+uv run knoar lint --mode semantic
 ```
 
 模式说明：
 
 - `deterministic`：只做确定性扫描和安全修复。
-- `structural`：结构和溯源维护，必要时进入语义评审。
-- `quality`：页面质量诊断和评审维护。
-- `full`：结构维护和质量维护一起执行。
+- `semantic`：对结构、溯源和质量候选执行语义维护，并只应用通过评审的变更。
 
 `lint` 默认跟随进度；使用 `--json` 输出结构化结果，或用 `--no-follow`
 获取同步摘要。
@@ -244,5 +240,5 @@ uv run knoar runs cancel RUN_ID --vault ./vaults/default
 ```bash
 uv run knoar contracts
 uv run knoar run-contract source_normalize --input /path/to/input.json
-uv run knoar lint-plan --mode structural
+uv run knoar lint-plan --mode deterministic
 ```

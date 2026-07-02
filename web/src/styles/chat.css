@@ -183,7 +183,7 @@
   font-size: 11.8px;
   font-weight: 700;
   overflow: hidden;
-  padding: 6px 7px;
+  padding: 6px 34px 6px 7px;
   text-align: left;
 }
 
@@ -232,7 +232,7 @@
 .chat-session-menu {
   position: absolute;
   top: 50%;
-  right: 0;
+  right: 8px;
   transform: translateY(-50%);
   display: inline-grid;
   place-items: center;
@@ -415,6 +415,50 @@
   color: var(--muted);
   font-size: 15px;
   line-height: 1.58;
+}
+
+.chat-readiness-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-top: 8px;
+  width: min(620px, 100%);
+}
+
+.chat-readiness-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--soft-shadow);
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 7px;
+  padding: 14px;
+  text-align: left;
+}
+
+.chat-readiness-card:hover {
+  border-color: #9bc7b8;
+  transform: translateY(-1px);
+}
+
+.chat-readiness-card strong {
+  color: #17231c;
+  font-size: 14px;
+}
+
+.chat-readiness-card span {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.chat-readiness-card em {
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
 }
 
 .chat-message {

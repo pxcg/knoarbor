@@ -31,11 +31,11 @@ http://127.0.0.1:8000
 | 知识库注册表 | `GET /vaults` | 列出已配置知识库的 ID、名称、路径和可用状态 |
 | 诊断 | `GET /doctor` | 只读运行前检查 |
 | 资料来源 | `GET /sources` | 读取资料来源连接器能力清单 |
-| 模型供应商 | `GET /models/providers`, `GET /models/image-providers`, `POST /models/discover`, `POST /models/probe`, `POST /models/apply-capabilities` | 列出文本和图片模型供应商、发现运行时模型信息、执行小型模型探测，并显式写回能力配置 |
+| 模型供应商 | `GET /models/providers`, `GET /models/image-providers`, `POST /models/discover`, `POST /models/probe`, `POST /models/apply-capabilities` | 列出文本和图片模型供应商、发现运行时模型信息、检查供应商 API 连通性，并显式写回选定配置 |
 | 知识编译 | `POST /ingest` | 编译配置来源、标准文档、单个文件或文件夹，或恢复失败编译 |
 | 校验维护 | `POST /lint` | 执行确定性、结构、质量或完整维护 |
 | 知识查询 | `POST /query` | 为宿主 AI 检索 Wiki 上下文 |
-| 对话 | `POST /chat`, `POST /chat/stream` | 通过受限 KnoArbor Wiki Chat Agent 询问选中的知识库 |
+| 对话 | `POST /chat`, `POST /chat/stream`, `GET /chat/sessions`, `GET/PATCH/DELETE /chat/sessions/{session_id}`, `POST /chat/sessions/{session_id}/ingest`, `POST /chat/sessions/{session_id}/close`, `POST /chat/sessions/{session_id}/retry` | 询问选中的知识库、流式回答、管理会话、将会话入库、关闭会话并重试失败回答 |
 | 查询反馈 | `POST /query/feedback`, `GET /query/trends` | 记录和查看查询反馈 |
 | 运行报告 | `GET /reports`, `GET /reports/content` | 列出和读取流程报告 |
 | 运行监控 | `GET /runs`, `GET /runs/{run_id}` | 查看队列、运行中和已完成任务 |
@@ -398,7 +398,7 @@ POST /models/probe
 POST /models/apply-capabilities
 ```
 
-模型接口用于在长流程运行前检查供应商配置和模型能力，可由 Swagger、Apifox、脚本或本地前端调用。
+模型接口用于在长流程运行前检查供应商配置和 API 连通性，可由 Swagger、Apifox、脚本或本地前端调用。
 
 `GET /models/providers` 只读取当前模型配置，不访问模型运行时。返回内容会隐藏 API Key，只标注环境变量是否已配置。
 
@@ -413,17 +413,16 @@ POST /models/apply-capabilities
 }
 ```
 
-`POST /models/probe` 会发起一个很小的生成请求。`level: "minimal"` 用于验证 Chat Completions 连通性；`level: "structured"` 用于验证模型是否能满足 KnoArbor agent 需要的结构化 JSON 契约。
+`POST /models/probe` 执行和运行时发现相同的供应商 API 连通性检查，不发送对话生成请求。它会验证模型列表接口、TLS、凭据，以及在供应商返回元数据时确认当前配置模型是否存在。
 
 ```json
 {
   "config_path": "/path/to/config.yaml",
-  "provider": "deepseek",
-  "level": "structured"
+  "provider": "deepseek"
 }
 ```
 
-`POST /models/apply-capabilities` 是唯一会写配置的模型接口。它显式保存 `context_window`、`max_output_tokens` 和 `json_mode` 等字段；发现和探测接口只返回建议值，不自动修改 `config.yaml`。
+`POST /models/apply-capabilities` 是唯一会写配置的模型接口。它显式保存用户选定的 `context_window`、`max_output_tokens` 和 `json_mode` 等字段；发现和探测接口不会自动修改 `config.yaml`。
 
 ```json
 {
@@ -556,12 +555,10 @@ Markdown 文件会直接处理。PDF/DOCX/PPTX 等富文档需要配置 MinerU �
 POST /lint
 ```
 
-执行确定性校验，并可按 `mode` 启用结构或质量维护：
+对单个知识库执行校验维护。`mode` 控制行为：
 
 - `deterministic`
-- `semantic_structural`
-- `semantic_quality`
-- `semantic_full`
+- `semantic`
 
 校验维护同样是可能写入页面的流程，每次请求只作用于一个知识库。
 可以直接传 `vault_path`，也可以传 `config_path` 加 `vault_id` 选择已配置知识库。
@@ -574,13 +571,13 @@ POST /lint
   "execution": "queued",
   "config_path": "./config.yaml",
   "vault_id": "personal",
-  "mode": "semantic_structural",
+  "mode": "semantic",
   "scope": {
     "scope_id": "manual:api",
     "trigger": "manual",
     "source": { "kind": "api" },
     "changed_pages": [],
-    "recommended_lint_modes": ["semantic_structural"],
+    "recommended_lint_modes": ["semantic"],
     "reason": "Manual maintenance run."
   }
 }

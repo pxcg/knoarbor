@@ -24,7 +24,7 @@ from knoarbor.services.wiki_linter import WikiLinterService
 from knoarbor.services.wiki_pages import WikiPageService
 from knoarbor.services.wiki_reports import WikiReportService
 from knoarbor.storage.wiki_index import machine_index_dir
-from knoarbor.pipelines.lint import WikiLintPipeline, normalize_lint_run_mode
+from knoarbor.pipelines.lint import WikiLintPipeline, _maintenance_review_payload
 from knoarbor.runtime import configure_runtime_logging, runtime_logger
 from knoarbor.runtime.run_monitor import list_runs, read_run, read_run_events, request_cancel
 from knoarbor.runtime.endpoint import find_available_port, write_runtime_endpoint
@@ -225,7 +225,7 @@ def resolve_bootstrap_config_path(args: argparse.Namespace) -> Path:
 
 
 def install_first_run_example(vault_path: Path) -> Path:
-    target = vault_path / "raw" / "notes" / "agent-loop.md"
+    target = vault_path / "raw" / "inbox" / "notes" / "agent-loop.md"
     if target.exists():
         return target
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -569,8 +569,8 @@ def run_lint_run(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
     max_tokens = args.max_tokens or config.models.default_max_tokens
-    max_candidates = args.max_candidates if args.max_candidates is not None else (16 if args.profile == "deep" else 8)
-    max_chars_per_page = args.max_chars_per_page if args.max_chars_per_page is not None else (6000 if args.profile == "deep" else 2500)
+    max_candidates = args.max_candidates if args.max_candidates is not None else 8
+    max_chars_per_page = args.max_chars_per_page if args.max_chars_per_page is not None else 2500
     scope = MaintenanceScope(
         scope_id="manual:cli",
         trigger="manual",
@@ -579,13 +579,11 @@ def run_lint_run(args: argparse.Namespace) -> int:
         recommended_lint_modes=[args.mode],
         reason="Manual lint maintenance run from CLI.",
     )
-    internal_mode = normalize_lint_run_mode(args.mode)
     request = LintRunRequest(
         vault_path=str(vault_path),
         vault_id=args.vault_id,
         scope=scope,
-        mode=internal_mode,
-        profile=args.profile,
+        mode=args.mode,
         apply_safe_fixes=args.apply_safe_fixes,
         include_related=args.include_related,
         max_candidates=max_candidates,
@@ -614,7 +612,6 @@ def run_lint_run(args: argparse.Namespace) -> int:
     lint = response.deterministic_lint
     policy = response.policy_decision
     print(f"mode: {response.mode}")
-    print(f"profile: {response.profile}")
     print(f"scope_pages: {len(response.scope.changed_pages) or 'all'}")
     print(f"issues: {len(lint.issues)}")
     print(f"fixes: {len(lint.fixes)}")
@@ -990,49 +987,42 @@ def run_lint_plan(args: argparse.Namespace) -> int:
     pipeline = WikiLintPipeline(privacy_config=config.privacy)
     semantic = LintSemanticWorkflow(build_semantic_runner(args, config))
 
-    if args.mode == "structural":
+    if args.mode == "deterministic":
         scan = pipeline.scan(
             WikiScanRequest(
                 vault_path=str(vault_path),
                 max_chars_per_page=args.max_chars_per_page,
             )
         )
-        source_payload: dict[str, object] = {"scan": scan.model_dump()}
-        if not scan.issues:
-            response = {
-                "mode": args.mode,
-                "source": {
-                    "scan": {
-                        "issues": [],
-                        "fixes": [],
-                        "stats": scan.stats,
-                    }
-                },
-                "maintenance_candidates": {
-                    "schema_version": "maintenance_candidates.v1",
-                    "candidates": [],
-                    "page_reviews": [],
-                    "summary": "No structural lint issues found.",
-                    "warnings": [],
-                },
-                "maintenance_review": {
-                    "schema_version": "lint_maintenance_review.v1",
-                    "decisions": [],
-                    "summary": "No structural lint changes to review.",
-                    "warnings": [],
-                },
-            }
-            if args.json:
-                print_json(response)
-                return 0
-            print("No structural lint issues found.")
+        response = {
+            "mode": args.mode,
+            "source": {"scan": scan.model_dump()},
+            "maintenance_candidates": {
+                "schema_version": "maintenance_candidates.v1",
+                "candidates": [],
+                "page_reviews": [],
+                "summary": "Deterministic lint-plan does not run semantic diagnosis.",
+                "warnings": [],
+            },
+            "maintenance_review": {
+                "schema_version": "lint_maintenance_review.v1",
+                "decisions": [],
+                "summary": "Deterministic lint-plan does not run model review.",
+                "warnings": [],
+            },
+        }
+        if args.json:
+            print_json(response)
             return 0
-        candidates = semantic.diagnose_structural({"scan": scan.model_dump()}, max_tokens=args.max_tokens or config.models.default_max_tokens)
+        print(f"issues: {len(scan.issues)}")
+        print(f"fixes: {len(scan.fixes)}")
+        print("Deterministic lint-plan does not run semantic diagnosis.")
+        return 0
     else:
         selected = pipeline.select_candidates(
             WikiLintCandidateSelectRequest(
                 vault_path=str(vault_path),
-                mode="quality",
+                mode="semantic",
                 max_candidates=args.max_candidates,
                 max_chars_per_page=args.max_chars_per_page,
             )
@@ -1040,13 +1030,7 @@ def run_lint_plan(args: argparse.Namespace) -> int:
         candidates = semantic.diagnose_quality({"selected_pages": selected.model_dump()}, max_tokens=args.max_tokens or config.models.default_max_tokens)
         source_payload = {"selected_pages": selected.model_dump()}
 
-    review = semantic.review(
-        {
-            "maintenance_candidates": candidates.model_dump(),
-            "items": [candidate.model_dump() for candidate in candidates.candidates],
-        },
-        max_tokens=args.max_tokens or config.models.default_max_tokens,
-    )
+    review = semantic.review(_maintenance_review_payload(candidates), max_tokens=args.max_tokens or config.models.default_max_tokens)
     response = {
         "mode": args.mode,
         "source": source_payload,

@@ -208,8 +208,7 @@ def _add_ingest(subparsers: argparse._SubParsersAction[argparse.ArgumentParser])
 
 def _add_lint(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     parser = subparsers.add_parser("lint", help="Start a wiki lint/maintenance run.")
-    parser.add_argument("--mode", choices=["deterministic", "structural", "quality", "full", "semantic_structural", "semantic_quality", "semantic_full"], default="semantic_structural")
-    parser.add_argument("--profile", choices=["standard", "deep"], default="standard")
+    parser.add_argument("--mode", choices=["deterministic", "semantic"], default="semantic")
     parser.add_argument("--scope-page", action="append", dest="scope_pages", default=[])
     parser.add_argument("--apply-safe-fixes", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--auto-apply-reviewed", action=argparse.BooleanOptionalAction, default=True)
@@ -377,7 +376,6 @@ def _cmd_lint(args: argparse.Namespace, runtime: Runtime) -> int:
             "vault_path": vault_path,
             "vault_id": runtime.vault_id,
             "mode": args.mode,
-            "profile": args.profile,
             "apply_safe_fixes": args.apply_safe_fixes,
             "auto_apply_reviewed_changes": args.auto_apply_reviewed,
             "scope": {

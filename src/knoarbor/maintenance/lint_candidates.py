@@ -38,14 +38,12 @@ def scan_page(page: LintPage, max_chars_per_page: int) -> WikiScanPage:
     )
 
 
-def score_lint_candidate(page: WikiScanPage, issues: list[WikiLintIssue], mode: str) -> WikiLintCandidatePage:
+def score_lint_candidate(page: WikiScanPage, issues: list[WikiLintIssue]) -> WikiLintCandidatePage:
     reasons: list[WikiLintCandidateReason] = []
-    if mode in {"quality", "full"}:
-        reasons.extend(_quality_candidate_reasons(page, issues))
-    if mode in {"freshness", "full"}:
-        reasons.extend(_freshness_candidate_reasons(page))
+    reasons.extend(_quality_candidate_reasons(page, issues))
+    reasons.extend(_freshness_candidate_reasons(page))
 
-    score = _candidate_score(reasons, mode)
+    score = _candidate_score(reasons)
     return WikiLintCandidatePage(
         path=page.path,
         directory=page.directory,
@@ -121,8 +119,6 @@ def _quality_candidate_reasons(page: WikiScanPage, issues: list[WikiLintIssue]) 
                 {"updated": page.updated},
             )
         )
-    if _contains_temporal_claim(page.content_preview):
-        reasons.append(_candidate_reason("freshness", "temporal_claim", "low", "Page preview contains time-sensitive wording or year/version/ranking language.", 0.45))
     if len(page.outgoing_links) >= 8:
         reasons.append(
             _candidate_reason(
@@ -150,11 +146,7 @@ def _quality_candidate_reasons(page: WikiScanPage, issues: list[WikiLintIssue]) 
     return reasons
 
 
-def _candidate_score(reasons: list[WikiLintCandidateReason], mode: str) -> float:
-    if mode == "quality":
-        quality_score = sum(reason.score for reason in reasons if reason.source == "quality")
-        support_score = sum(reason.score for reason in reasons if reason.source in {"freshness", "graph"}) * 0.25
-        return round(quality_score + support_score, 3)
+def _candidate_score(reasons: list[WikiLintCandidateReason]) -> float:
     return round(sum(reason.score for reason in reasons), 3)
 
 

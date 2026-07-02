@@ -30,7 +30,7 @@ class LintGoldenTests(unittest.TestCase):
 
         assert_json_snapshot(self, _stable_scan_response(response), FIXTURE_DIR / "deterministic_scan.json")
 
-    def test_semantic_structural_maintenance_matches_golden_fixture(self) -> None:
+    def test_semantic_maintenance_matches_golden_fixture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
             create_lint_fixture_vault(vault)
@@ -43,7 +43,7 @@ class LintGoldenTests(unittest.TestCase):
                         source=MaintenanceScopeSource(kind="test"),
                         changed_pages=["Agent-Loop.md"],
                     ),
-                    mode="semantic_structural",
+                    mode="semantic",
                     include_related=True,
                     auto_apply_reviewed_changes=True,
                     write_report=False,
@@ -57,7 +57,7 @@ class LintGoldenTests(unittest.TestCase):
             "result": _stable_lint_run_result(response),
             "report": _normalize_report(render_lint_run_report(record)),
         }
-        assert_json_snapshot(self, snapshot, FIXTURE_DIR / "semantic_structural_run.json")
+        assert_json_snapshot(self, snapshot, FIXTURE_DIR / "semantic_run.json")
 
 
 def _stable_scan_response(response: Any) -> dict[str, object]:
@@ -82,7 +82,6 @@ def _stable_scan_response(response: Any) -> dict[str, object]:
 def _stable_lint_run_result(response: Any) -> dict[str, object]:
     return {
         "mode": response.mode,
-        "profile": response.profile,
         "policy_decision": response.policy_decision.model_dump(mode="json"),
         "deterministic_issues": [_stable_issue(issue) for issue in response.deterministic_lint.issues],
         "semantic_candidates": response.semantic_candidates,

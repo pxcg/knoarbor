@@ -10,16 +10,7 @@ from knoarbor.core.schemas.maintenance import MaintenanceScope
 
 WikiLintCandidateSource = Literal["structural", "provenance", "quality", "freshness", "graph"]
 WikiLintCandidateSeverity = Literal["high", "medium", "low"]
-LintRunMode = Literal[
-    "deterministic",
-    "structural",
-    "quality",
-    "full",
-    "semantic_structural",
-    "semantic_quality",
-    "semantic_full",
-]
-LintRunProfile = Literal["standard", "deep"]
+LintRunMode = Literal["deterministic", "semantic"]
 
 
 class WikiLintRequest(BaseModel):
@@ -72,7 +63,6 @@ class LintRunRequest(BaseModel):
     provider: str | None = None
     scope: MaintenanceScope
     mode: LintRunMode = "deterministic"
-    profile: LintRunProfile = "standard"
     apply_safe_fixes: bool = True
     include_related: bool = True
     write_report: bool = True
@@ -91,7 +81,6 @@ class LintRunResult(BaseModel):
     schema_version: Literal["lint_run.v1"] = "lint_run.v1"
     scope: MaintenanceScope
     mode: LintRunMode
-    profile: LintRunProfile = "standard"
     deterministic_lint: WikiLintResponse
     policy_decision: LintPolicyDecision
     semantic_candidates: dict[str, Any] | None = None
@@ -142,9 +131,11 @@ class WikiScanResponse(BaseModel):
 
 class WikiLintCandidateSelectRequest(BaseModel):
     vault_path: str = Field(..., min_length=1)
-    mode: Literal["quality", "freshness", "full"] = "quality"
+    mode: Literal["semantic"] = "semantic"
     max_candidates: int = Field(default=8, ge=1, le=30)
     max_chars_per_page: int = Field(default=3000, ge=500, le=30000)
+    scope_pages: list[str] = Field(default_factory=list)
+    include_related: bool = True
 
 
 class WikiLintCandidateReason(BaseModel):

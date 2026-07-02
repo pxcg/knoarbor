@@ -71,11 +71,11 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 - `vaults/default/raw/inbox/notes/`：用户提供的 Markdown 笔记。
 - `vaults/default/raw/inbox/documents/`：PDF、DOCX、PPTX、XLSX、手册、课程资料等富文档原件。
 - `vaults/default/raw/inbox/media/`：原始图片和媒体文件。
-- `vaults/default/raw/normalized/chats/`：Hermes、Codex、OpenClaw、Claude Code 等 AI 工具会话的标准化结果。
-- `vaults/default/raw/normalized/markdown/`：由 MinerU-compatible 等确定性预处理器生成的 Markdown。
-- `vaults/default/raw/normalized/excerpts/`：用户手动选中的短摘录。
-- `vaults/default/raw/assets/`：解析出的图片、表格、页面切片和媒体附件。
-- `vaults/default/raw/sidecars/`：不作为 Wiki 页面渲染的来源辅助元数据。
+- `vaults/default/raw/inbox/chats/`：Hermes、Codex、OpenClaw、Claude Code 等 AI 工具会话的标准化结果。
+- `vaults/default/raw/derived/markdown/`：由 MinerU-compatible 等确定性预处理器生成的 Markdown。
+- `vaults/default/raw/derived/excerpts/`：用户手动选中的短摘录。
+- `vaults/default/raw/derived/assets/`：解析出的图片、表格、页面切片和媒体附件。
+- `vaults/default/raw/derived/metadata/`：不作为 Wiki 页面渲染的来源辅助元数据。
 
 规则：
 
@@ -114,7 +114,7 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 - 在 `vaults/default/.knoarbor/index/` 下生成机器索引，其中 `manifest.json` 和 `graph_index.json` 是持久图索引边界；
 - 保留 `pages.json`、`links.json`、`sources.json`、`search.json` 等兼容 retrieval payload，供当前 UI/query 服务使用；
 - 基于本地 Markdown 的标题、路径、entities、summary、claims、relations、标题层级和正文做字段加权 BM25 检索；
-- 通过 claim-backed relations、出站 wikilink、反向链接和来源关系做图谱扩展；
+- 通过页面链接、反向链接和来源关系做图谱扩展；
 - 为宿主 AI 工具返回 query context pack。
 
 长期方向：
@@ -267,9 +267,8 @@ scan
 
 用户可见模式：
 
-- `structural`：结构、链接和溯源维护。
-- `quality`：聚焦语义质量审查。
-- `full`：在一次运行中组合结构和质量维护。
+- `deterministic`：只执行结构化扫描和确定性安全修复。
+- `semantic`：对结构、溯源和质量候选执行语义维护，并经过评审后执行。
 
 ### Query / 知识查询
 
@@ -364,7 +363,7 @@ storage / retrieval metadata
   -> UI, skills, CLI wrappers, external clients
 ```
 
-UI 不应拥有另一套页面读取逻辑。UI 可以拥有配置表单、项目文档预览、报告列表渲染等界面专用适配器；但 Wiki 页面列表、页面详情和反向链接属于 `wiki` API/service 边界。
+UI 不应拥有另一套页面读取逻辑。UI 可以拥有配置表单、本地资产、诊断摘要、报告列表渲染等界面专用适配器；但 Wiki 页面列表、页面详情和反向链接属于 `wiki` API/service 边界。
 
 ## 智能体边界
 
@@ -387,7 +386,7 @@ KnoArbor 使用窄功能语义契约，而不是自治多智能体团队。
 - FastAPI 是 Python Core 的 HTTP 适配器。
 - CLI 是同一批 pipeline 的执行适配器。
 - 外部工作流工具是可选适配器，应调用稳定 pipeline API。
-- UI 是配置、运行、报告、文档和图谱检查的管理控制台，不是独立工作流引擎。
+- UI 是配置、运行、报告、Wiki 浏览和图谱检查的管理控制台，不是独立工作流引擎。
 
 ## 前端边界
 
@@ -395,9 +394,9 @@ Web UI 是建立在公开 API 和 UI 专用 HTTP 适配器之上的本地管理�
 
 职责：
 
-- 展示配置、来源状态、运行任务、报告、Wiki 页面、图谱数据和项目文档；
+- 展示配置、来源状态、运行任务、报告、Wiki 页面和图谱数据；
 - 通过稳定核心 API 运行流程、读取运行状态、查询上下文和 Wiki 页面；
-- 只在配置表单、诊断摘要、内置文档和报告预览等界面专用场景调用 `/ui/api/*`；
+- 只在配置表单、诊断摘要、本地资产和报告预览等界面专用场景调用 `/ui/api/*`；
 - 使用可复用本地组件渲染 Markdown、diff、报告和图谱。
 - 维护 UI 侧的 Vault Runtime 状态，用于当前知识库选择、按知识库分区的缓存 key，以及多知识库展示状态。
 

@@ -11,7 +11,6 @@ KnoArbor 使用对话优先的界面，并提供辅助工作区。
 | Chat | 询问已维护的 Wiki 页面并延续会话 | chat sessions、evidence packs、citations |
 | Flows | 运行和检查流程 | runs、reports、ingest/lint/query requests |
 | Knowledge | 浏览维护后的页面和图谱视图 | wiki pages、graph index、page content |
-| Docs | 阅读项目文档 | bundled docs |
 | Settings | 配置知识库、输入、预处理、模型、运行参数 | config form、diagnostics、models |
 
 ## Chat
@@ -52,18 +51,13 @@ Knowledge 汇总：
 
 - 来自 `wiki/pages` 的维护后 Wiki 页面；
 - 明确进入来源或溯源视图时展示的 `wiki/sources` 来源审计页；
-- 从 `.knoarbor/index/graph_index.json` 派生的图谱视图。
+- 从 wiki index provider 派生的页面图谱视图。
 
 默认页面浏览器展示维护后的 Wiki 页面。Source digest 通过溯源/来源审计视图、图谱侧栏、报告和引用展示。
 
 图谱视图：
 
-- 实体图：节点是知识对象，边是 claims 支撑的 relations。
-- 页面图：节点是 wiki/source 页面，边是链接或贡献关系。
-
-## Docs
-
-Docs 展示公开项目文档。内部 specs 是开发者参考资料，不作为主要用户文档表面。
+- 页面图：节点是 wiki/source 页面，边是页面链接或 index provider 暴露的语义邻近页面边。
 
 ## Settings
 
@@ -81,7 +75,7 @@ Settings 配置：
 
 ## UI 专用 API 适配器
 
-`/ui/api/*` 下的路由是打包 UI 适配器。它们可以聚合公开 API、配置、本地资产服务和文档辅助能力。
+`/ui/api/*` 下的路由是打包 UI 适配器。它们可以聚合公开 API、配置、本地资产服务、诊断和报告辅助能力。
 
 外部集成使用 `docs/API_COMPATIBILITY.md` 中的公开 API。
 

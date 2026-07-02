@@ -73,6 +73,12 @@ def verify_wiki_operation(
     if action == "merge_pages":
         return _verify_merged_pages(vault_path, content, operation, action, target_page, operation_id)
 
+    if action == "create_source_digest":
+        return _verify_created_source_digest(content, operation, action, target_page, operation_id)
+
+    if action == "record_source_digest":
+        return _verify_recorded_source_digest(vault_path, content, operation, action, target_page, operation_id)
+
     return LintPostFixVerification(
         action=action,
         status="skipped",
@@ -444,6 +450,99 @@ def _verify_source_trace(
     )
 
 
+def _verify_created_source_digest(
+    content: str,
+    operation: dict[str, Any],
+    action: str,
+    target_page: str,
+    operation_id: str | None,
+) -> LintPostFixVerification:
+    source_file = _optional_str(operation.get("source_file"))
+    target_pages = _string_list(operation.get("target_pages"))
+    if not source_file:
+        return _failed(action, target_page, operation_id, "Source digest creation verification requires source_file.")
+    recorded_sources = {
+        *_source_values_from_section(content, "Source Identity"),
+        *_source_values_from_section(content, "Raw Source"),
+        *_source_values_from_evidence(content),
+    }
+    if source_file not in recorded_sources:
+        return _failed(
+            action,
+            target_page,
+            operation_id,
+            "Created source digest does not record the refreshed raw source.",
+            {"source_file": source_file, "recorded_sources": sorted(recorded_sources)},
+        )
+    contribution_pages = _contribution_map_pages(content)
+    missing_pages = sorted(page for page in target_pages if page not in contribution_pages)
+    if missing_pages:
+        return _failed(
+            action,
+            target_page,
+            operation_id,
+            "Created source digest contribution map does not cover all refreshed target pages.",
+            {"missing_pages": missing_pages, "contribution_pages": sorted(contribution_pages)},
+        )
+    return LintPostFixVerification(
+        action=action,
+        status="verified",
+        target_page=target_page,
+        operation_id=operation_id,
+        reason="Source digest exists, records the raw source, and covers refreshed target pages.",
+        evidence={"source_file": source_file, "target_pages": target_pages},
+    )
+
+
+def _verify_recorded_source_digest(
+    vault_path: Path,
+    target_content: str,
+    operation: dict[str, Any],
+    action: str,
+    target_page: str,
+    operation_id: str | None,
+) -> LintPostFixVerification:
+    digest_page = _optional_str(operation.get("source_digest_page"))
+    source_file = _optional_str(operation.get("source_file"))
+    if not digest_page:
+        return _failed(action, target_page, operation_id, "Source digest association verification requires source_digest_page.")
+    digest_path = _resolve_operation_output_path(vault_path, digest_page)
+    if not digest_path.exists():
+        return _failed(action, target_page, operation_id, "Associated source digest page does not exist.", {"source_digest_page": digest_page})
+    digest_content = digest_path.read_text(encoding="utf-8")
+    contribution_pages = _contribution_map_pages(digest_content)
+    if target_page not in contribution_pages:
+        return _failed(
+            action,
+            target_page,
+            operation_id,
+            "Associated source digest contribution map does not contain the target page.",
+            {"source_digest_page": digest_page, "contribution_pages": sorted(contribution_pages)},
+        )
+    if source_file:
+        target_sources = {
+            *_source_values_from_section(target_content, "Source"),
+            *_source_values_from_evidence(target_content),
+            *_source_values_from_section(target_content, "Raw Source"),
+        }
+        if source_file not in target_sources:
+            return _failed(
+                action,
+                target_page,
+                operation_id,
+                "Target page does not reference the refreshed raw source.",
+                {"source_file": source_file, "target_sources": sorted(target_sources)},
+            )
+    return LintPostFixVerification(
+        action=action,
+        status="verified",
+        target_page=target_page,
+        operation_id=operation_id,
+        reason="Source digest association is recorded in the digest contribution map.",
+        evidence={"source_digest_page": digest_page, "source_file": source_file},
+    )
+
+
 def _verify_sensitive_text_redacted(
     content: str,
     action: str,
@@ -515,6 +614,46 @@ def _draft_target_section(params: dict[str, Any], draft: WikiDraftBatchItem | No
     patch_sections = [patch.section.strip() for patch in draft.patches] if draft else []
     unique_sections = sorted({section for section in patch_sections if section})
     return unique_sections[0] if len(unique_sections) == 1 else None
+
+
+def _source_values_from_section(content: str, section: str) -> set[str]:
+    values: set[str] = set()
+    for item in extract_list_items(extract_section(content, section)):
+        text = item.strip().strip("`")
+        lowered = text.lower().replace("_", " ")
+        if lowered.startswith("raw source:"):
+            text = text.split(":", 1)[1].strip().strip("`")
+        if text:
+            values.add(text)
+    return values
+
+
+def _source_values_from_evidence(content: str) -> set[str]:
+    sources: set[str] = set()
+    for line in extract_section(content, "Evidence").splitlines():
+        text = line.strip()
+        if not text.startswith("|") or text.startswith("|---") or ("Claim" in text and "Source" in text):
+            continue
+        cells = [cell.strip() for cell in text.strip("|").split("|")]
+        if len(cells) >= 2 and cells[1]:
+            sources.add(cells[1])
+    return sources
+
+
+def _contribution_map_pages(content: str) -> set[str]:
+    pages: set[str] = set()
+    for line in extract_section(content, "Contribution Map").splitlines():
+        text = line.strip()
+        if not text.startswith("|") or text.startswith("|---"):
+            continue
+        if re.search(r"\b(Item|Page)\b", text) and re.search(r"\b(Contribution|Claims)\b", text):
+            continue
+        for cell in [cell.strip() for cell in text.strip("|").split("|")]:
+            for match in re.finditer(r"[\w./ ()-]+\.md", cell):
+                page = match.group(0).strip()
+                if page:
+                    pages.add(page)
+    return pages
 
 
 def _has_meaningful_section_body(section: str, body: str) -> bool:

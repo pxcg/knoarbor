@@ -10,47 +10,25 @@ KnoArbor 会把 Markdown 笔记、AI 对话记录和已解析文档编译成本�
 
 ## 产品快照
 
-本地控制台用于查看运行就绪状态、启动流程、浏览报告和探索页面关系。
+桌面工作区围绕三个一级入口组织：Chat、Flows 和 Knowledge。
 
-### 总览
+### Chat
 
-![KnoArbor 控制台总览](../assets/knoarbor-console-overview.png)
+![KnoArbor 桌面端对话](../assets/knoarbor-desktop-chat.png)
 
-在启动流程前查看服务就绪状态、知识库健康度、页面数量和推荐下一步。
+直接向已维护 Wiki 提问，并将本地会话历史用于后续回看或编译。
 
-### 资料来源
+### Flows
 
-![资料来源页面](../assets/knoarbor-console-sources.png)
+![KnoArbor 桌面端流程](../assets/knoarbor-desktop-flows.png)
 
-查看已启用的来源连接器，并理解 raw 输入如何进入统一的知识编译流程。
+启动并监控知识编译、校验维护、查询、报告和 token 分析流程。
 
-### 运行监控
+### 知识图谱
 
-![运行监控页面](../assets/knoarbor-console-runs.png)
+![KnoArbor 桌面端图谱](../assets/knoarbor-desktop-graph.png)
 
-跟踪长时间运行的知识编译、校验维护和查询流程，包括队列状态、心跳、取消和近期运行记录。
-
-### 知识库浏览
-
-![知识库浏览页面](../assets/knoarbor-console-wiki.png)
-
-浏览生成后的 Wiki 页面，查看 frontmatter 元数据、出站链接、反向链接，并从运行结果直接打开相关页面。
-
-### 知识查询
-
-![知识查询页面](../assets/knoarbor-console-query.png)
-
-检索 Wiki 页面、摘录、来源线索和上下文包，供宿主 AI 继续生成最终回答。
-
-### 运行报告与知识图谱
-
-![运行报告页面](../assets/knoarbor-console-reports.png)
-
-查看可读的运行报告。
-
-![知识图谱页面](../assets/knoarbor-console-graph.png)
-
-检查生成后的知识网络。
+检查页面级 Wiki 关系，不再切换到实体关系视图。
 
 ## 它会生成什么
 
@@ -93,7 +71,7 @@ Lint 会检查结构、链接、来源链、图谱健康度和内容质量候选
 
 ### 4. 供宿主 AI 查询
 
-Query 会返回排序后的页面、摘录、关联上下文、来源线索、追踪信息和上下文包。KnoArbor 不负责生成最终聊天回答；Codex、Hermes、OpenClaw、Claude Code 或本地 CLI 可以自行决定如何使用这些证据。
+Query 会返回排序后的页面、摘录、关联上下文、来源线索、追踪信息和供宿主 AI 使用的上下文包。用户通过 Chat 提问时，KnoArbor 可以基于证据生成带引用的回答。
 
 ## 它和普通 RAG 有什么不同
 
@@ -114,11 +92,9 @@ Query 会返回排序后的页面、摘录、关联上下文、来源线索、�
 可以用内置 Agent Loop 示例做一次短演示：
 
 ```bash
-uv run knoar init --vault ./vaults/default
-mkdir -p vaults/default/raw/inbox/notes
-cp examples/agent-loop.md vaults/default/raw/inbox/notes/agent-loop.md
+uv run knoar first-run --vault ./vaults/default
 uv run knoar ingest --connector markdown --write
-uv run knoar lint --mode structural
+uv run knoar lint --mode deterministic
 uv run knoar query "Agent Loop 是什么？"
 uv run knoar serve
 ```
@@ -145,7 +121,7 @@ KnoArbor 目前聚焦本地优先、单用户使用：
 - 不提供托管 SaaS。
 - 不强制依赖数据库。
 - 不内置 MinerU 或文档解析模型权重。
-- 不替代宿主 AI 的最终回答生成。
+- Query 不要求生成最终回答；Chat 使用已配置模型供应商生成基于证据的回答。
 - 小规模个人知识库不强制使用向量检索。
 
 这些边界让第一个公开版本更容易理解、复现和在个人电脑上运行。
