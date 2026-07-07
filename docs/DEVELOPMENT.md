@@ -94,11 +94,11 @@ TEMP_VAULT="$TMP_DIR/vault"
 # then run CLI/API checks against TEMP_CONFIG only.
 ```
 
-The only intentional tracked generated path is `src/knoarbor/ui/dist/`, because it is bundled into the Python package. All runtime vault content remains local user data.
+The only intentional tracked generated path is currently `src/knoarbor/ui/dist/`, because the Python developer console still reads it during the desktop-first transition. This path is scheduled for removal from Python package ownership in `specs/1.20-desktop-first-transition/`. All runtime vault content remains local user data.
 
-## Web Console
+## Desktop Renderer And Developer Console
 
-The web console is bundled into the Python package, but it is not published as a standalone npm package.
+The React app in `web/` is the desktop renderer implementation. The Python-hosted browser console is a developer fallback while the repository transitions to desktop-first packaging; it is not a standalone product surface.
 
 Frontend source lives in `web/`. Build it manually when the UI changes:
 
@@ -108,11 +108,11 @@ npm install
 npm run build
 ```
 
-The generated static files are copied into `src/knoarbor/ui/dist/` so `uv run knoar serve` can serve the console at `/`.
+The generated static files are currently copied into `src/knoarbor/ui/dist/` so `uv run knoar serve` can serve the developer console at `/`. Future 1.20 work will move renderer ownership fully to the desktop package.
 
 Do not commit `web/node_modules/`, `web/dist/`, or local TypeScript build cache files.
 
-Run the browser smoke test when changing console navigation, layout, or API wiring:
+Run the browser smoke test when changing renderer navigation, layout, or API wiring:
 
 ```bash
 cd web
@@ -120,7 +120,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The Playwright web server starts the packaged FastAPI app on a temporary local port and opens the bundled management console, so it validates the same route shape used by `knoar serve`.
+The Playwright web server starts the packaged FastAPI app on a temporary local port and opens the developer console, so it validates the same route shape used by `knoar serve` until the renderer is loaded only from desktop resources.
 
 ## Package Build
 

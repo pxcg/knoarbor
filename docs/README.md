@@ -19,7 +19,7 @@ See [Documentation Governance](DOCUMENTATION_GOVERNANCE.md) for ownership and cl
 
 - [Showcase](SHOWCASE.md): product tour, end-to-end flow, demo path, and current boundaries.
 - [Installation](INSTALLATION.md): local install, service startup, model setup, UI rebuild, and verification.
-- [Quickstart](QUICKSTART.md): initialize a vault, compile the bundled example, open the local console, and verify Chat/query.
+- [Quickstart](QUICKSTART.md): initialize a vault, compile the bundled example, and verify Chat/query in the desktop app or developer console.
 - [Configuration](CONFIGURATION.md): model providers, vault paths, connectors, document processing, and privacy redaction.
 - [Troubleshooting](TROUBLESHOOTING.md): common setup, model, UI, ingest, and runtime issues.
 - [Backup And Recovery](BACKUP_AND_RECOVERY.md): runtime vault backup, git recovery boundaries, and safe index rebuilds.

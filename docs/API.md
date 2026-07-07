@@ -14,9 +14,9 @@ Base URL:
 http://127.0.0.1:8000
 ```
 
-Interactive docs:
+Developer/runtime entries:
 
-- UI: `GET /`
+- Developer console: `GET /`
 - Swagger/OpenAPI: `GET /docs`
 - OpenAPI JSON: `GET /openapi.json`
 
@@ -42,7 +42,7 @@ Public endpoints are organized by product capability, not by internal workflow s
 | Run events | `GET /runs/{run_id}/events`, `GET /runs/{run_id}/stream`, `POST /runs/{run_id}/cancel` | Observe or cancel a run |
 | Wiki pages | `GET /wiki/pages`, `GET /wiki/pages/content`, `GET /wiki/pages/relations` | Read generated wiki pages |
 
-`/ui/api/*` is reserved for the local management UI and is not a stable integration API.
+`/ui/api/*` is reserved for transition-period renderer/developer-console adapters and is not a stable integration API. Desktop settings persistence uses the Electron bridge instead of browser HTTP.
 
 ## Execution Model
 
@@ -764,16 +764,16 @@ These endpoints also accept `vault_id` with `config_path`. When a result from
 a multi-vault `/query` response is selected, pass the result's `vault_id` to
 read or inspect the page in the same knowledge base.
 
-## UI Endpoints
+## Developer Console Endpoints
 
-The management UI is served at:
+The Python-hosted developer console is served at:
 
 ```http
 GET /
 GET /ui
 ```
 
-`/ui/api/*` endpoints are internal to the local console. They may change as the UI evolves and should not be treated as stable integration points.
+`/ui/api/*` endpoints are internal to the transition-period renderer/developer console. They may change or be removed as desktop bridge coverage and business-local endpoints mature, and should not be treated as stable integration points.
 
 ## Removed Low-Level Endpoints
 

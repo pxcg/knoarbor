@@ -27,7 +27,7 @@ Raw sources -> Ingest -> Markdown wiki -> Lint -> Query context
 | --- | --- |
 | Input | Markdown notes, AI chat sessions, generic chat logs, and optional MinerU-preprocessed rich documents |
 | Output | A local Markdown wiki with maintained pages, source digest audit pages, raw assets, reports, ledgers, and graph indexes |
-| Interfaces | Desktop app, CLI, FastAPI, local management console, and host-AI skill template |
+| Interfaces | Desktop app first, with CLI, local FastAPI runtime API, developer console, and host-AI skill template |
 | Runtime model | Local-first, single-user, file-based vaults with queue, locks, checkpoints, and reports |
 
 ## Why KnoArbor
@@ -52,12 +52,12 @@ This makes the wiki a reusable artifact, not a transient retrieval result.
 - **Source provenance**: separates raw sources, source digest pages, and generated knowledge pages.
 - **Multi-vault profiles**: manage multiple named local knowledge bases from one configuration and query one or many vaults.
 - **Model adapters**: works with DeepSeek, OpenAI, OpenRouter, LM Studio, vLLM-compatible endpoints, and native Ollama.
-- **Desktop app, CLI, API, and local console**: use the packaged desktop app when available, or run from source through terminal, HTTP API, or the bundled web UI served at `/` with `/ui` kept as a compatibility alias.
+- **Desktop app, CLI, and local API**: use the packaged desktop app as the primary product entry. Source checkouts can still run the CLI, local HTTP runtime API, or developer console while the desktop-first transition continues.
 - **Skill integration**: includes a generic local wiki skill template for AI tools that can call a local HTTP service.
 
 ## Product Tour
 
-The desktop app embeds the same local console. When running from source, the bundled local console exposes the same core workspace: Chat for asking the maintained wiki, Flows for ingest/lint/query operations, and Knowledge for page and graph inspection.
+The desktop app is the primary workspace. Its renderer exposes Chat for asking the maintained wiki, Flows for ingest/lint/query operations, and Knowledge for page and graph inspection. The browser console served by the Python service remains a developer fallback during the desktop-first transition.
 
 ### Chat
 
@@ -126,13 +126,13 @@ uv run knoar ingest --connector markdown --write
 uv run knoar lint --mode deterministic
 ```
 
-Start the local service:
+Start the local service for CLI/API development:
 
 ```bash
 uv run knoar serve
 ```
 
-Open the local console:
+For development, open the developer console:
 
 ```text
 http://127.0.0.1:8000

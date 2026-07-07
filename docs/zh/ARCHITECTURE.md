@@ -31,7 +31,7 @@ KnoArbor 不是聊天记录归档，也不是原始文档搜索工具。
 
 | 层级 | 负责 | 不应负责 |
 | --- | --- | --- |
-| 入口层 | CLI、FastAPI、Web UI、Skill、外部工作流适配器。 | Prompt 契约、页面写入策略、来源分类或 vault 修改规则。 |
+| 入口层 | 桌面壳、桌面 renderer、CLI、FastAPI runtime API、Skill、外部工作流适配器。 | Prompt 契约、页面写入策略、来源分类或 vault 修改规则。 |
 | Pipeline | `ingest`、`lint`、`query` 流程编排。 | 底层模型 HTTP 调用、文件渲染细节或 UI 状态。 |
 | Connector / Source | 将 Markdown、聊天记录、文档和未来外部系统转换成 `SourceDocument`。 | Wiki 页面规划或页面生命周期治理。 |
 | Document Processing | 在共享 ingest 前把富文档转换成 Markdown。 | 知识对象分类或 Wiki 写入。 |
@@ -385,24 +385,29 @@ KnoArbor 使用窄功能语义契约，而不是自治多智能体团队。
 - Python Core 是长期执行路径。
 - FastAPI 是 Python Core 的 HTTP 适配器。
 - CLI 是同一批 pipeline 的执行适配器。
+- Electron 负责桌面产品壳、服务生命周期、系统对话框、本地配置和诊断。
 - 外部工作流工具是可选适配器，应调用稳定 pipeline API。
-- UI 是配置、运行、报告、Wiki 浏览和图谱检查的管理控制台，不是独立工作流引擎。
+- React renderer 是配置、运行、报告、Wiki 浏览和图谱检查的桌面 UI，不是独立工作流引擎。
 
 ## 前端边界
 
-Web UI 是建立在公开 API 和 UI 专用 HTTP 适配器之上的本地管理控制台。它需要提供清晰的产品交互，但不应成为后端业务逻辑的第二套实现。
+React 前端是桌面 renderer。业务流程通过 Python 本地 runtime API 调用；只有桌面原生能力通过 Electron preload bridge 暴露。由 Python 托管的浏览器控制台在桌面优先过渡期只是开发辅助入口，不是主要产品入口。
+
+它需要提供清晰的产品交互，但不应成为后端业务逻辑的第二套实现。
 
 职责：
 
 - 展示配置、来源状态、运行任务、报告、Wiki 页面和图谱数据；
 - 通过稳定核心 API 运行流程、读取运行状态、查询上下文和 Wiki 页面；
-- 只在配置表单、诊断摘要、本地资产和报告预览等界面专用场景调用 `/ui/api/*`；
+- 通过桌面 bridge 调用本地配置、系统对话框、路径打开、服务生命周期和诊断能力；
+- 只在过渡期 UI 适配场景调用 `/ui/api/*`，例如开发者控制台状态、本地资产和报告预览；
 - 使用可复用本地组件渲染 Markdown、diff、报告和图谱。
 - 维护 UI 侧的 Vault Runtime 状态，用于当前知识库选择、按知识库分区的缓存 key，以及多知识库展示状态。
 
 不负责：
 
 - 来源发现、checkpoint、分段、页面 operation 规划、lint 执行、重试策略、vault 写入和报告生成；
+- 在 Electron IPC 中执行 chat、query、ingest、lint、run monitoring、report generation、wiki reads 或 model probing；
 - 在已有核心 `/wiki/*` 页面读取 API 时，再实现一套 UI 专用页面解析逻辑；
 - 静默修复本应由 Python Core 校验的异常 API payload。
 

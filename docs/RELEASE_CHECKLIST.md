@@ -19,7 +19,7 @@ Expected result:
 
 - `git status --short` is empty before tagging.
 - Runtime vaults, local workflow exports, build artifacts, virtual environments, caches, and private design notes are not tracked.
-- `src/knoarbor/ui/dist/` is allowed because it is the bundled console asset shipped with the Python package.
+- `src/knoarbor/ui/dist/` is temporarily allowed because the Python developer console still uses it during the desktop-first transition.
 
 Runtime data isolation:
 

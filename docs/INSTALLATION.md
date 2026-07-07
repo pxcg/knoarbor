@@ -1,16 +1,16 @@
 # Installation
 
-KnoArbor is a local-first Python service with a bundled management UI and a
-desktop shell. Public release builds are the easiest path for desktop users;
-source installation remains the reference path for contributors and for users
-who want to run the local service directly.
+KnoArbor is a desktop-first local knowledge engine backed by a Python runtime
+service. Public release builds are the normal path for end users; source
+installation remains the reference path for contributors and for users who want
+to run the local service API directly.
 
 ## Requirements
 
 - Python 3.12
 - `uv`
 - One model provider, either OpenAI-compatible or native Ollama
-- Optional: Node.js 20+ only when rebuilding the web UI from source
+- Optional: Node.js 20+ only when rebuilding the desktop renderer from source
 
 ## Local Installation
 
@@ -36,19 +36,20 @@ Run a read-only readiness check:
 uv run knoar doctor
 ```
 
-Start the service:
+Start the service for source development:
 
 ```bash
 uv run knoar serve
 ```
 
-The server prints the active UI and API addresses. If port `8000` is already in
-use, KnoArbor selects the next available local port and writes the runtime
-endpoint to `.knoarbor/endpoint.json` and `~/.knoarbor/endpoint.json`.
+The server prints the active local API and developer-console addresses. If port
+`8000` is already in use, KnoArbor selects the next available local port and
+writes the runtime endpoint to `.knoarbor/endpoint.json` and
+`~/.knoarbor/endpoint.json`.
 
 ## Verify The Installation
 
-Open the UI:
+For source development, open the developer console:
 
 ```text
 http://127.0.0.1:8000
@@ -132,10 +133,10 @@ Chat source defaults such as `~/.codex/sessions`, `~/.claude/projects`, and
 the equivalent resolved paths are under `%USERPROFILE%`, for example
 `C:\Users\Alice\.codex\sessions`.
 
-## Rebuilding The UI
+## Rebuilding The Renderer
 
-The repository ships built UI assets. Rebuild them only when changing the
-frontend:
+The repository ships built renderer assets. Rebuild them only when changing the
+desktop renderer:
 
 ```bash
 cd web
@@ -144,8 +145,9 @@ npm run build
 cd ..
 ```
 
-The build copies assets into `src/knoarbor/ui/dist/`, where the Python service
-serves them.
+During the transition, the build still copies assets into
+`src/knoarbor/ui/dist/` for the Python developer console. The desktop package is
+the target product surface.
 
 ## Common Checks
 

@@ -101,14 +101,10 @@ uv run knoar first-run --vault ./vaults/default
 uv run knoar ingest --connector markdown --write
 uv run knoar lint --mode deterministic
 uv run knoar query "Agent Loop 是什么？"
-uv run knoar serve
 ```
 
-Then open:
-
-```text
-http://127.0.0.1:8000
-```
+Then open the desktop app and use the workspace. When demoing from source, run
+`uv run knoar serve` and open the developer console URL printed by the service.
 
 Recommended screens to show:
 

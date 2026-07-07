@@ -11,7 +11,7 @@ For the first run, keep the setup narrow:
 - use the bundled `agent-loop.md` example;
 - use one OpenAI-compatible provider such as DeepSeek, OpenAI, OpenRouter, LM Studio, or vLLM, or native Ollama;
 - run `doctor` before semantic workflows;
-- verify the result in the local Chat page.
+- verify the result in desktop Chat, or in the developer console when running from source.
 
 ## 1. Install
 
@@ -75,9 +75,11 @@ vaults/default/wiki/pages/
 Open this `wiki/pages/` directory in Obsidian when you only want the maintained
 Markdown wiki, without raw sources, reports, or machine state.
 
-## 4. Open The Local Console
+## 4. Open Chat
 
-Start the local service:
+For the desktop app, open the workspace and use **Chat** directly.
+
+When running from source, start the local service:
 
 ```bash
 uv run knoar serve
@@ -86,13 +88,13 @@ uv run knoar serve
 If port `8000` is already in use, the server chooses the next available local
 port and prints the actual URL.
 
-Open the local console:
+Then open the developer console:
 
 ```text
 http://127.0.0.1:8000
 ```
 
-In the console:
+In Chat:
 
 1. Open **Chat**.
 2. Ask `Agent Loop 是什么？`.
@@ -119,7 +121,7 @@ uv run knoarbor --help
 ## 6. Add Your Own Sources
 
 After the bundled example works, add your own source roots in `config.yaml` or
-the local console settings, then run:
+desktop Settings, then run:
 
 ```bash
 uv run knoar ingest --write

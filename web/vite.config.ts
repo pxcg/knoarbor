@@ -5,6 +5,8 @@ export default defineConfig({
   plugins: [react()],
   base: "/ui/",
   build: {
+    // Transitional output for the Python-hosted developer console. Desktop
+    // packaging will own renderer resources after the 1.20 migration.
     outDir: "../src/knoarbor/ui/dist",
     emptyOutDir: true,
     chunkSizeWarningLimit: 700,

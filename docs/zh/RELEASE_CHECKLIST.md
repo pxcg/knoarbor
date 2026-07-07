@@ -19,7 +19,7 @@ git ls-files | rg '(^vaults/|^dist/|node_modules|\.venv|\.uv-cache|\.pytest_cach
 
 - 打 tag 前 `git status --short` 为空。
 - 运行时知识库、本地工作流导出、构建产物、虚拟环境、缓存和私有设计记录没有被跟踪。
-- `src/knoarbor/ui/dist/` 允许被跟踪，因为它是 Python 包内置控制台资源。
+- `src/knoarbor/ui/dist/` 暂时允许被跟踪，因为桌面优先过渡期内 Python 开发者控制台仍会使用它。
 
 运行时数据隔离：
 
@@ -174,7 +174,7 @@ scripts/clean-clone-smoke.sh
 
 ## 10. UI 审查
 
-打开本地控制台并检查：
+打开桌面应用或开发者控制台并检查：
 
 - 导航顺序和文案。
 - 资料来源设置。

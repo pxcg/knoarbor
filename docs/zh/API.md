@@ -14,9 +14,9 @@ uv run knoar serve
 http://127.0.0.1:8000
 ```
 
-交互入口：
+开发者/runtime 入口：
 
-- 前端：`GET /`
+- 开发者控制台：`GET /`
 - Swagger/OpenAPI：`GET /docs`
 - OpenAPI JSON：`GET /openapi.json`
 
@@ -42,7 +42,7 @@ http://127.0.0.1:8000
 | 运行事件 | `GET /runs/{run_id}/events`, `GET /runs/{run_id}/stream`, `POST /runs/{run_id}/cancel` | 观察或取消运行 |
 | Wiki 页面 | `GET /wiki/pages`, `GET /wiki/pages/content`, `GET /wiki/pages/relations` | 读取生成后的 Wiki 页面 |
 
-`/ui/api/*` 仅供本地管理界面使用，不作为稳定集成 API。
+`/ui/api/*` 仅供过渡期 renderer/开发者控制台适配使用，不作为稳定集成 API。桌面端设置持久化通过 Electron bridge 完成，不再走浏览器 HTTP。
 
 ## 执行模式
 

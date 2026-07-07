@@ -158,8 +158,9 @@ npm install
 npm run build
 ```
 
-The built assets are copied to `src/knoarbor/ui/dist/` and served by
-`uv run knoar serve`.
+During the desktop-first transition, the built renderer assets are copied to
+`src/knoarbor/ui/dist/` and served by `uv run knoar serve` for the developer
+console.
 
 ## Still Blocked
 

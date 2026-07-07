@@ -42,6 +42,8 @@ def create_ui_router() -> APIRouter:
     router = APIRouter()
     config_service = UiConfigService()
 
+    # Transition-only developer console routes. Desktop production uses the
+    # Electron bridge for local configuration and native capabilities.
     @router.get("/", include_in_schema=False)
     async def root_index() -> FileResponse:
         return _ui_index_response()

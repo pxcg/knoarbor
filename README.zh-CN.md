@@ -27,7 +27,7 @@ KnoArbor 提供一层长期知识基础设施，为 Hermes、Codex、Obsidian、
 | --- | --- |
 | 输入 | Markdown 笔记、AI 聊天记录、通用聊天日志，以及可选 MinerU 预处理后的富文档 |
 | 输出 | 本地 Markdown Wiki，包括维护后的知识页、来源审计页、raw 附件、运行报告、账本和图索引 |
-| 使用方式 | 桌面应用、CLI、FastAPI、本地管理控制台，以及宿主 AI skill 模板 |
+| 使用方式 | 桌面应用优先，同时保留 CLI、本地 FastAPI runtime API、开发者控制台和宿主 AI skill 模板 |
 | 运行模型 | 本地优先、单用户、文件型多知识库，带队列、文件锁、断点和报告 |
 
 ## 为什么需要 KnoArbor
@@ -52,12 +52,12 @@ KnoArbor 提供一层长期知识基础设施，为 Hermes、Codex、Obsidian、
 - **来源溯源**：区分 raw source、source digest 和生成知识页面。
 - **多知识库配置**：在一份配置中管理多个命名本地知识库，并支持单库或多库查询。
 - **模型适配**：支持 DeepSeek、OpenAI、OpenRouter、LM Studio、vLLM 兼容端点，以及 Ollama 原生端点。
-- **桌面应用、CLI、API 和本地控制台**：有发布包时优先使用桌面应用；源码运行时也可以通过终端、本地 HTTP API 或内置 Web 控制台使用。
+- **桌面应用、CLI 和本地 API**：桌面应用是主要产品入口；源码开发时仍可使用 CLI、本地 HTTP runtime API 或开发者控制台。
 - **Skill 集成**：提供通用本地 Wiki skill 模板，方便接入支持本地技能的 AI 工具。
 
 ## 产品导览
 
-桌面应用内嵌同一套本地控制台。源码运行时，本地控制台也使用同样的核心工作区：Chat 用于向已维护 Wiki 提问，Flows 用于知识编译/校验/查询流程，Knowledge 用于页面和图谱检查。
+桌面应用是主要工作区。它的 renderer 提供 Chat、Flows 和 Knowledge：Chat 用于向已维护 Wiki 提问，Flows 用于知识编译/校验/查询流程，Knowledge 用于页面和图谱检查。由 Python 服务提供的浏览器控制台在桌面优先过渡期只作为开发辅助入口。
 
 ### Chat
 
@@ -126,13 +126,13 @@ uv run knoar ingest --connector markdown --write
 uv run knoar lint --mode deterministic
 ```
 
-启动本地服务：
+为 CLI/API 开发启动本地服务：
 
 ```bash
 uv run knoar serve
 ```
 
-打开本地控制台：
+开发时可以打开开发者控制台：
 
 ```text
 http://127.0.0.1:8000

@@ -152,7 +152,7 @@ npm install
 npm run build
 ```
 
-构建产物会复制到 `src/knoarbor/ui/dist/`，并由 `uv run knoar serve` 提供服务。
+桌面优先过渡期内，构建后的 renderer 资源会复制到 `src/knoarbor/ui/dist/`，并由 `uv run knoar serve` 作为开发者控制台提供。
 
 ## 仍然无法解决
 

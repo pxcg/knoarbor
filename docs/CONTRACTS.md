@@ -358,8 +358,9 @@ machine-readable contract in `src/knoarbor/entrypoints/api_contract.py`.
 The public API contract is method-aware: method, path, request shape, response
 shape, and error envelope belong together.
 
-`/ui/api/*` routes are UI adapters for the bundled console and desktop shell.
-They share internal schemas with the UI but are not external integration APIs.
+`/ui/api/*` routes are transition-period UI adapters for the desktop renderer
+and Python-hosted developer console. They share internal schemas with the UI
+but are not external integration APIs.
 
 ## UI Contract
 

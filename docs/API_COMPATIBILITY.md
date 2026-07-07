@@ -58,4 +58,4 @@ surface, not as additional top-level paths.
 - Public methods, paths, request fields, and required response fields are
   updated together with this file and the API surface tests.
 - Optional response fields may be added.
-- `/ui/api/*` is internal to the local management UI and is not a stable integration API.
+- `/ui/api/*` is internal to transition-period renderer/developer-console adapters and is not a stable integration API.

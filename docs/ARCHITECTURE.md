@@ -33,7 +33,7 @@ leaking into each other.
 
 | Layer | Owns | Must not own |
 | --- | --- | --- |
-| Entry | CLI, FastAPI, Web UI, skills, and external workflow adapters. | Prompt contracts, page write policy, source classification, or vault mutation rules. |
+| Entry | Desktop shell, desktop renderer, CLI, FastAPI runtime API, skills, and external workflow adapters. | Prompt contracts, page write policy, source classification, or vault mutation rules. |
 | Pipeline | `ingest`, `lint`, and `query` orchestration. | Low-level model HTTP calls, file rendering details, or UI presentation state. |
 | Connector / Source | Converting Markdown, chats, documents, and future external systems into `SourceDocument`. | Wiki page planning or page lifecycle governance. |
 | Document Processing | Converting rich documents into Markdown before shared ingest. | Knowledge-object classification or wiki writes. |
@@ -406,24 +406,33 @@ Agents do not read files, write pages, execute operations, or repair malformed u
 - Python Core is the long-term execution path.
 - FastAPI is an HTTP adapter over Python Core.
 - CLI is an execution adapter over the same pipelines.
+- Electron owns the desktop product shell, service lifecycle, OS dialogs, local configuration, and diagnostics.
 - External workflow tools are optional adapters and should call stable pipeline-level APIs.
-- UI is a management console for configuration, running, reports, wiki browsing, and graph inspection; it is not a separate workflow engine.
+- The React renderer is the desktop UI for configuration, running, reports, wiki browsing, and graph inspection; it is not a separate workflow engine.
 
 ## Frontend Boundaries
 
-The web UI is a local management console over the public and UI-only HTTP adapters. It should keep product interaction clear without becoming a second implementation of the backend.
+The React frontend is the desktop renderer. It talks to the Python local
+runtime API for business workflows and to the Electron preload bridge only for
+desktop-native capabilities. The Python-hosted browser console is a developer
+fallback during the desktop-first transition, not the primary product entry.
+
+It should keep product interaction clear without becoming a second
+implementation of the backend.
 
 Responsibilities:
 
 - present configuration, source status, runs, reports, wiki pages, and graph data;
 - call stable core APIs for workflow execution, run state, query context, and wiki page reads;
-- call `/ui/api/*` only for UI-specific adapters such as config forms, diagnostics summaries, local assets, and report previews;
+- call the desktop bridge for local configuration, OS dialogs, path opening, service lifecycle, and diagnostics;
+- call `/ui/api/*` only for transition-period UI adapters such as developer-console status, local assets, and report previews;
 - render Markdown, diffs, reports, and graph views with reusable local components.
 - maintain a UI-side Vault Runtime state for active vault selection, vault-scoped cache keys, and multi-vault display state.
 
 Non-responsibilities:
 
 - source discovery, checkpoint logic, segmentation, page operation planning, lint execution, retry policy, vault writes, and report generation;
+- chat, query, ingest, lint, run monitoring, report generation, wiki reads, or model probing in Electron IPC;
 - parsing wiki pages through a separate UI-only code path when a core `/wiki/*` read API exists;
 - silently repairing malformed API payloads that should have been validated by Python Core.
 

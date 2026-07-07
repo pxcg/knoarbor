@@ -33,10 +33,10 @@ npm run test:e2e
 - 中英文 UI 翻译 key 一致性；
 - TypeScript 构建；
 - Vite production bundle；
-- 针对打包后 FastAPI 控制台的导航冒烟；
+- 针对打包后开发者控制台的导航冒烟；
 - 基础 UI/API 连接。
 
-前端会被打包到 `src/knoarbor/ui/dist/`；不要提交 `web/node_modules/` 或 `web/dist/`。
+桌面优先过渡期内，renderer 仍会复制到 `src/knoarbor/ui/dist/`，用于开发者控制台冒烟测试；不要提交 `web/node_modules/` 或 `web/dist/`。
 
 ## 开发门禁
 

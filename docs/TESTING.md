@@ -34,10 +34,11 @@ Scope:
 - Chinese/English UI translation key parity;
 - TypeScript build;
 - Vite production bundle;
-- navigation smoke against the packaged FastAPI console;
+- navigation smoke against the packaged developer console;
 - basic UI/API wiring.
 
-The frontend is bundled into `src/knoarbor/ui/dist/`; do not commit
+During the desktop-first transition, the renderer is still copied into
+`src/knoarbor/ui/dist/` for developer-console smoke tests; do not commit
 `web/node_modules/` or `web/dist/`.
 
 ## Development Gate

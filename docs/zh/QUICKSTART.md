@@ -10,7 +10,7 @@ Markdown 示例，确认流程成功后，再添加自己的资料来源。
 - 使用内置 `agent-loop.md` 示例；
 - 使用一个模型供应商，例如 DeepSeek、OpenAI、OpenRouter、LM Studio、vLLM 或 Ollama 原生端点；
 - 在语义流程前先运行 `doctor`；
-- 最后在本地控制台 Chat 页面验证结果。
+- 最后在桌面端 Chat 验证结果；源码运行时也可以使用开发者控制台。
 
 ## 1. 安装依赖
 
@@ -72,9 +72,11 @@ vaults/default/wiki/pages/
 如果只希望在 Obsidian 中打开维护后的 Markdown Wiki，请打开这个 `wiki/pages/` 目录，
 而不是整个运行时知识库目录。这样可以避开 raw、报告和机器状态文件。
 
-## 4. 打开本地控制台
+## 4. 打开 Chat
 
-启动本地服务：
+桌面应用中，直接打开工作区并进入 **对话**。
+
+源码运行时，先启动本地服务：
 
 ```bash
 uv run knoar serve
@@ -82,13 +84,13 @@ uv run knoar serve
 
 如果 `8000` 已被占用，服务会自动选择下一个可用本地端口，并打印实际地址。
 
-打开本地控制台：
+然后打开开发者控制台：
 
 ```text
 http://127.0.0.1:8000
 ```
 
-在控制台中：
+在 Chat 中：
 
 1. 打开 **对话**。
 2. 提问 `Agent Loop 是什么？`。
@@ -113,7 +115,7 @@ uv run knoarbor --help
 
 ## 6. 添加自己的资料来源
 
-内置示例跑通后，可以在 `config.yaml` 或本地控制台设置中添加自己的来源目录，然后运行：
+内置示例跑通后，可以在 `config.yaml` 或桌面端设置中添加自己的来源目录，然后运行：
 
 ```bash
 uv run knoar ingest --write

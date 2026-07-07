@@ -96,14 +96,9 @@ uv run knoar first-run --vault ./vaults/default
 uv run knoar ingest --connector markdown --write
 uv run knoar lint --mode deterministic
 uv run knoar query "Agent Loop 是什么？"
-uv run knoar serve
 ```
 
-然后打开：
-
-```text
-http://127.0.0.1:8000
-```
+然后打开桌面应用并使用工作区。源码演示时，可以运行 `uv run knoar serve`，再打开服务打印的开发者控制台地址。
 
 建议展示：
 

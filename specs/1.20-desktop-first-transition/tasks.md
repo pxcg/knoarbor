@@ -2,10 +2,10 @@
 
 - [x] Run independent supporting and challenging architecture reviews.
 - [x] Record desktop-first requirements, design boundaries, and rejected alternatives.
-- [ ] Update public docs to present desktop as the primary product entry.
-- [ ] Mark browser/Web mode as development-only in docs and code comments.
-- [ ] Add IPC allowlist guidance to desktop architecture documentation.
-- [ ] Remove production settings HTTP writes from desktop paths.
+- [x] Update public docs to present desktop as the primary product entry.
+- [x] Mark browser/Web mode as development-only in docs and code comments.
+- [x] Add IPC allowlist guidance to desktop architecture documentation.
+- [x] Remove production settings HTTP writes from desktop paths.
 - [ ] Move renderer loading fully to Electron resources.
 - [ ] Remove `src/knoarbor/ui/dist` from Python package data.
 - [ ] Retire FastAPI static UI routes in desktop production mode.

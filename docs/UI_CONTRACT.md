@@ -1,8 +1,9 @@
 # UI Contract
 
-This document freezes the current UI-facing product surfaces for the local web
-console and desktop shell. It describes what each surface displays and which
-data contract it consumes.
+This document freezes the current UI-facing product surfaces for the desktop
+renderer. The Python-hosted browser console remains a developer fallback during
+the desktop-first transition. This document describes what each surface displays
+and which data contract it consumes.
 
 ## Surface Model
 
@@ -84,10 +85,16 @@ Settings configures:
 Settings changes are written through config services. UI components call API
 or service adapters; they do not write config files directly.
 
+In the desktop app, settings persistence uses the Electron desktop bridge so
+configuration content is not sent through browser `fetch`. Browser/developer
+mode may use the HTTP config adapters until those routes are retired.
+
 ## UI-Only API Adapters
 
-Routes under `/ui/api/*` are bundled UI adapters. They can aggregate public API,
-config, local asset serving, diagnostics, and report helpers for the console.
+Routes under `/ui/api/*` are transition-period UI adapters. They can aggregate
+public API, local asset serving, diagnostics, and report helpers for the
+developer console. They are not product-entry APIs and should shrink as desktop
+bridge coverage and business-local endpoints mature.
 
 External integrations use the public API in `docs/API_COMPATIBILITY.md`.
 
