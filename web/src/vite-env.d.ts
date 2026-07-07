@@ -7,6 +7,14 @@ type KnoArborDesktopCommand =
   | "logs.open";
 
 type KnoArborDesktopBridge = {
+  config?: {
+    getDiagnostics(payload?: Record<string, unknown>): Promise<unknown>;
+    getVaults(payload?: Record<string, unknown>): Promise<unknown>;
+    readForm(payload?: Record<string, unknown>): Promise<unknown>;
+    readRaw(payload?: Record<string, unknown>): Promise<unknown>;
+    writeForm(payload: Record<string, unknown>): Promise<unknown>;
+    writeRaw(payload: Record<string, unknown>): Promise<unknown>;
+  };
   getDiagnostics(): Promise<unknown>;
   getEnvironment(): Promise<unknown>;
   getServiceState(): Promise<unknown>;

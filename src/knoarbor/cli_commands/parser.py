@@ -6,6 +6,7 @@ from knoarbor.cli_commands.handlers import (
     add_vault_argument,
     run_contract,
     run_contracts,
+    run_desktop_config,
     run_doctor,
     run_first_run,
     run_ingest,
@@ -205,6 +206,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Include full normalized source document content in JSON output.",
     )
     sources_parser.set_defaults(handler=run_sources)
+
+    desktop_config_parser = subparsers.add_parser(
+        "desktop-config",
+        help="Desktop IPC helper: read or write local configuration as JSON without HTTP.",
+    )
+    desktop_config_parser.add_argument(
+        "action",
+        choices=["read-raw", "write-raw", "read-form", "write-form", "diagnostics", "vaults"],
+        help="Config operation to run.",
+    )
+    desktop_config_parser.add_argument("--input", default="-", help="JSON payload file. Defaults to stdin.")
+    desktop_config_parser.add_argument("--refresh-source-counts", action="store_true", help="Refresh source count diagnostics.")
+    desktop_config_parser.add_argument("--json", action="store_true", help="Print the JSON response.")
+    desktop_config_parser.set_defaults(handler=run_desktop_config)
 
     ingest_parser = subparsers.add_parser("ingest", help="Run the unified ingest workflow.")
     add_vault_argument(ingest_parser)

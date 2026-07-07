@@ -1,4 +1,13 @@
 import { consumeSseBuffer, formatApiError, parseJson, parseSseEvent, requestJson } from "./http";
+import {
+  hasDesktopConfigBridge,
+  readDesktopConfigDiagnostics,
+  readDesktopConfigForm,
+  readDesktopConfigRaw,
+  readDesktopVaults,
+  writeDesktopConfigForm,
+  writeDesktopConfigRaw,
+} from "../desktop/desktopBridge";
 import type {
   HealthResponse,
   UiConfigResponse,
@@ -134,10 +143,16 @@ export async function getDoctor(
 }
 
 export async function getConfig(): Promise<UiConfigResponse> {
+  if (hasDesktopConfigBridge()) {
+    return (await readDesktopConfigRaw()) as UiConfigResponse;
+  }
   return requestJson("/ui/api/config");
 }
 
 export async function getVaults(configPath?: string | null): Promise<VaultListResponse> {
+  if (hasDesktopConfigBridge()) {
+    return (await readDesktopVaults(configPath)) as VaultListResponse;
+  }
   const params = new URLSearchParams();
   if (configPath) params.set("config_path", configPath);
   const suffix = params.toString() ? `?${params.toString()}` : "";
@@ -145,6 +160,9 @@ export async function getVaults(configPath?: string | null): Promise<VaultListRe
 }
 
 export async function saveConfig(configPath: string | null, content: string): Promise<UiConfigUpdateResponse> {
+  if (hasDesktopConfigBridge()) {
+    return (await writeDesktopConfigRaw(configPath, content)) as UiConfigUpdateResponse;
+  }
   return requestJson("/ui/api/config", {
     method: "PUT",
     body: { config_path: configPath, content },
@@ -152,6 +170,9 @@ export async function saveConfig(configPath: string | null, content: string): Pr
 }
 
 export async function getConfigForm(configPath?: string | null): Promise<ConfigForm> {
+  if (hasDesktopConfigBridge()) {
+    return (await readDesktopConfigForm(configPath)) as ConfigForm;
+  }
   const suffix = configPath ? `?config_path=${encodeURIComponent(configPath)}` : "";
   return requestJson(`/ui/api/config/form${suffix}`);
 }
@@ -162,6 +183,9 @@ export async function getModelProviders(configPath?: string | null): Promise<Mod
 }
 
 export async function getConfigDiagnostics(configPath?: string | null, options: { refreshSourceCounts?: boolean } = {}): Promise<ConfigDiagnostics> {
+  if (hasDesktopConfigBridge()) {
+    return (await readDesktopConfigDiagnostics(configPath, options)) as ConfigDiagnostics;
+  }
   const params = new URLSearchParams();
   if (configPath) params.set("config_path", configPath);
   if (options.refreshSourceCounts) params.set("refresh_source_counts", "true");
@@ -179,6 +203,9 @@ export async function getSourceCatalog(configPath?: string | null, connectors: s
 
 export async function saveConfigForm(configPath: string | null, form: ConfigForm): Promise<UiConfigUpdateResponse> {
   const { diagnostics: _diagnostics, ...payload } = sanitizeConfigForm(form);
+  if (hasDesktopConfigBridge()) {
+    return (await writeDesktopConfigForm(configPath, payload)) as UiConfigUpdateResponse;
+  }
   return requestJson("/ui/api/config/form", {
     method: "PUT",
     body: { ...payload, config_path: configPath },

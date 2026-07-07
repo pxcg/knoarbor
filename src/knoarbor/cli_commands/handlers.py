@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from importlib.resources import files
 from pathlib import Path
@@ -19,6 +20,8 @@ from knoarbor.services.wiki_search import WikiSearchService
 from knoarbor.services.ingest import IngestService
 from knoarbor.services.run_manager import RunManager
 from knoarbor.services.source_catalog import SourceCatalogService
+from knoarbor.services.ui_config import UiConfigService
+from knoarbor.services.ui_config_models import UiConfigFormUpdateRequest, UiConfigUpdateRequest
 from knoarbor.services.vault_registry import VaultRegistryService
 from knoarbor.services.wiki_linter import WikiLinterService
 from knoarbor.services.wiki_pages import WikiPageService
@@ -270,6 +273,24 @@ def _write_yaml_config(path: Path, data: dict[str, object]) -> None:
     )
 
 
+def _read_desktop_config_payload(args: argparse.Namespace) -> dict[str, object]:
+    if args.input == "-":
+        raw = sys.stdin.read()
+        if not raw.strip():
+            return {}
+        payload = json.loads(raw)
+    else:
+        payload = read_json_object(args.input)
+    if not isinstance(payload, dict):
+        raise ValueError("Desktop config payload must be a JSON object")
+    return payload
+
+
+def _payload_config_path(payload: dict[str, object]) -> str | None:
+    value = payload.get("config_path")
+    return value if isinstance(value, str) and value.strip() else None
+
+
 def run_status(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
@@ -318,6 +339,35 @@ def run_vaults(args: argparse.Namespace) -> int:
         marker = "*" if vault.active else "-"
         status = "available" if vault.exists else "missing"
         print(f"{marker} {vault.id}  {vault.name}  {status}  {vault.path}")
+    return 0
+
+
+def run_desktop_config(args: argparse.Namespace) -> int:
+    payload = _read_desktop_config_payload(args)
+    config_path = _payload_config_path(payload) or args.config
+    service = UiConfigService()
+
+    if args.action == "read-raw":
+        response = service.read_raw(config_path)
+    elif args.action == "write-raw":
+        request_payload = dict(payload)
+        request_payload["config_path"] = _payload_config_path(payload) or args.config
+        response = service.write_raw(UiConfigUpdateRequest.model_validate(request_payload))
+    elif args.action == "read-form":
+        response = service.read_form(config_path)
+    elif args.action == "write-form":
+        request_payload = dict(payload)
+        request_payload["config_path"] = _payload_config_path(payload) or args.config
+        response = service.write_form(UiConfigFormUpdateRequest.model_validate(request_payload))
+    elif args.action == "diagnostics":
+        refresh = bool(payload.get("refresh_source_counts", args.refresh_source_counts))
+        response = service.read_diagnostics(config_path, refresh_source_counts=refresh)
+    elif args.action == "vaults":
+        response = VaultRegistryService().list_vaults(config_path=config_path)
+    else:
+        raise ValueError(f"Unknown desktop config action: {args.action}")
+
+    print_json(response.model_dump(mode="json"))
     return 0
 
 

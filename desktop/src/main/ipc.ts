@@ -1,5 +1,6 @@
 import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from "electron";
 import log from "electron-log/main";
+import { spawn } from "node:child_process";
 import { rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -12,6 +13,24 @@ export function registerDesktopIpc(input: {
   config: DesktopAppConfig;
   serviceManager: DesktopServiceManager;
 }): void {
+  ipcMain.handle("knoarbor-desktop:config-read-raw", async (_event, payload?: Record<string, unknown>) =>
+    runDesktopConfigCommand(input.config, "read-raw", payload),
+  );
+  ipcMain.handle("knoarbor-desktop:config-write-raw", async (_event, payload?: Record<string, unknown>) =>
+    runDesktopConfigCommand(input.config, "write-raw", payload),
+  );
+  ipcMain.handle("knoarbor-desktop:config-read-form", async (_event, payload?: Record<string, unknown>) =>
+    runDesktopConfigCommand(input.config, "read-form", payload),
+  );
+  ipcMain.handle("knoarbor-desktop:config-write-form", async (_event, payload?: Record<string, unknown>) =>
+    runDesktopConfigCommand(input.config, "write-form", payload),
+  );
+  ipcMain.handle("knoarbor-desktop:config-diagnostics", async (_event, payload?: Record<string, unknown>) =>
+    runDesktopConfigCommand(input.config, "diagnostics", payload),
+  );
+  ipcMain.handle("knoarbor-desktop:vaults", async (_event, payload?: Record<string, unknown>) =>
+    runDesktopConfigCommand(input.config, "vaults", payload),
+  );
   ipcMain.handle("knoarbor-desktop:environment", () => getEnvironment());
   ipcMain.handle("knoarbor-desktop:service-state", () =>
     input.serviceManager.getState(),
@@ -115,6 +134,87 @@ export function registerDesktopIpc(input: {
       };
     },
   );
+}
+
+type DesktopConfigAction =
+  | "diagnostics"
+  | "read-form"
+  | "read-raw"
+  | "vaults"
+  | "write-form"
+  | "write-raw";
+
+type DesktopConfigPayload = Record<string, unknown> & {
+  config_path?: unknown;
+  refresh_source_counts?: unknown;
+};
+
+async function runDesktopConfigCommand(
+  config: DesktopAppConfig,
+  action: DesktopConfigAction,
+  payload: DesktopConfigPayload = {},
+): Promise<unknown> {
+  if (config.appServer.mode !== "managed") {
+    throw new Error("Desktop config IPC is only available for managed desktop service mode.");
+  }
+  const commandPayload = {
+    ...payload,
+    config_path: typeof payload.config_path === "string" && payload.config_path.trim()
+      ? payload.config_path
+      : config.appServer.configPath,
+  };
+  const args = [
+    ...config.appServer.serviceArgs,
+    "--config",
+    config.appServer.configPath,
+    "desktop-config",
+    action,
+    "--json",
+  ];
+  if (action === "diagnostics" && commandPayload.refresh_source_counts === true) {
+    args.push("--refresh-source-counts");
+  }
+  const stdout = await runJsonCommand({
+    args,
+    command: config.appServer.serviceCommand,
+    cwd: config.appServer.serviceCwd,
+    input: commandPayload,
+  });
+  return JSON.parse(stdout);
+}
+
+function runJsonCommand(input: {
+  args: string[];
+  command: string;
+  cwd: string;
+  input: DesktopConfigPayload;
+}): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(input.command, input.args, {
+      cwd: input.cwd,
+      env: {
+        ...process.env,
+        KNOARBOR_DESKTOP: "1",
+      },
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code === 0) {
+        resolve(stdout);
+        return;
+      }
+      reject(new Error(stderr.trim() || stdout.trim() || `Desktop config command failed with exit code ${code}.`));
+    });
+    child.stdin.end(JSON.stringify(input.input));
+  });
 }
 
 function getEnvironment(): DesktopEnvironment {

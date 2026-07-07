@@ -6,6 +6,20 @@ import type {
 } from "./types.js";
 
 const desktopApi: KnoArborDesktopBridge = {
+  config: {
+    getDiagnostics: (payload) =>
+      ipcRenderer.invoke("knoarbor-desktop:config-diagnostics", payload),
+    getVaults: (payload) =>
+      ipcRenderer.invoke("knoarbor-desktop:vaults", payload),
+    readForm: (payload) =>
+      ipcRenderer.invoke("knoarbor-desktop:config-read-form", payload),
+    readRaw: (payload) =>
+      ipcRenderer.invoke("knoarbor-desktop:config-read-raw", payload),
+    writeForm: (payload) =>
+      ipcRenderer.invoke("knoarbor-desktop:config-write-form", payload),
+    writeRaw: (payload) =>
+      ipcRenderer.invoke("knoarbor-desktop:config-write-raw", payload),
+  },
   getDiagnostics: () => ipcRenderer.invoke("knoarbor-desktop:diagnostics"),
   getEnvironment: () => ipcRenderer.invoke("knoarbor-desktop:environment"),
   getServiceState: () => ipcRenderer.invoke("knoarbor-desktop:service-state"),
