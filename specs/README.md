@@ -43,7 +43,8 @@ tests, and release notes.
 | 1.12.x | [Response Evidence Selection](1.12-response-evidence-selection/requirements.md) | Page-level primary/supporting/source selection, rejected candidates, runtime evidence pack, and citation presentation. |
 | 1.13.x | [Knowledge Atom Ingest](1.13-knowledge-atom-ingest/requirements.md) | Source unitization, evidence-backed entities, claims, and relations between source digest and page drafting. |
 | 1.14.x | Superseded by [Vault Layout v2](1.17-vault-layout-v2/requirements.md) | Canonical `raw/`, `wiki/pages`, `wiki/sources`, `maintenance/`, and `.knoarbor/` layout with no typed physical page directories. |
-| 1.15.x | [Desktop App](1.15-desktop-app/requirements.md) | Electron desktop surface, managed Python service lifecycle, packaged web console, intranet updates, and desktop app-data boundaries. |
+| 1.15.x | [Desktop App](1.15-desktop-app/requirements.md) | Electron desktop surface, managed Python service lifecycle, desktop renderer loading, intranet updates, and desktop app-data boundaries. |
+| 1.20.x | [Desktop-First Transition](1.20-desktop-first-transition/requirements.md) | Desktop as the official product entry, renderer/runtime ownership, IPC allowlist, and retirement of web-product surfaces. |
 
 Desktop App product shape:
 [Chat-first desktop product shape](1.15-desktop-app/product-shape.md).
