@@ -5,7 +5,6 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { parse, resolve } from "node:path";
 import type { DesktopAppConfig } from "./config.js";
-import { writeDesktopEnvSecrets } from "./env-file.js";
 import type { DesktopServiceManager } from "./service-manager.js";
 import type { DesktopEnvironment } from "../preload/types.js";
 
@@ -22,7 +21,6 @@ export function registerDesktopIpc(input: {
       input.config.appServer.mode === "managed"
         ? {
             configPath: input.config.appServer.configPath,
-            envPath: join(input.config.appServer.appDataRoot, ".env"),
             root: input.config.appServer.appDataRoot,
           }
         : undefined,
@@ -68,17 +66,6 @@ export function registerDesktopIpc(input: {
   });
   ipcMain.handle("knoarbor-desktop:service-restart", () =>
     input.serviceManager.restart(input.config.appServer),
-  );
-  ipcMain.handle(
-    "knoarbor-desktop:env-secrets-save",
-    async (_event, secrets?: Record<string, string>) => {
-      if (input.config.appServer.mode !== "managed") {
-        return { saved: [], error: "Desktop-managed service is not enabled." };
-      }
-      const envPath = join(input.config.appServer.appDataRoot, ".env");
-      const saved = writeDesktopEnvSecrets(envPath, secrets || {});
-      return { path: envPath, saved };
-    },
   );
   ipcMain.handle(
     "knoarbor-desktop:select-directory",

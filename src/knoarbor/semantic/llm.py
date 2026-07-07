@@ -155,7 +155,7 @@ class OpenAICompatibleChatClient:
     ) -> OpenAICompatibleChatClient:
         base_url = (config.base_url or "").rstrip("/")
         model = config.model or ""
-        api_key = config.api_key() or ""
+        api_key = config.resolved_api_key() or ""
         if not base_url:
             raise UserInputError(f"Model provider {provider} is missing base_url")
         if not model:
@@ -167,7 +167,7 @@ class OpenAICompatibleChatClient:
             model=model,
             timeout_seconds=timeout_seconds,
             json_mode=config.json_mode,
-            verify_tls=config.verify_tls,
+            verify_tls=True,
             tls_ca_file=str(config.tls_ca_file) if config.tls_ca_file else None,
             configured_context_window=config.context_window,
             configured_max_output_tokens=config.max_output_tokens,
@@ -428,7 +428,7 @@ class OllamaNativeChatClient:
             model=model,
             timeout_seconds=timeout_seconds,
             json_mode=config.json_mode,
-            verify_tls=config.verify_tls,
+            verify_tls=True,
             tls_ca_file=str(config.tls_ca_file) if config.tls_ca_file else None,
             configured_context_window=config.context_window,
             configured_max_output_tokens=config.max_output_tokens,

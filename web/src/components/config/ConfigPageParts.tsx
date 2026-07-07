@@ -1,6 +1,7 @@
 import type { ConfigForm } from "../../api/client";
 import { productIdentity } from "../../product";
 import type { AppContext } from "../../appContext";
+import type { AppNotice } from "../../appContext";
 
 export type ConfigSectionId = "general" | "basic" | "inputs" | "preprocessing" | "models" | "advanced";
 
@@ -70,19 +71,61 @@ export function SettingsLoadingState({ t }: { t: (key: string) => string }) {
   );
 }
 
-export function ConfigGeneralSection({ context }: { context: AppContext }) {
+type ConfigGeneralSectionProps = {
+  context: AppContext;
+  form: ConfigForm;
+  setForm: (form: ConfigForm | null | ((previous: ConfigForm | null) => ConfigForm | null)) => void;
+  onCommit: (nextForm: ConfigForm) => Promise<void>;
+  onError: (notice: AppNotice | null) => void;
+};
+
+const RESPONSE_STYLES: Array<ConfigForm["chat_response_style"]> = ["concise", "balanced", "deep"];
+
+export function ConfigGeneralSection({ context, form, setForm, onCommit, onError }: ConfigGeneralSectionProps) {
+  async function commit(nextForm: ConfigForm) {
+    const previousForm = form;
+    setForm(nextForm);
+    try {
+      await onCommit(nextForm);
+    } catch (error) {
+      setForm(previousForm);
+      onError({ message: error instanceof Error ? error.message : String(error), error: true });
+    }
+  }
+
   return (
-    <div className="settings-card">
-      <div>
-        <h3>{context.t("language")}</h3>
+    <div className="settings-card-grid single">
+      <div className="settings-card">
+        <div>
+          <h3>{context.t("language")}</h3>
+        </div>
+        <div className="settings-language-options" role="group" aria-label={context.t("language")}>
+          <button className={`button ${context.language === "zh" ? "primary" : "secondary"}`} type="button" onClick={() => context.setLanguage("zh")}>
+            中文
+          </button>
+          <button className={`button ${context.language === "en" ? "primary" : "secondary"}`} type="button" onClick={() => context.setLanguage("en")}>
+            EN
+          </button>
+        </div>
       </div>
-      <div className="settings-language-options" role="group" aria-label={context.t("language")}>
-        <button className={`button ${context.language === "zh" ? "primary" : "secondary"}`} type="button" onClick={() => context.setLanguage("zh")}>
-          中文
-        </button>
-        <button className={`button ${context.language === "en" ? "primary" : "secondary"}`} type="button" onClick={() => context.setLanguage("en")}>
-          EN
-        </button>
+
+      <div className="settings-card">
+        <div>
+          <h3>{context.t("chatResponseStyle")}</h3>
+          <p className="panel-copy">{context.t("chatResponseStyleCopy")}</p>
+        </div>
+        <div className="settings-language-options" role="group" aria-label={context.t("chatResponseStyle")}>
+          {RESPONSE_STYLES.map((style) => (
+            <button
+              className={`button ${form.chat_response_style === style ? "primary" : "secondary"}`}
+              key={style}
+              type="button"
+              onClick={() => void commit({ ...form, chat_response_style: style })}
+            >
+              {context.t(`chatResponseStyle.${style}`)}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -108,7 +151,6 @@ export function normalizeConfigForm(form: ConfigForm): ConfigForm {
     providers: (form.providers || []).map((provider) => ({
       ...provider,
       adapter: provider.adapter || "openai_compatible",
-      verify_tls: provider.verify_tls ?? true,
       tls_ca_file: provider.tls_ca_file || "",
       extra_body: provider.extra_body || {},
     })),
@@ -119,6 +161,7 @@ export function normalizeConfigForm(form: ConfigForm): ConfigForm {
     generic_chat_enabled: Boolean(form.generic_chat_enabled),
     generic_chat_roots: form.generic_chat_roots || [],
     generic_chat_raw_output_dir: form.generic_chat_raw_output_dir || "",
+    chat_response_style: ["concise", "balanced", "deep"].includes(form.chat_response_style) ? form.chat_response_style : "balanced",
     mineru_input_dir: "",
     mineru_enabled: true,
     mineru_endpoint: form.mineru_endpoint || "http://127.0.0.1:18000/file_parse",

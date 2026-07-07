@@ -51,7 +51,6 @@ class UiConfigService:
         )
 
     def write_raw(self, request: UiConfigUpdateRequest) -> UiConfigUpdateResponse:
-        _reject_inline_secrets(request.content)
         path = resolve_ui_config_path(request.config_path, for_write=True)
         summary = summarize_config_content(request.content, base_dir=path.parent)
         path.write_text(request.content, encoding="utf-8")
@@ -116,6 +115,7 @@ def summarize_config_content(content: str, *, base_dir: Path) -> dict[str, objec
         "enabled_document_processors": enabled_document_processors(config),
         "default_max_tokens": config.models.default_max_tokens,
         "request_timeout_seconds": config.models.request_timeout_seconds,
+        "chat_response_style": config.chat.response_style,
     }
 
 
@@ -182,15 +182,13 @@ def config_to_form(config: KnoArborConfig) -> UiConfigFormResponse:
                 name=name,
                 adapter=provider.adapter,
                 base_url=provider.base_url or "",
-                api_key_env=provider.api_key_env or "",
+                api_key=provider.api_key or "",
                 model=provider.model or "",
                 json_mode=provider.json_mode,
-                verify_tls=provider.verify_tls,
                 tls_ca_file=str(provider.tls_ca_file) if provider.tls_ca_file else "",
                 context_window=provider.context_window,
                 max_output_tokens=provider.max_output_tokens,
                 extra_body=provider.extra_body,
-                api_key_configured=_provider_credentials_ready(provider),
             )
             for name, provider in sorted(config.models.providers.items())
         ],
@@ -202,15 +200,13 @@ def config_to_form(config: KnoArborConfig) -> UiConfigFormResponse:
                 adapter=provider.adapter,
                 base_url=provider.base_url or "",
                 endpoint_path=provider.endpoint_path,
-                api_key_env=provider.api_key_env or "",
+                api_key=provider.api_key or "",
                 model=provider.model or "",
-                verify_tls=provider.verify_tls,
                 tls_ca_file=str(provider.tls_ca_file) if provider.tls_ca_file else "",
                 resolution=provider.resolution or "2720*1536",
                 num_inference_steps=provider.num_inference_steps,
                 guidance=provider.guidance,
                 extra_body=provider.extra_body,
-                api_key_configured=_provider_credentials_ready(provider),
             )
             for name, provider in sorted(config.image_generation.providers.items())
         ],
@@ -231,6 +227,7 @@ def config_to_form(config: KnoArborConfig) -> UiConfigFormResponse:
         generic_chat_enabled=bool(generic_chat.enabled) if generic_chat else False,
         generic_chat_roots=[str(item) for item in generic_chat_settings.get("roots", []) if item],
         generic_chat_raw_output_dir=str(generic_chat_settings.get("raw_output_dir") or ""),
+        chat_response_style=config.chat.response_style,
         markdown_enabled=False,
         markdown_roots=[],
         markdown_raw_output_dir=DEFAULT_MARKDOWN_RAW_OUTPUT_DIR,
@@ -265,12 +262,6 @@ def _detected_chat_source_dirs() -> dict[str, list[str]]:
         path = Path(default_dir).expanduser()
         detected[name] = [str(path)] if path.is_dir() else []
     return detected
-
-
-def _provider_credentials_ready(provider: Any) -> bool:
-    if provider.api_key_env:
-        return bool(provider.api_key())
-    return is_local_or_private_model_endpoint(provider.base_url)
 
 
 def config_diagnostics(config: KnoArborConfig, *, refresh_source_counts: bool = False) -> UiConfigDiagnostics:
@@ -452,10 +443,7 @@ def config_diagnostics(config: KnoArborConfig, *, refresh_source_counts: bool = 
             missing.append("base_url")
         if not provider.model:
             missing.append("model")
-        if not provider.api_key_env:
-            if not is_local_or_private_model_endpoint(provider.base_url):
-                missing.append("api_key_env")
-        elif not provider.api_key():
+        if not provider.resolved_api_key() and not is_local_or_private_model_endpoint(provider.base_url):
             missing.append("api_key")
         ok = not missing
         detail_parts = list(missing)
@@ -503,10 +491,9 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
         providers[name] = {
             "adapter": provider.adapter,
             "base_url": provider.base_url.strip(),
-            "api_key_env": provider.api_key_env.strip() or None,
+            "api_key": provider.api_key.strip() or None,
             "model": provider.model.strip(),
             "json_mode": provider.json_mode,
-            "verify_tls": provider.verify_tls,
             "tls_ca_file": provider.tls_ca_file.strip() or None,
             "context_window": provider.context_window,
             "max_output_tokens": provider.max_output_tokens,
@@ -521,9 +508,8 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
             "adapter": provider.adapter,
             "base_url": provider.base_url.strip() or None,
             "endpoint_path": provider.endpoint_path.strip() or "/images/generations",
-            "api_key_env": provider.api_key_env.strip() or None,
+            "api_key": provider.api_key.strip() or None,
             "model": provider.model.strip() or None,
-            "verify_tls": provider.verify_tls,
             "tls_ca_file": provider.tls_ca_file.strip() or None,
             "resolution": provider.resolution.strip() or "2720*1536",
             "num_inference_steps": provider.num_inference_steps,
@@ -551,6 +537,10 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
         "default_provider": form.image_default_provider.strip() or None,
         "request_timeout_seconds": form.image_request_timeout_seconds,
         "providers": image_providers,
+    }
+    data["chat"] = {
+        **dict(data.get("chat") or {}),
+        "response_style": form.chat_response_style,
     }
     connectors = dict(data.get("connectors") or {})
     _upsert_chat_connector(
@@ -866,13 +856,3 @@ def _count_matching_files(path: Path, pattern: str | None) -> int:
     if pattern == "*":
         return count
     return count
-
-
-def _reject_inline_secrets(content: str) -> None:
-    secret_patterns = [
-        re.compile(r"\bsk-[A-Za-z0-9_\-]{12,}"),
-        re.compile(r"(?im)^\s*(api_key|token|secret|password)\s*:\s*['\"]?[^'\"\n]+"),
-    ]
-    for pattern in secret_patterns:
-        if pattern.search(content):
-            raise UserInputError("config.yaml must not contain inline secrets. Use *_env fields and .env environment variables.")

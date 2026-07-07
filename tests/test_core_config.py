@@ -7,6 +7,8 @@ import unittest
 from importlib.resources import files
 from pathlib import Path
 
+import yaml
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.core.config import (
@@ -18,6 +20,8 @@ from knoarbor.core.config import (
     migrate_config_data,
     prepare_config_data,
 )
+from knoarbor.services.ui_config import config_to_form, render_config_from_form
+from knoarbor.services.ui_config_models import UiConfigFormUpdateRequest
 
 
 class ConfigTests(unittest.TestCase):
@@ -45,8 +49,51 @@ class ConfigTests(unittest.TestCase):
         self.assertTrue(config.query.include_related)
         self.assertEqual(config.models.default_max_tokens, 30000)
         self.assertEqual(config.models.request_timeout_seconds, 600.0)
+        self.assertEqual(config.chat.response_style, "balanced")
         self.assertEqual(config.active_vault_id(), "default")
         self.assertEqual(config.vault_profiles_summary()[0]["path"], "vaults/all")
+
+    def test_chat_response_style_accepts_known_values(self) -> None:
+        config = KnoArborConfig.model_validate(
+            {
+                "vault": {"path": "./vaults/all"},
+                "chat": {"response_style": "deep"},
+            }
+        )
+
+        self.assertEqual(config.chat.response_style, "deep")
+
+    def test_chat_response_style_rejects_unknown_values(self) -> None:
+        with self.assertRaises(ValueError):
+            KnoArborConfig.model_validate(
+                {
+                    "vault": {"path": "./vaults/all"},
+                    "chat": {"response_style": "playful"},
+                }
+            )
+
+    def test_ui_config_form_round_trips_chat_response_style(self) -> None:
+        config = KnoArborConfig.model_validate(
+            {
+                "vault": {"path": "./vaults/all"},
+                "chat": {
+                    "response_style": "deep",
+                    "auto_ingest": {"enabled": True, "min_user_turns": 3},
+                },
+            }
+        )
+        form = config_to_form(config)
+
+        self.assertEqual(form.chat_response_style, "deep")
+
+        payload = form.model_dump()
+        payload["chat_response_style"] = "concise"
+        rendered = render_config_from_form(UiConfigFormUpdateRequest.model_validate(payload), {"chat": {"auto_ingest": {"enabled": True, "min_user_turns": 3}}}, base_dir=Path.cwd())
+        data = yaml.safe_load(rendered)
+
+        self.assertEqual(data["chat"]["response_style"], "concise")
+        self.assertEqual(data["chat"]["auto_ingest"]["enabled"], True)
+        self.assertEqual(data["chat"]["auto_ingest"]["min_user_turns"], 3)
 
     def test_vault_profiles_select_active_vault(self) -> None:
         config = KnoArborConfig.model_validate(
@@ -136,63 +183,6 @@ class ConfigTests(unittest.TestCase):
     def test_migrate_config_data_rejects_invalid_versions(self) -> None:
         with self.assertRaisesRegex(ConfigMigrationError, "Invalid config_version"):
             migrate_config_data({"config_version": "next", "vault": {"path": "./vaults/all"}})
-
-    def test_load_config_reads_dotenv_next_to_config(self) -> None:
-        env_name = "KNOARBOR_TEST_API_KEY"
-        original = os.environ.pop(env_name, None)
-        try:
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                root = Path(tmp_dir)
-                (root / "vaults" / "all").mkdir(parents=True)
-                (root / ".env").write_text(f'{env_name}="local-secret"\n', encoding="utf-8")
-                path = root / "config.yaml"
-                path.write_text(
-                    "vault:\n"
-                    "  path: ./vaults/all\n"
-                    "models:\n"
-                    "  providers:\n"
-                    "    test:\n"
-                    f"      api_key_env: {env_name}\n",
-                    encoding="utf-8",
-                )
-
-                config = load_config(path)
-
-            self.assertEqual(config.models.providers["test"].api_key(), "local-secret")
-        finally:
-            if original is None:
-                os.environ.pop(env_name, None)
-            else:
-                os.environ[env_name] = original
-
-    def test_dotenv_does_not_override_existing_environment(self) -> None:
-        env_name = "KNOARBOR_TEST_EXISTING_API_KEY"
-        original = os.environ.get(env_name)
-        os.environ[env_name] = "from-process"
-        try:
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                root = Path(tmp_dir)
-                (root / "vaults" / "all").mkdir(parents=True)
-                (root / ".env").write_text(f"{env_name}=from-dotenv\n", encoding="utf-8")
-                path = root / "config.yaml"
-                path.write_text(
-                    "vault:\n"
-                    "  path: ./vaults/all\n"
-                    "models:\n"
-                    "  providers:\n"
-                    "    test:\n"
-                    f"      api_key_env: {env_name}\n",
-                    encoding="utf-8",
-                )
-
-                config = load_config(path)
-
-            self.assertEqual(config.models.providers["test"].api_key(), "from-process")
-        finally:
-            if original is None:
-                os.environ.pop(env_name, None)
-            else:
-                os.environ[env_name] = original
 
     def test_default_config_path_prefers_local_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

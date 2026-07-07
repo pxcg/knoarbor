@@ -30,6 +30,7 @@ export type ConfigSummary = {
   enabled_document_processors?: string[];
   default_max_tokens?: number;
   request_timeout_seconds?: number;
+  chat_response_style?: "concise" | "balanced" | "deep";
   diagnostics?: ConfigDiagnostics;
 };
 
@@ -98,16 +99,13 @@ export type ConfigFormProvider = {
   name: string;
   adapter: "openai_compatible" | "ollama";
   base_url: string;
-  api_key_env: string;
-  api_key_value?: string;
+  api_key: string;
   model: string;
   json_mode: boolean;
-  verify_tls: boolean;
   tls_ca_file: string;
   context_window?: number | null;
   max_output_tokens?: number | null;
   extra_body?: Record<string, unknown>;
-  api_key_configured: boolean;
 };
 
 export type ConfigImageProvider = {
@@ -115,16 +113,13 @@ export type ConfigImageProvider = {
   adapter: "sensenova_image";
   base_url: string;
   endpoint_path: string;
-  api_key_env: string;
-  api_key_value?: string;
+  api_key: string;
   model: string;
-  verify_tls: boolean;
   tls_ca_file: string;
   resolution: string;
   num_inference_steps?: number | null;
   guidance?: number | null;
   extra_body?: Record<string, unknown>;
-  api_key_configured: boolean;
 };
 
 export type ModelCapabilitySuggestion = {
@@ -139,9 +134,6 @@ export type ModelProviderSummary = {
   base_url?: string | null;
   model?: string | null;
   json_mode: boolean;
-  api_key_env?: string | null;
-  api_key_configured: boolean;
-  verify_tls: boolean;
   tls_ca_file?: string | null;
   local_or_private: boolean;
   context_window?: number | null;
@@ -252,6 +244,7 @@ export type ConfigForm = {
   generic_chat_enabled: boolean;
   generic_chat_roots: string[];
   generic_chat_raw_output_dir: string;
+  chat_response_style: "concise" | "balanced" | "deep";
   markdown_enabled: boolean;
   markdown_roots: string[];
   markdown_raw_output_dir: string;

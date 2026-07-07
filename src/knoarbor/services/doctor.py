@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Iterable
 
@@ -223,15 +222,12 @@ class DoctorService:
             checks.append(DoctorCheck(name="models.model", status="error", message="Default provider has no model name.", details={"provider": provider_name}))
         else:
             checks.append(DoctorCheck(name="models.model", status="ok", message="Default provider has a model name.", details={"provider": provider_name, "model": provider.model}))
-        if not provider.api_key_env:
-            if is_local_or_private_model_endpoint(provider.base_url):
-                checks.append(DoctorCheck(name="models.api_key_env", status="ok", message="Default provider uses a local or private unauthenticated endpoint.", details={"provider": provider_name}))
-            else:
-                checks.append(DoctorCheck(name="models.api_key_env", status="warning", message="Default provider has no api_key_env. This is only valid for local or unauthenticated endpoints.", details={"provider": provider_name}))
-        elif os.environ.get(provider.api_key_env):
-            checks.append(DoctorCheck(name="models.api_key_env", status="ok", message="API key environment variable is set.", details={"provider": provider_name, "api_key_env": provider.api_key_env}))
+        if provider.resolved_api_key():
+            checks.append(DoctorCheck(name="models.api_key", status="ok", message="Default provider has an API key.", details={"provider": provider_name}))
+        elif is_local_or_private_model_endpoint(provider.base_url):
+            checks.append(DoctorCheck(name="models.api_key", status="ok", message="Default provider uses a local or private unauthenticated endpoint.", details={"provider": provider_name}))
         else:
-            checks.append(DoctorCheck(name="models.api_key_env", status="error", message="API key environment variable is not set.", details={"provider": provider_name, "api_key_env": provider.api_key_env}))
+            checks.append(DoctorCheck(name="models.api_key", status="warning", message="Default provider has no API key. This is only valid for local or unauthenticated endpoints.", details={"provider": provider_name}))
         if check_model_runtime:
             checks.extend(self._provider_runtime_checks(provider_name, provider))
         return checks
@@ -446,13 +442,8 @@ def _next_steps(checks: list[DoctorCheck]) -> list[str]:
     elif status_of("vault.structure") == "warning":
         add("Run `uv run knoar init --vault <vault-path>` to restore missing vault initialization files.")
 
-    if status_of("models.api_key_env") == "error":
-        check = by_name["models.api_key_env"]
-        api_key_env = check.details.get("api_key_env")
-        if api_key_env:
-            add(f"Set `{api_key_env}` in .env, then reload the environment before running semantic workflows.")
-        else:
-            add("Set the configured model API key environment variable before running semantic workflows.")
+    if status_of("models.api_key") in {"warning", "error"}:
+        add("Set the model API key in settings before running semantic workflows.")
     if status_of("models.configured_model") == "warning":
         check = by_name["models.configured_model"]
         model = check.details.get("model")

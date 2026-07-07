@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from "react";
 import type { AppContext } from "../appContext";
 import {
   ChatCitationPreviewPanel,
@@ -10,6 +11,10 @@ import {
 } from "./chat/ChatParts";
 import { chatProviderStatusLabel, chatStageLabel, modelProviderOptionLabel } from "./chat/ChatModel";
 import { useChatController } from "./chat/useChatController";
+
+function isComposingText(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
+  return event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229;
+}
 
 type Props = {
   context: AppContext;
@@ -166,7 +171,7 @@ export function ChatPage({ context }: Props) {
                 value={chat.input}
                 onChange={(event) => chat.setInput(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
+                  if (event.key === "Enter" && !event.shiftKey && !isComposingText(event)) {
                     event.preventDefault();
                     void chat.submit();
                   }

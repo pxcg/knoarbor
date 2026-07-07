@@ -104,7 +104,7 @@ export function chatProviderStatus(providerName: string, providers: ModelProvide
   const provider = providers.find((item) => item.name === providerName);
   if (!provider) return "unknown";
   const result = currentModelProbeResult(provider, context.modelProbeResults[provider.name]);
-  if (!result) return provider.api_key_env && !provider.api_key_configured ? "error" : "unknown";
+  if (!result) return "unknown";
   if (result.status === "ok" && result.available) return "ok";
   if (result.status === "warning" || result.available) return "warning";
   return "error";
@@ -115,7 +115,6 @@ export function chatProviderStatusLabel(providerName: string, context: AppContex
   if (!provider) return context.t("modelNotChecked");
   const result = currentModelProbeResult(provider, context.modelProbeResults[provider.name]);
   if (!result) {
-    if (provider.api_key_env && !provider.api_key_configured) return context.t("envMissing");
     return context.t("modelNotChecked");
   }
   if (result.status === "ok" && result.available) return context.t("modelAvailable");

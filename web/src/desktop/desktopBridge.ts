@@ -3,12 +3,6 @@ type DesktopPickerResult = {
   path?: string;
 };
 
-type DesktopEnvSecretSaveResult = {
-  error?: string;
-  path?: string;
-  saved: string[];
-};
-
 type DesktopEnvironment = {
   isDesktopApp: true;
   platform: string;
@@ -63,14 +57,6 @@ export async function deleteDesktopDirectory(path: string) {
 
 export function canDeleteDesktopDirectory() {
   return Boolean(getDesktopBridge()?.deleteDirectory);
-}
-
-export async function saveDesktopEnvSecrets(secrets: Record<string, string>): Promise<DesktopEnvSecretSaveResult> {
-  return getDesktopBridge()?.saveEnvSecrets(secrets) ?? { saved: [] };
-}
-
-export function canSaveDesktopEnvSecrets() {
-  return Boolean(getDesktopBridge()?.saveEnvSecrets);
 }
 
 export async function selectDesktopDirectory(options?: { defaultPath?: string; title?: string }): Promise<DesktopPickerResult> {

@@ -186,11 +186,7 @@ export async function saveConfigForm(configPath: string | null, form: ConfigForm
 }
 
 function sanitizeConfigForm(form: ConfigForm): ConfigForm {
-  return {
-    ...form,
-    providers: form.providers.map(({ api_key_value: _apiKeyValue, ...provider }) => provider),
-    image_providers: form.image_providers.map(({ api_key_value: _apiKeyValue, ...provider }) => provider),
-  };
+  return form;
 }
 
 export async function discoverModelProvider(configPath: string | null, provider: string): Promise<ModelDiscoveryResponse> {

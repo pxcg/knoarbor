@@ -191,6 +191,9 @@ memory:
   max_recalled_records: 12
 
 chat:
+  # Default Chat answer depth: concise, balanced, or deep. A direct request in
+  # the current user message still takes priority for that turn.
+  response_style: balanced
   auto_ingest:
     # Manual chat-session ingest is always available through the chat API/UI.
     # This policy controls whether closing a KnoArbor chat automatically queues

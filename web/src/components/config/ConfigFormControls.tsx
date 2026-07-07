@@ -75,6 +75,7 @@ export function PathField({
   label,
   value,
   onChange,
+  onBlur,
   className = "",
   placeholder,
   ariaLabel,
@@ -85,6 +86,7 @@ export function PathField({
   label: string;
   value: string;
   onChange: (value: string) => void;
+  onBlur?: (value: string) => void;
   className?: string;
   placeholder?: string;
   ariaLabel?: string;
@@ -99,20 +101,26 @@ export function PathField({
       defaultPath: value || placeholder,
       title: selectDirectoryTitle,
     });
-    if (!result.canceled && result.path) onChange(result.path);
+    if (!result.canceled && result.path) {
+      onChange(result.path);
+      onBlur?.(result.path);
+    }
   };
   const chooseFile = async () => {
     const result = await selectDesktopFile({
       defaultPath: value || placeholder,
       title: selectFileTitle,
     });
-    if (!result.canceled && result.path) onChange(result.path);
+    if (!result.canceled && result.path) {
+      onChange(result.path);
+      onBlur?.(result.path);
+    }
   };
   return (
     <label className={`field ${className}`}>
       {label && <span>{label}</span>}
       <span className="desktop-path-input">
-        <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-label={ariaLabel || label} />
+        <input value={value} onBlur={(event) => onBlur?.(event.target.value)} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-label={ariaLabel || label} />
         {canSelectFile && (
           <button className="button secondary path-picker-button" type="button" onClick={chooseFile}>
             {t ? t("chooseFile") : "Choose"}
@@ -132,12 +140,14 @@ export function NumberField({
   label,
   value,
   onChange,
+  onBlur,
   min = 1,
   step,
 }: {
   label: string;
   value: number | null;
   onChange: (value: number | null) => void;
+  onBlur?: (value: number | null) => void;
   min?: number;
   step?: number | string;
 }) {
@@ -149,6 +159,7 @@ export function NumberField({
         min={min}
         step={step}
         value={value ?? ""}
+        onBlur={(event) => onBlur?.(event.target.value ? Number(event.target.value) : null)}
         onChange={(event) => onChange(event.target.value ? Number(event.target.value) : null)}
       />
     </label>

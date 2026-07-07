@@ -23,14 +23,28 @@ export function ChatModelProvidersSection({ form, setForm, t, probeResults, pend
   const [activeProvider, setActiveProvider] = useState(0);
   const [providerPreset, setProviderPreset] = useState(PROVIDER_PRESETS[0].name);
 
-  async function commit(nextForm: ConfigForm) {
+  function uniqueProviderName(baseName: string): string {
+    const existingNames = new Set(form.providers.map((provider) => provider.name.trim()).filter(Boolean));
+    if (!existingNames.has(baseName)) return baseName;
+    let suffix = 2;
+    while (existingNames.has(`${baseName}-${suffix}`)) suffix += 1;
+    return `${baseName}-${suffix}`;
+  }
+
+  function savedProviderIndex(providers: ConfigFormProvider[], name: string): number {
+    return [...providers].sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0)).findIndex((provider) => provider.name === name);
+  }
+
+  async function commit(nextForm: ConfigForm): Promise<boolean> {
     const previousForm = form;
     setForm(nextForm);
     try {
       await onCommit(nextForm);
+      return true;
     } catch (error) {
       setForm(previousForm);
       onError({ message: error instanceof Error ? error.message : String(error), error: true });
+      return false;
     }
   }
 
@@ -42,11 +56,13 @@ export function ChatModelProvidersSection({ form, setForm, t, probeResults, pend
   }
 
   function providerPatchForm(index: number, patch: Partial<ConfigFormProvider>): ConfigForm {
+    const previousProvider = form.providers[index];
     const nextProviders = form.providers.map((provider, current) => (current === index ? { ...provider, ...patch } : provider));
+    const nextDefaultProvider = patch.name && form.default_provider === previousProvider?.name ? patch.name : form.default_provider;
     return {
       ...form,
       providers: nextProviders,
-      default_provider: form.default_provider || nextProviders[index]?.name || "",
+      default_provider: nextDefaultProvider || nextProviders[index]?.name || "",
     };
   }
 
@@ -54,43 +70,37 @@ export function ChatModelProvidersSection({ form, setForm, t, probeResults, pend
     void commit(providerPatchForm(index, { model }));
   }
 
-  function addProvider() {
+  async function addProvider() {
     const preset = PROVIDER_PRESETS.find((item) => item.name === providerPreset);
     const template = preset || {
-      name: "",
+      name: "custom",
       base_url: "",
       adapter: "openai_compatible",
-      api_key_env: "",
+      api_key: "",
       model: "",
       json_mode: true,
-      verify_tls: true,
       tls_ca_file: "",
       context_window: null,
       max_output_tokens: null,
       extra_body: {},
-      api_key_configured: false,
     };
-    const existingNames = new Set(form.providers.map((provider) => provider.name));
-    let name = template.name;
-    if (name && existingNames.has(name)) {
-      let suffix = 2;
-      while (existingNames.has(`${name}-${suffix}`)) suffix += 1;
-      name = `${name}-${suffix}`;
-    }
+    const name = uniqueProviderName(template.name);
     const nextProviders = [...form.providers, { ...template, name }];
-    setForm({ ...form, providers: nextProviders, default_provider: form.default_provider || name });
-    setActiveProvider(nextProviders.length - 1);
+    if (await commit({ ...form, providers: nextProviders, default_provider: form.default_provider || name })) {
+      setActiveProvider(savedProviderIndex(nextProviders, name));
+    }
   }
 
-  function removeProvider(index: number) {
+  async function removeProvider(index: number) {
     const removedName = form.providers[index]?.name;
     const nextProviders = form.providers.filter((_, current) => current !== index);
-    setForm({
+    if (await commit({
       ...form,
       providers: nextProviders,
       default_provider: form.default_provider === removedName ? nextProviders[0]?.name || "" : form.default_provider,
-    });
-    setActiveProvider(Math.min(index, Math.max(0, nextProviders.length - 1)));
+    })) {
+      setActiveProvider(Math.min(index, Math.max(0, nextProviders.length - 1)));
+    }
   }
 
   const active = form.providers[activeProvider];
@@ -112,7 +122,7 @@ export function ChatModelProvidersSection({ form, setForm, t, probeResults, pend
             ariaLabel={t("providerPreset")}
             onChange={setProviderPreset}
           />
-          <button className="button secondary" onClick={addProvider} type="button">
+          <button className="button secondary" onClick={() => void addProvider()} type="button">
             {t("addProvider")}
           </button>
         </div>
@@ -146,42 +156,30 @@ export function ChatModelProvidersSection({ form, setForm, t, probeResults, pend
             </div>
             <p className={`provider-status-message ${activeRuntimeStatus.tone}`}>{activeRuntimeStatus.detail}</p>
             <div className="form-grid provider-form-grid">
-              <PathField label={t("name")} value={active.name} onChange={(value) => updateProvider(activeProvider, { name: value })} />
-              <label className="field">
-                <span>{t("modelAdapter")}</span>
-                <select value={active.adapter || "openai_compatible"} onChange={(event) => updateProvider(activeProvider, { adapter: event.target.value as ConfigFormProvider["adapter"] })}>
-                  <option value="openai_compatible">{t("adapterOpenAICompatible")}</option>
-                  <option value="ollama">{t("adapterOllamaNative")}</option>
-                </select>
-              </label>
-              <PathField label={t("model")} value={active.model} onChange={(value) => updateProvider(activeProvider, { model: value })} />
-              <PathField label={t("baseUrl")} value={active.base_url} onChange={(value) => updateProvider(activeProvider, { base_url: value })} />
-              <PathField label={t("apiKeyEnv")} value={active.api_key_env} onChange={(value) => updateProvider(activeProvider, { api_key_env: value })} />
+              <PathField label={t("name")} value={active.name} onBlur={(value) => void commit(providerPatchForm(activeProvider, { name: value }))} onChange={(value) => updateProvider(activeProvider, { name: value })} />
+              <PathField label={t("model")} value={active.model} onBlur={(value) => void commit(providerPatchForm(activeProvider, { model: value }))} onChange={(value) => updateProvider(activeProvider, { model: value })} />
+              <PathField label={t("baseUrl")} value={active.base_url} onBlur={(value) => void commit(providerPatchForm(activeProvider, { base_url: value }))} onChange={(value) => updateProvider(activeProvider, { base_url: value })} />
               <SecretField
-                configured={active.api_key_configured}
-                configuredLabel={t("configured")}
                 label={t("apiKey")}
-                placeholder={t(active.api_key_configured ? "apiKeyConfiguredPlaceholder" : "apiKeyPlaceholder")}
-                value={active.api_key_value || ""}
-                onChange={(value) => updateProvider(activeProvider, { api_key_value: value })}
+                placeholder={t("apiKeyPlaceholder")}
+                value={active.api_key || ""}
+                onBlur={(value) => void commit(providerPatchForm(activeProvider, { api_key: value }))}
+                onChange={(value) => updateProvider(activeProvider, { api_key: value })}
               />
               <PathField
                 label={t("tlsCaFile")}
                 value={active.tls_ca_file || ""}
+                onBlur={(value) => void commit(providerPatchForm(activeProvider, { tls_ca_file: value }))}
                 onChange={(value) => updateProvider(activeProvider, { tls_ca_file: value })}
                 selectFileTitle={t("tlsCaFile")}
                 t={t}
               />
             </div>
-            <label className="checkbox-field">
-              <input type="checkbox" checked={active.verify_tls ?? true} onChange={(event) => updateProvider(activeProvider, { verify_tls: event.target.checked })} />
-              <span>{t("verifyTls")}</span>
-            </label>
             <div className="provider-actions">
               <button className="button secondary" onClick={() => onDiscover(active.name)} disabled={!active.name || pendingAction === `${active.name}:discover`} type="button">
                 {pendingAction === `${active.name}:discover` ? t("discoveringModel") : t("discoverModels")}
               </button>
-              <button className="button secondary" onClick={() => removeProvider(activeProvider)} type="button">
+              <button className="button secondary" onClick={() => void removeProvider(activeProvider)} type="button">
                 {t("removeProvider")}
               </button>
             </div>

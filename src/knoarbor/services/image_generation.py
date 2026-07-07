@@ -24,8 +24,6 @@ class ImageGenerationService:
                 adapter=provider.adapter,
                 base_url=provider.base_url,
                 model=provider.model,
-                api_key_env=provider.api_key_env,
-                api_key_configured=bool(provider.api_key()),
                 default=name == config.image_generation.default_provider,
                 resolution=provider.resolution,
                 num_inference_steps=provider.num_inference_steps,

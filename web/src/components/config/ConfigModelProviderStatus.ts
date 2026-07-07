@@ -38,16 +38,6 @@ export function providerRuntimeStatus(provider: ConfigFormProvider, result: Mode
     };
   }
 
-  if (provider.api_key_env && !provider.api_key_configured) {
-    return {
-      tone: "error",
-      dotClass: "offline",
-      label: t("envMissing"),
-      detail: provider.api_key_env,
-      checked: false,
-    };
-  }
-
   const hasMinimumConfig = Boolean(provider.name && provider.model && provider.base_url);
   if (hasMinimumConfig) {
     return {

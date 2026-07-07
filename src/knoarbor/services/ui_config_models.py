@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 DEFAULT_CHAT_RAW_OUTPUT_DIR = "./vaults/default/raw/inbox/chats"
@@ -50,15 +52,13 @@ class UiModelProviderForm(BaseModel):
     name: str
     adapter: str = "openai_compatible"
     base_url: str = ""
-    api_key_env: str = ""
+    api_key: str = ""
     model: str = ""
     json_mode: bool = True
-    verify_tls: bool = True
     tls_ca_file: str = ""
     context_window: int | None = None
     max_output_tokens: int | None = None
     extra_body: dict[str, object] = Field(default_factory=dict)
-    api_key_configured: bool = False
 
 
 class UiImageGenerationProviderForm(BaseModel):
@@ -66,15 +66,13 @@ class UiImageGenerationProviderForm(BaseModel):
     adapter: str = "sensenova_image"
     base_url: str = ""
     endpoint_path: str = "/images/generations"
-    api_key_env: str = ""
+    api_key: str = ""
     model: str = ""
-    verify_tls: bool = True
     tls_ca_file: str = ""
     resolution: str = "2720*1536"
     num_inference_steps: int | None = Field(default=20, ge=1)
     guidance: float | None = Field(default=4, ge=0)
     extra_body: dict[str, object] = Field(default_factory=dict)
-    api_key_configured: bool = False
 
 
 class UiVaultProfileForm(BaseModel):
@@ -138,6 +136,7 @@ class UiConfigFormResponse(BaseModel):
     generic_chat_enabled: bool = False
     generic_chat_roots: list[str] = Field(default_factory=list)
     generic_chat_raw_output_dir: str = ""
+    chat_response_style: Literal["concise", "balanced", "deep"] = "balanced"
     markdown_enabled: bool = True
     markdown_roots: list[str] = Field(default_factory=list)
     markdown_raw_output_dir: str = ""
@@ -196,6 +195,7 @@ class UiConfigFormUpdateRequest(BaseModel):
     generic_chat_enabled: bool = False
     generic_chat_roots: list[str] = Field(default_factory=list)
     generic_chat_raw_output_dir: str = ""
+    chat_response_style: Literal["concise", "balanced", "deep"] = "balanced"
     markdown_enabled: bool = True
     markdown_roots: list[str] = Field(default_factory=list)
     markdown_raw_output_dir: str = ""

@@ -1,6 +1,5 @@
 import { app } from "electron";
 import {
-  chmodSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -150,8 +149,7 @@ function desktopDefaultConfigYaml(input: {
   const vaultPath = pathRelativeToConfigDir(input.vaultPath);
   const vaultRelative = (relativePath: string): string => `${vaultPath}/${relativePath}`;
   return `# KnoArbor Desktop local configuration.
-# Secrets do not belong here. Put API keys in the desktop .env file,
-# then reference their environment variable names through api_key_env.
+# Model providers use direct API key fields in the settings page.
 
 project:
   name: My Knowledge Base
@@ -186,10 +184,9 @@ models:
     deepseek:
       adapter: openai_compatible
       base_url: https://api.deepseek.com
-      api_key_env: DEEPSEEK_API_KEY
+      api_key:
       model: deepseek-v4-flash
       json_mode: true
-      verify_tls: true
       tls_ca_file:
       context_window:
       max_output_tokens:
@@ -343,7 +340,6 @@ function migrateLegacyUserData(legacyRoot: string, targetRoot: string): void {
     mkdirSync(dirname(targetRoot), { recursive: true });
     try {
       renameSync(legacyRoot, targetRoot);
-      secureMigratedEnvFile(join(targetRoot, ".env"));
       return;
     } catch {
       mkdirSync(targetRoot, { recursive: true });
@@ -352,7 +348,6 @@ function migrateLegacyUserData(legacyRoot: string, targetRoot: string): void {
 
   for (const entry of [
     "config.yaml",
-    ".env",
     "vaults",
     ".knoarbor",
     "state",
@@ -362,16 +357,6 @@ function migrateLegacyUserData(legacyRoot: string, targetRoot: string): void {
     const target = join(targetRoot, entry);
     if (!existsSync(source) || existsSync(target)) continue;
     cpSync(source, target, { recursive: true, force: false });
-  }
-  secureMigratedEnvFile(join(targetRoot, ".env"));
-}
-
-function secureMigratedEnvFile(envPath: string): void {
-  if (!existsSync(envPath)) return;
-  try {
-    chmodSync(envPath, 0o600);
-  } catch {
-    // Some filesystems do not support POSIX permissions.
   }
 }
 

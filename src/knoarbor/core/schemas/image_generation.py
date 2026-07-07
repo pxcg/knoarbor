@@ -44,8 +44,6 @@ class ImageProviderSummary(BaseModel):
     adapter: str
     base_url: str | None = None
     model: str | None = None
-    api_key_env: str | None = None
-    api_key_configured: bool = False
     default: bool = False
     resolution: str | None = None
     num_inference_steps: int | None = None

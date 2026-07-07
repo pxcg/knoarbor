@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import json
-import os
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, Callable, Literal, Mapping
+from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -74,10 +73,9 @@ class ServerConfig(BaseModel):
 class ModelProviderConfig(BaseModel):
     adapter: Literal["openai_compatible", "ollama"] = "openai_compatible"
     base_url: str | None = None
-    api_key_env: str | None = None
+    api_key: str | None = None
     model: str | None = None
     json_mode: bool = True
-    verify_tls: bool = True
     tls_ca_file: Path | None = None
     context_window: int | None = Field(default=None, ge=1)
     max_output_tokens: int | None = Field(default=None, ge=1)
@@ -88,19 +86,16 @@ class ModelProviderConfig(BaseModel):
     def expand_tls_ca_file(cls, value: Path | None) -> Path | None:
         return value.expanduser() if value is not None else None
 
-    def api_key(self, env: Mapping[str, str] | None = None) -> str | None:
-        if not self.api_key_env:
-            return None
-        return (env or os.environ).get(self.api_key_env)
+    def resolved_api_key(self) -> str | None:
+        return self.api_key
 
 
 class ImageGenerationProviderConfig(BaseModel):
     adapter: Literal["sensenova_image"] = "sensenova_image"
     base_url: str | None = None
     endpoint_path: str = "/images/generations"
-    api_key_env: str | None = None
+    api_key: str | None = None
     model: str | None = None
-    verify_tls: bool = True
     tls_ca_file: Path | None = None
     response_format: Literal["url", "b64_json"] = "url"
     resolution: str | None = "2720*1536"
@@ -120,10 +115,8 @@ class ImageGenerationProviderConfig(BaseModel):
             return None
         return str(value)
 
-    def api_key(self, env: Mapping[str, str] | None = None) -> str | None:
-        if not self.api_key_env:
-            return None
-        return (env or os.environ).get(self.api_key_env)
+    def resolved_api_key(self) -> str | None:
+        return self.api_key
 
 
 class ModelRetryConfig(BaseModel):
@@ -236,6 +229,7 @@ class ChatAutoIngestConfig(BaseModel):
 
 class ChatConfig(BaseModel):
     auto_ingest: ChatAutoIngestConfig = Field(default_factory=ChatAutoIngestConfig)
+    response_style: Literal["concise", "balanced", "deep"] = "balanced"
 
 
 class IngestSegmentationConfig(BaseModel):
@@ -368,7 +362,6 @@ def default_config_path(start: str | Path | None = None) -> Path:
 def load_config(path: str | Path) -> KnoArborConfig:
     config_path = Path(path).expanduser()
     base_dir = _config_base_dir(config_path)
-    load_env_file(base_dir / ".env")
     data = _load_config_data(config_path)
     data = prepare_config_data(data, base_dir)
     return KnoArborConfig.model_validate(data)
@@ -436,22 +429,6 @@ def _migrate_raw_layout_paths(value: Any) -> Any:
     return value
 
 
-def load_env_file(path: Path) -> None:
-    """Load simple KEY=value pairs without overriding the process environment."""
-    if not path.exists():
-        return
-
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        if not key or key in os.environ:
-            continue
-        os.environ[key] = _clean_env_value(value)
-
-
 def _load_config_data(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise ConfigNotFound(f"Config file does not exist: {path}")
@@ -470,13 +447,6 @@ def _load_config_data(path: Path) -> dict[str, Any]:
             raise InvalidConfig("Config root must be an object")
         return loaded
     raise InvalidConfig(f"Unsupported config file extension: {path.suffix}")
-
-
-def _clean_env_value(value: str) -> str:
-    cleaned = value.strip()
-    if len(cleaned) >= 2 and cleaned[0] == cleaned[-1] and cleaned[0] in {"'", '"'}:
-        return cleaned[1:-1]
-    return cleaned
 
 
 def _find_project_root(start: Path) -> Path:

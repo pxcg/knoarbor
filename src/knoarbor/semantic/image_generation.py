@@ -76,13 +76,13 @@ class SenseNovaImageClient:
     ) -> "SenseNovaImageClient":
         base_url = (config.base_url or "").rstrip("/")
         model = config.model or ""
-        api_key = config.api_key() or ""
+        api_key = config.resolved_api_key() or ""
         if not base_url:
             raise UserInputError(f"Image provider {provider} is missing base_url")
         if not model:
             raise UserInputError(f"Image provider {provider} is missing model")
         if not api_key:
-            raise UserInputError(f"Image provider {provider} is missing API key environment variable value")
+            raise UserInputError(f"Image provider {provider} is missing API key")
         return cls(
             provider=provider,
             base_url=base_url,
@@ -90,7 +90,7 @@ class SenseNovaImageClient:
             api_key=api_key,
             model=model,
             timeout_seconds=timeout_seconds,
-            verify_tls=config.verify_tls,
+            verify_tls=True,
             tls_ca_file=str(config.tls_ca_file) if config.tls_ca_file else None,
             default_response_format=config.response_format,
             default_resolution=config.resolution,

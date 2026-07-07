@@ -18,9 +18,6 @@ class ModelProviderSummary(ModelProbeBase):
     base_url: str | None = None
     model: str | None = None
     json_mode: bool = True
-    api_key_env: str | None = None
-    api_key_configured: bool = False
-    verify_tls: bool = True
     tls_ca_file: str | None = None
     local_or_private: bool = False
     context_window: int | None = None

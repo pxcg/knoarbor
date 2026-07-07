@@ -127,7 +127,7 @@ def _print_startup_line(message: str) -> None:
 def _provider_summary(provider_name: str | None, provider) -> str:
     if not provider_name or provider is None:
         return "not configured"
-    auth = "no api key required" if not provider.api_key_env else f"api key env={provider.api_key_env}"
+    auth = "api key configured" if provider.resolved_api_key() else "no api key configured"
     base_url = provider.base_url or "default endpoint"
     model = provider.model or "model not set"
     return f"{provider_name} / {model} / {provider.adapter} / {base_url} / {auth}"
@@ -241,7 +241,7 @@ def _first_run_next_steps(*, example_installed: bool) -> list[str]:
         else "Put Markdown notes under a configured markdown root, then run `uv run knoar ingest --connector markdown --write`."
     )
     steps = [
-        "Set your model API key in .env if doctor reports models.api_key_env as error.",
+        "Set your model API key in settings if doctor reports models.api_key as missing.",
         source_step,
     ]
     if example_installed:
@@ -264,7 +264,7 @@ def _write_yaml_config(path: Path, data: dict[str, object]) -> None:
     import yaml  # type: ignore[import-untyped]
 
     path.write_text(
-        "# Local KnoArbor configuration. Secrets belong in .env, not in this file.\n"
+        f"# Local {PRODUCT.name} configuration.\n"
         + yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )

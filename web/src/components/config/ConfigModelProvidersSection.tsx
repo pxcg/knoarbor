@@ -39,7 +39,7 @@ export function ConfigModelProvidersSection({
         onCommit={onCommit}
         onError={onError}
       />
-      <ImageModelProvidersSection form={form} setForm={setForm} t={t} />
+      <ImageModelProvidersSection form={form} setForm={setForm} t={t} onCommit={onCommit} onError={onError} />
     </>
   );
 }

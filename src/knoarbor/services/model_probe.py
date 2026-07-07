@@ -29,9 +29,6 @@ class ModelProbeService:
                 base_url=provider.base_url,
                 model=provider.model,
                 json_mode=provider.json_mode,
-                api_key_env=provider.api_key_env,
-                api_key_configured=_provider_credentials_ready(provider),
-                verify_tls=provider.verify_tls,
                 tls_ca_file=str(provider.tls_ca_file) if provider.tls_ca_file else None,
                 local_or_private=is_local_or_private_model_endpoint(provider.base_url),
                 context_window=provider.context_window,
@@ -125,10 +122,6 @@ def _discovery_message(base_message: str, configured_model: str | None, configur
     return base_message
 
 
-def _provider_credentials_ready(provider: ModelProviderConfig) -> bool:
-    if not provider.api_key_env:
-        return is_local_or_private_model_endpoint(provider.base_url)
-    return bool(provider.api_key())
 
 
 def _suggest_config(context_window: int | None, *, structured_json: bool | None) -> ModelCapabilitySuggestion:

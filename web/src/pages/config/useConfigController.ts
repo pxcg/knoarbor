@@ -11,9 +11,7 @@ import {
 } from "../../api/client";
 import type { AppContext } from "../../appContext";
 import { modelActionKey, normalizeConfigForm } from "../../components/config/ConfigPageParts";
-import { canRestartDesktopService, canSaveDesktopEnvSecrets, restartDesktopService, saveDesktopEnvSecrets } from "../../desktop/desktopBridge";
 import { queryKeys } from "../../queryKeys";
-import { clearDesktopEnvSecretValues, collectDesktopEnvSecrets } from "./ConfigSecrets";
 
 export function useConfigController(context: AppContext) {
   const queryClient = useQueryClient();
@@ -55,25 +53,21 @@ export function useConfigController(context: AppContext) {
     await context.refreshAll();
   }
 
-  function clearDesktopEnvSecretInputs() {
-    setForm((current) => (current ? clearDesktopEnvSecretValues(current) : current));
+  async function syncStructuredFormFromDisk(configPath: string | null): Promise<void> {
+    const refreshed = normalizeConfigForm(await getConfigForm(configPath));
+    queryClient.setQueryData(queryKeys.configForm(configPath), refreshed);
+    if (configPath !== context.configPath) {
+      queryClient.setQueryData(queryKeys.configForm(context.configPath), refreshed);
+    }
+    setForm(refreshed);
   }
 
   async function saveStructuredFormSnapshot(formSnapshot: ConfigForm): Promise<string | null> {
-    const envSecrets = collectDesktopEnvSecrets(formSnapshot);
-    const hasEnvSecrets = Object.keys(envSecrets).length > 0;
-    if (hasEnvSecrets && canSaveDesktopEnvSecrets()) {
-      const result = await saveDesktopEnvSecrets(envSecrets);
-      if (result.error) throw new Error(result.error);
-    }
     const response = await saveConfigForm(context.configPath, formSnapshot);
     context.setConfigPath(response.config_path);
     context.setConfigExists(true);
     context.setSummary(response.summary || {});
-    if (hasEnvSecrets && canRestartDesktopService()) {
-      await restartDesktopService();
-      clearDesktopEnvSecretInputs();
-    }
+    await syncStructuredFormFromDisk(response.config_path);
     return response.config_path;
   }
 
@@ -85,7 +79,6 @@ export function useConfigController(context: AppContext) {
   const structuredSave = useMutation({
     mutationFn: saveStructuredForm,
     onSuccess: async (configPath) => {
-      clearDesktopEnvSecretInputs();
       await updateSettingsFromDisk();
       context.setNotice({ message: `${context.t("configurationSaved")} ${configPath || context.configPath}` });
     },
