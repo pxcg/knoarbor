@@ -7,7 +7,6 @@ import type { ViewName } from "./types";
 
 const loadChatPage = () => import("./pages/ChatPage").then((module) => ({ default: module.ChatPage }));
 const loadOverviewPage = () => import("./pages/OverviewPage").then((module) => ({ default: module.OverviewPage }));
-const loadRunsPage = () => import("./pages/RunsPage").then((module) => ({ default: module.RunsPage }));
 const loadSourcesPage = () => import("./pages/SourcesPage").then((module) => ({ default: module.SourcesPage }));
 const loadIngestPage = () => import("./pages/ImportPage").then((module) => ({ default: module.ImportPage }));
 const loadLintPage = () => import("./pages/LintPage").then((module) => ({ default: module.LintPage }));
@@ -21,7 +20,6 @@ const loadConfigPage = () => import("./pages/ConfigPage").then((module) => ({ de
 const routePreloaders = {
   chat: loadChatPage,
   overview: loadOverviewPage,
-  runs: loadRunsPage,
   sources: loadSourcesPage,
   ingest: loadIngestPage,
   lint: loadLintPage,
@@ -45,7 +43,6 @@ export function preloadRoute(view: ViewName) {
 
 const ChatPage = lazy(loadChatPage);
 const OverviewPage = lazy(loadOverviewPage);
-const RunsPage = lazy(loadRunsPage);
 const SourcesPage = lazy(loadSourcesPage);
 const IngestPage = lazy(loadIngestPage);
 const LintPage = lazy(loadLintPage);
@@ -68,7 +65,6 @@ export function AppRoutes({ activeView, context, onNavigate }: { activeView: Vie
       <Suspense fallback={<section className="panel page-loading"><LoadingBlock title={t("pageLoading")} copy={t("pageLoadingCopy")} /></section>}>
         {activeView === "chat" && <ChatPage context={context} />}
         {activeView === "overview" && <OverviewPage context={context} onNavigate={onNavigate} />}
-        {activeView === "runs" && <RunsPage context={context} />}
         {activeView === "sources" && <SourcesPage context={context} />}
         {activeView === "wiki" && <WikiPage context={context} focusedPagePath={context.focusedWikiPath} />}
         {activeView === "ingest" && <IngestPage context={context} />}

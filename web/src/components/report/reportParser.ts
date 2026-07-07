@@ -216,6 +216,11 @@ export function pageName(path: string): string {
   return pathBaseName(path).replace(/\.md$/, "") || path;
 }
 
+export function isWikiPagePath(path: string): boolean {
+  const normalized = path.replace(/\\/g, "/");
+  return normalized.endsWith(".md") && !normalized.startsWith("sources/");
+}
+
 function isStructuredReportLine(value: string): boolean {
   return (
     /^\[\w+]\s+`[^`]+`\s+in\s+`[^`]+`:\s+/.test(value) ||

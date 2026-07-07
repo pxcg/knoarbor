@@ -1,6 +1,7 @@
 import { LineIcon } from "./LineIcon";
 import { Sidebar } from "./Sidebar";
-import { navCopy, viewSubtitles, viewTitles } from "../i18n";
+import { navCopy, viewTitles } from "../i18n";
+import { productIdentity } from "../product";
 import type { Language, ViewName } from "../types";
 import type { ReactNode } from "react";
 
@@ -48,19 +49,20 @@ export function AppShell({
         sidebarSlot={sidebarSlot}
       />
       <main className="main">
-        {activeView !== "chat" && (
+        {(activeView !== "chat" || (productIdentity.showHelpLink && productIdentity.helpUrl)) && (
           <header className="topbar">
             {activeView !== "chat" && (
               <div className="topbar-heading">
                 <p className="topbar-kicker">{viewTitles[language][activeView]}</p>
-                <p className="topbar-subtitle">{viewSubtitles[language][activeView]}</p>
               </div>
             )}
-            <div className="topbar-actions">
-              <a className="button icon-button" href="https://github.com/pxcg/knoarbor" target="_blank" rel="noreferrer" aria-label="GitHub">
-                <LineIcon name="github" />
-              </a>
-            </div>
+            {productIdentity.showHelpLink && productIdentity.helpUrl && (
+              <div className="topbar-actions">
+                <a className="button icon-button" href={productIdentity.helpUrl} target="_blank" rel="noreferrer" aria-label="Help">
+                  <LineIcon name="github" />
+                </a>
+              </div>
+            )}
           </header>
         )}
         {secondaryItems.length > 1 && (
@@ -73,11 +75,11 @@ export function AppShell({
                 onClick={() => onChangeView(item)}
                 onFocus={() => onPreloadView?.(item)}
                 onMouseEnter={() => onPreloadView?.(item)}
+                title={`${viewTitles[language][item]} · ${navCopy[language][item]}`}
               >
                 <LineIcon name={item} />
                 <span>
                   <strong>{viewTitles[language][item]}</strong>
-                  <small>{navCopy[language][item]}</small>
                 </span>
               </button>
             ))}
@@ -94,5 +96,5 @@ export function AppShell({
 function secondaryNavItems(activeView: ViewName): ViewName[] {
   if (activeView === "wiki" || activeView === "graph") return ["wiki", "graph"];
   if (activeView === "chat") return [];
-  return ["runs", "ingest", "lint", "query", "reports", "tokens"];
+  return ["ingest", "lint", "query", "reports", "tokens"];
 }

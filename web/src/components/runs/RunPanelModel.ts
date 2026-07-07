@@ -163,6 +163,23 @@ export function runStageMetrics(run: RunRecord): Array<{ label: string; value: s
   return values;
 }
 
+export function runProgressPercent(run: RunRecord, events: RunEvent[]): number | undefined {
+  const eventProgress = events
+    .slice()
+    .reverse()
+    .map((event) => event.progress)
+    .find((progress) => progress && typeof progress.total === "number" && progress.total > 0);
+  const progress = eventProgress || run.progress;
+  if (progress && typeof progress.total === "number" && progress.total > 0 && typeof progress.completed === "number") {
+    return Math.min(100, Math.max(0, Math.round((progress.completed / progress.total) * 100)));
+  }
+  const stages = flowStages(run.flow);
+  const currentIndex = stages.findIndex((stage) => stage.key === currentStageKey(run));
+  if (currentIndex < 0) return undefined;
+  if (run.status === "completed") return 100;
+  return Math.min(99, Math.max(0, Math.round((currentIndex / Math.max(1, stages.length - 1)) * 100)));
+}
+
 export function currentSourceInfo(run: RunRecord, events: RunEvent[], t: (key: string) => string): RunSourceInfo {
   const sourceEvents = events
     .slice()
@@ -232,6 +249,27 @@ export function stageLabel(run: { stage?: string | null; status?: string | null;
   const label = displayStageLabel(stage || run.status || "", t);
   const current = run.current_item;
   return current ? `${label} · ${t("currentItem")}: ${current}` : label;
+}
+
+export function localizeRunEventMessage(message: string | null | undefined, eventType: string, t: (key: string) => string): string {
+  const value = (message || eventType || "").trim();
+  if (!value || t("language") !== "语言") return value;
+  const direct: Record<string, string> = {
+    "Calling model for source_normalize.": "调用模型：资料标准化。",
+    "Calling model for wiki_atom_extract.": "调用模型：知识原子提取。",
+    "Calling model for wiki_page_plan.": "调用模型：页面规划。",
+    "Calling model for wiki_relation_plan.": "调用模型：页面关系规划。",
+    "Calling model for wiki_draft_compile.": "调用模型：页面编译。",
+    "Calling model for ingest_draft_review.": "调用模型：草稿评审。",
+    "Standardizing source document.": "标准化资料文档。",
+    "Extracting knowledge atoms.": "提取知识原子。",
+    "Compiling wiki draft.": "编译 Wiki 页面草稿。",
+    "Writing wiki pages.": "写入 Wiki 页面。",
+  };
+  if (direct[value]) return direct[value];
+  const modelCall = value.match(/^Calling model for ([a-z0-9_:-]+)\.?$/i);
+  if (modelCall) return `调用模型：${displayStageLabel(modelCall[1], t)}。`;
+  return value;
 }
 
 export function asRecord(value: unknown): Record<string, unknown> {

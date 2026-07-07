@@ -125,7 +125,6 @@ export function chatProviderStatusLabel(providerName: string, context: AppContex
 
 export function currentModelProbeResult(provider: ModelProviderSummary, result: AppContext["modelProbeResults"][string]) {
   if (!result) return undefined;
-  if (result.probe?.model === provider.model) return result.probe;
   const discoveryModels = result.discovery?.model_ids || [];
   if (result.discovery && (!provider.model || discoveryModels.includes(provider.model))) return result.discovery;
   return undefined;

@@ -1,7 +1,7 @@
 import type { PageDetail } from "../../api/client";
 import { AsyncMarkdownPreview } from "../AsyncMarkdownPreview";
 import type { PageArtifact, ReportArtifacts } from "./reportParser";
-import { pageName } from "./reportParser";
+import { isWikiPagePath, pageName } from "./reportParser";
 import { ReportDiffBlock } from "./ReportDiffBlock";
 import { localizeOperationAction } from "./reportReadableLocalizers";
 
@@ -138,13 +138,15 @@ function ReportArtifactGroup({
     <div className="report-artifact-group">
       <h4>{title}</h4>
       <div className="report-artifact-grid">
-        {artifacts.map((artifact) => (
+        {artifacts.map((artifact) => {
+          const canOpenInWiki = isWikiPagePath(artifact.path);
+          return (
           <article className={`report-page-card ${previewPath === artifact.path ? "active" : ""}`} key={`${artifact.kind}:${artifact.path}`}>
             <div className="report-page-card-header">
               <button
                 className="report-page-main"
                 type="button"
-                onClick={() => (inlinePagePreview && loadPage ? void onPreviewPage(artifact.path) : onOpenPage(artifact.path))}
+                onClick={() => (inlinePagePreview && loadPage ? void onPreviewPage(artifact.path) : canOpenInWiki ? onOpenPage(artifact.path) : undefined)}
               >
                 <strong>{pageName(artifact.path)}</strong>
                 <span>{artifact.path}</span>
@@ -156,9 +158,11 @@ function ReportArtifactGroup({
                     {previewPath === artifact.path && preview ? t("collapseContent") : t("expandContent")}
                   </button>
                 )}
-                <button className="button secondary small-button" type="button" onClick={() => onOpenPage(artifact.path)}>
-                  {t("viewInKnowledgeBase")}
-                </button>
+                {canOpenInWiki && (
+                  <button className="button secondary small-button" type="button" onClick={() => onOpenPage(artifact.path)}>
+                    {t("viewInKnowledgeBase")}
+                  </button>
+                )}
               </div>
             </div>
             {!!artifact.changes.length && (
@@ -178,7 +182,8 @@ function ReportArtifactGroup({
               <ReportInlinePreview loading={previewLoading} preview={preview} previewError={previewError} previewPath={previewPath} t={t} onOpenPage={onOpenPage} />
             )}
           </article>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -10,10 +10,30 @@ import {
   type WikiSection,
 } from "./WikiModel";
 
-export function WikiStructuredPreview({ detail, context }: { detail: PageDetail; context: AppContext }) {
+export function WikiStructuredPreview({
+  detail,
+  context,
+  highlightTerm,
+  onHighlightTerm,
+}: {
+  detail: PageDetail;
+  context: AppContext;
+  highlightTerm?: string | null;
+  onHighlightTerm?: (term: string) => void;
+}) {
   const sections = extractWikiSections(detail.content);
   if (!sections.length) {
-    return <AsyncMarkdownPreview content={detail.content} className="wiki-markdown-preview" stripFrontmatter onOpenWikiPage={context.openWikiPage} vaultPath={context.vaultPath} />;
+    return (
+      <AsyncMarkdownPreview
+        content={detail.content}
+        className="wiki-markdown-preview"
+        stripFrontmatter
+        onOpenWikiPage={context.openWikiPage}
+        vaultPath={context.vaultPath}
+        highlightTerm={highlightTerm}
+        onHighlightTerm={onHighlightTerm}
+      />
+    );
   }
   const ordered = orderWikiSections(sections);
   return (
@@ -23,14 +43,24 @@ export function WikiStructuredPreview({ detail, context }: { detail: PageDetail;
           <div className="wiki-structure-heading">
             <span>{wikiSectionLabel(section.key, section.title, context.language)}</span>
           </div>
-          <WikiSectionContent section={section} context={context} />
+          <WikiSectionContent section={section} context={context} highlightTerm={highlightTerm} onHighlightTerm={onHighlightTerm} />
         </section>
       ))}
     </div>
   );
 }
 
-function WikiSectionContent({ section, context }: { section: WikiSection; context: AppContext }) {
+function WikiSectionContent({
+  section,
+  context,
+  highlightTerm,
+  onHighlightTerm,
+}: {
+  section: WikiSection;
+  context: AppContext;
+  highlightTerm?: string | null;
+  onHighlightTerm?: (term: string) => void;
+}) {
   if (section.key === "relations" || section.key === "evidence" || section.key === "attachments") {
     const table = parseMarkdownTable(section.content);
     if (table) {
@@ -62,6 +92,8 @@ function WikiSectionContent({ section, context }: { section: WikiSection; contex
       className="wiki-markdown-preview wiki-section-markdown"
       onOpenWikiPage={context.openWikiPage}
       vaultPath={context.vaultPath}
+      highlightTerm={highlightTerm}
+      onHighlightTerm={onHighlightTerm}
     />
   );
 }

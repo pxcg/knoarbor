@@ -1,6 +1,7 @@
 import type { AppContext } from "../appContext";
 import { LineIcon } from "../components/LineIcon";
-import { RunFlowGuide } from "../components/runs/RunPanels";
+import { InlineHelp } from "../components/InlineHelp";
+import { ActiveRunsPanel } from "../components/runs/RunPanels";
 import { sourceTitle } from "../sourceCatalog";
 import { LatestWorkflowReport } from "./run/LatestWorkflowReport";
 import { useRunLauncher } from "./run/useRunLauncher";
@@ -8,63 +9,63 @@ import { useRunLauncher } from "./run/useRunLauncher";
 type Props = {
   context: AppContext;
   embedded?: boolean;
-  mode?: "both" | "ingest" | "lint";
-  showFlowGuide?: boolean;
+  mode: "ingest" | "lint";
 };
 
-export function RunPage({ context, embedded = false, mode = "both", showFlowGuide }: Props) {
+export function RunPage({ context, embedded = false, mode }: Props) {
   const launcher = useRunLauncher(context, mode);
-  const isSingleMode = mode !== "both";
-  const shouldShowFlowGuide = showFlowGuide ?? (!embedded && mode === "both");
-  const usesFileInput = launcher.inputScope === "file";
-  const usesFolderInput = launcher.inputScope === "folder";
-  const usesConfiguredSource = !usesFileInput && !usesFolderInput;
-  const configuredInputScope = usesConfiguredSource ? launcher.inputScope : "enabled";
+  const usesFileInput = launcher.localInputKind === "file";
+  const usesFolderInput = launcher.localInputKind === "folder";
+  const configuredInputScope = launcher.configuredInputScope;
+  const canRunLocalInput = launcher.configReady && (
+    (usesFileInput && Boolean(launcher.inputFilePath.trim())) ||
+    (usesFolderInput && Boolean(launcher.inputFolderPath.trim()))
+  );
+  const canRunConfiguredInput = launcher.configReady && (
+    Boolean(configuredInputScope) && (configuredInputScope !== "knoarbor_chat" || Boolean(launcher.selectedChatSessionId))
+  );
 
   return (
     <section className={embedded ? "embedded-section" : "view active"}>
-      {shouldShowFlowGuide && <RunFlowGuide context={context} mode={mode} />}
-
-      <div className={`panel-grid ${isSingleMode ? "single-run-grid" : ""}`}>
+      <div className="panel-grid single-run-grid">
         {mode !== "lint" && <article className="panel run-card">
           <div className="panel-header">
             <div>
-              <h2>{context.t("ingestTitle")}</h2>
-              <p className="panel-copy">{context.t("ingestSubtitle")}</p>
+              <h2>
+                {context.t("ingestTitle")}
+                <InlineHelp text={context.t("ingestSubtitle")} />
+              </h2>
             </div>
-            <button
-              className="button primary"
-              disabled={
-                !launcher.configReady ||
-                (launcher.inputScope === "file" && !launcher.inputFilePath.trim()) ||
-                (launcher.inputScope === "folder" && !launcher.inputFolderPath.trim()) ||
-                (launcher.inputScope === "knoarbor_chat" && !launcher.selectedChatSessionId)
-              }
-              onClick={launcher.startIngest}
-            >
-              {context.t("runIngest")}
-            </button>
           </div>
           <div className="import-source-cards">
-            <section className={`import-source-card ${usesFileInput || usesFolderInput ? "active" : ""}`}>
-              <div className="import-source-card-heading">
-                <span className="import-source-icon">
-                  <LineIcon name="wiki" />
-                </span>
-                <div>
-                  <strong>{context.t("importLocalFilesTitle")}</strong>
-                  <p className="panel-copy">{context.t("importLocalFilesCopy")}</p>
+            <section className="import-source-card">
+              <div className="import-source-card-top">
+                <div className="import-source-card-heading">
+                  <span className="import-source-icon">
+                    <LineIcon name="wiki" />
+                  </span>
+                  <div>
+                    <strong>
+                      {context.t("importLocalFilesTitle")}
+                      <InlineHelp text={context.t("importLocalFilesCopy")} />
+                    </strong>
+                  </div>
                 </div>
+                <button
+                  className="button primary import-card-run"
+                  type="button"
+                  disabled={!canRunLocalInput}
+                  onClick={() => launcher.startIngest(usesFolderInput ? "folder" : "file")}
+                >
+                  {context.t("runIngest")}
+                </button>
               </div>
               <div className="import-primary-actions">
                 {launcher.canSelectFile && (
                   <button
                     className={`button ${usesFileInput ? "primary" : "secondary"}`}
                     type="button"
-                    onClick={() => {
-                      launcher.setInputScope("file");
-                      void launcher.chooseInputFile();
-                    }}
+                    onClick={() => launcher.setLocalInputKind("file")}
                   >
                     {context.t("chooseInputFile")}
                   </button>
@@ -73,11 +74,8 @@ export function RunPage({ context, embedded = false, mode = "both", showFlowGuid
                   <button
                     className={`button ${usesFolderInput ? "primary" : "secondary"}`}
                     type="button"
-                    onClick={() => {
-                      launcher.setInputScope("folder");
-                      void launcher.chooseInputFolder();
-                  }}
-                >
+                    onClick={() => launcher.setLocalInputKind("folder")}
+                  >
                     {context.t("chooseInputFolder")}
                   </button>
                 )}
@@ -110,89 +108,97 @@ export function RunPage({ context, embedded = false, mode = "both", showFlowGuid
               )}
             </section>
 
-            <section className={`import-source-card ${usesConfiguredSource ? "active" : ""}`}>
-              <div className="import-source-card-heading">
-                <span className="import-source-icon">
-                  <LineIcon name="sources" />
-                </span>
-                <div>
-                  <strong>{context.t("importConfiguredSourcesTitle")}</strong>
-                  <p className="panel-copy">{context.t("importConfiguredSourcesCopy")}</p>
+            <section className="import-source-card">
+              <div className="import-source-card-top">
+                <div className="import-source-card-heading">
+                  <span className="import-source-icon">
+                    <LineIcon name="sources" />
+                  </span>
+                  <div>
+                    <strong>
+                      {context.t("importConfiguredSourcesTitle")}
+                      <InlineHelp text={context.t("importConfiguredSourcesCopy")} />
+                    </strong>
+                  </div>
                 </div>
+                <button
+                  className="button primary import-card-run"
+                  type="button"
+                  disabled={!canRunConfiguredInput}
+                  onClick={() => launcher.startIngest(configuredInputScope)}
+                >
+                  {context.t("runIngest")}
+                </button>
               </div>
               <label className="field compact-field">
                 <span>{context.t("inputsToRun")}</span>
-                <select value={configuredInputScope} onFocus={() => launcher.setInputScope(configuredInputScope)} onChange={(event) => launcher.setInputScope(event.target.value)}>
-                  <option value="enabled">{context.t("enabledConnectors")}</option>
-                  <option value="knoarbor_chat">{context.t("knoarborChatConnector")}</option>
-                  {launcher.connectorOptions.map((connector) => (
-                    <option value={connector.name} key={connector.name}>
-                      {sourceTitle(connector.name, context.t)}
+                <select value={configuredInputScope} onChange={(event) => launcher.setConfiguredInputScope(event.target.value)} disabled={!launcher.configuredInputOptions.length}>
+                  {launcher.configuredInputOptions.length ? launcher.configuredInputOptions.map((option) => (
+                    <option value={option.name} key={option.name}>
+                      {option.name === "knoarbor_chat" ? option.title : sourceTitle(option.name, context.t)}
                     </option>
-                  ))}
-                  <option value="custom">{context.t("customConnectorList")}</option>
+                  )) : (
+                    <option value="">{context.t("noConfiguredChatSources")}</option>
+                  )}
                 </select>
               </label>
+              {configuredInputScope === "knoarbor_chat" && (
+                <label className="field compact-field">
+                  <span>{context.t("selectChatSession")}</span>
+                  <select
+                    value={launcher.selectedChatSessionId}
+                    onChange={(event) => launcher.setSelectedChatSessionId(event.target.value)}
+                    disabled={launcher.chatSessionsLoading || !launcher.chatSessions.length}
+                  >
+                    {launcher.chatSessions.length ? launcher.chatSessions.map((session) => (
+                      <option value={session.session_id} key={session.session_id}>
+                        {session.title || session.session_id}
+                      </option>
+                    )) : (
+                      <option value="">{context.t("noChatSessionsToIngest")}</option>
+                    )}
+                  </select>
+                </label>
+              )}
             </section>
           </div>
-          {launcher.inputScope === "knoarbor_chat" && (
-            <label className="field">
-              <span>{context.t("selectChatSession")}</span>
-              <select
-                value={launcher.selectedChatSessionId}
-                onChange={(event) => launcher.setSelectedChatSessionId(event.target.value)}
-                disabled={launcher.chatSessionsLoading || !launcher.chatSessions.length}
-              >
-                {launcher.chatSessions.length ? launcher.chatSessions.map((session) => (
-                  <option value={session.session_id} key={session.session_id}>
-                    {session.title || session.session_id}
-                  </option>
-                )) : (
-                  <option value="">{context.t("noChatSessionsToIngest")}</option>
-                )}
-              </select>
-              <small>{context.t("knoarborChatInputHint")}</small>
-            </label>
-          )}
-          {launcher.inputScope === "custom" && (
-            <label className="field">
-              <span>{context.t("connectorNames")}</span>
-              <input value={launcher.connectors} onChange={(event) => launcher.setConnectors(event.target.value)} placeholder={context.t("connectorNamesPlaceholder")} />
-            </label>
-          )}
           <p className="panel-copy">{context.t("runIngestCopy")}</p>
         </article>}
 
         {mode !== "ingest" && <article className="panel run-card">
           <div className="panel-header">
             <div>
-              <h2>{context.t("lintTitle")}</h2>
-              <p className="panel-copy">{context.t("lintSubtitle")}</p>
+              <h2>
+                {context.t("lintTitle")}
+                <InlineHelp text={context.t("lintSubtitle")} />
+              </h2>
             </div>
             <button className="button primary" disabled={!launcher.configReady} onClick={launcher.startLint}>
               {context.t("runLint")}
             </button>
           </div>
-          <label className="field">
-            <span>{context.t("mode")}</span>
-            <select value={launcher.lintMode} onChange={(event) => launcher.setLintMode(event.target.value)}>
-              <option value="deterministic">{context.t("structuredMaintenance")}</option>
-              <option value="semantic">{context.t("semanticMaintenance")}</option>
-            </select>
-          </label>
+          <div className="lint-mode-picker" role="radiogroup" aria-label={context.t("mode")}>
+            {[
+              { value: "deterministic", label: context.t("structuredMaintenance") },
+              { value: "semantic", label: context.t("semanticMaintenance") },
+            ].map((item) => (
+              <button
+                aria-checked={launcher.lintMode === item.value}
+                className={`lint-mode-option ${launcher.lintMode === item.value ? "active" : ""}`}
+                key={item.value}
+                onClick={() => launcher.setLintMode(item.value)}
+                role="radio"
+                type="button"
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
           {!launcher.configReady && <p className="panel-copy warning">{context.t("configRequired")}</p>}
         </article>}
       </div>
 
-      <article className="panel">
-        <div className="panel-header">
-          <h2>{context.t("runOutput")}</h2>
-          <button className="button secondary" onClick={() => launcher.setRunOutput(context.t("noRunYet"))}>
-            {context.t("clear")}
-          </button>
-        </div>
-        <pre className={`output ${launcher.runOutput === context.t("noRunYet") ? "output-idle" : ""}`}>{launcher.runOutput}</pre>
-      </article>
+      <ActiveRunsPanel context={context} flow={mode} includeRecoverable={mode === "ingest"} />
       <LatestWorkflowReport context={context} mode={mode} />
     </section>
   );

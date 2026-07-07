@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { type GraphEdge, type GraphNode, type GraphResponse } from "../api/client";
 import { MetricCard } from "../components/MetricCard";
+import { InlineHelp } from "../components/InlineHelp";
 import type { AppContext } from "../appContext";
 import { buildGraphElements, filterVisibleGraph, mapEdgesByNodeId, mapNodesById, nodeColors } from "./graph/GraphModel";
 import { GraphNodeDetail } from "./graph/GraphNodeDetail";
@@ -165,18 +166,20 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
   return (
     <section className={embedded ? "embedded-section" : "view active"}>
       <div className="graph-metrics">
-        <MetricCard label={t("pages")} value={graphData.stats.page_count} hint={t("maintainedPages")} />
-        <MetricCard label={t("graphEdges")} value={graphData.stats.edge_count} hint={t("resolvedWikilinks")} />
-        <MetricCard label={t("orphans")} value={graphData.stats.orphan_count} hint={t("orphanHint")} />
-        <MetricCard label={t("unresolvedLinks")} value={graphData.stats.unresolved_link_count} hint={t("unresolvedHint")} />
+        <MetricCard label={t("pages")} value={graphData.stats.page_count} />
+        <MetricCard label={t("graphEdges")} value={graphData.stats.edge_count} />
+        <MetricCard label={t("orphans")} value={graphData.stats.orphan_count} />
+        <MetricCard label={t("unresolvedLinks")} value={graphData.stats.unresolved_link_count} />
       </div>
 
       <div className="panel-grid graph-workspace">
         <article className="panel graph-panel">
           <div className="panel-header">
             <div>
-              <h2>{t("pageLinkGraph")}</h2>
-              <p className="panel-copy">{t("pageGraphSubtitle")}</p>
+              <h2>
+                {t("pageLinkGraph")}
+                <InlineHelp text={t("pageGraphSubtitle")} />
+              </h2>
             </div>
             <div className="graph-toolbar">
               <label className="field graph-toolbar-search">

@@ -11,38 +11,32 @@ export function ModelProbeResultPanel({
   activeModel?: string;
   onSelectModel?: (model: string) => void;
 }) {
-  if (!result?.discovery && !result?.probe) {
+  if (!result?.discovery) {
     return <p className="settings-action-note">{t("modelProbeEmpty")}</p>;
   }
   const discovery = result.discovery;
-  const probe = result.probe;
   const modelIds = discovery?.model_ids || [];
   return (
     <section className="model-probe-panel">
       <div className="model-probe-header">
         <h3>{t("modelProbeResult")}</h3>
-        <span className={`pill ${probe?.status === "ok" || discovery?.status === "ok" ? "success" : probe?.status === "error" || discovery?.status === "error" ? "danger" : ""}`}>
-          {probe?.status || discovery?.status || t("unknown")}
+        <span className={`pill ${discovery?.status === "ok" ? "success" : discovery?.status === "error" ? "danger" : ""}`}>
+          {discovery?.status || t("unknown")}
         </span>
       </div>
-      <p className="settings-action-note">{t("modelProbeResultCopy")}</p>
-      <p className="panel-copy">{probe?.message || discovery?.message}</p>
+      <p className="panel-copy">{discovery?.message}</p>
       <dl className="model-probe-grid">
         <div>
           <dt>{t("detectedContextWindow")}</dt>
-          <dd>{formatMaybeNumber(probe?.detected_context_window ?? discovery?.detected_context_window, t)}</dd>
+          <dd>{formatMaybeNumber(discovery?.detected_context_window, t)}</dd>
         </div>
         <div>
           <dt>{t("effectiveContextWindow")}</dt>
-          <dd>{formatMaybeNumber(probe?.effective_context_window ?? discovery?.effective_context_window, t)}</dd>
+          <dd>{formatMaybeNumber(discovery?.effective_context_window, t)}</dd>
         </div>
         <div>
           <dt>{t("modelCount")}</dt>
           <dd>{formatMaybeNumber(discovery?.model_count, t)}</dd>
-        </div>
-        <div>
-          <dt>{t("latency")}</dt>
-          <dd>{probe?.latency_ms ? `${probe.latency_ms} ms` : t("notAvailable")}</dd>
         </div>
       </dl>
       {discovery?.configured_model_found === false && activeModel && <p className="settings-action-note warning">{t("configuredModelMissing")}</p>}

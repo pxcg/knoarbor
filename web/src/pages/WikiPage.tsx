@@ -22,6 +22,7 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [deleteConfirming, setDeleteConfirming] = useState(false);
+  const [highlightTerm, setHighlightTerm] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
   const vaultId = context.activeVaultId || "default";
@@ -68,7 +69,14 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
   }, [focusedPagePath]);
 
   useEffect(() => {
+    if (!highlightTerm) return;
+    const timer = window.setTimeout(() => setHighlightTerm(null), 3200);
+    return () => window.clearTimeout(timer);
+  }, [highlightTerm]);
+
+  useEffect(() => {
     setSelectedDetail(null);
+    setHighlightTerm(null);
     if (!focusedPagePath) setSelectedPath(null);
   }, [context.activeVaultId, focusedPagePath]);
 
@@ -151,7 +159,12 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
           {loading && <LoadingBlock title={context.t("wikiPageLoading")} copy={context.t("wikiPageLoadingCopy")} />}
           {!loading && selectedDetail ? (
             <>
-              <WikiStructuredPreview detail={selectedDetail} context={context} />
+              <WikiStructuredPreview
+                detail={selectedDetail}
+                context={context}
+                highlightTerm={highlightTerm}
+                onHighlightTerm={setHighlightTerm}
+              />
               <RelatedPagesSection title={context.t("relatedWikiPages")} pages={relatedPages} onOpen={context.openWikiPage} emptyText={context.t("none")} />
             </>
           ) : null}

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 
-import { canSelectDesktopDirectory, selectDesktopDirectory } from "../../desktop/desktopBridge";
+import { canSelectDesktopDirectory, canSelectDesktopFile, selectDesktopDirectory, selectDesktopFile } from "../../desktop/desktopBridge";
 
 export function PresetMenu({
   ariaLabel,
@@ -79,6 +79,7 @@ export function PathField({
   placeholder,
   ariaLabel,
   selectDirectoryTitle,
+  selectFileTitle,
   t,
 }: {
   label: string;
@@ -88,13 +89,22 @@ export function PathField({
   placeholder?: string;
   ariaLabel?: string;
   selectDirectoryTitle?: string;
+  selectFileTitle?: string;
   t?: (key: string) => string;
 }) {
   const canSelectDirectory = Boolean(canSelectDesktopDirectory() && selectDirectoryTitle);
+  const canSelectFile = Boolean(canSelectDesktopFile() && selectFileTitle);
   const chooseDirectory = async () => {
     const result = await selectDesktopDirectory({
       defaultPath: value || placeholder,
       title: selectDirectoryTitle,
+    });
+    if (!result.canceled && result.path) onChange(result.path);
+  };
+  const chooseFile = async () => {
+    const result = await selectDesktopFile({
+      defaultPath: value || placeholder,
+      title: selectFileTitle,
     });
     if (!result.canceled && result.path) onChange(result.path);
   };
@@ -103,6 +113,11 @@ export function PathField({
       {label && <span>{label}</span>}
       <span className="desktop-path-input">
         <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-label={ariaLabel || label} />
+        {canSelectFile && (
+          <button className="button secondary path-picker-button" type="button" onClick={chooseFile}>
+            {t ? t("chooseFile") : "Choose"}
+          </button>
+        )}
         {canSelectDirectory && (
           <button className="button secondary path-picker-button" type="button" onClick={chooseDirectory}>
             {t ? t("chooseFolder") : "Choose"}

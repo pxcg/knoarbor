@@ -83,6 +83,12 @@ export function concreteVaultOptions(options: VaultOption[]): VaultOption[] {
   return options.filter((vault) => !vault.virtual);
 }
 
+export function readableVaultName(id: string, name?: string): string {
+  if (name?.trim()) return name.trim();
+  if (id === "all") return "All vaults";
+  return id || "KnoArbor";
+}
+
 export function resolveConcreteVault(options: VaultOption[], preferredId: string, summary: ConfigSummary): VaultOption {
   return resolveActiveVault(concreteVaultOptions(options), preferredId === "all" ? "" : preferredId, summary);
 }

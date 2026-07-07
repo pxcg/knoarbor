@@ -4,6 +4,7 @@ import { getQueryTrends, searchWiki } from "../api/client";
 import type { AppContext } from "../appContext";
 import type { QueryResult } from "../api/client";
 import { LoadingBlock } from "../components/LoadingBlock";
+import { InlineHelp } from "../components/InlineHelp";
 import type { VaultOption } from "../vaultRuntime";
 
 type Props = {
@@ -37,12 +38,14 @@ export function QueryPage({ context, embedded = false }: Props) {
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
+      const wikiPageDirs = pageDirsValue.length ? pageDirsValue : ["pages"];
       const response = await searchWiki(context.activeVaultSelector, query.trim(), {
         mode: "balanced",
-        page_dirs: pageDirsValue,
+        page_dirs: wikiPageDirs,
         all_vaults: activeQueryVaultId === "all",
         vault_ids: activeQueryVaultId === "all" ? [] : targetVaults.map((vault) => vault.id),
         include_content: true,
+        max_context_chars: 200000,
       });
       const nextScopedResults = (response.results || []).map((result) => ({
         vault: vaultForResult(context.vaultOptions, context.activeVaultId, context.vaultPath, result),
@@ -75,8 +78,10 @@ export function QueryPage({ context, embedded = false }: Props) {
       <article className="panel">
         <div className="panel-header">
           <div>
-            <h2>{context.t("queryTitle")}</h2>
-            <p className="panel-copy">{context.t("querySubtitle")}</p>
+            <h2>
+              {context.t("queryTitle")}
+              <InlineHelp text={context.t("querySubtitle")} />
+            </h2>
           </div>
           <button className="button primary" onClick={handleSearch} disabled={isSearching}>
             {isSearching ? context.t("querySearching") : context.t("search")}
@@ -196,8 +201,10 @@ export function QueryPage({ context, embedded = false }: Props) {
       <article className="panel">
         <div className="panel-header">
           <div>
-            <h2>{context.t("contextPack")}</h2>
-            <p className="panel-copy">{context.t("contextPackCopy")}</p>
+            <h2>
+              {context.t("contextPack")}
+              <InlineHelp text={context.t("contextPackCopy")} />
+            </h2>
           </div>
           <button className="button secondary" onClick={() => void navigator.clipboard?.writeText(context.queryContextPack || "")}>
             {context.t("copy")}

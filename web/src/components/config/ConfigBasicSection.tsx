@@ -1,9 +1,31 @@
-import type { ConfigVaultProfile } from "../../api/client";
-import { canOpenDesktopPath, canSelectDesktopDirectory, openDesktopPath, selectDesktopDirectory } from "../../desktop/desktopBridge";
-import { PathField } from "./ConfigFormControls";
+import { useState } from "react";
+
+import type { AppNotice } from "../../appContext";
+import type { ConfigForm, ConfigVaultProfile } from "../../api/client";
+import { canDeleteDesktopDirectory, canOpenDesktopPath, canSelectDesktopDirectory, deleteDesktopDirectory, openDesktopPath, selectDesktopDirectory } from "../../desktop/desktopBridge";
+import { productIdentity } from "../../product";
+import { readableVaultName } from "../../vaultRuntime";
 import type { SectionProps } from "./ConfigSectionTypes";
 
-export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
+type ConfigBasicSectionProps = SectionProps & {
+  onCommit: (nextForm: ConfigForm) => Promise<void>;
+  onError: (notice: AppNotice | null) => void;
+};
+
+export function ConfigBasicSection({ form, setForm, t, onCommit, onError }: ConfigBasicSectionProps) {
+  const [deletingVaultIndex, setDeletingVaultIndex] = useState<number | null>(null);
+
+  async function commit(nextForm: ConfigForm) {
+    const previousForm = form;
+    setForm(nextForm);
+    try {
+      await onCommit(nextForm);
+    } catch (error) {
+      setForm(previousForm);
+      onError({ message: error instanceof Error ? error.message : String(error), error: true });
+    }
+  }
+
   async function createNewVaultDraft() {
     if (!canSelectDesktopDirectory()) {
       window.alert(t("desktopDirectoryPickerUnavailable"));
@@ -20,7 +42,7 @@ export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
     const name = uniqueVaultName(vaults, baseName);
     const id = uniqueVaultId(vaults, slugifyVaultId(name || baseName));
     const path = result.path;
-    setForm({
+    await commit({
       ...form,
       project_name: name,
       vault_path: path,
@@ -34,25 +56,57 @@ export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
     syncVaults(vaults);
   }
 
-  function activateVault(index: number) {
-    const vaults = normalizedVaults(form).map((vault, candidateIndex) => ({ ...vault, active: candidateIndex === index }));
-    syncVaults(vaults);
-  }
+  async function removeVault(index: number) {
+    const vaults = normalizedVaults(form);
+    const target = vaults[index];
+    if (!target || vaults.length <= 1 || deletingVaultIndex !== null) return;
+    if (!canDeleteDesktopDirectory()) {
+      onError({ message: t("desktopDirectoryDeleteUnavailable"), error: true });
+      return;
+    }
+    const confirmed = window.confirm(t("removeVaultConfirm").replace("{name}", target.name).replace("{path}", target.path));
+    if (!confirmed) return;
 
-  function removeVault(index: number) {
-    const vaults = normalizedVaults(form).filter((_, candidateIndex) => candidateIndex !== index);
-    syncVaults(vaults.length ? vaults : [{ id: "default", name: "My Knowledge Base", path: "./vaults/default", active: true }]);
+    const nextVaults = vaults.filter((_, candidateIndex) => candidateIndex !== index);
+    const previousForm = form;
+    const nextForm = syncedVaultForm(nextVaults);
+    setDeletingVaultIndex(index);
+    setForm(nextForm);
+    try {
+      await onCommit(nextForm);
+      const result = await deleteDesktopDirectory(target.path);
+      if (!result.deleted) throw new Error(result.error || t("removeVaultDeleteFailed"));
+      onError({ message: t("removeVaultDeleted").replace("{name}", target.name) });
+    } catch (error) {
+      setForm(previousForm);
+      try {
+        await onCommit(previousForm);
+      } catch {
+        // Keep the original deletion error visible; the user can reopen settings to reload persisted state.
+      }
+      onError({ message: error instanceof Error ? error.message : String(error), error: true });
+    } finally {
+      setDeletingVaultIndex(null);
+    }
   }
 
   function syncVaults(vaults: ConfigVaultProfile[]) {
+    setForm(syncedVaultForm(vaults));
+  }
+
+  function commitCurrentForm() {
+    void commit(form);
+  }
+
+  function syncedVaultForm(vaults: ConfigVaultProfile[]): ConfigForm {
     const active = vaults.find((vault) => vault.active) || vaults[0];
-    setForm({
+    return {
       ...form,
       project_name: active.name,
       vault_path: active.path,
       vault_id: active.id,
       vaults: vaults.map((vault) => ({ ...vault, active: vault.id === active.id })),
-    });
+    };
   }
 
   return (
@@ -69,31 +123,22 @@ export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
       <div className="vault-profile-list" id="settings-basic">
         {normalizedVaults(form).map((vault, index) => (
           <div className={`vault-profile-row ${vault.active ? "active" : ""}`} key={`${vault.id}-${index}`}>
-            <label className="radio-field">
-              <input type="radio" checked={vault.active} onChange={() => activateVault(index)} />
-              <span>{t("activeVault")}</span>
-            </label>
-            <label className="field compact-field">
+            <label className="field compact-field vault-name-field">
               <span>{t("projectName")}</span>
-              <input value={vault.name} onChange={(event) => updateVault(index, { name: event.target.value })} placeholder={t("projectNamePlaceholder")} />
+              <input value={vault.name} onBlur={commitCurrentForm} onChange={(event) => updateVault(index, { name: event.target.value })} placeholder={t("projectNamePlaceholder")} />
             </label>
-            <PathField
-              className="compact-field vault-path-field"
-              label={t("vaultPath")}
-              value={vault.path}
-              onChange={(value) => updateVault(index, { path: value })}
-              placeholder="./vaults/default"
-              selectDirectoryTitle={t("chooseVaultFolder")}
-              t={t}
-            />
+            <label className="field compact-field vault-path-field">
+              <span>{t("vaultPath")}</span>
+              <input value={vault.path} onBlur={commitCurrentForm} onChange={(event) => updateVault(index, { path: event.target.value })} placeholder="./vaults/default" />
+            </label>
             <div className="vault-profile-actions">
               {canOpenDesktopPath() && (
                 <button className="button secondary vault-open-button" type="button" onClick={() => void openVaultFolder(vault.path)}>
                   {t("openVaultFolder")}
                 </button>
               )}
-              <button className="icon-button" type="button" onClick={() => removeVault(index)} aria-label={t("removeVault")} disabled={normalizedVaults(form).length <= 1}>
-                ×
+              <button className="icon-button vault-remove-button" type="button" onClick={() => void removeVault(index)} aria-label={t("removeVault")} disabled={normalizedVaults(form).length <= 1 || deletingVaultIndex !== null}>
+                {deletingVaultIndex === index ? "…" : "×"}
               </button>
             </div>
           </div>
@@ -106,9 +151,13 @@ export function ConfigBasicSection({ form, setForm, t }: SectionProps) {
 function normalizedVaults(form: SectionProps["form"]): ConfigVaultProfile[] {
   const vaults = form.vaults?.length
     ? form.vaults
-    : [{ id: form.vault_id || "default", name: form.project_name || "My Knowledge Base", path: form.vault_path || "./vaults/default", active: true }];
+    : [{ id: form.vault_id || "default", name: form.project_name || productIdentity.defaultVaultName, path: form.vault_path || "./vaults/default", active: true }];
   const activeId = form.vault_id || vaults.find((vault) => vault.active)?.id || vaults[0]?.id;
-  return vaults.map((vault) => ({ ...vault, active: vault.id === activeId || Boolean(vault.active && !activeId) }));
+  return vaults.map((vault) => ({
+    ...vault,
+    name: readableVaultName(vault.id, vault.name),
+    active: vault.id === activeId || Boolean(vault.active && !activeId),
+  }));
 }
 
 function vaultNameFromPath(path: string): string {

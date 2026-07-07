@@ -1,6 +1,6 @@
 import { PagePathLinks } from "../PagePathLinks";
 import { localizeReportValue } from "../reportLabels";
-import { extractWikiPagePaths } from "./reportParser";
+import { extractWikiPagePaths, isWikiPagePath } from "./reportParser";
 import {
   localizeCandidateKind,
   localizeDecision,
@@ -16,7 +16,7 @@ export function ReportValue({ value, t, onOpenPage }: { value: string; t: (key: 
   const structured = structuredReportValue(value, t, onOpenPage);
   if (structured) return structured;
   const localized = localizeReportValue(value, t);
-  const paths = extractWikiPagePaths(value);
+  const paths = extractWikiPagePaths(value).filter(isWikiPagePath);
   if (!paths.length) return <>{localized}</>;
   return (
     <>

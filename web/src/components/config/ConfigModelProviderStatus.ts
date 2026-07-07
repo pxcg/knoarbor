@@ -49,18 +49,27 @@ export function providerRuntimeStatus(provider: ConfigFormProvider, result: Mode
   }
 
   const hasMinimumConfig = Boolean(provider.name && provider.model && provider.base_url);
+  if (hasMinimumConfig) {
+    return {
+      tone: "ok",
+      dotClass: "online",
+      label: t("modelConfigured"),
+      detail: `${provider.model} · ${t("modelConfiguredUnchecked")}`,
+      checked: true,
+    };
+  }
+
   return {
-    tone: hasMinimumConfig ? "unknown" : "warning",
-    dotClass: hasMinimumConfig ? "neutral" : "warning",
+    tone: "warning",
+    dotClass: "warning",
     label: t("modelNotChecked"),
-    detail: hasMinimumConfig ? `${provider.model} · ${t("modelNotCheckedCopy")}` : t("providerMissingRequiredFields"),
+    detail: t("providerMissingRequiredFields"),
     checked: false,
   };
 }
 
 function currentModelProbeResult(provider: ConfigFormProvider, result: ModelProviderProbeState | undefined) {
   if (!result) return undefined;
-  if (result.probe?.model === provider.model) return result.probe;
   const discoveryModels = result.discovery?.model_ids || [];
   if (result.discovery && (!provider.model || discoveryModels.includes(provider.model))) return result.discovery;
   return undefined;

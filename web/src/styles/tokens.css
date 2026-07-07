@@ -223,17 +223,15 @@
   font-weight: 700;
 }
 
-.token-detail-panel summary {
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 750;
-}
-
 .token-detail-grid {
   display: grid;
   gap: 14px;
-  margin-top: 14px;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
+}
+
+.token-detail-grid > .panel {
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 1180px) {
@@ -259,7 +257,8 @@
   }
 
   .token-metric-grid,
-  .token-page .two-column-grid {
+  .token-page .two-column-grid,
+  .token-detail-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }

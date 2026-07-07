@@ -24,6 +24,13 @@
   background: #f0fdfa;
 }
 
+.import-source-card-top {
+  align-items: flex-start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .import-source-card-heading {
   align-items: flex-start;
   display: flex;
@@ -84,7 +91,6 @@
 }
 
 .import-card-run {
-  justify-self: end;
   min-height: 36px;
   padding: 8px 14px;
 }
@@ -95,23 +101,28 @@
   border-radius: 10px;
   display: inline-grid;
   gap: 6px;
-  grid-template-columns: repeat(2, minmax(128px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   padding: 5px;
-  width: min(360px, 100%);
+  width: min(300px, 100%);
 }
 
 .lint-mode-option {
+  appearance: none;
+  align-items: center;
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: var(--muted-strong);
   cursor: pointer;
+  display: inline-flex;
   font-family: inherit;
-  font-size: 14px;
-  font-weight: 720;
-  line-height: 1.2;
-  min-height: 40px;
-  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  justify-content: center;
+  line-height: 1;
+  min-height: 36px;
+  padding: 0 12px;
+  white-space: nowrap;
 }
 
 .lint-mode-option:hover {
@@ -180,6 +191,20 @@
 
   .vault-profile-row {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .import-source-card-top {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .import-source-card-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .import-card-run {
+    justify-self: start;
   }
 
   .settings-card-grid,
@@ -655,7 +680,7 @@
 .run-monitor-content {
   display: grid;
   gap: 14px;
-  grid-template-columns: minmax(0, 1.8fr) minmax(260px, 0.75fr);
+  grid-template-columns: minmax(0, 1fr);
   padding: 0 14px 14px;
 }
 
@@ -865,9 +890,20 @@
   justify-content: flex-start;
 }
 
+.button.danger-outline {
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.button.danger-outline:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
 .run-monitor-sidebar {
   align-content: start;
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   min-width: 0;
 }

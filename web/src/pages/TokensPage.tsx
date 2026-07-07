@@ -131,19 +131,16 @@ export function TokensPage({ context }: Props) {
         </article>
       </section>
 
-      <details className="panel token-detail-panel">
-        <summary>{context.t("tokenAdvancedDetails")}</summary>
-        <div className="token-detail-grid">
-          <PayloadFieldTable context={context} rows={analysis.by_payload_field || []} />
-          <TokenTable context={context} title={context.t("tokenRecentRuns")} rows={analysis.recent_runs} compact />
-          <article className="panel">
-            <div className="section-heading">
-              <h2>{context.t("tokenTopCalls")}</h2>
-            </div>
-            <TopCallsTable context={context} rows={analysis.top_calls} />
-          </article>
-        </div>
-      </details>
+      <section className="token-detail-grid">
+        <PayloadFieldTable context={context} rows={analysis.by_payload_field || []} />
+        <TokenTable context={context} title={context.t("tokenRecentRuns")} rows={analysis.recent_runs} compact />
+        <article className="panel">
+          <div className="section-heading">
+            <h2>{context.t("tokenTopCalls")}</h2>
+          </div>
+          <TopCallsTable context={context} rows={analysis.top_calls} />
+        </article>
+      </section>
     </section>
   );
 }

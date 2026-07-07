@@ -119,7 +119,8 @@ function buildNextSteps(context: AppContext): NextStep[] {
   };
 
   if (context.activeRuns.length > 0) {
-    add({ view: "runs", titleKey: "nextStepRunningTitle", copyKey: "nextStepRunningCopy", icon: "runs", tone: "emerald" });
+    const activeFlow = context.activeRuns[0]?.flow === "lint" ? "lint" : "ingest";
+    add({ view: activeFlow, titleKey: "nextStepRunningTitle", copyKey: "nextStepRunningCopy", icon: "runs", tone: "emerald" });
   }
   if (context.doctorReport?.status === "error" || context.doctorReport?.status === "warning" || context.serviceOnline === false) {
     add({ view: "settings", titleKey: "nextStepConfigTitle", copyKey: "nextStepConfigCopy", icon: "settings", tone: "amber" });

@@ -17,19 +17,10 @@ export function GraphNodeDetail({
   return (
     <div className="node-detail">
       <h3>{node.title}</h3>
-      <div className="result-meta">
-        {node.id} · {t("wikiPages")}
-      </div>
       <p>{node.summary || t("noSummary")}</p>
       <div className="tag-list">
         {node.entities.length ? node.entities.map((entity) => <span key={entity}>{entity}</span>) : <em>{t("noEntities")}</em>}
       </div>
-      <dl className="mini-detail">
-        <div>
-          <dt>{t("pageRole")}</dt>
-          <dd>{t("wikiPages")}</dd>
-        </div>
-      </dl>
       {edges.length > 0 && (
         <div className="mini-section">
           <h4>{t("relations")}</h4>

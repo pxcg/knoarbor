@@ -7,6 +7,7 @@ export const queryKeys = {
   configDiagnostics: (configPath?: string | null) => ["config-diagnostics", configPath || "default"] as const,
   modelProvidersRoot: ["models", "providers"] as const,
   modelProviders: (configPath?: string | null) => ["models", "providers", configPath || "default"] as const,
+  sourceCatalogRoot: ["sources", "catalog"] as const,
   vaults: (configPath?: string | null) => ["vaults", configPath || "default"] as const,
   doctor: (configPath?: string | null) => ["doctor", configPath || "default", "light"] as const,
   sourceCatalog: (configPath?: string | null) => ["sources", "catalog", configPath || "default"] as const,

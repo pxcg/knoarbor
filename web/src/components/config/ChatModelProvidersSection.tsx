@@ -1,7 +1,8 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 
+import type { AppNotice } from "../../appContext";
 import type { ConfigForm, ConfigFormProvider, ModelProviderProbeState } from "../../api/client";
-import { NumberField, PathField, PresetMenu } from "./ConfigFormControls";
+import { PathField, PresetMenu } from "./ConfigFormControls";
 import { ModelProbeResultPanel } from "./ConfigModelProbeResultPanel";
 import { PROVIDER_PRESETS } from "./ConfigModelProviderPresets";
 import { providerRuntimeStatus } from "./ConfigModelProviderStatus";
@@ -14,18 +15,43 @@ type ChatModelProvidersSectionProps = {
   probeResults: Record<string, ModelProviderProbeState>;
   pendingAction: string | null;
   onDiscover: (provider: string) => void;
-  onProbe: (provider: string) => void;
+  onCommit: (nextForm: ConfigForm) => Promise<void>;
+  onError: (notice: AppNotice | null) => void;
 };
 
-export function ChatModelProvidersSection({ form, setForm, t, probeResults, pendingAction, onDiscover, onProbe }: ChatModelProvidersSectionProps) {
+export function ChatModelProvidersSection({ form, setForm, t, probeResults, pendingAction, onDiscover, onCommit, onError }: ChatModelProvidersSectionProps) {
   const [activeProvider, setActiveProvider] = useState(0);
   const [providerPreset, setProviderPreset] = useState(PROVIDER_PRESETS[0].name);
+
+  async function commit(nextForm: ConfigForm) {
+    const previousForm = form;
+    setForm(nextForm);
+    try {
+      await onCommit(nextForm);
+    } catch (error) {
+      setForm(previousForm);
+      onError({ message: error instanceof Error ? error.message : String(error), error: true });
+    }
+  }
 
   function updateProvider(index: number, patch: Partial<ConfigFormProvider>) {
     setForm({
       ...form,
       providers: form.providers.map((provider, current) => (current === index ? { ...provider, ...patch } : provider)),
     });
+  }
+
+  function providerPatchForm(index: number, patch: Partial<ConfigFormProvider>): ConfigForm {
+    const nextProviders = form.providers.map((provider, current) => (current === index ? { ...provider, ...patch } : provider));
+    return {
+      ...form,
+      providers: nextProviders,
+      default_provider: form.default_provider || nextProviders[index]?.name || "",
+    };
+  }
+
+  function selectDiscoveredModel(index: number, model: string) {
+    void commit(providerPatchForm(index, { model }));
   }
 
   function addProvider() {
@@ -139,14 +165,14 @@ export function ChatModelProvidersSection({ form, setForm, t, probeResults, pend
                 value={active.api_key_value || ""}
                 onChange={(value) => updateProvider(activeProvider, { api_key_value: value })}
               />
-              <PathField label={t("tlsCaFile")} value={active.tls_ca_file || ""} onChange={(value) => updateProvider(activeProvider, { tls_ca_file: value })} />
-              <NumberField label={t("contextWindow")} value={active.context_window ?? null} onChange={(value) => updateProvider(activeProvider, { context_window: value })} />
-              <NumberField label={t("maxOutputTokens")} value={active.max_output_tokens ?? null} onChange={(value) => updateProvider(activeProvider, { max_output_tokens: value })} />
+              <PathField
+                label={t("tlsCaFile")}
+                value={active.tls_ca_file || ""}
+                onChange={(value) => updateProvider(activeProvider, { tls_ca_file: value })}
+                selectFileTitle={t("tlsCaFile")}
+                t={t}
+              />
             </div>
-            <label className="checkbox-field">
-              <input type="checkbox" checked={active.json_mode} onChange={(event) => updateProvider(activeProvider, { json_mode: event.target.checked })} />
-              <span>{t("jsonMode")}</span>
-            </label>
             <label className="checkbox-field">
               <input type="checkbox" checked={active.verify_tls ?? true} onChange={(event) => updateProvider(activeProvider, { verify_tls: event.target.checked })} />
               <span>{t("verifyTls")}</span>
@@ -155,14 +181,11 @@ export function ChatModelProvidersSection({ form, setForm, t, probeResults, pend
               <button className="button secondary" onClick={() => onDiscover(active.name)} disabled={!active.name || pendingAction === `${active.name}:discover`} type="button">
                 {pendingAction === `${active.name}:discover` ? t("discoveringModel") : t("discoverModels")}
               </button>
-              <button className="button secondary" onClick={() => onProbe(active.name)} disabled={!active.name || pendingAction === `${active.name}:connectivity`} type="button">
-                {pendingAction === `${active.name}:connectivity` ? t("testingModels") : t("minimalProbe")}
-              </button>
               <button className="button secondary" onClick={() => removeProvider(activeProvider)} type="button">
                 {t("removeProvider")}
               </button>
             </div>
-            <ModelProbeResultPanel result={probeResults[active.name]} t={t} activeModel={active.model} onSelectModel={(model) => updateProvider(activeProvider, { model })} />
+            <ModelProbeResultPanel result={probeResults[active.name]} t={t} activeModel={active.model} onSelectModel={(model) => selectDiscoveredModel(activeProvider, model)} />
           </div>
         )}
       </div>

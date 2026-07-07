@@ -7,6 +7,7 @@ import {
   currentStageLabel,
   eventNodeKey,
   flowStages,
+  localizeRunEventMessage,
   numberValue,
   reportPathForRun,
   runResultItems,
@@ -47,11 +48,11 @@ export function RunSummaryBox({ context, events, run }: { context: AppContext; e
   );
 }
 
-export function RunFlowPlaceholder({ context }: { context: AppContext }) {
+export function RunFlowPlaceholder({ context, flow }: { context: AppContext; flow?: RunRecord["flow"] }) {
   const flows = [
     { key: "ingest", title: context.t("importMaterials"), stages: flowStages("ingest") },
     { key: "lint", title: context.t("lintTitle"), stages: flowStages("lint") },
-  ];
+  ].filter((item) => !flow || item.key === flow);
   return (
     <div className="run-flow-placeholder" aria-label={context.t("runStageTrack")}>
       {flows.map((flow) => (
@@ -102,7 +103,7 @@ export function RunNodeDetails({ context, events, run, selectedNode }: { context
             <article className="run-node-event" key={`${event.run_id}:${event.sequence}`}>
               <span className={event.status === "failed" || event.status === "partially_failed" ? "danger" : event.status === "completed" ? "success" : ""} />
               <div>
-                <strong>{event.message || event.event_type}</strong>
+                <strong>{localizeRunEventMessage(event.message, event.event_type, context.t)}</strong>
                 <small>
                   {stageLabel(event, context.t)} · {event.created_at}
                 </small>

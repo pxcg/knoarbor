@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 
+import type { AppNotice } from "../../appContext";
 import type { ConfigForm, ModelProviderProbeState } from "../../api/client";
 import { ChatModelProvidersSection } from "./ChatModelProvidersSection";
 import { ImageModelProvidersSection } from "./ImageModelProvidersSection";
@@ -17,12 +18,14 @@ export function ConfigModelProvidersSection({
   probeResults,
   pendingAction,
   onDiscover,
-  onProbe,
+  onCommit,
+  onError,
 }: SectionProps & {
   probeResults: Record<string, ModelProviderProbeState>;
   pendingAction: string | null;
   onDiscover: (provider: string) => void;
-  onProbe: (provider: string) => void;
+  onCommit: (nextForm: ConfigForm) => Promise<void>;
+  onError: (notice: AppNotice | null) => void;
 }) {
   return (
     <>
@@ -33,7 +36,8 @@ export function ConfigModelProvidersSection({
         probeResults={probeResults}
         pendingAction={pendingAction}
         onDiscover={onDiscover}
-        onProbe={onProbe}
+        onCommit={onCommit}
+        onError={onError}
       />
       <ImageModelProvidersSection form={form} setForm={setForm} t={t} />
     </>

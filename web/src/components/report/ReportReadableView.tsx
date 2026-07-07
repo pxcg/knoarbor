@@ -5,7 +5,7 @@ import { localizeReportLabel, localizeReportSection, localizeReportValue } from 
 import { ReportArtifactsSection } from "./ReportArtifactsSection";
 import { ReportExecutiveSummary } from "./ReportExecutiveSummary";
 import { ReportValue } from "./ReportValue";
-import { getReportMetricNumber, parseReport, parseReportArtifacts } from "./reportParser";
+import { getReportMetricNumber, isWikiPagePath, parseReport, parseReportArtifacts } from "./reportParser";
 
 type ReportReadableViewProps = {
   content: string;
@@ -18,6 +18,7 @@ type ReportReadableViewProps = {
 export function ReportReadableView({ content, t, onOpenPage, loadPage, inlinePagePreview = false }: ReportReadableViewProps) {
   const report = parseReport(content);
   const artifacts = parseReportArtifacts(content);
+  const wikiWrittenPages = artifacts.writtenPages.filter((artifact) => isWikiPagePath(artifact.path)).length;
   const legacyChangeCount = getReportMetricNumber(content, "applied_operations");
   const hasLegacyChangesWithoutDiff = legacyChangeCount > 0 && artifacts.changedPages.length === 0 && !content.includes("## Page Changes");
   const [preview, setPreview] = useState<PageDetail | null>(null);
@@ -53,7 +54,7 @@ export function ReportReadableView({ content, t, onOpenPage, loadPage, inlinePag
         failures={artifacts.failures.length}
         metrics={report.metrics}
         t={t}
-        writtenPages={artifacts.writtenPages.length}
+        writtenPages={wikiWrittenPages}
       />
       <ReportArtifactsSection
         artifacts={artifacts}

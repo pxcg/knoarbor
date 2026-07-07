@@ -14,6 +14,7 @@ type KnoArborDesktopBridge = {
   onServiceStateChanged(listener: (state: unknown) => void): () => void;
   openLogs(): Promise<{ opened: boolean; path?: string }>;
   openPath(path: string): Promise<{ opened: boolean; path?: string; error?: string }>;
+  deleteDirectory(path: string): Promise<{ deleted: boolean; path?: string; error?: string }>;
   restartService(): Promise<unknown>;
   saveEnvSecrets(secrets: Record<string, string>): Promise<{
     error?: string;

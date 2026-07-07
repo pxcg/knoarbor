@@ -45,10 +45,10 @@ export function useChatSelectionIngest({ chatVaultReady, context, sessionId, set
       context.setNotice({
         message: response.run_id ? `${context.t("chatExcerptQueued")} ${response.run_id}` : context.t("chatExcerptQueued"),
         actionLabel: context.t("viewRun"),
-        onAction: () => context.navigate("runs"),
+        onAction: () => context.navigate("ingest"),
       });
       await context.refreshAll();
-      context.navigate("runs");
+      context.navigate("ingest");
     } catch (error) {
       context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
     } finally {
@@ -80,10 +80,10 @@ export function useChatSelectionIngest({ chatVaultReady, context, sessionId, set
       context.setNotice({
         message: response.run_id ? `${context.t("chatExcerptQueued")} ${response.run_id}` : context.t("chatExcerptQueued"),
         actionLabel: context.t("viewRun"),
-        onAction: () => context.navigate("runs"),
+        onAction: () => context.navigate("ingest"),
       });
       await context.refreshAll();
-      context.navigate("runs");
+      context.navigate("ingest");
       setSelectedMessageIndices(new Set());
     } catch (error) {
       context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });

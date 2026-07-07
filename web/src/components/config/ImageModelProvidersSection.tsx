@@ -136,7 +136,13 @@ export function ImageModelProvidersSection({ form, setForm, t }: ImageModelProvi
                 value={activeImage.api_key_value || ""}
                 onChange={(value) => updateImageProvider(activeImageProvider, { api_key_value: value })}
               />
-              <PathField label={t("tlsCaFile")} value={activeImage.tls_ca_file || ""} onChange={(value) => updateImageProvider(activeImageProvider, { tls_ca_file: value })} />
+              <PathField
+                label={t("tlsCaFile")}
+                value={activeImage.tls_ca_file || ""}
+                onChange={(value) => updateImageProvider(activeImageProvider, { tls_ca_file: value })}
+                selectFileTitle={t("tlsCaFile")}
+                t={t}
+              />
               <PathField label={t("imageResolution")} value={activeImage.resolution || "2720*1536"} onChange={(value) => updateImageProvider(activeImageProvider, { resolution: value })} />
               <NumberField label={t("imageSteps")} value={activeImage.num_inference_steps ?? 20} onChange={(value) => updateImageProvider(activeImageProvider, { num_inference_steps: value || 20 })} />
               <NumberField label={t("imageGuidance")} value={activeImage.guidance ?? 4} min={0} step="any" onChange={(value) => updateImageProvider(activeImageProvider, { guidance: value ?? 4 })} />

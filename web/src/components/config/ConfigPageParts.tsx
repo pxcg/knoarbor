@@ -1,7 +1,8 @@
 import type { ConfigForm } from "../../api/client";
+import { productIdentity } from "../../product";
 import type { AppContext } from "../../appContext";
 
-export type ConfigSectionId = "general" | "basic" | "inputs" | "preprocessing" | "runtime" | "models" | "advanced";
+export type ConfigSectionId = "general" | "basic" | "inputs" | "preprocessing" | "models" | "advanced";
 
 export type DesktopDiagnosticsView = {
   appData?: {
@@ -44,7 +45,6 @@ const CONFIG_SECTIONS: Array<{ id: ConfigSectionId; titleKey: string; copyKey: s
   { id: "basic", titleKey: "settingsSectionBasic", copyKey: "settingsSectionBasicCopy" },
   { id: "inputs", titleKey: "settingsSectionInputs", copyKey: "settingsSectionInputsCopy" },
   { id: "preprocessing", titleKey: "settingsSectionPreprocessing", copyKey: "settingsSectionPreprocessingCopy" },
-  { id: "runtime", titleKey: "settingsSectionRuntime", copyKey: "settingsSectionRuntimeCopy" },
   { id: "models", titleKey: "settingsSectionModels", copyKey: "settingsSectionModelsCopy" },
   { id: "advanced", titleKey: "advancedYaml", copyKey: "advancedYamlCopy" },
 ];
@@ -52,60 +52,15 @@ const CONFIG_SECTIONS: Array<{ id: ConfigSectionId; titleKey: string; copyKey: s
 const CONFIG_SECTION_GROUPS: Array<{ titleKey: string; items: ConfigSectionId[] }> = [
   { titleKey: "settingsGroupGeneral", items: ["general"] },
   { titleKey: "settingsGroupKnowledgeBase", items: ["basic", "inputs", "preprocessing"] },
-  { titleKey: "settingsGroupRuntime", items: ["runtime", "models"] },
+  { titleKey: "settingsGroupRuntime", items: ["models"] },
   { titleKey: "settingsGroupAdvanced", items: ["advanced"] },
 ];
-
-export function SettingsSectionIntro({
-  section,
-  t,
-  saving,
-  canSave,
-  onSave,
-  onReload,
-  reloading,
-}: {
-  section: ConfigSectionId;
-  t: (key: string) => string;
-  saving: boolean;
-  canSave: boolean;
-  onSave: () => void;
-  onReload: () => Promise<void>;
-  reloading: boolean;
-}) {
-  const item = CONFIG_SECTIONS.find((candidate) => candidate.id === section) || CONFIG_SECTIONS[0];
-  const canSaveSection = section !== "general" && section !== "diagnostics" && section !== "advanced";
-  return (
-    <div className="settings-section-intro">
-      <div>
-        <p className="eyebrow">{t("settingsDetail")}</p>
-        <h2>{t(item.titleKey)}</h2>
-        <p className="panel-copy">{t(item.copyKey)}</p>
-      </div>
-      {canSaveSection && (
-        <div className="button-row">
-          <button className="button secondary" type="button" onClick={() => void onReload()} disabled={reloading}>
-            {reloading ? t("refreshing") : t("refresh")}
-          </button>
-          <button className="button primary" type="button" onClick={onSave} disabled={!canSave || saving}>
-            {saving ? t("running") : t("saveSettings")}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function SettingsLoadingState({ t }: { t: (key: string) => string }) {
   return (
     <div className="settings-workspace">
       <SettingsDirectory activeSection="basic" setActiveSection={() => undefined} t={t} disabled />
       <div className="settings-section-panel">
-        <div className="settings-section-intro">
-          <p className="eyebrow">{t("loading")}</p>
-          <h2>{t("settingsSectionBasic")}</h2>
-          <p className="panel-copy">{t("settingsSectionBasicCopy")}</p>
-        </div>
         <div className="form-grid config-basic-grid">
           <div className="skeleton-field" />
           <div className="skeleton-field" />
@@ -120,7 +75,6 @@ export function ConfigGeneralSection({ context }: { context: AppContext }) {
     <div className="settings-card">
       <div>
         <h3>{context.t("language")}</h3>
-        <p className="panel-copy">{context.t("settingsLanguageCopy")}</p>
       </div>
       <div className="settings-language-options" role="group" aria-label={context.t("language")}>
         <button className={`button ${context.language === "zh" ? "primary" : "secondary"}`} type="button" onClick={() => context.setLanguage("zh")}>
@@ -135,6 +89,8 @@ export function ConfigGeneralSection({ context }: { context: AppContext }) {
 }
 
 export function normalizeConfigForm(form: ConfigForm): ConfigForm {
+  const mineruBackend = ["hybrid-auto-engine", "pipeline", "vlm-auto-engine"].includes(form.mineru_backend || "") ? form.mineru_backend : "pipeline";
+
   return {
     ...form,
     vault_id: form.vault_id || "default",
@@ -144,7 +100,7 @@ export function normalizeConfigForm(form: ConfigForm): ConfigForm {
         : [
             {
               id: form.vault_id || "default",
-              name: form.project_name || "My Knowledge Base",
+              name: form.project_name || productIdentity.defaultVaultName,
               path: form.vault_path || "./vaults/all",
               active: true,
             },
@@ -157,25 +113,30 @@ export function normalizeConfigForm(form: ConfigForm): ConfigForm {
       extra_body: provider.extra_body || {},
     })),
     enabled_connectors: form.enabled_connectors || [],
-    markdown_roots: form.markdown_roots || [],
+    detected_chat_source_dirs: form.detected_chat_source_dirs || {},
+    markdown_enabled: false,
+    markdown_roots: [],
     generic_chat_enabled: Boolean(form.generic_chat_enabled),
     generic_chat_roots: form.generic_chat_roots || [],
     generic_chat_raw_output_dir: form.generic_chat_raw_output_dir || "",
-    mineru_parse_method: form.mineru_parse_method || "auto",
-    mineru_backend: form.mineru_backend || "pipeline",
+    mineru_input_dir: "",
+    mineru_enabled: true,
+    mineru_endpoint: form.mineru_endpoint || "http://127.0.0.1:18000/file_parse",
+    mineru_parse_method: "auto",
+    mineru_backend: mineruBackend || "pipeline",
     mineru_timeout_seconds: form.mineru_timeout_seconds || 600,
     mineru_patterns: form.mineru_patterns || ["*.pdf", "*.docx", "*.pptx"],
     mineru_recursive: form.mineru_recursive ?? true,
-    mineru_return_md: form.mineru_return_md ?? true,
-    mineru_return_middle_json: Boolean(form.mineru_return_middle_json),
-    mineru_return_model_output: Boolean(form.mineru_return_model_output),
-    mineru_return_content_list: Boolean(form.mineru_return_content_list),
-    mineru_return_images: Boolean(form.mineru_return_images),
-    mineru_response_format_zip: Boolean(form.mineru_response_format_zip),
+    mineru_return_md: true,
+    mineru_return_middle_json: false,
+    mineru_return_model_output: false,
+    mineru_return_content_list: false,
+    mineru_return_images: true,
+    mineru_response_format_zip: false,
     mineru_lang_list: form.mineru_lang_list || "ch",
     mineru_formula_enable: form.mineru_formula_enable ?? true,
     mineru_table_enable: form.mineru_table_enable ?? true,
-    mineru_server_url: form.mineru_server_url || "",
+    mineru_server_url: "",
     mineru_start_page_id: form.mineru_start_page_id ?? 0,
     mineru_end_page_id: form.mineru_end_page_id ?? 99999,
     mineru_extra_fields_json: form.mineru_extra_fields_json || "{}",
@@ -195,9 +156,6 @@ export function SettingsDirectory({
 }) {
   return (
     <aside className="settings-section-rail" role="tablist" aria-label={t("settingsSections")}>
-      <div className="panel-header compact">
-        <h2>{t("settingsDirectory")}</h2>
-      </div>
       {CONFIG_SECTION_GROUPS.map((group) => (
         <section className="settings-section-group" key={group.titleKey}>
           <h3>{t(group.titleKey)}</h3>
@@ -212,10 +170,10 @@ export function SettingsDirectory({
                   type="button"
                   role="tab"
                   aria-selected={activeSection === section.id}
+                  title={`${t(section.titleKey)} · ${t(section.copyKey)}`}
                   onClick={() => setActiveSection(section.id)}
                 >
                   <strong>{t(section.titleKey)}</strong>
-                  <span>{t(section.copyKey)}</span>
                 </button>
               );
             })}

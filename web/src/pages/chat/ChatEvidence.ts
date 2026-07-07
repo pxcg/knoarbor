@@ -123,7 +123,7 @@ export function openCitationTarget(citation: ChatCitation, context: AppContext) 
     return;
   }
   if (citation.kind === "run") {
-    context.navigate("runs");
+    context.navigate("reports");
   }
 }
 

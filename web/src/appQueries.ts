@@ -30,11 +30,11 @@ type AppQueriesInput = {
 };
 
 export function useAppQueries({ activeView, configPath, selectedVaultId, summary, t }: AppQueriesInput) {
-  const isRunView = activeView === "runs" || activeView === "ingest" || activeView === "lint";
+  const isRunView = activeView === "ingest" || activeView === "lint";
   const needsVaultStatus = activeView === "overview" || activeView === "sources" || activeView === "chat" || activeView === "wiki";
-  const needsReports = activeView === "overview" || activeView === "runs" || activeView === "reports";
+  const needsReports = activeView === "overview" || activeView === "ingest" || activeView === "lint" || activeView === "reports";
   const needsRecentRuns = activeView === "overview" || isRunView;
-  const needsVaultOverview = activeView === "overview" || activeView === "runs" || activeView === "reports";
+  const needsVaultOverview = activeView === "overview" || activeView === "reports";
   const shouldPollRuns = activeView === "overview" || isRunView;
 
   const healthQuery = useQuery({

@@ -174,26 +174,6 @@ export type ModelDiscoveryResponse = {
   details: Record<string, unknown>;
 };
 
-export type ModelProbeResponse = {
-  schema_version: "model_probe.v1";
-  provider: string;
-  model: string;
-  level: "connectivity";
-  status: "ok" | "warning" | "error";
-  available: boolean;
-  message: string;
-  latency_ms?: number | null;
-  output_valid?: boolean | null;
-  structured_output?: boolean | null;
-  detected_context_window?: number | null;
-  configured_context_window?: number | null;
-  effective_context_window?: number | null;
-  configured_max_output_tokens?: number | null;
-  suggested_config: ModelCapabilitySuggestion;
-  usage: Record<string, number>;
-  details: Record<string, unknown>;
-};
-
 export type ModelApplyCapabilitiesResponse = {
   schema_version: "model_apply_capabilities.v1";
   provider: string;
@@ -204,8 +184,7 @@ export type ModelApplyCapabilitiesResponse = {
 
 export type ModelProviderProbeState = {
   discovery?: ModelDiscoveryResponse;
-  probe?: ModelProbeResponse;
-  lastAction?: "discover" | "connectivity";
+  lastAction?: "discover";
 };
 
 export type ConfigVaultProfile = {
@@ -257,6 +236,7 @@ export type ConfigForm = {
   image_request_timeout_seconds: number;
   image_providers: ConfigImageProvider[];
   enabled_connectors: string[];
+  detected_chat_source_dirs: Record<string, string[]>;
   codex_enabled: boolean;
   codex_sessions_dir: string;
   codex_raw_output_dir: string;

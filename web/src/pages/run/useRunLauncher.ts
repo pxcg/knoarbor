@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { getSourceCatalog, ingestChatSession, listChatSessions, runIngest, runIngestFile, runIngestFolder, runLint } from "../../api/client";
@@ -7,19 +7,21 @@ import { runStatusLabel } from "../../components/runStatus";
 import { canSelectDesktopDirectory, canSelectDesktopFile, selectDesktopDirectory, selectDesktopFile } from "../../desktop/desktopBridge";
 import { queryKeys } from "../../queryKeys";
 import { sortSourceConnectors } from "../../sourceCatalog";
-import { connectorNames, formatRunOutput, isTerminalRunStatus, reportPathFromRun, runIdFromResponse } from "./RunOutputModel";
+import { isTerminalRunStatus, reportPathFromRun, runIdFromResponse } from "./RunOutputModel";
 
-export function useRunLauncher(context: AppContext, mode: "both" | "ingest" | "lint") {
-  const [connectors, setConnectors] = useState("");
+const CHAT_CONNECTOR_NAMES = new Set(["codex", "hermes", "openclaw", "claude_code", "generic_chat"]);
+
+export function useRunLauncher(context: AppContext, mode: "ingest" | "lint") {
+  const [configuredInputScope, setConfiguredInputScope] = useState("");
   const [inputFilePath, setInputFilePath] = useState("");
   const [inputFolderPath, setInputFolderPath] = useState("");
-  const [inputScope, setInputScope] = useState("enabled");
+  const [localInputKind, setLocalInputKind] = useState<"file" | "folder">("file");
   const [selectedChatSessionId, setSelectedChatSessionId] = useState("");
   const [lintMode, setLintMode] = useState("deterministic");
-  const [runOutput, setRunOutput] = useState(() => context.t("noRunYet"));
   const [trackedRunId, setTrackedRunId] = useState<string | null>(null);
   const [terminalNoticeRunId, setTerminalNoticeRunId] = useState<string | null>(null);
   const configReady = context.configExists;
+  const workflowView = mode === "lint" ? "lint" : "ingest";
 
   const sourceCatalogQuery = useQuery({
     queryKey: queryKeys.sourceCatalog(context.configPath),
@@ -27,7 +29,11 @@ export function useRunLauncher(context: AppContext, mode: "both" | "ingest" | "l
     enabled: mode !== "lint",
     staleTime: 60_000,
   });
-  const connectorOptions = sortSourceConnectors(sourceCatalogQuery.data?.connectors || []);
+  const connectorOptions = useMemo(() => sortSourceConnectors(sourceCatalogQuery.data?.connectors || []), [sourceCatalogQuery.data?.connectors]);
+  const configuredChatOptions = useMemo(
+    () => connectorOptions.filter((connector) => CHAT_CONNECTOR_NAMES.has(connector.name) && connector.enabled),
+    [connectorOptions],
+  );
   const chatSessionsQuery = useQuery({
     queryKey: queryKeys.runChatSessions(context.activeVaultId),
     queryFn: () => listChatSessions(context.activeVaultSelector, 50),
@@ -35,11 +41,24 @@ export function useRunLauncher(context: AppContext, mode: "both" | "ingest" | "l
     staleTime: 30_000,
   });
   const chatSessions = chatSessionsQuery.data?.sessions || [];
+  const knoarborChatTitle = context.t("knoarborChatConnector");
+  const configuredInputOptions = useMemo(
+    () => [
+      ...(chatSessions.length ? [{ name: "knoarbor_chat", title: knoarborChatTitle }] : []),
+      ...configuredChatOptions.map((connector) => ({ name: connector.name, title: connector.name })),
+    ],
+    [chatSessions.length, configuredChatOptions, knoarborChatTitle],
+  );
 
   useEffect(() => {
     if (selectedChatSessionId && chatSessions.some((session) => session.session_id === selectedChatSessionId)) return;
     setSelectedChatSessionId(chatSessions[0]?.session_id || "");
   }, [chatSessions, selectedChatSessionId]);
+
+  useEffect(() => {
+    if (configuredInputScope && configuredInputOptions.some((option) => option.name === configuredInputScope)) return;
+    setConfiguredInputScope(configuredInputOptions[0]?.name || "");
+  }, [configuredInputOptions, configuredInputScope]);
 
   useEffect(() => {
     if (!trackedRunId) return;
@@ -51,8 +70,8 @@ export function useRunLauncher(context: AppContext, mode: "both" | "ingest" | "l
     context.setNotice({
       message: `${context.t(run.flow)} · ${runStatusLabel(run.status, context.t)}${run.message ? `：${run.message}` : ""}`,
       error: run.status === "failed",
-      actionLabel: reportPath ? context.t("openReport") : context.t("openRuns"),
-      onAction: reportPath ? () => context.openReport(reportPath) : () => context.navigate("runs"),
+      actionLabel: reportPath ? context.t("openReport") : context.t("viewRun"),
+      onAction: reportPath ? () => context.openReport(reportPath) : () => context.navigate(workflowView),
     });
     if (terminal) setTerminalNoticeRunId(run.run_id);
   }, [context, terminalNoticeRunId, trackedRunId]);
@@ -60,14 +79,11 @@ export function useRunLauncher(context: AppContext, mode: "both" | "ingest" | "l
   async function runOperation(operation: () => Promise<unknown>) {
     if (!configReady) {
       const message = context.t("configRequired");
-      setRunOutput(message);
       context.setNotice({ message, error: true });
       return;
     }
-    setRunOutput(context.t("running"));
     try {
       const response = await operation();
-      setRunOutput(formatRunOutput(response, context.t));
       const runId = runIdFromResponse(response);
       if (runId) {
         setTrackedRunId(runId);
@@ -75,13 +91,12 @@ export function useRunLauncher(context: AppContext, mode: "both" | "ingest" | "l
       }
       context.setNotice({
         message: context.t("runStarted"),
-        actionLabel: context.t("openRuns"),
-        onAction: () => context.navigate("runs"),
+        actionLabel: context.t("viewRun"),
+        onAction: () => context.navigate(workflowView),
       });
       await context.loadVaultState();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setRunOutput(message);
       context.setNotice({ message, error: true });
     }
   }
@@ -102,11 +117,11 @@ export function useRunLauncher(context: AppContext, mode: "both" | "ingest" | "l
     if (!result.canceled && result.path) setInputFolderPath(result.path);
   }
 
-  function startIngest() {
+  function startIngest(scope: string) {
     void runOperation(() =>
-      inputScope === "knoarbor_chat"
+      scope === "knoarbor_chat"
         ? ingestChatSession(context.activeVaultSelector, selectedChatSessionId)
-        : inputScope === "file"
+        : scope === "file"
         ? runIngestFile({
             config_path: context.configPath,
             vault_id: context.activeVaultId,
@@ -115,7 +130,7 @@ export function useRunLauncher(context: AppContext, mode: "both" | "ingest" | "l
             write_report: true,
             append_ledger: true,
           })
-        : inputScope === "folder"
+        : scope === "folder"
         ? runIngestFolder({
             config_path: context.configPath,
             vault_id: context.activeVaultId,
@@ -127,7 +142,7 @@ export function useRunLauncher(context: AppContext, mode: "both" | "ingest" | "l
         : runIngest({
             config_path: context.configPath,
             vault_id: context.activeVaultId,
-            connector_names: connectorNames(inputScope, connectors),
+            connector_names: [scope],
             write: true,
             write_report: true,
             append_ledger: true,
@@ -160,25 +175,23 @@ export function useRunLauncher(context: AppContext, mode: "both" | "ingest" | "l
   return {
     canSelectDirectory: canSelectDesktopDirectory(),
     canSelectFile: canSelectDesktopFile(),
+    configuredInputOptions,
+    configuredInputScope,
     chatSessions,
     chatSessionsLoading: chatSessionsQuery.isLoading,
     chooseInputFile,
     chooseInputFolder,
     configReady,
-    connectorOptions,
-    connectors,
     inputFilePath,
     inputFolderPath,
-    inputScope,
+    localInputKind,
     lintMode,
-    runOutput,
     selectedChatSessionId,
-    setConnectors,
+    setConfiguredInputScope,
     setInputFilePath,
     setInputFolderPath,
-    setInputScope,
+    setLocalInputKind,
     setLintMode,
-    setRunOutput,
     setSelectedChatSessionId,
     startIngest,
     startLint,

@@ -26,6 +26,7 @@ const desktopApi: KnoArborDesktopBridge = {
   },
   openLogs: () => ipcRenderer.invoke("knoarbor-desktop:logs-open"),
   openPath: (path) => ipcRenderer.invoke("knoarbor-desktop:path-open", path),
+  deleteDirectory: (path) => ipcRenderer.invoke("knoarbor-desktop:directory-delete", path),
   restartService: () => ipcRenderer.invoke("knoarbor-desktop:service-restart"),
   saveEnvSecrets: (secrets) =>
     ipcRenderer.invoke("knoarbor-desktop:env-secrets-save", secrets),

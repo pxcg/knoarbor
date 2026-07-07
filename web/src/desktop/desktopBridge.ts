@@ -9,12 +9,26 @@ type DesktopEnvSecretSaveResult = {
   saved: string[];
 };
 
+type DesktopEnvironment = {
+  isDesktopApp: true;
+  platform: string;
+  versions: {
+    chrome: string;
+    electron: string;
+    node: string;
+  };
+};
+
 export function getDesktopBridge() {
   return window.knoarborDesktop ?? null;
 }
 
 export function isDesktopApp() {
   return Boolean(getDesktopBridge());
+}
+
+export async function getDesktopEnvironment(): Promise<DesktopEnvironment | null> {
+  return (await getDesktopBridge()?.getEnvironment()) as DesktopEnvironment | null;
 }
 
 export function onDesktopCommand(listener: (command: KnoArborDesktopCommand) => void) {
@@ -40,6 +54,15 @@ export async function openDesktopPath(path: string) {
 
 export function canOpenDesktopPath() {
   return Boolean(getDesktopBridge()?.openPath);
+}
+
+export async function deleteDesktopDirectory(path: string) {
+  if (!path) return { deleted: false };
+  return getDesktopBridge()?.deleteDirectory(path) ?? { deleted: false };
+}
+
+export function canDeleteDesktopDirectory() {
+  return Boolean(getDesktopBridge()?.deleteDirectory);
 }
 
 export async function saveDesktopEnvSecrets(secrets: Record<string, string>): Promise<DesktopEnvSecretSaveResult> {

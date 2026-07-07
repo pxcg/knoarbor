@@ -17,7 +17,6 @@ import type {
   ModelProviderSummary,
   ModelProvidersResponse,
   ModelDiscoveryResponse,
-  ModelProbeResponse,
   ModelApplyCapabilitiesResponse,
   ModelProviderProbeState,
   ConfigVaultProfile,
@@ -77,7 +76,6 @@ export type {
   ModelProviderSummary,
   ModelProvidersResponse,
   ModelDiscoveryResponse,
-  ModelProbeResponse,
   ModelApplyCapabilitiesResponse,
   ModelProviderProbeState,
   ConfigVaultProfile,
@@ -197,13 +195,6 @@ function sanitizeConfigForm(form: ConfigForm): ConfigForm {
 
 export async function discoverModelProvider(configPath: string | null, provider: string): Promise<ModelDiscoveryResponse> {
   return requestJson("/models/discover", {
-    method: "POST",
-    body: { config_path: configPath, provider },
-  });
-}
-
-export async function probeModelProvider(configPath: string | null, provider: string): Promise<ModelProbeResponse> {
-  return requestJson("/models/probe", {
     method: "POST",
     body: { config_path: configPath, provider },
   });
@@ -387,6 +378,7 @@ export type QuerySearchOptions = {
   mode?: "quick" | "balanced" | "deep";
   page_dirs?: string[];
   max_results?: number;
+  max_context_chars?: number;
   vault_ids?: string[];
   all_vaults?: boolean;
   include_content?: boolean;
@@ -420,6 +412,7 @@ export async function searchWiki(
       mode: options.mode || "balanced",
       page_dirs: options.page_dirs || [],
       max_results: options.max_results || 6,
+      max_context_chars: options.max_context_chars || 200000,
       include_content: options.include_content ?? true,
     },
   });

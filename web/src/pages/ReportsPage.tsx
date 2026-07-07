@@ -178,7 +178,6 @@ export function ReportsPage({ context, focusedReportPath = null }: Props) {
               <ReportSummaryCard
                 title={localizeReportTitle(selected.summary.title || selected.path, selected.summary.kind, context.t)}
                 subtitle={selected.summary.path}
-                copy={context.t("reportReadableHint")}
               />
               <ReportReadableView
                 content={selected.content}

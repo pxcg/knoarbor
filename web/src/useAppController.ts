@@ -123,7 +123,7 @@ export function useAppController() {
 
   useEffect(() => {
     const preloadCommonRoutes = () => {
-      for (const view of ["runs", "sources", "ingest", "lint", "query", "settings"] satisfies ViewName[]) {
+      for (const view of ["sources", "ingest", "lint", "query", "settings"] satisfies ViewName[]) {
         preloadRoute(view);
       }
     };
@@ -245,7 +245,7 @@ export function useAppController() {
     if (view === "graph") void queryClient.prefetchQuery({ queryKey: queryKeys.graph(activeVaultId), queryFn: () => getGraph(vaultPath), staleTime: 60_000 });
     if (view === "wiki") void queryClient.prefetchQuery({ queryKey: queryKeys.pages(activeVaultId), queryFn: () => getPages(activeVaultSelector), staleTime: 60_000 });
     if (view === "query") void queryClient.prefetchQuery({ queryKey: queryKeys.queryTrends(activeVaultId), queryFn: () => getQueryTrends(activeVaultSelector), staleTime: 60_000 });
-    if (view === "runs") void queryClient.prefetchQuery({ queryKey: queryKeys.recentRuns(activeVaultId), queryFn: () => getRuns(activeVaultSelector, false, 12), staleTime: 20_000 });
+    if (view === "ingest" || view === "lint" || view === "reports") void queryClient.prefetchQuery({ queryKey: queryKeys.recentRuns(activeVaultId), queryFn: () => getRuns(activeVaultSelector, false, 12), staleTime: 20_000 });
   }, [activeVaultId, activeVaultSelector, queryClient, vaultPath]);
 
   const context: AppContext = useMemo(

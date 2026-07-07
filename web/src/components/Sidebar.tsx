@@ -7,7 +7,7 @@ export type PrimaryNavId = "chat" | "flows" | "knowledge";
 
 type PrimaryNavItem = {
   id: "flows" | "knowledge";
-  icon: ViewName;
+  icon: "runs" | ViewName;
   labelKey: string;
   subtitleKey: string;
   target: ViewName;
@@ -20,8 +20,8 @@ const primaryNavItems: PrimaryNavItem[] = [
     icon: "runs",
     labelKey: "navCollectionFlows",
     subtitleKey: "navCollectionFlowsCopy",
-    target: "runs",
-    items: ["runs", "ingest", "lint", "query", "reports", "tokens"],
+    target: "ingest",
+    items: ["ingest", "lint", "query", "reports", "tokens"],
   },
   {
     id: "knowledge",
@@ -70,14 +70,13 @@ export function Sidebar({ activeView, collapsed, serviceOnline, language, t, onC
           onClick={() => onChangeView("chat")}
           onFocus={() => onPreloadView?.("chat")}
           onMouseEnter={() => onPreloadView?.("chat")}
-          title={collapsed ? viewTitles[language].chat : undefined}
+          title={`${viewTitles[language].chat} · ${navCopy[language].chat}`}
         >
           <span className="nav-icon" aria-hidden="true">
             <LineIcon name="chat" />
           </span>
           <span className="nav-text">
             <strong>{viewTitles[language].chat}</strong>
-            <span>{navCopy[language].chat}</span>
           </span>
         </button>
         {primaryNavItems.map((item) => {
@@ -89,14 +88,13 @@ export function Sidebar({ activeView, collapsed, serviceOnline, language, t, onC
               onClick={() => onChangeView(active ? activeView : item.target)}
               onFocus={() => onPreloadView?.(item.target)}
               onMouseEnter={() => onPreloadView?.(item.target)}
-              title={collapsed ? t(item.labelKey) : undefined}
+              title={`${t(item.labelKey)} · ${t(item.subtitleKey)}`}
             >
               <span className="nav-icon" aria-hidden="true">
                 <LineIcon name={item.icon} />
               </span>
               <span className="nav-text">
                 <strong>{t(item.labelKey)}</strong>
-                <span>{t(item.subtitleKey)}</span>
               </span>
             </button>
           );

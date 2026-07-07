@@ -5,12 +5,19 @@ import { canRecoverRun, currentStageLabel, dedupeRuns, reportPathForRun } from "
 import { RunFlowPlaceholder } from "./RunMonitorDetails";
 import { RunMonitorItem } from "./RunMonitorItem";
 
-export { RunFlowGuide } from "./RunFlowGuide";
 export { RunPreflight } from "./RunPreflight";
 
-export function ActiveRunsPanel({ context, includeRecoverable = false }: { context: AppContext; includeRecoverable?: boolean }) {
-  const recoverableRecent = context.recentRuns.filter((run) => canRecoverRun(run));
-  const runs = dedupeRuns(context.activeRuns);
+export function ActiveRunsPanel({
+  context,
+  flow,
+  includeRecoverable = false,
+}: {
+  context: AppContext;
+  flow?: RunRecord["flow"];
+  includeRecoverable?: boolean;
+}) {
+  const recoverableRecent = context.recentRuns.filter((run) => canRecoverRun(run) && (!flow || run.flow === flow));
+  const runs = dedupeRuns(context.activeRuns.filter((run) => !flow || run.flow === flow));
   if (!runs.length) {
     return (
       <>
@@ -21,7 +28,7 @@ export function ActiveRunsPanel({ context, includeRecoverable = false }: { conte
               <p className="panel-copy">{context.t("noActiveRuns")}</p>
             </div>
           </div>
-          <RunFlowPlaceholder context={context} />
+          <RunFlowPlaceholder context={context} flow={flow} />
         </article>
         {includeRecoverable && recoverableRecent.length ? <RecoverableRunsPanel context={context} runs={recoverableRecent.slice(0, 4)} /> : null}
       </>

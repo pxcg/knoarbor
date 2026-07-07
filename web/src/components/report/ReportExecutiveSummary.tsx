@@ -28,10 +28,7 @@ export function ReportExecutiveSummary({
   ].filter((item): item is { label: string; value: string; danger?: boolean } => Boolean(item));
   return (
     <section className="report-executive-summary">
-      <div>
-        <h3>{t("reportExecutiveSummary")}</h3>
-        <p>{t("reportExecutiveSummaryCopy")}</p>
-      </div>
+      <h3>{t("reportExecutiveSummary")}</h3>
       <dl>
         {cards.map((card) => (
           <div className={card.danger ? "danger" : ""} key={card.label}>

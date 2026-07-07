@@ -5,14 +5,12 @@ import {
   ConfigGeneralSection,
   SettingsDirectory,
   SettingsLoadingState,
-  SettingsSectionIntro,
   type ConfigSectionId,
 } from "../components/config/ConfigPageParts";
 import {
   ConfigBasicSection,
   ConfigInputsSection,
   ConfigPreprocessingSection,
-  ConfigRuntimeSection,
 } from "../components/config/ConfigSettingsSections";
 import { ConfigModelProvidersSection } from "../components/config/ConfigModelProvidersSection";
 import { useConfigController } from "./config/useConfigController";
@@ -37,20 +35,10 @@ export function ConfigPage({ context, embedded = false }: Props) {
             <SettingsDirectory activeSection={activeSection} setActiveSection={setActiveSection} t={context.t} />
 
             <div className="settings-section-panel" role="tabpanel">
-              <SettingsSectionIntro
-                section={activeSection}
-                t={context.t}
-                saving={saving}
-                canSave={Boolean(form)}
-                onSave={controller.saveStructured}
-                onReload={controller.reloadSettings}
-                reloading={formQuery.isFetching}
-              />
-              {activeSection === "basic" && <ConfigBasicSection form={form} setForm={setForm} t={context.t} />}
+              {activeSection === "basic" && <ConfigBasicSection form={form} setForm={setForm} t={context.t} onCommit={controller.commitFormSnapshot} onError={context.setNotice} />}
               {activeSection === "general" && <ConfigGeneralSection context={context} />}
-              {activeSection === "inputs" && <ConfigInputsSection form={form} setForm={setForm} t={context.t} />}
+              {activeSection === "inputs" && <ConfigInputsSection form={form} setForm={setForm} t={context.t} onCommit={controller.commitFormSnapshot} onError={context.setNotice} />}
               {activeSection === "preprocessing" && <ConfigPreprocessingSection form={form} setForm={setForm} t={context.t} />}
-              {activeSection === "runtime" && <ConfigRuntimeSection form={form} setForm={setForm} t={context.t} />}
               {activeSection === "models" && (
                 <ConfigModelProvidersSection
                   form={form}
@@ -59,7 +47,8 @@ export function ConfigPage({ context, embedded = false }: Props) {
                   probeResults={context.modelProbeResults}
                   pendingAction={controller.modelPendingAction}
                   onDiscover={controller.startDiscover}
-                  onProbe={controller.startProbe}
+                  onCommit={controller.commitFormSnapshot}
+                  onError={context.setNotice}
                 />
               )}
               {activeSection === "advanced" && (

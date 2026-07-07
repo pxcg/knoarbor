@@ -5,7 +5,6 @@ import {
   discoverModelProvider,
   getConfigDiagnostics,
   getConfigForm,
-  probeModelProvider,
   saveConfig,
   saveConfigForm,
   type ConfigForm,
@@ -50,6 +49,7 @@ export function useConfigController(context: AppContext) {
     await queryClient.invalidateQueries({ queryKey: queryKeys.configFormRoot });
     await queryClient.invalidateQueries({ queryKey: queryKeys.configDiagnosticsRoot });
     await queryClient.invalidateQueries({ queryKey: queryKeys.modelProvidersRoot });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.sourceCatalogRoot });
     await formQuery.refetch();
     await diagnosticsQuery.refetch();
     await context.refreshAll();
@@ -59,15 +59,14 @@ export function useConfigController(context: AppContext) {
     setForm((current) => (current ? clearDesktopEnvSecretValues(current) : current));
   }
 
-  async function saveStructuredForm(): Promise<string | null> {
-    if (!form) throw new Error("Configuration form is not loaded.");
-    const envSecrets = collectDesktopEnvSecrets(form);
+  async function saveStructuredFormSnapshot(formSnapshot: ConfigForm): Promise<string | null> {
+    const envSecrets = collectDesktopEnvSecrets(formSnapshot);
     const hasEnvSecrets = Object.keys(envSecrets).length > 0;
     if (hasEnvSecrets && canSaveDesktopEnvSecrets()) {
       const result = await saveDesktopEnvSecrets(envSecrets);
       if (result.error) throw new Error(result.error);
     }
-    const response = await saveConfigForm(context.configPath, form);
+    const response = await saveConfigForm(context.configPath, formSnapshot);
     context.setConfigPath(response.config_path);
     context.setConfigExists(true);
     context.setSummary(response.summary || {});
@@ -76,6 +75,11 @@ export function useConfigController(context: AppContext) {
       clearDesktopEnvSecretInputs();
     }
     return response.config_path;
+  }
+
+  async function saveStructuredForm(): Promise<string | null> {
+    if (!form) throw new Error("Configuration form is not loaded.");
+    return saveStructuredFormSnapshot(form);
   }
 
   const structuredSave = useMutation({
@@ -105,7 +109,17 @@ export function useConfigController(context: AppContext) {
     await queryClient.invalidateQueries({ queryKey: queryKeys.configFormRoot });
     await queryClient.invalidateQueries({ queryKey: queryKeys.configDiagnosticsRoot });
     await queryClient.invalidateQueries({ queryKey: queryKeys.modelProvidersRoot });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.sourceCatalogRoot });
     return configPath;
+  }
+
+  async function commitFormSnapshot(formSnapshot: ConfigForm): Promise<void> {
+    await saveStructuredFormSnapshot(formSnapshot);
+    await queryClient.invalidateQueries({ queryKey: queryKeys.configFormRoot });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.configDiagnosticsRoot });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.modelProvidersRoot });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.sourceCatalogRoot });
+    await context.refreshAll();
   }
 
   const discoverMutation = useMutation({
@@ -124,22 +138,6 @@ export function useConfigController(context: AppContext) {
     onError: (error) => context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true }),
   });
 
-  const probeMutation = useMutation({
-    mutationFn: async (provider: string) => {
-      const configPath = await saveCurrentFormForModelAction();
-      return probeModelProvider(configPath, provider);
-    },
-    onSuccess: (result) => {
-      context.setModelProbeResults((current) => ({
-        ...current,
-        [result.provider]: { ...(current[result.provider] || {}), probe: result, lastAction: result.level },
-      }));
-      void diagnosticsQuery.refetch();
-      context.setNotice({ message: result.message, error: result.status === "error" });
-    },
-    onError: (error) => context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true }),
-  });
-
   async function reloadSettings() {
     await updateSettingsFromDisk();
     context.setNotice({ message: context.t("refreshComplete") });
@@ -149,12 +147,12 @@ export function useConfigController(context: AppContext) {
     diagnosticsQuery,
     form,
     formQuery,
-    modelPendingAction: modelActionKey(discoverMutation.variables, "discover", discoverMutation.isPending) || modelActionKey(probeMutation.variables, "connectivity", probeMutation.isPending),
+    modelPendingAction: modelActionKey(discoverMutation.variables, "discover", discoverMutation.isPending),
     reloadSettings,
     saving: structuredSave.isPending || yamlSave.isPending,
+    commitFormSnapshot,
     setForm,
     startDiscover: (provider: string) => discoverMutation.mutate(provider),
-    startProbe: (provider: string) => probeMutation.mutate(provider),
     saveStructured: () => structuredSave.mutate(),
     saveYaml: () => yamlSave.mutate(),
   };

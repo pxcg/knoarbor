@@ -4,13 +4,10 @@ import { cancelRun, getRunEvents, rerunFailedRun } from "../../api/client";
 import type { AppContext } from "../../appContext";
 import type { RunEvent, RunRecord } from "../../types";
 import { runStatusClass, runStatusLabel } from "../runStatus";
-import { canRecoverRun, currentSourceInfo, currentStageKey, currentStageLabel, ingestRecoveryFacts, reportPathForRun } from "./RunPanelModel";
-import { RunErrorBox, RunNodeDetails, RunSourceBadge, RunStageTrack, RunSummaryBox } from "./RunMonitorDetails";
+import { canRecoverRun, currentSourceInfo, currentStageKey, currentStageLabel, ingestRecoveryFacts, reportPathForRun, runProgressPercent } from "./RunPanelModel";
+import { RunErrorBox, RunNodeDetails, RunSourceBadge, RunStageTrack } from "./RunMonitorDetails";
 
 export function RunMonitorItem({ context, run }: { context: AppContext; run: RunRecord }) {
-  const total = run.progress?.total || 0;
-  const completed = run.progress?.completed || 0;
-  const percent = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : undefined;
   const staleSeconds = Math.max(0, Math.round((Date.now() - Date.parse(run.last_heartbeat_at)) / 1000));
   const canRecover = canRecoverRun(run);
   const recoveryFacts = ingestRecoveryFacts(run, context.t);
@@ -35,6 +32,8 @@ export function RunMonitorItem({ context, run }: { context: AppContext; run: Run
   useEffect(() => {
     setSelectedNode(currentStageKey(run));
   }, [run.flow, run.stage, run.status, run.current_item]);
+
+  const percent = runProgressPercent(run, events);
 
   async function recoverRun() {
     try {
@@ -103,7 +102,6 @@ export function RunMonitorItem({ context, run }: { context: AppContext; run: Run
         </div>
 
         <aside className="run-monitor-sidebar">
-          <RunSummaryBox context={context} events={events} run={run} />
           <div className="run-monitor-actions">
             {reportPath && (
               <button className="button secondary" onClick={() => context.openReport(reportPath)}>
@@ -116,7 +114,7 @@ export function RunMonitorItem({ context, run }: { context: AppContext; run: Run
               </button>
             )}
             {run.status !== "failed" && run.status !== "completed" && run.status !== "cancelled" && run.status !== "partially_failed" && (
-              <button className="button secondary" onClick={() => void cancelRun(context.activeVaultSelector, run.run_id).then(() => context.loadVaultState())}>
+              <button className="button secondary danger-outline" onClick={() => void cancelRun(context.activeVaultSelector, run.run_id).then(() => context.loadVaultState())}>
                 {context.t("cancel")}
               </button>
             )}

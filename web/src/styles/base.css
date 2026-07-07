@@ -95,7 +95,7 @@ select option {
   overflow: hidden;
 }
 
-.desktop-shell .sidebar {
+.desktop-platform-darwin .sidebar {
   padding-top: 42px;
 }
 
@@ -326,7 +326,7 @@ select option {
   padding: 42px 10px 16px;
 }
 
-.desktop-shell .sidebar.collapsed {
+.desktop-platform-darwin .sidebar.collapsed {
   padding-top: 54px;
 }
 
@@ -473,13 +473,49 @@ select option {
   margin: 0;
 }
 
-.topbar-subtitle {
-  color: var(--muted-strong);
-  font-size: 13.2px;
+.inline-help {
+  align-items: center;
+  border: 1px solid rgba(91, 107, 99, 0.32);
+  border-radius: 999px;
+  color: var(--muted);
+  cursor: help;
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 760;
+  height: 16px;
+  justify-content: center;
+  line-height: 1;
+  margin-left: 7px;
+  transform: translateY(-1px);
+  vertical-align: middle;
+  width: 16px;
+}
+
+.inline-help:hover,
+.inline-help:focus-visible {
+  border-color: rgba(15, 143, 116, 0.46);
+  color: var(--accent-strong);
+  outline: none;
+}
+
+.inline-help-tooltip {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: 12px;
   font-weight: 560;
-  line-height: 1.45;
-  margin: 6px 0 0;
-  max-width: 720px;
+  line-height: 1.55;
+  max-width: min(280px, calc(100vw - 48px));
+  min-width: 220px;
+  padding: 10px 12px;
+  pointer-events: none;
+  position: fixed;
+  text-align: left;
+  transform: translateX(-50%);
+  white-space: normal;
+  z-index: 100000;
 }
 
 .eyebrow {
@@ -601,18 +637,18 @@ h2 {
 }
 
 .secondary-nav-item {
-  min-width: 128px;
-  max-width: 190px;
+  min-width: max-content;
+  width: auto;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: #ffffff;
   color: var(--muted-strong);
   cursor: pointer;
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
+  grid-template-columns: 18px max-content;
   align-items: center;
   gap: 8px;
-  padding: 9px 11px;
+  padding: 9px 18px;
   text-align: left;
   transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
 }
@@ -644,26 +680,10 @@ h2 {
   gap: 2px;
 }
 
-.secondary-nav-item strong,
-.secondary-nav-item small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .secondary-nav-item strong {
   font-size: 12px;
   font-weight: 760;
-}
-
-.secondary-nav-item small {
-  color: var(--muted);
-  font-size: 10.5px;
-  font-weight: 620;
-}
-
-.secondary-nav-item.active small {
-  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
 }
 
 .button {

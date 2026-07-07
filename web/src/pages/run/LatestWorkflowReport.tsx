@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { getPage, getReport, type ReportDetail } from "../../api/client";
 import type { AppContext } from "../../appContext";
 import { localizeReportKind, localizeReportTitle } from "../../components/reportLabels";
+import { InlineHelp } from "../../components/InlineHelp";
 import { ReportSummaryCard } from "../../components/report/ReportSummaryCard";
 
 const ReportReadableView = lazy(() => import("../../components/report/ReportReadableView").then((module) => ({ default: module.ReportReadableView })));
@@ -42,12 +43,15 @@ export function LatestWorkflowReport({ context, mode }: Props) {
   }, [context.activeVaultSelector, latest]);
 
   if (!detail) return null;
+  const helpKey = mode === "ingest" ? "latestIngestArtifactCopy" : mode === "lint" ? "latestLintArtifactCopy" : "latestRunArtifactCopy";
   return (
     <article className="panel latest-workflow-report">
       <div className="panel-header">
         <div>
-          <h2>{context.t("latestRunArtifact")}</h2>
-          <p className="panel-copy">{context.t("latestRunArtifactCopy")}</p>
+          <h2>
+            {context.t("latestRunArtifact")}
+            <InlineHelp text={context.t(helpKey)} />
+          </h2>
         </div>
         <button className="button secondary" type="button" onClick={() => context.openReport(detail.path)}>
           {context.t("openReport")}
