@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from knoarbor.core.markdown import compact_inline_text, extract_heading, extract_section, parse_frontmatter
+from knoarbor.core.markdown import compact_inline_text, extract_heading, extract_section, inline_text, parse_frontmatter
 from knoarbor.core.schemas.page_identity import PageIdentity
 from knoarbor.core.schemas.wiki_write import VaultWriteResult, WikiDraft
 from knoarbor.core.wiki_schema import UNIFIED_KNOWLEDGE_PAGE_DIR, is_index_excluded_file
@@ -85,7 +85,7 @@ def page_record(vault_path: Path, md_path: Path) -> dict[str, Any]:
     metadata = parse_frontmatter(content)
     title = extract_heading(content, md_path.stem)
     headings = _extract_headings(content)
-    summary = compact_inline_text(extract_section(content, "Summary") or "")
+    summary = inline_text(extract_section(content, "Summary") or "")
     raw_source_body = extract_section(content, "Raw Source")
     source = _extract_first_source_item(raw_source_body) if raw_source_body else None
     claims = extract_section(content, "Claims")
@@ -118,7 +118,7 @@ def page_record(vault_path: Path, md_path: Path) -> dict[str, Any]:
         "evidence": evidence_rows,
         "outbound_links": _extract_wikilinks(content),
         "source": source,
-        "search_text": compact_inline_text(" ".join([title, summary, " ".join(entities), claims, relations, " ".join(headings)])),
+        "search_text": inline_text(" ".join([title, summary, " ".join(entities), claims, relations, " ".join(headings)])),
     }
 
 

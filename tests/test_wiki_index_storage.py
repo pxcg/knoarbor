@@ -34,6 +34,28 @@ class WikiIndexStorageTests(unittest.TestCase):
         self.assertEqual(pages["pages"][0]["path"], "Agent.md")
         self.assertEqual(search["entries"][0]["title"], "Agent")
 
+    def test_machine_page_summary_preserves_full_summary_text(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            (vault / "wiki" / "pages").mkdir(parents=True)
+            summary = (
+                "A2A enables multiple AI agents to collaborate on complex tasks. "
+                "It defines core components like Agent Card, Task, Message, Part, and Artifact, "
+                "and supports three collaboration patterns: Master-Worker, Peer-to-Peer, and Hierarchical."
+            )
+            (vault / "wiki" / "pages" / "A2A.md").write_text(
+                f"# A2A\n\n## Summary\n\n{summary}\n",
+                encoding="utf-8",
+            )
+
+            update_index(vault)
+            pages = json.loads((machine_index_dir(vault) / "pages.json").read_text(encoding="utf-8"))
+            search = json.loads((machine_index_dir(vault) / "search.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(pages["pages"][0]["summary"], summary)
+        self.assertIn("Hierarchical", search["entries"][0]["search_text"])
+        self.assertNotIn("...", pages["pages"][0]["summary"])
+
     def test_machine_index_records_links_and_sources(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)

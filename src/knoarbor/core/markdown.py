@@ -9,8 +9,12 @@ from knoarbor.core.errors import PolicyRejection
 MAX_INDEX_SUMMARY_LENGTH = 180
 
 
+def inline_text(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip()
+
+
 def compact_inline_text(value: str, max_length: int = MAX_INDEX_SUMMARY_LENGTH) -> str:
-    compacted = re.sub(r"\s+", " ", value).strip()
+    compacted = inline_text(value)
     if len(compacted) <= max_length:
         return compacted
     return compacted[: max_length - 1].rstrip() + "..."
