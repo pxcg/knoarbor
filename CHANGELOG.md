@@ -4,6 +4,25 @@ All notable public changes to KnoArbor will be documented in this file.
 
 This project follows a simple release-note format for public releases.
 
+## 2.3.1 - 2026-07-07
+
+### Changed
+
+- Moved the desktop UI source from the legacy web workspace into the renderer workspace.
+- Packaged the desktop renderer as local Electron resources instead of loading the UI through the local HTTP service.
+- Routed desktop configuration saves through Electron IPC so enterprise DLP tools do not treat config updates as browser uploads.
+
+### Fixed
+
+- Removed the stale bundled UI dist from the Python package tree.
+- Added desktop smoke diagnostics for packaged renderer and service resources.
+
+### Validation
+
+- `npm --prefix renderer run build`
+- `npm --prefix desktop run build`
+- `uv run python -m unittest tests.test_ui_api tests.test_desktop_config_cli tests.test_wiki_attachments`
+
 ## 2.3.0 - 2026-07-07
 
 ### Added
