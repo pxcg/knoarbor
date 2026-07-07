@@ -1,1 +1,0 @@
-import{r as e}from"./vendor-markdown-DV7daYwZ.js";import{t}from"./RunPage-DM09jZke.js";var n=e();function r({context:e}){return(0,n.jsx)(`section`,{className:`view active import-page`,children:(0,n.jsx)(t,{context:e,embedded:!0,mode:`ingest`})})}export{r as ImportPage};

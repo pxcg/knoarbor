@@ -323,7 +323,7 @@ image_generation:
                 "sources/Agent-Loop-Source.md",
             ],
         )
-        planner_requests = [request for request in client.requests if "SieArbor Chat Tool Planner" in request.messages[0].content]
+        planner_requests = [request for request in client.requests if "KnoArbor Chat Tool Planner" in request.messages[0].content]
         self.assertTrue(planner_requests)
         for planner_request in planner_requests:
             planner_payload = "\n".join(message.content for message in planner_request.messages)

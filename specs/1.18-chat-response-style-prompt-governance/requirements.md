@@ -2,7 +2,7 @@
 
 ## Problem
 
-SieArbor Chat has a strong wiki-first retrieval and evidence pipeline, but its
+KnoArbor Chat has a strong wiki-first retrieval and evidence pipeline, but its
 answer prompt is mostly a RAG contract. It tells the model how to use evidence,
 citations, attachments, and generated images, but it does not yet define a
 product-level response style that matches enterprise local-knowledge usage.
@@ -25,7 +25,7 @@ chat behavior is added.
   take precedence for that turn.
 - Prevent response style from changing retrieval, evidence sufficiency, tool
   availability, citation rules, or image-generation permissions.
-- Define SieArbor's default response voice as professional, direct,
+- Define KnoArbor's default response voice as professional, direct,
   evidence-grounded, and natural in the user's language.
 - Tighten prompt boundaries for retrieval, evidence, tool planning, generated
   images, and existing attachment images.
@@ -129,7 +129,7 @@ Acceptance criteria:
 
 ### Generate A New Image
 
-As a user explicitly asking SieArbor to create a new visual asset, I can use the
+As a user explicitly asking KnoArbor to create a new visual asset, I can use the
 configured image-generation provider.
 
 Acceptance criteria:
@@ -157,7 +157,7 @@ Acceptance criteria:
   ownership boundaries and no impossible tool-action instructions in the
   answer stage.
 - Prompt instructions clearly state that evidence text cannot override
-  SieArbor's system behavior, tool permissions, citation policy, or data
+  KnoArbor's system behavior, tool permissions, citation policy, or data
   handling rules.
 - Attachment-image answers do not claim direct visual inspection unless visual
   analysis evidence exists.

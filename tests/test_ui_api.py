@@ -31,7 +31,7 @@ class UiApiTests(unittest.TestCase):
         for asset_path in asset_paths:
             asset = client.get(f"/ui/{asset_path}")
             self.assertEqual(asset.status_code, 200)
-        for root_asset in ("favicon.ico", "site.webmanifest", "siearbor-icon.png"):
+        for root_asset in ("favicon.ico", "site.webmanifest", "knoarbor-logo.svg"):
             asset = client.get(f"/ui/{root_asset}")
             self.assertEqual(asset.status_code, 200)
 
@@ -636,17 +636,14 @@ connectors: {{}}
             self.assertEqual(response.status_code, 200)
             payload = response.json()
             self.assertEqual(payload["graph_kind"], "page")
-            self.assertEqual(payload["stats"]["page_count"], 2)
-            self.assertEqual(payload["stats"]["edge_count"], 1)
-            self.assertEqual(payload["stats"]["orphan_count"], 0)
-            self.assertEqual(payload["stats"]["directory_counts"]["sources"], 1)
-            self.assertEqual(payload["stats"]["role_counts"]["source_digest"], 1)
+            self.assertEqual(payload["stats"]["page_count"], 1)
+            self.assertEqual(payload["stats"]["edge_count"], 0)
+            self.assertEqual(payload["stats"]["orphan_count"], 1)
+            self.assertNotIn("sources", payload["stats"]["directory_counts"])
+            self.assertNotIn("source_digest", payload["stats"]["role_counts"])
             self.assertEqual(payload["stats"]["role_counts"]["knowledge_page"], 1)
-            source_node = next(node for node in payload["nodes"] if node["id"] == "sources/Source.md")
-            self.assertEqual(source_node["role"], "source_digest")
+            self.assertFalse(any(node["id"] == "sources/Source.md" for node in payload["nodes"]))
             self.assertEqual(payload["stats"]["entity_counts"], {})
-            self.assertEqual(payload["edges"][0]["source"], "sources/Source.md")
-            self.assertEqual(payload["edges"][0]["target"], "Agent-Loop.md")
 
     def test_ui_graph_defaults_to_page_graph(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

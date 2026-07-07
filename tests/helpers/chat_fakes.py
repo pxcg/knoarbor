@@ -25,7 +25,7 @@ class FakeChatClient:
         self.requests.append(request)
         if self.failures_before_success:
             raise self.failures_before_success.pop(0)
-        if "KnoArbor Chat Tool Planner" in request.messages[0].content or "SieArbor Chat Tool Planner" in request.messages[0].content:
+        if "KnoArbor Chat Tool Planner" in request.messages[0].content or "KnoArbor Chat Tool Planner" in request.messages[0].content:
             if self.outputs and isinstance(self.outputs[0], dict) and "tool_calls" in self.outputs[0]:
                 payload = self.outputs.pop(0)
                 content = json.dumps(payload, ensure_ascii=False)

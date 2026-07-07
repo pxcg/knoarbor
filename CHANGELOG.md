@@ -4,6 +4,31 @@ All notable public changes to KnoArbor will be documented in this file.
 
 This project follows a simple release-note format for public releases.
 
+## 2.3.0 - 2026-07-07
+
+### Added
+
+- Added configurable chat response style controls and prompt governance for evidence, retrieval, tools, image generation, and attachment handling.
+- Added simplified model provider configuration around direct API key, Base URL, model discovery, probing, and TLS CA file support.
+
+### Changed
+
+- Simplified desktop and web settings so changes persist through config writes instead of desktop `.env` secret editing.
+- Streamlined source/import, run, graph, report, and settings UI structure for the public KnoArbor console.
+- Kept page graph results focused on maintained wiki pages while source digests remain provenance records.
+
+### Fixed
+
+- Fixed IME composition handling in chat so Enter does not send while composing Chinese, Japanese, or Korean text.
+- Fixed graph selected-page summaries so full page text is preserved instead of truncated ellipses.
+- Fixed model provider removal and document preprocessing settings persistence.
+
+### Validation
+
+- `.venv/bin/python -m unittest tests.test_core_config tests.test_doctor tests.test_model_probe tests.test_ui_api tests.test_image_generation tests.test_chat_agent tests.test_chat_tool_flows tests.test_wiki_index_storage`
+- `npm --prefix web run build`
+- `npm --prefix desktop run build`
+
 ## 2.2.1 - 2026-06-30
 
 ### Added

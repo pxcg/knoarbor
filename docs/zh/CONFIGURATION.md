@@ -8,9 +8,9 @@ KnoArbor 的主要配置在 `config.yaml`，模型接口密钥也保存在本地
 `config.yaml` 可能包含 API Key，请保持它为本地私有文件。
 
 ```text
-macOS: ~/Library/Application Support/SieArbor/config.yaml
-Windows: %APPDATA%/SieArbor/config.yaml
-Linux: ~/.config/SieArbor/config.yaml
+macOS: ~/Library/Application Support/KnoArbor/config.yaml
+Windows: %APPDATA%/KnoArbor/config.yaml
+Linux: ~/.config/KnoArbor/config.yaml
 ```
 
 `config_version` 表示配置 schema 版本。第一版公开配置为：

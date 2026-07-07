@@ -1,1 +1,0 @@
-function e(e,t){let n=`runStatus.${e}`,r=t(n);return r===n?e:r}function t(e){return`status-dot ${e}`}export{e as n,t};

@@ -2,7 +2,7 @@
 
 ## Positioning
 
-This feature makes Chat answers feel like a mature SieArbor product without
+This feature makes Chat answers feel like a mature KnoArbor product without
 turning prompt style into agent policy. The response-style setting controls how
 answers are expressed. The existing retrieval, evidence, citation, tool, image,
 and attachment boundaries remain owned by backend services and prompts with
@@ -152,7 +152,7 @@ Suggested shared style base:
 
 ```md
 Response style:
-- Speak as a calm, capable SieArbor knowledge assistant.
+- Speak as a calm, capable KnoArbor knowledge assistant.
 - Start with the useful answer. Add headings, bullets, or tables only when
   they improve scanning.
 - For Chinese users, use natural professional Chinese. Keep standard technical
@@ -209,7 +209,7 @@ Owns:
 
 - whether local wiki evidence is needed;
 - whether to reuse context;
-- which bounded SieArbor tool to call;
+- which bounded KnoArbor tool to call;
 - whether a request is existing-image retrieval or new-image generation;
 - when current evidence is enough to finish.
 

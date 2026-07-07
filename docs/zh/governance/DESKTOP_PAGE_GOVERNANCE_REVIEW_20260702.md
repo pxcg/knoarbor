@@ -85,7 +85,7 @@
 - `web/src/desktop/useFilePicker.ts`
 - `web/src/desktop/useDesktopService.ts`
 
-页面只调用稳定函数，例如 `selectDirectory`、`selectFile`、`saveEnvSecretsAndRestart`、`openPath`。
+页面只调用稳定函数，例如 `selectDirectory`、`selectFile`、`selectDirectory、selectFile、openPath`、`openPath`。
 
 ### 5. API 客户端和类型文件偏重
 

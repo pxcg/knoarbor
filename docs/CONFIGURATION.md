@@ -16,9 +16,9 @@ and `model`. Source-based CLI/API users can edit the same fields manually.
 Keep `config.yaml` private because it may contain API keys.
 
 ```text
-macOS: ~/Library/Application Support/SieArbor/config.yaml
-Windows: %APPDATA%/SieArbor/config.yaml
-Linux: ~/.config/SieArbor/config.yaml
+macOS: ~/Library/Application Support/KnoArbor/config.yaml
+Windows: %APPDATA%/KnoArbor/config.yaml
+Linux: ~/.config/KnoArbor/config.yaml
 ```
 
 `config_version` identifies the configuration schema. The first public schema is:

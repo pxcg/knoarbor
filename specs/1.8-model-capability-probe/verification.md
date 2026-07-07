@@ -29,7 +29,7 @@ curl -X POST http://127.0.0.1:8000/models/discover \
   -d '{"provider":"vllm"}'
 ```
 
-For hosted providers, load `.env` first so `api_key_env` resolves.
+For hosted providers, load `API key field` first so `api_key` resolves.
 
 ## Release Gate
 

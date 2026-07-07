@@ -22,7 +22,7 @@ OpenAI-compatible runtimes such as vLLM and Ollama.
 
 - Model discovery reads provider metadata without making a generation call.
 - Provider credentials and API keys are never returned by diagnostics APIs.
-- Local unauthenticated providers are supported when `api_key_env` is empty.
+- Local unauthenticated providers are supported when `api_key` is empty.
 - Capability results are structured and can be consumed by API, CLI, UI, and
   host-AI skills.
 - Configuration writes are explicit. Discovery calls may recommend config changes,
