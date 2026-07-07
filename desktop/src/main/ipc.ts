@@ -6,8 +6,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { parse, resolve } from "node:path";
 import type { DesktopAppConfig } from "./config.js";
+import { buildDesktopDiagnostics, getDesktopEnvironment } from "./diagnostics.js";
 import type { DesktopServiceManager } from "./service-manager.js";
-import type { DesktopEnvironment } from "../preload/types.js";
 
 export function registerDesktopIpc(input: {
   config: DesktopAppConfig;
@@ -31,25 +31,17 @@ export function registerDesktopIpc(input: {
   ipcMain.handle("knoarbor-desktop:vaults", async (_event, payload?: Record<string, unknown>) =>
     runDesktopConfigCommand(input.config, "vaults", payload),
   );
-  ipcMain.handle("knoarbor-desktop:environment", () => getEnvironment());
+  ipcMain.handle("knoarbor-desktop:environment", () => getDesktopEnvironment());
   ipcMain.handle("knoarbor-desktop:service-state", () =>
     input.serviceManager.getState(),
   );
-  ipcMain.handle("knoarbor-desktop:diagnostics", () => ({
-    appData:
-      input.config.appServer.mode === "managed"
-        ? {
-            configPath: input.config.appServer.configPath,
-            root: input.config.appServer.appDataRoot,
-          }
-        : undefined,
-    environment: getEnvironment(),
-    logs: {
+  ipcMain.handle("knoarbor-desktop:diagnostics", () =>
+    buildDesktopDiagnostics({
+      config: input.config,
       desktopLogPath: getLogFilePath(),
-      serviceLogPath: input.serviceManager.getState().logPath,
-    },
-    service: input.serviceManager.getState(),
-  }));
+      serviceState: input.serviceManager.getState(),
+    }),
+  );
   ipcMain.handle("knoarbor-desktop:logs-open", async () => {
     const filePath = getLogFilePath();
     if (!filePath) return { opened: false };
@@ -215,18 +207,6 @@ function runJsonCommand(input: {
     });
     child.stdin.end(JSON.stringify(input.input));
   });
-}
-
-function getEnvironment(): DesktopEnvironment {
-  return {
-    isDesktopApp: true,
-    platform: process.platform,
-    versions: {
-      chrome: process.versions.chrome,
-      electron: process.versions.electron,
-      node: process.versions.node,
-    },
-  };
 }
 
 function getLogFilePath(): string | undefined {

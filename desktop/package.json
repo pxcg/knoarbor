@@ -56,6 +56,7 @@
     "pack:win": "npm run build:service && npm run build && set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win dir",
     "prepare:renderer": "node scripts/prepare-renderer.mjs",
     "preview": "electron-vite preview",
+    "test:smoke": "npm run build && node --test tests/*.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

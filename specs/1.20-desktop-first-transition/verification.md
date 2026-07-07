@@ -16,6 +16,7 @@ Run the appropriate subset after each implementation phase:
 - `.venv/bin/python -m unittest tests.test_desktop_config_cli tests.test_core_config tests.test_doctor tests.test_model_probe tests.test_ui_api tests.test_image_generation tests.test_chat_agent tests.test_chat_tool_flows tests.test_wiki_index_storage`
 - `npm --prefix renderer run build`
 - `npm --prefix desktop run build`
+- `npm --prefix desktop run test:smoke`
 - desktop packaged smoke test on macOS and Windows release runners
 
 ## Manual Checks

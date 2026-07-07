@@ -12,5 +12,5 @@
 - [x] Rename remaining `/ui/api/*` endpoints to business-local endpoint names.
 - [x] Rename `web/` to `renderer/`.
 - [x] Update build scripts and CI after renderer rename.
-- [ ] Add desktop startup and diagnostics smoke tests.
+- [x] Add desktop startup and diagnostics smoke tests.
 - [ ] Add a release checklist gate that verifies desktop artifacts are primary.
