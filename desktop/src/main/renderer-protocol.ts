@@ -64,9 +64,6 @@ function resolveStaticAsset(root: string, pathname: string): string | null {
   if (!pathname.startsWith("/ui/")) {
     return null;
   }
-  if (pathname.startsWith("/ui/api/")) {
-    return null;
-  }
   const relativePath = decodeURIComponent(pathname.slice("/ui/".length)) || "index.html";
   if (isUnsafeRelativePath(relativePath)) {
     return null;

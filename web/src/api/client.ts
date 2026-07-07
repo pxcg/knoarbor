@@ -146,7 +146,7 @@ export async function getConfig(): Promise<UiConfigResponse> {
   if (hasDesktopConfigBridge()) {
     return (await readDesktopConfigRaw()) as UiConfigResponse;
   }
-  return requestJson("/ui/api/config");
+  return requestJson("/config");
 }
 
 export async function getVaults(configPath?: string | null): Promise<VaultListResponse> {
@@ -163,7 +163,7 @@ export async function saveConfig(configPath: string | null, content: string): Pr
   if (hasDesktopConfigBridge()) {
     return (await writeDesktopConfigRaw(configPath, content)) as UiConfigUpdateResponse;
   }
-  return requestJson("/ui/api/config", {
+  return requestJson("/config", {
     method: "PUT",
     body: { config_path: configPath, content },
   });
@@ -174,7 +174,7 @@ export async function getConfigForm(configPath?: string | null): Promise<ConfigF
     return (await readDesktopConfigForm(configPath)) as ConfigForm;
   }
   const suffix = configPath ? `?config_path=${encodeURIComponent(configPath)}` : "";
-  return requestJson(`/ui/api/config/form${suffix}`);
+  return requestJson(`/config/form${suffix}`);
 }
 
 export async function getModelProviders(configPath?: string | null): Promise<ModelProvidersResponse> {
@@ -190,7 +190,7 @@ export async function getConfigDiagnostics(configPath?: string | null, options: 
   if (configPath) params.set("config_path", configPath);
   if (options.refreshSourceCounts) params.set("refresh_source_counts", "true");
   const suffix = params.toString() ? `?${params.toString()}` : "";
-  return requestJson(`/ui/api/config/diagnostics${suffix}`);
+  return requestJson(`/config/diagnostics${suffix}`);
 }
 
 export async function getSourceCatalog(configPath?: string | null, connectors: string[] = []): Promise<SourceCatalogResponse> {
@@ -206,7 +206,7 @@ export async function saveConfigForm(configPath: string | null, form: ConfigForm
   if (hasDesktopConfigBridge()) {
     return (await writeDesktopConfigForm(configPath, payload)) as UiConfigUpdateResponse;
   }
-  return requestJson("/ui/api/config/form", {
+  return requestJson("/config/form", {
     method: "PUT",
     body: { ...payload, config_path: configPath },
   });
@@ -241,11 +241,11 @@ export async function applyModelCapabilities(
 }
 
 export async function getStatus(vaultPath: string): Promise<UiStatusResponse> {
-  return requestJson(`/ui/api/status?vault_path=${encodeURIComponent(vaultPath)}`);
+  return requestJson(`/vaults/status?vault_path=${encodeURIComponent(vaultPath)}`);
 }
 
 export async function getGraph(vaultPath: string, view: "page" = "page"): Promise<GraphResponse> {
-  return requestJson(`/ui/api/graph?vault_path=${encodeURIComponent(vaultPath)}&view=${encodeURIComponent(view)}`);
+  return requestJson(`/wiki/graph?vault_path=${encodeURIComponent(vaultPath)}&view=${encodeURIComponent(view)}`);
 }
 
 export async function getPages(selector: VaultSelector): Promise<{ vault_path: string; pages: PageSummary[] }> {
@@ -328,7 +328,7 @@ export async function getReport(selector: VaultSelector, path: string): Promise<
 }
 
 export async function getTokenAnalysis(vaultPath: string, limit = 5000): Promise<TokenAnalysis> {
-  return requestJson(`/ui/api/tokens?vault_path=${encodeURIComponent(vaultPath)}&limit=${limit}`);
+  return requestJson(`/tokens?vault_path=${encodeURIComponent(vaultPath)}&limit=${limit}`);
 }
 
 export async function runIngest(body: Record<string, unknown>): Promise<unknown> {

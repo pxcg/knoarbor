@@ -73,7 +73,7 @@ class WikiAttachmentEvidenceTests(unittest.TestCase):
             self.assertEqual(attachments[0]["topic"], "图2 AC1 激光雷达 FOV 分布图")
             self.assertEqual(attachments[0]["path"], "raw/derived/assets/images/ac1-fov.jpg")
             self.assertTrue(
-                attachments[0]["markdown_src"].startswith("/ui/api/vault-assets/images%2Fac1-fov.jpg?vault_path=")
+                attachments[0]["markdown_src"].startswith("/vault-assets/images%2Fac1-fov.jpg?vault_path=")
             )
 
     def test_falls_back_to_page_topic_matching_when_digest_id_changed(self) -> None:
@@ -109,7 +109,7 @@ class WikiAttachmentEvidenceTests(unittest.TestCase):
             self.assertEqual(attachments[0]["path"], "raw/derived/assets/images/ac1-interface.jpg")
             self.assertTrue(
                 attachments[0]["markdown_src"].startswith(
-                    "/ui/api/vault-assets/images%2Fac1-interface.jpg?vault_path="
+                    "/vault-assets/images%2Fac1-interface.jpg?vault_path="
                 )
             )
 

@@ -114,10 +114,10 @@ Do not move React code under `desktop/src/main` or mix Electron imports into vie
 
 Rename the remaining `/ui/api/*` endpoints into business-local endpoints:
 
-- `/ui/api/status` -> `/status` or `/vaults/status`;
-- `/ui/api/graph` -> `/graph`;
+- `/ui/api/status` -> `/vaults/status`;
+- `/ui/api/graph` -> `/wiki/graph`;
 - `/ui/api/tokens` -> `/tokens`;
-- `/ui/api/vault-assets/*` -> `/assets/*` or `/vault-assets/*`;
+- `/ui/api/vault-assets/*` -> `/vault-assets/*`;
 - config HTTP endpoints removed from desktop production path after IPC coverage is complete.
 
 ## Runtime Flow

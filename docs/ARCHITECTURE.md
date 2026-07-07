@@ -425,7 +425,7 @@ Responsibilities:
 - present configuration, source status, runs, reports, wiki pages, and graph data;
 - call stable core APIs for workflow execution, run state, query context, and wiki page reads;
 - call the desktop bridge for local configuration, OS dialogs, path opening, service lifecycle, and diagnostics;
-- call `/ui/api/*` only for transition-period UI adapters such as developer-console status, local assets, and report previews;
+- call business-local endpoints such as `/vaults/status`, `/wiki/graph`, `/tokens`, and `/vault-assets/*` for local runtime data;
 - render Markdown, diffs, reports, and graph views with reusable local components.
 - maintain a UI-side Vault Runtime state for active vault selection, vault-scoped cache keys, and multi-vault display state.
 

@@ -45,7 +45,7 @@ class UiApiTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             response = client.get(
-                "/ui/api/config/diagnostics",
+                "/config/diagnostics",
                 params={"config_path": str(Path(tmp_dir) / "config.yaml")},
             )
 
@@ -62,7 +62,7 @@ class UiApiTests(unittest.TestCase):
             client = TestClient(create_app())
 
             response = client.get(
-                "/ui/api/vault-assets/images/figure.png",
+                "/vault-assets/images/figure.png",
                 params={"vault_path": str(vault_path)},
             )
 
@@ -86,7 +86,7 @@ models:
 """
             client = TestClient(create_app())
 
-            response = client.put("/ui/api/config", json={"config_path": str(config_path), "content": content})
+            response = client.put("/config", json={"config_path": str(config_path), "content": content})
 
             self.assertEqual(response.status_code, 200)
             self.assertTrue(config_path.exists())
@@ -107,7 +107,7 @@ models:
             )
             client = TestClient(create_app())
 
-            response = client.get("/ui/api/config", params={"config_path": str(config_path)})
+            response = client.get("/config", params={"config_path": str(config_path)})
 
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["summary"]["vault_path"], str((Path(tmp_dir) / "vaults" / "all").resolve()))
@@ -119,7 +119,7 @@ models:
             client = TestClient(create_app())
 
             response = client.put(
-                "/ui/api/config/form",
+                "/config/form",
                 json={
                     "config_path": str(config_path),
                     "project_name": "KnoArbor",
@@ -151,7 +151,7 @@ models:
             self.assertIn("json_mode: false", saved)
             self.assertIn("openclaw:", saved)
             self.assertIn("sessions_dir:", saved)
-            form_response = client.get("/ui/api/config/form", params={"config_path": str(config_path)})
+            form_response = client.get("/config/form", params={"config_path": str(config_path)})
             self.assertEqual(form_response.status_code, 200)
             self.assertFalse(form_response.json()["providers"][0]["json_mode"])
             self.assertEqual(form_response.json()["providers"][0]["context_window"], 32768)
@@ -165,7 +165,7 @@ models:
             client = TestClient(create_app())
 
             response = client.put(
-                "/ui/api/config/form",
+                "/config/form",
                 json={
                     "config_path": str(config_path),
                     "project_name": "KnoArbor",
@@ -201,7 +201,7 @@ models:
             self.assertIn("image_generation:", saved)
             self.assertIn("default_provider: sensenova", saved)
             self.assertIn("model: sensenova-u1-fast", saved)
-            form_response = client.get("/ui/api/config/form", params={"config_path": str(config_path)})
+            form_response = client.get("/config/form", params={"config_path": str(config_path)})
             self.assertEqual(form_response.status_code, 200)
             payload = form_response.json()
             self.assertEqual(payload["image_default_provider"], "sensenova")
@@ -238,13 +238,13 @@ models:
             )
             client = TestClient(create_app())
 
-            form_response = client.get("/ui/api/config/form", params={"config_path": str(config_path)})
+            form_response = client.get("/config/form", params={"config_path": str(config_path)})
             self.assertEqual(form_response.status_code, 200)
             providers = {item["name"]: item for item in form_response.json()["providers"]}
             self.assertEqual(providers["vllm"]["context_window"], 32768)
             self.assertEqual(providers["vllm"]["max_output_tokens"], 8000)
 
-            diagnostics_response = client.get("/ui/api/config/diagnostics", params={"config_path": str(config_path)})
+            diagnostics_response = client.get("/config/diagnostics", params={"config_path": str(config_path)})
             self.assertEqual(diagnostics_response.status_code, 200)
             diagnostics = {item["name"]: item for item in diagnostics_response.json()["providers"]}
             self.assertTrue(diagnostics["ollama"]["ok"])
@@ -261,7 +261,7 @@ models:
             client = TestClient(create_app())
 
             response = client.put(
-                "/ui/api/config/form",
+                "/config/form",
                 json={
                     "config_path": str(config_path),
                     "project_name": "Team Vault",
@@ -285,7 +285,7 @@ models:
             self.assertIn("vaults:", saved)
             self.assertIn("default: team", saved)
             self.assertIn("name: Team Vault", saved)
-            form_response = client.get("/ui/api/config/form", params={"config_path": str(config_path)})
+            form_response = client.get("/config/form", params={"config_path": str(config_path)})
             self.assertEqual(form_response.status_code, 200)
             payload = form_response.json()
             self.assertEqual(payload["vault_id"], "team")
@@ -301,7 +301,7 @@ models:
             client = TestClient(create_app())
 
             response = client.put(
-                "/ui/api/config/form",
+                "/config/form",
                 json={
                     "config_path": str(config_path),
                     "project_name": "KnoArbor",
@@ -341,7 +341,7 @@ models:
             client = TestClient(create_app())
 
             response = client.put(
-                "/ui/api/config/form",
+                "/config/form",
                 json={
                     "config_path": str(config_path),
                     "project_name": "KnoArbor",
@@ -392,7 +392,7 @@ models:
             self.assertIn("end_page_id: 99999", saved)
             self.assertIn("custom_flag: 'on'", saved)
 
-            form_response = client.get("/ui/api/config/form", params={"config_path": str(config_path)})
+            form_response = client.get("/config/form", params={"config_path": str(config_path)})
             self.assertEqual(form_response.status_code, 200)
             payload = form_response.json()
             self.assertEqual(payload["mineru_backend"], "pipeline")
@@ -416,7 +416,7 @@ models:
             client = TestClient(create_app())
 
             response = client.put(
-                "/ui/api/config/form",
+                "/config/form",
                 json={
                     "config_path": str(config_path),
                     "project_name": "KnoArbor",
@@ -437,7 +437,7 @@ models:
             self.assertEqual(response.status_code, 200)
             saved = config_path.read_text(encoding="utf-8")
             self.assertIn("enabled: true", saved)
-            form_response = client.get("/ui/api/config/form", params={"config_path": str(config_path)})
+            form_response = client.get("/config/form", params={"config_path": str(config_path)})
             self.assertEqual(form_response.status_code, 200)
             self.assertTrue(form_response.json()["mineru_enabled"])
 
@@ -448,7 +448,7 @@ models:
             client = TestClient(create_app())
 
             response = client.put(
-                "/ui/api/config/form",
+                "/config/form",
                 json={
                     "config_path": str(config_path),
                     "project_name": "KnoArbor",
@@ -479,7 +479,7 @@ models:
             self.assertNotIn("sessions_dir: ~/.hermes/sessions", saved)
             self.assertNotIn("sessions_dir: ~/.openclaw/agents/main/sessions", saved)
             self.assertNotIn("sessions_dir: ~/.claude/projects", saved)
-            form_response = client.get("/ui/api/config/form", params={"config_path": str(config_path)})
+            form_response = client.get("/config/form", params={"config_path": str(config_path)})
             self.assertEqual(form_response.status_code, 200)
             self.assertIn("codex", form_response.json()["detected_chat_source_dirs"])
 
@@ -507,7 +507,7 @@ models:
             )
             client = TestClient(create_app())
 
-            response = client.get("/ui/api/config/diagnostics", params={"config_path": str(config_path), "refresh_source_counts": "true"})
+            response = client.get("/config/diagnostics", params={"config_path": str(config_path), "refresh_source_counts": "true"})
 
             self.assertEqual(response.status_code, 200)
             markdown = next(item for item in response.json()["connectors"] if item["name"] == "markdown")
@@ -517,7 +517,7 @@ models:
             self.assertFalse(markdown["supports_segmentation_hint"])
             self.assertEqual(markdown["count"], 1)
 
-            cached_response = client.get("/ui/api/config/diagnostics", params={"config_path": str(config_path)})
+            cached_response = client.get("/config/diagnostics", params={"config_path": str(config_path)})
             self.assertEqual(cached_response.status_code, 200)
             cached_markdown = next(item for item in cached_response.json()["connectors"] if item["name"] == "markdown")
             self.assertEqual(cached_markdown["count"], 1)
@@ -544,7 +544,7 @@ models:
             )
             client = TestClient(create_app())
 
-            response = client.get("/ui/api/config/diagnostics", params={"config_path": str(config_path)})
+            response = client.get("/config/diagnostics", params={"config_path": str(config_path)})
 
             self.assertEqual(response.status_code, 200)
             markdown = next(item for item in response.json()["connectors"] if item["name"] == "markdown")
@@ -579,7 +579,7 @@ connectors: {{}}
             )
             client = TestClient(create_app())
 
-            response = client.get("/ui/api/config/diagnostics", params={"config_path": str(config_path)})
+            response = client.get("/config/diagnostics", params={"config_path": str(config_path)})
 
             self.assertEqual(response.status_code, 200)
             paths = {item["name"]: item for item in response.json()["paths"]}
@@ -598,7 +598,7 @@ connectors: {{}}
             client = TestClient(create_app())
 
             response = client.put(
-                "/ui/api/config",
+                "/config",
                 json={
                     "config_path": str(config_path),
                     "content": "vault:\n  path: ./vaults/all\nmodels:\n  providers:\n    x:\n      api_key: sk-testsecret123456\n",
@@ -622,7 +622,7 @@ connectors: {{}}
             (vault_path / "raw" / "notes" / "unit.md").write_text("# Unit", encoding="utf-8")
             client = TestClient(create_app())
 
-            response = client.get("/ui/api/status", params={"vault_path": str(vault_path)})
+            response = client.get("/vaults/status", params={"vault_path": str(vault_path)})
 
             self.assertEqual(response.status_code, 200)
             payload = response.json()
@@ -647,7 +647,7 @@ connectors: {{}}
             )
             client = TestClient(create_app())
 
-            response = client.get("/ui/api/graph", params={"vault_path": str(vault_path), "view": "page"})
+            response = client.get("/wiki/graph", params={"vault_path": str(vault_path), "view": "page"})
 
             self.assertEqual(response.status_code, 200)
             payload = response.json()
@@ -675,8 +675,8 @@ connectors: {{}}
             )
             client = TestClient(create_app())
 
-            default_response = client.get("/ui/api/graph", params={"vault_path": str(vault_path)})
-            explicit_response = client.get("/ui/api/graph", params={"vault_path": str(vault_path), "view": "page"})
+            default_response = client.get("/wiki/graph", params={"vault_path": str(vault_path)})
+            explicit_response = client.get("/wiki/graph", params={"vault_path": str(vault_path), "view": "page"})
 
             self.assertEqual(default_response.status_code, 200)
             self.assertEqual(explicit_response.status_code, 200)

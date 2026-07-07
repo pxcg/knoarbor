@@ -400,7 +400,7 @@ React 前端是桌面 renderer。业务流程通过 Python 本地 runtime API �
 - 展示配置、来源状态、运行任务、报告、Wiki 页面和图谱数据；
 - 通过稳定核心 API 运行流程、读取运行状态、查询上下文和 Wiki 页面；
 - 通过桌面 bridge 调用本地配置、系统对话框、路径打开、服务生命周期和诊断能力；
-- 只在过渡期 UI 适配场景调用 `/ui/api/*`，例如开发者控制台状态、本地资产和报告预览；
+- 通过 `/vaults/status`、`/wiki/graph`、`/tokens`、`/vault-assets/*` 等业务本地端点读取本地运行时数据；
 - 使用可复用本地组件渲染 Markdown、diff、报告和图谱。
 - 维护 UI 侧的 Vault Runtime 状态，用于当前知识库选择、按知识库分区的缓存 key，以及多知识库展示状态。
 

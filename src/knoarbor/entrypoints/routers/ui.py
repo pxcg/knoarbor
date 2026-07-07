@@ -59,30 +59,30 @@ def create_ui_router(*, include_static: bool = True) -> APIRouter:
             asset = _resolve_ui_asset(f"assets/{asset_path}")
             return _ui_asset_response(asset)
 
-    @router.get("/ui/api/config", response_model=UiConfigResponse, tags=["ui"])
+    @router.get("/config", response_model=UiConfigResponse, tags=["config"])
     async def read_ui_config(config_path: str | None = Query(default=None)) -> UiConfigResponse:
         return config_service.read_raw(config_path)
 
-    @router.put("/ui/api/config", response_model=UiConfigUpdateResponse, tags=["ui"])
+    @router.put("/config", response_model=UiConfigUpdateResponse, tags=["config"])
     async def write_ui_config(request: UiConfigUpdateRequest) -> UiConfigUpdateResponse:
         return config_service.write_raw(request)
 
-    @router.get("/ui/api/config/form", response_model=UiConfigFormResponse, tags=["ui"])
+    @router.get("/config/form", response_model=UiConfigFormResponse, tags=["config"])
     async def read_ui_config_form(config_path: str | None = Query(default=None)) -> UiConfigFormResponse:
         return config_service.read_form(config_path)
 
-    @router.put("/ui/api/config/form", response_model=UiConfigUpdateResponse, tags=["ui"])
+    @router.put("/config/form", response_model=UiConfigUpdateResponse, tags=["config"])
     async def write_ui_config_form(request: UiConfigFormUpdateRequest) -> UiConfigUpdateResponse:
         return config_service.write_form(request)
 
-    @router.get("/ui/api/config/diagnostics", response_model=UiConfigDiagnostics, tags=["ui"])
+    @router.get("/config/diagnostics", response_model=UiConfigDiagnostics, tags=["config"])
     async def read_ui_config_diagnostics(
         config_path: str | None = Query(default=None),
         refresh_source_counts: bool = Query(default=False),
     ) -> UiConfigDiagnostics:
         return config_service.read_diagnostics(config_path, refresh_source_counts=refresh_source_counts)
 
-    @router.get("/ui/api/status", response_model=UiStatusResponse, tags=["ui"])
+    @router.get("/vaults/status", response_model=UiStatusResponse, tags=["vaults"])
     async def read_ui_status(vault_path: str | None = Query(default=None)) -> UiStatusResponse:
         path = Path(vault_path or _summary_from_default_config().get("vault_path") or DEFAULT_VAULT_PATH).expanduser().resolve()
         index_pages = _read_machine_page_records(path)
@@ -108,16 +108,16 @@ def create_ui_router(*, include_static: bool = True) -> APIRouter:
             roles=roles,
         )
 
-    @router.get("/ui/api/graph", response_model=WikiGraph, tags=["ui"])
+    @router.get("/wiki/graph", response_model=WikiGraph, tags=["wiki"])
     async def read_ui_graph(vault_path: str | None = Query(default=None), view: str = Query(default="page")) -> WikiGraph:
         path = Path(vault_path or _summary_from_default_config().get("vault_path") or DEFAULT_VAULT_PATH).expanduser().resolve()
         return build_wiki_graph(path)
 
-    @router.get("/ui/api/tokens", tags=["ui"])
+    @router.get("/tokens", tags=["tokens"])
     async def read_ui_tokens(vault_path: str | None = Query(default=None), limit: int = Query(default=5000, ge=1, le=50000)) -> dict[str, object]:
         return read_token_analysis(_resolve_vault_path(vault_path), limit=limit)
 
-    @router.get("/ui/api/vault-assets/{asset_path:path}", tags=["ui"])
+    @router.get("/vault-assets/{asset_path:path}", tags=["vaults"])
     async def read_vault_asset(
         asset_path: str,
         vault_path: str = Query(default=..., description="Absolute path to the vault directory"),

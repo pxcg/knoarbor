@@ -2,9 +2,9 @@
 
 The change is accepted when:
 
-- `knoar desktop-config read-form --json` returns the same form shape as `GET /ui/api/config/form`.
+- `knoar desktop-config read-form --json` returns the same form shape as `GET /config/form`.
 - `knoar desktop-config write-form --json` writes `config.yaml` and returns `UiConfigUpdateResponse`.
-- Desktop settings save does not call `/ui/api/config` or `/ui/api/config/form` from renderer `fetch`.
+- Desktop settings save does not call `/config` or `/config/form` from renderer `fetch`.
 - Browser mode still saves through the existing HTTP API.
 - CI-style lint and tests pass.
 

@@ -48,7 +48,7 @@ The HTTP write path remains available for browser mode and API users:
 
 ```text
 browser settings state
-  -> fetch PUT /ui/api/config/form
+  -> fetch PUT /config/form
   -> FastAPI
   -> UiConfigService
   -> config.yaml

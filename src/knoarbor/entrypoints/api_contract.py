@@ -23,6 +23,11 @@ class ApiRouteSpec:
 PUBLIC_STABLE_ROUTE_SPECS: tuple[ApiRouteSpec, ...] = (
     ApiRouteSpec("GET", "/health", response_schema="health.v1"),
     ApiRouteSpec("GET", "/doctor", response_schema="doctor.v1"),
+    ApiRouteSpec("GET", "/config", response_schema="config.v1"),
+    ApiRouteSpec("PUT", "/config", request_schema="config_update.v1", response_schema="config_update_response.v1"),
+    ApiRouteSpec("GET", "/config/form", response_schema="config_form.v1"),
+    ApiRouteSpec("PUT", "/config/form", request_schema="config_form_update.v1", response_schema="config_update_response.v1"),
+    ApiRouteSpec("GET", "/config/diagnostics", response_schema="config_diagnostics.v1"),
     ApiRouteSpec("POST", "/ingest", request_schema="ingest_request.v1", response_schema="workflow_response.v1"),
     ApiRouteSpec("POST", "/lint", request_schema="lint_request.v1", response_schema="workflow_response.v1"),
     ApiRouteSpec("GET", "/models/providers", response_schema="model_providers.v1"),
@@ -45,7 +50,10 @@ PUBLIC_STABLE_ROUTE_SPECS: tuple[ApiRouteSpec, ...] = (
     ApiRouteSpec("GET", "/reports/content", response_schema="report_content.v1"),
     ApiRouteSpec("GET", "/runtime", response_schema="runtime_context.v1"),
     ApiRouteSpec("GET", "/sources", response_schema="source_catalog.v1"),
+    ApiRouteSpec("GET", "/tokens", response_schema="token_analysis.v1"),
     ApiRouteSpec("GET", "/vaults", response_schema="vaults.v1"),
+    ApiRouteSpec("GET", "/vaults/status", response_schema="vault_status.v1"),
+    ApiRouteSpec("GET", "/vault-assets/{asset_path}", response_schema="vault_asset.v1"),
     ApiRouteSpec("GET", "/runs", response_schema="runs.v1"),
     ApiRouteSpec("GET", "/runs/{run_id}", response_schema="run_record.v1"),
     ApiRouteSpec("GET", "/runs/{run_id}/events", response_schema="run_events.v1"),
@@ -54,6 +62,7 @@ PUBLIC_STABLE_ROUTE_SPECS: tuple[ApiRouteSpec, ...] = (
     ApiRouteSpec("GET", "/wiki/pages", response_schema="wiki_pages.v1"),
     ApiRouteSpec("GET", "/wiki/pages/content", response_schema="wiki_page_content.v1"),
     ApiRouteSpec("GET", "/wiki/pages/relations", response_schema="wiki_page_relations.v1"),
+    ApiRouteSpec("GET", "/wiki/graph", response_schema="wiki_graph.v1"),
 )
 
 
@@ -64,12 +73,6 @@ PUBLIC_STABLE_ROUTES: tuple[str, ...] = (
 UI_PUBLIC_ROUTES: tuple[str, ...] = (
     "/ui",
     "/ui/assets/{asset_path}",
-    "/ui/api/config",
-    "/ui/api/config/form",
-    "/ui/api/config/diagnostics",
-    "/ui/api/status",
-    "/ui/api/graph",
-    "/ui/api/tokens",
     "/ui/{asset_path}",
 )
 

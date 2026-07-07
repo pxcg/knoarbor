@@ -44,7 +44,7 @@ This is a development-stage transition. We do not need to preserve the old web-p
 
 ## Acceptance Criteria
 
-1. No production desktop code path saves settings through browser `fetch('/ui/api/config*')`.
+1. No production desktop code path saves settings through browser `fetch('/config*')`.
 2. No Electron IPC handler executes chat, query, ingest, lint, wiki, report, run, or model probe business workflows.
 3. Python package data no longer includes the renderer dist once Electron resource loading is complete.
 4. `/ui` and `/ui/api/*` are removed or renamed out of public/product documentation.

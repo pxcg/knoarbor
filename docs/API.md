@@ -28,7 +28,9 @@ Public endpoints are organized by product capability, not by internal workflow s
 | --- | --- | --- |
 | Service status | `GET /health` | Lightweight service heartbeat |
 | Runtime context | `GET /runtime` | Discover the active local API URL, config path, vault path, and endpoint file |
+| Local config | `GET/PUT /config`, `GET/PUT /config/form`, `GET /config/diagnostics` | Read, validate, and diagnose local configuration during development; packaged desktop writes use the Electron bridge |
 | Vault registry | `GET /vaults` | List configured knowledge-base vaults with IDs, names, paths, and availability |
+| Vault runtime | `GET /vaults/status`, `GET /vault-assets/{asset_path}` | Inspect selected vault counts and serve local vault assets |
 | Diagnostics | `GET /doctor` | Read-only setup checks |
 | Sources | `GET /sources` | Read source connector capability catalog |
 | Models | `GET /models/providers`, `GET /models/image-providers`, `POST /models/discover`, `POST /models/apply-capabilities` | List configured text/image providers, check runtime model metadata, and explicitly apply selected model settings |
@@ -36,13 +38,13 @@ Public endpoints are organized by product capability, not by internal workflow s
 | Lint | `POST /lint` | Run deterministic structured maintenance or semantic maintenance |
 | Query | `POST /query` | Retrieve wiki context for a host AI |
 | Chat | `POST /chat`, `POST /chat/stream`, `GET /chat/sessions`, `GET/PATCH/DELETE /chat/sessions/{session_id}`, `POST /chat/sessions/{session_id}/ingest`, `POST /chat/sessions/{session_id}/close`, `POST /chat/sessions/{session_id}/retry` | Ask the selected vault, stream answers, manage sessions, compile sessions, close sessions, and retry failed answers |
-| Query telemetry | `POST /query/feedback`, `GET /query/trends` | Record and inspect query usefulness signals |
+| Query telemetry | `POST /query/feedback`, `GET /query/trends`, `GET /tokens` | Record and inspect query usefulness and model-token signals |
 | Reports | `GET /reports`, `GET /reports/content` | List and read workflow reports |
 | Run monitor | `GET /runs`, `GET /runs/{run_id}` | Inspect queued/running/completed workflows |
 | Run events | `GET /runs/{run_id}/events`, `GET /runs/{run_id}/stream`, `POST /runs/{run_id}/cancel` | Observe or cancel a run |
-| Wiki pages | `GET /wiki/pages`, `GET /wiki/pages/content`, `GET /wiki/pages/relations` | Read generated wiki pages |
+| Wiki pages | `GET /wiki/pages`, `GET /wiki/pages/content`, `GET /wiki/pages/relations`, `GET /wiki/graph` | Read generated wiki pages and graph data |
 
-`/ui/api/*` is reserved for transition-period renderer/developer-console adapters and is not a stable integration API. Desktop settings persistence uses the Electron bridge instead of browser HTTP.
+Desktop settings persistence uses the Electron bridge in packaged desktop builds. The `/config*` HTTP routes remain available for local development and diagnostics, while vault status, graph, token, and vault-asset reads use business-local endpoints.
 
 ## Execution Model
 
@@ -319,7 +321,7 @@ HTTP-only integrations:
 }
 ```
 
-Use this instead of `/ui/api/*` when an integration needs to discover the
+Use this instead of configuration diagnostics or renderer helper calls when an integration needs to discover the
 current vault path. If the service auto-selects a different port, `knoar serve`
 also writes the same runtime address to the user-level
 `.knoarbor/endpoint.json` and to the project-local `.knoarbor/endpoint.json`
@@ -773,7 +775,7 @@ GET /
 GET /ui
 ```
 
-`/ui/api/*` endpoints are internal to the transition-period renderer/developer console. They may change or be removed as desktop bridge coverage and business-local endpoints mature, and should not be treated as stable integration points.
+Developer console static assets are transition-only. Runtime data used by the renderer is exposed through the same business-local endpoints documented above, such as `/vaults/status`, `/wiki/graph`, `/tokens`, and `/vault-assets/{asset_path}`.
 
 ## Removed Low-Level Endpoints
 

@@ -46,7 +46,11 @@ export default defineConfig({
       "/ingest": "http://127.0.0.1:8000",
       "/run_lint_maintenance": "http://127.0.0.1:8000",
       "/query": "http://127.0.0.1:8000",
-      "/ui/api": "http://127.0.0.1:8000",
+      "/config": "http://127.0.0.1:8000",
+      "/tokens": "http://127.0.0.1:8000",
+      "/vault-assets": "http://127.0.0.1:8000",
+      "/vaults": "http://127.0.0.1:8000",
+      "/wiki": "http://127.0.0.1:8000",
     },
   },
 });

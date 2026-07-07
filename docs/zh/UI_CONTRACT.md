@@ -77,7 +77,7 @@ Settings 配置：
 
 ## UI 专用 API 适配器
 
-`/ui/api/*` 下的路由是过渡期 UI 适配器。它们可以聚合公开 API、本地资产服务、诊断和报告辅助能力，服务开发者控制台。它们不是产品入口 API，并应随着 desktop bridge 覆盖和业务本地端点成熟而收缩。
+Python 托管的 `/ui` 静态控制台只是过渡期开发者入口。Renderer 所需的运行时数据通过业务本地端点暴露，例如 `/vaults/status`、`/wiki/graph`、`/tokens` 和 `/vault-assets/*`。打包后的桌面端设置写入使用 Electron bridge，而不是浏览器 HTTP。
 
 外部集成使用 `docs/API_COMPATIBILITY.md` 中的公开 API。
 

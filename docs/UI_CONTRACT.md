@@ -89,12 +89,13 @@ In the desktop app, settings persistence uses the Electron desktop bridge so
 configuration content is not sent through browser `fetch`. Browser/developer
 mode may use the HTTP config adapters until those routes are retired.
 
-## UI-Only API Adapters
+## Developer Console Boundary
 
-Routes under `/ui/api/*` are transition-period UI adapters. They can aggregate
-public API, local asset serving, diagnostics, and report helpers for the
-developer console. They are not product-entry APIs and should shrink as desktop
-bridge coverage and business-local endpoints mature.
+The Python-hosted `/ui` static console is a transition-period developer surface.
+Runtime data used by the renderer is exposed through business-local endpoints
+such as `/vaults/status`, `/wiki/graph`, `/tokens`, and `/vault-assets/*`.
+Packaged desktop settings writes use the Electron bridge rather than browser
+HTTP.
 
 External integrations use the public API in `docs/API_COMPATIBILITY.md`.
 

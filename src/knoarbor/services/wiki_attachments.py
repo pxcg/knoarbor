@@ -176,4 +176,4 @@ def _ui_asset_src(relative_path: str, vault: Path) -> str:
         cleaned = cleaned.removeprefix("raw/derived/assets/")
     elif cleaned.startswith("assets/"):
         cleaned = cleaned.removeprefix("assets/")
-    return f"/ui/api/vault-assets/{quote(cleaned, safe='')}?vault_path={quote(str(vault.expanduser().resolve()), safe='')}"
+    return f"/vault-assets/{quote(cleaned, safe='')}?vault_path={quote(str(vault.expanduser().resolve()), safe='')}"

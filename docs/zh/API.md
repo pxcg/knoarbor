@@ -42,7 +42,7 @@ http://127.0.0.1:8000
 | 运行事件 | `GET /runs/{run_id}/events`, `GET /runs/{run_id}/stream`, `POST /runs/{run_id}/cancel` | 观察或取消运行 |
 | Wiki 页面 | `GET /wiki/pages`, `GET /wiki/pages/content`, `GET /wiki/pages/relations` | 读取生成后的 Wiki 页面 |
 
-`/ui/api/*` 仅供过渡期 renderer/开发者控制台适配使用，不作为稳定集成 API。桌面端设置持久化通过 Electron bridge 完成，不再走浏览器 HTTP。
+打包后的桌面端通过 Electron bridge 持久化设置。`/config*` HTTP 路由保留给本地开发和诊断使用；知识库状态、图谱、token 与知识库资产读取使用业务本地端点。
 
 ## 执行模式
 
@@ -305,8 +305,7 @@ GET /runtime
 }
 ```
 
-集成工具需要发现当前知识库路径时，应使用该接口，而不是调用
-`/ui/api/*`。如果服务启动时自动切换端口，`knoar serve` 也会把实际
+集成工具需要发现当前知识库路径时，应使用该接口，而不是调用配置诊断或 renderer 辅助接口。如果服务启动时自动切换端口，`knoar serve` 也会把实际
 运行地址写入用户级 `.knoarbor/endpoint.json`，并同步写入
 `config.yaml` 同级的项目级 `.knoarbor/endpoint.json`。
 
