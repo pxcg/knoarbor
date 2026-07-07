@@ -264,7 +264,7 @@ def _write_yaml_config(path: Path, data: dict[str, object]) -> None:
     import yaml  # type: ignore[import-untyped]
 
     path.write_text(
-        f"# Local {PRODUCT.name} configuration.\n"
+        "# Local KnoArbor configuration.\n"
         + yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )

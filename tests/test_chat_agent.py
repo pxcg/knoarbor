@@ -14,7 +14,7 @@ from knoarbor.services import ApplicationServices
 from knoarbor.services.chat_agent import ChatAgentService
 from knoarbor.services.chat_sessions import ChatSessionStore
 from knoarbor.services.memory import MemoryService
-from knoarbor.services.wiki_pages import WikiPageSummary, WikiPagesResponse
+from knoarbor.services.wiki_pages import WikiPageSummary
 from tests.helpers.chat_fakes import FakeChatClient, FakeServices, FakeVaults, FakeWikiPages, FakeWikiSearch
 
 
