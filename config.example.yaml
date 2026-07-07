@@ -1,6 +1,6 @@
 # Copy this file to config.yaml and adjust local paths.
-# Secrets do not belong here. Put API keys and tokens in .env, then reference
-# their environment variable names through *_env fields.
+# Model providers use direct API key fields so the desktop settings page only
+# needs base_url, api_key, and model selection.
 
 project:
   # Display name of this specific wiki vault. Change it when you create a new
@@ -39,7 +39,7 @@ models:
   providers:
     deepseek:
       base_url: https://api.deepseek.com
-      api_key_env: DEEPSEEK_API_KEY
+      api_key:
       model: deepseek-v4-flash
       json_mode: true
     # Local presets. Keep only one default provider selected above; uncomment
@@ -47,7 +47,7 @@ models:
     # ollama:
     #   adapter: ollama
     #   base_url: http://127.0.0.1:11434
-    #   api_key_env:
+    #   api_key:
     #   model: qwen3.6:27b-q4_K_M
     #   json_mode: true
     #   context_window: 262144
@@ -56,21 +56,21 @@ models:
     #     think: false
     # ollama-openai-compatible:
     #   base_url: http://127.0.0.1:11434/v1
-    #   api_key_env:
+    #   api_key:
     #   model: qwen3:14b
     #   json_mode: true
     #   context_window: 32768
     #   max_output_tokens: 8000
     # vllm:
     #   base_url: http://127.0.0.1:8001/v1
-    #   api_key_env:
+    #   api_key:
     #   model: Qwen/Qwen3-32B-Instruct
     #   json_mode: true
     #   context_window: 32768
     #   max_output_tokens: 8000
     # qwen-vl:
     #   base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
-    #   api_key_env: DASHSCOPE_API_KEY
+    #   api_key:
     #   model: qwen3-vl-plus
     #   json_mode: false
     #   context_window: 262144

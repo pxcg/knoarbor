@@ -1,27 +1,25 @@
 # Configuration
 
-KnoArbor uses two local files:
+KnoArbor uses one main local configuration file:
 
-- `config.yaml`: non-secret local settings.
-- `.env`: secrets and tokens.
+- `config.yaml`: local settings, including model endpoint credentials.
 
-Both files are ignored by git. Copy the examples before running:
+This file is ignored by git. Copy the example before running:
 
 ```bash
 cp config.example.yaml config.yaml
-cp .env.example .env
-set -a && source .env && set +a
 ```
 
-The CLI/API reads secrets from process environment variables. Loading `.env` is a shell step for source-based usage. The packaged desktop app stores its runtime files under the app data directory and loads its own `.env` automatically when starting the managed local service:
+The desktop Settings page writes model provider values directly into the app's
+managed `config.yaml`, so users only need to understand `base_url`, `api_key`,
+and `model`. Source-based CLI/API users can edit the same fields manually.
+Keep `config.yaml` private because it may contain API keys.
 
 ```text
-macOS: ~/Library/Application Support/KnoArbor/.env
-Windows: %APPDATA%/KnoArbor/.env
-Linux: ~/.config/KnoArbor/.env
+macOS: ~/Library/Application Support/SieArbor/config.yaml
+Windows: %APPDATA%/SieArbor/config.yaml
+Linux: ~/.config/SieArbor/config.yaml
 ```
-
-The desktop settings page writes API keys to that `.env` file and keeps `config.yaml` limited to environment variable names such as `DEEPSEEK_API_KEY`.
 
 `config_version` identifies the configuration schema. The first public schema is:
 
@@ -92,16 +90,15 @@ models:
   providers:
     deepseek:
       base_url: https://api.deepseek.com
-      api_key_env: DEEPSEEK_API_KEY
+      api_key:
       model: deepseek-v4-flash
       json_mode: true
-      verify_tls: true
       tls_ca_file:
       context_window:
       max_output_tokens:
 ```
 
-Model calls pass through the `ModelGateway` boundary. Providers use the `openai_compatible` adapter by default. Ollama can use `adapter: ollama` to call the native `/api/chat` endpoint; this is recommended for Ollama thinking models because KnoArbor can send `think: false` and avoid reasoning-only responses. Hosted providers usually need `api_key_env`; local or private endpoints such as Ollama and vLLM may set `api_key_env: null`.
+Model calls pass through the `ModelGateway` boundary. Providers use the `openai_compatible` adapter by default. Ollama can use `adapter: ollama` to call the native `/api/chat` endpoint; this is recommended for Ollama thinking models because KnoArbor can send `think: false` and avoid reasoning-only responses. Hosted providers usually need `api_key`; local or private endpoints such as Ollama and vLLM may leave `api_key` empty.
 
 `default_max_tokens` and `request_timeout_seconds` are intentionally generous. Ingest and lint are wiki compilation tasks, not short chat replies; page planning, page drafting, and maintenance review often need longer outputs and more time. A provider can override the global output limit with `max_output_tokens`. `context_window` records the model's usable context window for diagnostics and budget checks. Runtime diagnostics try to detect context length from vLLM `/v1/models` metadata and Ollama `/api/show`; when detection is unavailable, KnoArbor falls back to the configured `context_window`.
 
@@ -109,10 +106,12 @@ Configuration design follows the common shape used by AI workflow projects:
 
 - One global default model for most users.
 - A provider registry for users who need to switch between DeepSeek, OpenAI-compatible gateways, Ollama native, local servers, or hosted providers.
-- Secrets referenced by environment variable name instead of being stored in YAML.
+- API keys are part of the local ignored config so desktop users do not need
+  separate environment-variable files.
 - Runtime limits such as output tokens and request timeout exposed as first-class configuration.
 - Prompt caching remains provider-owned and does not require a KnoArbor config switch. KnoArbor keeps semantic contract prompts stable and puts dynamic source/wiki payloads in later user-message content. It also records provider cache usage when returned by the API.
-- TLS verification is provider-scoped. Keep `verify_tls: true` for hosted APIs. For an internal HTTPS endpoint with a private CA, set `tls_ca_file` to the CA bundle path. Use `verify_tls: false` only for a trusted endpoint you control.
+- TLS verification is always enabled by default. For an internal HTTPS endpoint
+  with a private CA, set `tls_ca_file` to the CA bundle path.
 
 Semantic model retries are an explicit runner policy, not a hidden downstream fallback. `SemanticRunner` may retry retryable provider failures and invalid structured model output before the result reaches ingest or lint. Page writes still happen only after a full source or reviewed maintenance batch is approved, so a retried model call cannot partially commit a page by itself.
 
@@ -126,23 +125,22 @@ models:
   providers:
     deepseek:
       base_url: https://api.deepseek.com
-      api_key_env: DEEPSEEK_API_KEY
+      api_key:
       model: deepseek-v4-flash
     openai:
       base_url: https://api.openai.com/v1
-      api_key_env: OPENAI_API_KEY
+      api_key:
       model: gpt-4.1
     openrouter:
       base_url: https://openrouter.ai/api/v1
-      api_key_env: OPENROUTER_API_KEY
+      api_key:
       model: deepseek/deepseek-chat-v3.1
     ollama:
       adapter: ollama
       base_url: http://localhost:11434
-      api_key_env:
+      api_key:
       model: qwen3.6:27b-q4_K_M
       json_mode: true
-      verify_tls: true
       tls_ca_file:
       context_window: 262144
       max_output_tokens: 8000
@@ -150,14 +148,14 @@ models:
         think: false
     ollama-openai-compatible:
       base_url: http://localhost:11434/v1
-      api_key_env:
+      api_key:
       model: qwen3:14b
       json_mode: true
       context_window: 32768
       max_output_tokens: 8000
     vllm:
       base_url: http://localhost:8001/v1
-      api_key_env:
+      api_key:
       model: Qwen/Qwen3-32B-Instruct
       json_mode: false
       context_window: 32768
@@ -198,7 +196,7 @@ image_generation:
       adapter: sensenova_image
       base_url: https://token.sensenova.cn/v1
       endpoint_path: /images/generations
-      api_key_env: SN_API_KEY
+      api_key:
       model: sensenova-u1-fast
       resolution: "2720*1536"
       num_inference_steps: 20

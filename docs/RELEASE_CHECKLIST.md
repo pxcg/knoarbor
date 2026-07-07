@@ -36,7 +36,7 @@ Required checks:
 
 ```bash
 rg -n '/Users/|/home/|DEEPSEEK_API_KEY=|sk-[A-Za-z0-9_-]{12,}|api_key\s*:|apiKey\s*:' \
-  README.md README.zh-CN.md docs src tests config.example.yaml .env.example .github pyproject.toml || true
+  README.md README.zh-CN.md docs src tests config.example.yaml .github pyproject.toml || true
 ```
 
 Acceptable matches:

@@ -35,7 +35,7 @@ models:
     deepseek:
       model: deepseek-v4-flash
       base_url: https://api.deepseek.com
-      api_key_env: DEEPSEEK_API_KEY
+      api_key: ${DEEPSEEK_API_KEY:-}
       json_mode: true
 connectors:
   markdown:

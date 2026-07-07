@@ -39,18 +39,8 @@ uv run knoar first-run --vault ./vaults/default
 This creates `config.yaml`, initializes `./vaults/default`, and copies
 `agent-loop.md` into `vaults/default/raw/inbox/notes/`.
 
-Create `.env` and set at least one model key:
-
-```bash
-cp .env.example .env
-DEEPSEEK_API_KEY=your-key
-```
-
-Load the variables into the current shell before running semantic commands:
-
-```bash
-set -a && source .env && set +a
-```
+Edit `config.yaml` or Settings and set one model provider with `base_url`,
+`api_key`, and `model`.
 
 Run the read-only readiness check:
 
@@ -58,7 +48,7 @@ Run the read-only readiness check:
 uv run knoar doctor
 ```
 
-`doctor` checks config loading, vault structure, model environment variables,
+`doctor` checks config loading, vault structure, model provider settings,
 enabled connectors, optional document preprocessing, and recent run state
 without calling the model or writing wiki pages.
 

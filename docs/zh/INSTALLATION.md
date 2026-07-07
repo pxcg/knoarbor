@@ -18,33 +18,14 @@ uv sync
 uv run knoar first-run --vault ./vaults/default
 ```
 
-创建本地密钥和配置文件：
+创建本地配置文件：
 
 ```bash
-cp .env.example .env
+cp config.example.yaml config.yaml
 ```
 
-编辑 `.env`，至少填写一个模型密钥，例如：
-
-```bash
-DEEPSEEK_API_KEY=your-key
-```
-
-加载环境变量：
-
-```bash
-set -a && source .env && set +a
-```
-
-Windows PowerShell 可以使用：
-
-```powershell
-Get-Content .env | ForEach-Object {
-  if ($_ -match "^\s*([^#][^=]+)=(.*)$") {
-    [Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim(), "Process")
-  }
-}
-```
+编辑 `config.yaml` 或设置页，为模型供应商填写 `base_url`、`api_key` 和
+`model`。
 
 运行只读诊断：
 
@@ -85,7 +66,7 @@ uv run knoar query "Agent Loop 是什么？"
 
 ## 模型供应商
 
-模型供应商配置在 `config.yaml`；密钥保存在 `.env`。DeepSeek、OpenAI、
+模型供应商配置在 `config.yaml`。DeepSeek、OpenAI、
 OpenRouter、LM Studio、vLLM 和其他 OpenAI 兼容端点都使用同一种 provider
 结构。Ollama 可以使用 OpenAI 兼容层，也可以使用 KnoArbor 的原生
 `adapter: ollama`：
@@ -96,11 +77,11 @@ models:
   providers:
     deepseek:
       base_url: https://api.deepseek.com
-      api_key_env: DEEPSEEK_API_KEY
+      api_key:
       model: deepseek-v4-flash
 ```
 
-Ollama 或 vLLM 等本地端点可以使用 `api_key_env: null`。启动本地模型端点后，
+Ollama 或 vLLM 等本地端点可以留空 `api_key`。启动本地模型端点后，
 运行 `uv run knoar doctor --json`，确认配置中的模型已经暴露出来。本地模型还应配置
 provider 级 `context_window` 和 `max_output_tokens`，例如 `context_window: 32768`、
 `max_output_tokens: 8000`。
@@ -114,7 +95,7 @@ models:
     ollama:
       adapter: ollama
       base_url: http://127.0.0.1:11434
-      api_key_env:
+      api_key:
       model: qwen3.6:27b-q4_K_M
       json_mode: true
       context_window: 262144

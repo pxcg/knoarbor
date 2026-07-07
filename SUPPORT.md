@@ -27,7 +27,7 @@ For bugs, include:
 Do not include:
 
 - API keys or tokens.
-- `.env`.
+- `config.yaml` or any other file containing API keys.
 - Private `config.yaml` values.
 - Raw personal notes, company documents, PDFs, screenshots with secrets, or full
   chat logs.

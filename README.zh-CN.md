@@ -110,18 +110,8 @@ uv run knoar first-run --vault ./vaults/default
 这会创建 `config.yaml`，初始化 `./vaults/default`，并把内置 Markdown 示例复制到
 `vaults/default/raw/inbox/notes/agent-loop.md`。
 
-创建 `.env` 并至少填写一个模型密钥：
-
-```bash
-cp .env.example .env
-DEEPSEEK_API_KEY=your-key
-```
-
-加载环境变量：
-
-```bash
-set -a && source .env && set +a
-```
+打开 `config.yaml` 或设置页，配置一个模型供应商的 `base_url`、`api_key` 和
+`model`。
 
 运行只读诊断：
 
@@ -275,7 +265,7 @@ KnoArbor 处于 2.2 桌面端优先版本线。桌面端壳、源码本地服务
 
 ## 配置
 
-模型供应商配置在 `config.yaml`，密钥放在 `.env`：
+模型供应商配置在 `config.yaml`：
 
 ```yaml
 models:
@@ -285,11 +275,11 @@ models:
   providers:
     deepseek:
       base_url: https://api.deepseek.com
-      api_key_env: DEEPSEEK_API_KEY
+      api_key:
       model: deepseek-v4-flash
 ```
 
-当前模型供应商通过 ModelGateway 使用 OpenAI 兼容 Chat Completions API。本地 Ollama 或 vLLM 端点可以不配置 `api_key_env`。更多配置见 [配置说明](docs/zh/CONFIGURATION.md)。
+当前模型供应商通过 ModelGateway 使用 OpenAI 兼容 Chat Completions API。本地 Ollama 或 vLLM 端点可以留空 `api_key`。更多配置见 [配置说明](docs/zh/CONFIGURATION.md)。
 
 ## 架构
 
@@ -360,7 +350,6 @@ scripts/release-check.sh
 当真实 DeepSeek 兼容供应商可用时，也运行：
 
 ```bash
-set -a && source .env && set +a
 scripts/live-release-candidate-smoke.sh
 ```
 
@@ -370,7 +359,6 @@ KnoArbor 面向本地优先使用。原始资料和生成页面可能包含私�
 
 默认忽略：
 
-- `.env`
 - `config.yaml`
 - `config.local.yaml`
 - `wiki/`

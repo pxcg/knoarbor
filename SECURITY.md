@@ -6,8 +6,7 @@ KnoArbor is designed to process personal notes, AI chat logs, and local document
 
 Do not commit:
 
-- `.env` or any file containing API keys.
-- `config.yaml` if it contains private local paths or connector settings.
+- `config.yaml`, `.env`, or any file containing API keys.
 - `wiki/` runtime vault contents.
 - `wiki/raw/` source exports, chat logs, PDFs, Office documents, screenshots, or company documents.
 - Obsidian workspace state or local editor caches.
@@ -16,13 +15,15 @@ The repository `.gitignore` excludes these by default, but review changes before
 
 ## Model Provider Secrets
 
-Model provider keys should be stored in environment variables referenced by `config.yaml`, for example:
+Model provider keys are stored in the local ignored `config.yaml`, for example:
 
 ```yaml
 models:
   providers:
     deepseek:
-      api_key_env: DEEPSEEK_API_KEY
+      base_url: https://api.deepseek.com
+      api_key: your-key
+      model: deepseek-v4-flash
 ```
 
 Do not paste keys into prompts, wiki pages, source documents, examples, issue reports, or screenshots.

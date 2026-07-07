@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import json
-import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -45,13 +44,13 @@ class ImageGenerationTests(unittest.TestCase):
         provider = ImageGenerationProviderConfig(
             base_url="https://token.sensenova.cn/v1",
             endpoint_path="/images/generations",
-            api_key_env="SN_API_KEY",
+            api_key="test-key",
             model="sensenova-u1-fast",
             resolution="2720*1536",
             num_inference_steps=20,
             guidance=4,
         )
-        with patch.dict(os.environ, {"SN_API_KEY": "test-key"}), patch("knoarbor.semantic.image_generation.urllib.request.urlopen", fake_urlopen):
+        with patch("knoarbor.semantic.image_generation.urllib.request.urlopen", fake_urlopen):
             gateway = ImageGenerationGateway.from_config("sensenova", provider, timeout_seconds=33)
             response = gateway.generate(ImageGenerationRequest(prompt="A clean product illustration"))
 
@@ -76,11 +75,11 @@ class ImageGenerationTests(unittest.TestCase):
 
         provider = ImageGenerationProviderConfig(
             base_url="https://token.sensenova.cn/v1",
-            api_key_env="SN_API_KEY",
+            api_key="test-key",
             model="sensenova-u1-fast",
             response_format="b64_json",
         )
-        with patch.dict(os.environ, {"SN_API_KEY": "test-key"}), patch("knoarbor.semantic.image_generation.urllib.request.urlopen", fake_urlopen):
+        with patch("knoarbor.semantic.image_generation.urllib.request.urlopen", fake_urlopen):
             gateway = ImageGenerationGateway.from_config("sensenova", provider)
             response = gateway.generate(ImageGenerationRequest(prompt="A cover image"))
 
@@ -102,7 +101,7 @@ image_generation:
       adapter: sensenova_image
       base_url: https://token.sensenova.cn/v1
       endpoint_path: /images/generations
-      api_key_env: SN_API_KEY
+      api_key: test-key
       model: sensenova-u1-fast
       resolution: "2720*1536"
       num_inference_steps: 20
@@ -111,8 +110,7 @@ image_generation:
                 encoding="utf-8",
             )
             client = TestClient(create_app())
-            with patch.dict(os.environ, {"SN_API_KEY": "test-key"}):
-                response = client.get("/models/image-providers", params={"config_path": str(config)})
+            response = client.get("/models/image-providers", params={"config_path": str(config)})
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
@@ -121,7 +119,7 @@ image_generation:
         self.assertEqual(payload["providers"][0]["name"], "sensenova")
         self.assertEqual(payload["providers"][0]["model"], "sensenova-u1-fast")
         self.assertEqual(payload["providers"][0]["resolution"], "2720*1536")
-        self.assertTrue(payload["providers"][0]["api_key_configured"])
+        self.assertNotIn("api_key", payload["providers"][0])
 
     def test_chat_generated_image_is_persisted_under_vault_assets(self) -> None:
         image_data = base64.b64encode(b"fake-png").decode("ascii")

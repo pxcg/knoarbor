@@ -21,33 +21,14 @@ uv sync
 uv run knoar first-run --vault ./vaults/default
 ```
 
-Create local secret/config files:
+Create local config files:
 
 ```bash
-cp .env.example .env
+cp config.example.yaml config.yaml
 ```
 
-Edit `.env` and set at least one model key, for example:
-
-```bash
-DEEPSEEK_API_KEY=your-key
-```
-
-Load the environment variables:
-
-```bash
-set -a && source .env && set +a
-```
-
-On Windows PowerShell, load the variables with:
-
-```powershell
-Get-Content .env | ForEach-Object {
-  if ($_ -match "^\s*([^#][^=]+)=(.*)$") {
-    [Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim(), "Process")
-  }
-}
-```
+Edit `config.yaml` or the Settings page and configure a model provider with
+`base_url`, `api_key`, and `model`.
 
 Run a read-only readiness check:
 
@@ -90,7 +71,7 @@ support is disabled.
 
 ## Model Providers
 
-Model providers are configured in `config.yaml`; secrets stay in `.env`.
+Model providers are configured in `config.yaml`.
 DeepSeek, OpenAI, OpenRouter, LM Studio, vLLM, and other OpenAI-compatible
 endpoints can use the same provider shape. Ollama can either use its OpenAI
 compatibility layer or KnoArbor's native `adapter: ollama`:
@@ -101,11 +82,11 @@ models:
   providers:
     deepseek:
       base_url: https://api.deepseek.com
-      api_key_env: DEEPSEEK_API_KEY
+      api_key:
       model: deepseek-v4-flash
 ```
 
-Local providers such as Ollama or vLLM may use `api_key_env: null`. Run
+Local providers such as Ollama or vLLM may leave `api_key` empty. Run
 `uv run knoar doctor --json` after starting a local model endpoint to confirm
 that the configured model is visible. For local models, set provider-level
 `context_window` and `max_output_tokens` to match the model runtime, for example
@@ -120,7 +101,7 @@ models:
     ollama:
       adapter: ollama
       base_url: http://127.0.0.1:11434
-      api_key_env:
+      api_key:
       model: qwen3.6:27b-q4_K_M
       json_mode: true
       context_window: 262144

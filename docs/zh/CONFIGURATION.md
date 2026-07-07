@@ -1,16 +1,17 @@
 # 配置说明
 
-KnoArbor 的主要配置在 `config.yaml`，敏感密钥放在 `.env`。
+KnoArbor 的主要配置在 `config.yaml`，模型接口密钥也保存在本地
+`config.yaml` 中。
 
-源码运行时，CLI/API 从当前进程环境变量读取密钥，`.env` 需要由 shell 或运行器加载。打包桌面端会把运行时文件放在应用数据目录，并在启动托管本地服务时自动读取自己的 `.env`：
+桌面端设置页会直接写入应用数据目录下的 `config.yaml`，普通用户只需要理解
+`base_url`、`api_key` 和 `model`。源码运行时也可以直接编辑同一组字段。因为
+`config.yaml` 可能包含 API Key，请保持它为本地私有文件。
 
 ```text
-macOS: ~/Library/Application Support/KnoArbor/.env
-Windows: %APPDATA%/KnoArbor/.env
-Linux: ~/.config/KnoArbor/.env
+macOS: ~/Library/Application Support/SieArbor/config.yaml
+Windows: %APPDATA%/SieArbor/config.yaml
+Linux: ~/.config/SieArbor/config.yaml
 ```
-
-桌面端设置页会把 API Key 写入这个 `.env` 文件；`config.yaml` 只保存 `DEEPSEEK_API_KEY` 这类环境变量名称。
 
 `config_version` 表示配置 schema 版本。第一版公开配置为：
 
@@ -58,22 +59,22 @@ models:
   providers:
     deepseek:
       base_url: https://api.deepseek.com
-      api_key_env: DEEPSEEK_API_KEY
+      api_key:
       model: deepseek-v4-flash
       json_mode: true
-      verify_tls: true
       tls_ca_file:
       context_window:
       max_output_tokens:
 ```
 
 推荐默认只配置一个模型供应商。需要备用模型、本地模型或特殊端点时，再添加新的 provider。
-模型调用统一经过 `ModelGateway`。provider 默认使用 `openai_compatible` 适配器；Ollama 可以设置 `adapter: ollama`，直接调用原生 `/api/chat`。对于 Qwen 等 thinking 模型，原生 Ollama 适配器会默认发送 `think: false`，避免 OpenAI 兼容层出现 reasoning 很长、正文为空或返回过慢的问题。托管供应商通常需要 `api_key_env`，本地或内网端点（如 Ollama、vLLM）可以设置为 `api_key_env: null`。
+模型调用统一经过 `ModelGateway`。provider 默认使用 `openai_compatible` 适配器；Ollama 可以设置 `adapter: ollama`，直接调用原生 `/api/chat`。对于 Qwen 等 thinking 模型，原生 Ollama 适配器会默认发送 `think: false`，避免 OpenAI 兼容层出现 reasoning 很长、正文为空或返回过慢的问题。托管供应商通常需要 `api_key`，本地或内网端点（如 Ollama、vLLM）可以留空 `api_key`。
 本地供应商启动后，运行 `uv run knoar doctor --json` 可以检查模型是否可用。OpenAI 兼容适配器会检查 `/models`；Ollama 原生适配器会检查 `/api/tags` 和 `/api/show`。Ollama、vLLM 等本地模型建议显式配置 `context_window` 和 `max_output_tokens`，例如 32K 上下文模型可以先设置为 `context_window: 32768`、`max_output_tokens: 8000`。运行时诊断会尝试从 vLLM `/v1/models` 元数据和 Ollama `/api/show` 自动探测上下文长度；探测不到时回退到配置中的 `context_window`。
 单次 CLI/API 请求传入的 `max_tokens` 优先级最高；未传入时使用选中 provider 的 `max_output_tokens`；provider 未配置时再使用 `models.default_max_tokens`。
 Ollama、vLLM 等本地模型建议先使用 `json_mode: false`，待该模型通过 KnoArbor 结构化流程验证后再开启 JSON mode。
 Prompt caching 由模型供应商实现，不需要在 KnoArbor 中单独开启。KnoArbor 只保证语义契约 prompt 的稳定前缀，并在供应商返回缓存命中指标时写入运行指标和报告；未返回缓存字段的供应商会显示为未提供该遥测，而不是配置错误。
-TLS 校验按模型供应商单独配置。托管 API 保持 `verify_tls: true`；内网 HTTPS 端点如果使用私有 CA，可以通过 `tls_ca_file` 指定 CA 证书文件。只有在受信任且自己控制的内网端点上，才建议设置 `verify_tls: false`。
+TLS 默认开启校验；内网 HTTPS 端点如果使用私有 CA，可以通过 `tls_ca_file`
+指定 CA 证书文件。
 
 Ollama 原生适配器示例：
 
@@ -84,10 +85,9 @@ models:
     ollama:
       adapter: ollama
       base_url: http://127.0.0.1:11434
-      api_key_env:
+      api_key:
       model: qwen3.6:27b-q4_K_M
       json_mode: true
-      verify_tls: true
       tls_ca_file:
       context_window: 262144
       max_output_tokens: 8000
@@ -117,7 +117,7 @@ image_generation:
       adapter: sensenova_image
       base_url: https://token.sensenova.cn/v1
       endpoint_path: /images/generations
-      api_key_env: SN_API_KEY
+      api_key:
       model: sensenova-u1-fast
       resolution: "2720*1536"
       num_inference_steps: 20

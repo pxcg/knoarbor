@@ -110,18 +110,8 @@ uv run knoar first-run --vault ./vaults/default
 This creates `config.yaml`, initializes `./vaults/default`, and copies a small bundled
 Markdown example to `vaults/default/raw/inbox/notes/agent-loop.md`.
 
-Create `.env` and set at least one provider key:
-
-```bash
-cp .env.example .env
-DEEPSEEK_API_KEY=your-key
-```
-
-Load environment variables:
-
-```bash
-set -a && source .env && set +a
-```
+Open `config.yaml` or Settings and set one model provider with `base_url`,
+`api_key`, and `model`.
 
 Check local readiness before running semantic workflows:
 
@@ -300,7 +290,7 @@ Not included in the current local-first release:
 
 ## Configuration
 
-Model providers are configured in `config.yaml`, while secrets stay in `.env`:
+Model providers are configured in `config.yaml`:
 
 ```yaml
 models:
@@ -310,11 +300,11 @@ models:
   providers:
     deepseek:
       base_url: https://api.deepseek.com
-      api_key_env: DEEPSEEK_API_KEY
+      api_key:
       model: deepseek-v4-flash
 ```
 
-Model providers run through the ModelGateway boundary. OpenAI-compatible endpoints work by default; Ollama can also use a native `/api/chat` adapter for local thinking models. Local endpoints such as Ollama or vLLM can run without `api_key_env`. See [Configuration](docs/CONFIGURATION.md) for provider examples and connector settings.
+Model providers run through the ModelGateway boundary. OpenAI-compatible endpoints work by default; Ollama can also use a native `/api/chat` adapter for local thinking models. Local endpoints such as Ollama or vLLM can leave `api_key` empty. See [Configuration](docs/CONFIGURATION.md) for provider examples and connector settings.
 
 ## Architecture
 
@@ -381,7 +371,6 @@ For release candidates, use `scripts/release-check.sh`. It runs the local gate p
 When a real DeepSeek-compatible provider is available, also run:
 
 ```bash
-set -a && source .env && set +a
 scripts/live-release-candidate-smoke.sh
 ```
 
@@ -396,7 +385,6 @@ KnoArbor is designed for local-first use. Raw sources and generated wiki pages c
 
 Ignored by default:
 
-- `.env`
 - `config.yaml`
 - `config.local.yaml`
 - `vaults/`

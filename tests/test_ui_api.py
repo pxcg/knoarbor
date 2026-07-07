@@ -65,7 +65,7 @@ models:
   providers:
     deepseek:
       base_url: https://api.deepseek.com
-      api_key_env: DEEPSEEK_API_KEY
+      api_key: test-key
       model: deepseek-chat
 """
             client = TestClient(create_app())
@@ -117,12 +117,11 @@ models:
                         {
                             "name": "local",
                             "base_url": "http://localhost:1234/v1",
-                            "api_key_env": "LOCAL_API_KEY",
+                            "api_key": "test-key",
                             "model": "local-model",
                             "json_mode": False,
                             "context_window": 32768,
                             "max_output_tokens": 8000,
-                            "api_key_configured": False,
                         }
                     ],
                     "openclaw_enabled": True,
@@ -169,15 +168,13 @@ models:
                             "adapter": "sensenova_image",
                             "base_url": "https://token.sensenova.cn/v1",
                             "endpoint_path": "/images/generations",
-                            "api_key_env": "SENSENOVA_API_KEY",
+                            "api_key": "test-key",
                             "model": "sensenova-u1-fast",
-                            "verify_tls": True,
                             "tls_ca_file": "",
                             "resolution": "2720*1536",
                             "num_inference_steps": 20,
                             "guidance": 4,
                             "extra_body": {},
-                            "api_key_configured": False,
                         }
                     ],
                 },
@@ -228,11 +225,8 @@ models:
             form_response = client.get("/ui/api/config/form", params={"config_path": str(config_path)})
             self.assertEqual(form_response.status_code, 200)
             providers = {item["name"]: item for item in form_response.json()["providers"]}
-            self.assertTrue(providers["ollama"]["api_key_configured"])
-            self.assertTrue(providers["vllm"]["api_key_configured"])
             self.assertEqual(providers["vllm"]["context_window"], 32768)
             self.assertEqual(providers["vllm"]["max_output_tokens"], 8000)
-            self.assertFalse(providers["cloud_missing_env"]["api_key_configured"])
 
             diagnostics_response = client.get("/ui/api/config/diagnostics", params={"config_path": str(config_path)})
             self.assertEqual(diagnostics_response.status_code, 200)
@@ -242,7 +236,7 @@ models:
             self.assertIn("context_window=32768", diagnostics["vllm"]["detail"])
             self.assertIn("max_output_tokens=8000", diagnostics["vllm"]["detail"])
             self.assertFalse(diagnostics["cloud_missing_env"]["ok"])
-            self.assertEqual(diagnostics["cloud_missing_env"]["detail"], "api_key_env")
+            self.assertEqual(diagnostics["cloud_missing_env"]["detail"], "api_key")
 
     def test_ui_config_form_saves_multiple_vault_profiles(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -582,7 +576,7 @@ connectors: {{}}
             self.assertEqual(paths["vault.team"]["code"], "path_missing")
             self.assertEqual(paths["vault.team"]["detail"], "Team (available)")
 
-    def test_ui_config_rejects_inline_secrets(self) -> None:
+    def test_ui_config_allows_local_api_key_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             config_path = Path(tmp_dir) / "config.yaml"
             client = TestClient(create_app())
@@ -595,8 +589,10 @@ connectors: {{}}
                 },
             )
 
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("inline secrets", response.json()["detail"])
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(config_path.exists())
+            self.assertEqual(response.json()["summary"]["provider_count"], 1)
+            self.assertNotIn("sk-testsecret123456", str(response.json()["summary"]))
 
     def test_ui_status_returns_vault_counts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

@@ -65,7 +65,7 @@ class DoctorServiceTests(unittest.TestCase):
 
         self.assertEqual(report.status, "ok")
         checks = {check.name: check for check in report.checks}
-        self.assertEqual(checks["models.api_key_env"].status, "ok")
+        self.assertEqual(checks["models.api_key"].status, "ok")
         self.assertEqual(checks["models.endpoint"].status, "ok")
         self.assertEqual(checks["models.default_provider"].details["context_window"], 32768)
         self.assertEqual(checks["models.default_provider"].details["effective_max_tokens"], 8000)

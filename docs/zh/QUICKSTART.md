@@ -37,18 +37,8 @@ uv run knoar first-run --vault ./vaults/default
 这会创建 `config.yaml`，初始化 `./vaults/default`，并把 `agent-loop.md` 示例复制到
 `vaults/default/raw/inbox/notes/`。
 
-创建 `.env` 并填写至少一个模型密钥：
-
-```bash
-cp .env.example .env
-DEEPSEEK_API_KEY=your-key
-```
-
-运行语义流程前，将环境变量加载到当前 shell：
-
-```bash
-set -a && source .env && set +a
-```
+编辑 `config.yaml` 或设置页，为一个模型供应商填写 `base_url`、`api_key` 和
+`model`。
 
 运行只读诊断：
 
@@ -56,7 +46,7 @@ set -a && source .env && set +a
 uv run knoar doctor
 ```
 
-`doctor` 会检查配置、知识库结构、模型环境变量、来源连接器、可选文档预处理和最近运行状态。
+`doctor` 会检查配置、知识库结构、模型供应商设置、来源连接器、可选文档预处理和最近运行状态。
 它不会调用模型，也不会写入 Wiki 页面。
 
 ## 3. 编译内置示例

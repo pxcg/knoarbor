@@ -28,13 +28,11 @@ Fix:
 
 ```bash
 cp config.example.yaml config.yaml
-cp .env.example .env
 ```
 
-Then edit `config.yaml` and load secrets:
+Then edit `config.yaml` and run diagnostics:
 
 ```bash
-set -a && source .env && set +a
 uv run knoar doctor
 ```
 
@@ -42,21 +40,28 @@ uv run knoar doctor
 
 Symptoms:
 
-- `doctor` reports the model environment variable is missing.
+- `doctor` reports the model API key is missing.
 - Ingest or lint fails while waiting for a model.
 - Query works but semantic workflows fail.
 
 Fix:
 
 1. Confirm `models.default_provider` in `config.yaml`.
-2. For hosted providers, confirm the provider has `api_key_env`.
-3. Confirm that environment variable is exported in the shell running KnoArbor.
-4. For local or private endpoints such as Ollama/vLLM, set `api_key_env: null` and confirm the endpoint is running.
+2. For hosted providers, confirm the selected provider has `api_key`.
+3. For local or private endpoints such as Ollama/vLLM, leave `api_key` empty and confirm the endpoint is running.
 
 Example:
 
+```yaml
+models:
+  providers:
+    deepseek:
+      base_url: https://api.deepseek.com
+      api_key: your-key
+      model: deepseek-v4-flash
+```
+
 ```bash
-export DEEPSEEK_API_KEY=...
 uv run knoar doctor
 ```
 

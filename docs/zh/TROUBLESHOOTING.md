@@ -25,13 +25,11 @@ uv run knoar status --vault vaults/default
 
 ```bash
 cp config.example.yaml config.yaml
-cp .env.example .env
 ```
 
-然后编辑 `config.yaml` 并加载密钥：
+然后编辑 `config.yaml` 并运行诊断：
 
 ```bash
-set -a && source .env && set +a
 uv run knoar doctor
 ```
 
@@ -39,21 +37,28 @@ uv run knoar doctor
 
 现象：
 
-- `doctor` 报告模型环境变量缺失。
+- `doctor` 报告模型 API Key 缺失。
 - ingest 或 lint 在等待模型时失败。
 - query 可用，但语义流程失败。
 
 修复：
 
 1. 确认 `config.yaml` 中的 `models.default_provider`。
-2. 如果使用托管供应商，确认该 provider 配置了 `api_key_env`。
-3. 确认运行 KnoArbor 的 shell 中已经导出对应环境变量。
-4. 如果使用 Ollama/vLLM 等本地或内网端点，将 `api_key_env` 设置为 `null`，并确认服务已启动。
+2. 如果使用托管供应商，确认该 provider 配置了 `api_key`。
+3. 如果使用 Ollama/vLLM 等本地或内网端点，留空 `api_key`，并确认服务已启动。
 
 示例：
 
+```yaml
+models:
+  providers:
+    deepseek:
+      base_url: https://api.deepseek.com
+      api_key: your-key
+      model: deepseek-v4-flash
+```
+
 ```bash
-export DEEPSEEK_API_KEY=...
 uv run knoar doctor
 ```
 

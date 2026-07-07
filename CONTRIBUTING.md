@@ -25,10 +25,11 @@ See [Development](docs/DEVELOPMENT.md#branch-and-release-model) for the full bra
 ```bash
 uv sync
 cp config.example.yaml config.yaml
-cp .env.example .env
+cp config.example.yaml config.yaml
 ```
 
-For semantic workflows, set at least one model provider key in `.env`.
+For semantic workflows, set at least one model provider `api_key` in
+`config.yaml`, or use a local/private endpoint that does not require one.
 
 ## Tests
 

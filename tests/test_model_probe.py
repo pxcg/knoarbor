@@ -12,7 +12,7 @@ from knoarbor.entrypoints.api import create_app
 from knoarbor.semantic.llm import ProviderModelDiscovery
 
 
-def _write_config(path: Path, *, api_key_env: str | None = None, model: str = "qwen-local") -> None:
+def _write_config(path: Path, *, api_key: str | None = None, model: str = "qwen-local") -> None:
     payload = {
         "vault": {"path": str(path.parent / "wiki")},
         "models": {
@@ -22,7 +22,7 @@ def _write_config(path: Path, *, api_key_env: str | None = None, model: str = "q
             "providers": {
                 "local": {
                     "base_url": "http://localhost:8001/v1",
-                    "api_key_env": api_key_env,
+                    "api_key": api_key,
                     "model": model,
                     "json_mode": False,
                     "context_window": 16384,
@@ -49,7 +49,6 @@ class ModelProbeApiTests(unittest.TestCase):
         self.assertEqual(payload["default_provider"], "local")
         provider = payload["providers"][0]
         self.assertEqual(provider["name"], "local")
-        self.assertTrue(provider["api_key_configured"])
         self.assertTrue(provider["local_or_private"])
         self.assertNotIn("api_key", provider)
 
