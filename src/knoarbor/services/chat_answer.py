@@ -4,8 +4,6 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from pydantic import ValidationError
-
 from knoarbor.core.config import ModelRetryConfig
 from knoarbor.core.errors import ModelOutputError
 from knoarbor.core.markdown import compact_inline_text
@@ -14,6 +12,9 @@ from knoarbor.services.chat_context import latest_user_text
 from knoarbor.services.chat_evidence import ChatEvidencePlanner
 from knoarbor.services.chat_model_call import run_chat_model_call, run_chat_model_call_stream
 from knoarbor.semantic.llm import ChatClient, ChatCompletionRequest, ChatCompletionResponse, ChatMessage
+
+
+CHAT_RESPONSE_STYLES = {"concise", "balanced", "deep"}
 
 
 @dataclass(frozen=True)
@@ -42,9 +43,14 @@ class ChatAnswerSynthesizer:
         turn: int,
         max_tokens: int | None,
         retry: ModelRetryConfig,
+        response_style: str = "balanced",
         token_callback: Callable[[str], None] | None = None,
     ) -> ChatAnswerResult:
-        messages = _answer_messages(initial_messages, self._answer_prompt(current_messages, observations, existing_session, topic_anchor))
+        messages = _answer_messages(
+            initial_messages,
+            self._answer_prompt(current_messages, observations, existing_session, topic_anchor),
+            response_style=response_style,
+        )
         prompt_chars = messages_chars(messages)
         completion_request = ChatCompletionRequest(
             messages=messages,
@@ -108,7 +114,7 @@ class ChatAnswerSynthesizer:
         )
 
 
-def _answer_messages(initial_messages: list[ChatMessage], answer_prompt: str) -> list[ChatMessage]:
+def _answer_messages(initial_messages: list[ChatMessage], answer_prompt: str, *, response_style: str = "balanced") -> list[ChatMessage]:
     """Build the answer call with stable instructions and structured state.
 
     Previous dialogue is passed inside the answer_state as bounded conversation
@@ -119,7 +125,35 @@ def _answer_messages(initial_messages: list[ChatMessage], answer_prompt: str) ->
     system_messages = [message for message in initial_messages if message.role == "system"]
     if not system_messages:
         raise ModelOutputError("Chat answer synthesis requires a system prompt.")
-    return [*system_messages, ChatMessage(role="user", content=answer_prompt)]
+    return [*system_messages, ChatMessage(role="system", content=response_style_prompt(response_style)), ChatMessage(role="user", content=answer_prompt)]
+
+
+def response_style_prompt(response_style: str) -> str:
+    style = response_style if response_style in CHAT_RESPONSE_STYLES else "balanced"
+    base = [
+        "Response style profile:",
+        f"- Default answer depth: {style}.",
+        "- This is a default preference. If the latest user message explicitly asks for a shorter, longer, more detailed, or differently formatted answer, follow the latest user request for this turn.",
+        "- Preserve all evidence, citation, tool, attachment, and data-handling rules from the main system prompt.",
+    ]
+    additions = {
+        "concise": [
+            "- Keep answers short unless the user explicitly asks for detail.",
+            "- Include only the most important supporting evidence or citation.",
+            "- Avoid long follow-up suggestions.",
+        ],
+        "balanced": [
+            "- Give the direct answer, then the necessary explanation.",
+            "- Use light structure when it helps the user scan.",
+            "- Include caveats and next steps only when they materially help.",
+        ],
+        "deep": [
+            "- Expand mechanisms, boundaries, tradeoffs, examples, and implications when evidence supports them.",
+            "- Use structured sections for architecture, comparison, design, or review questions.",
+            "- Distinguish confirmed evidence, reasonable synthesis, and missing context.",
+        ],
+    }
+    return "\n".join([*base, *additions[style]])
 
 
 def _conversation_context(existing_session: ChatSessionRecord | None) -> list[dict[str, object]]:
@@ -154,15 +188,6 @@ def _recent_user_messages(current_messages: list[ChatMessageItem], latest_user: 
     return items[-6:]
 
 
-def parse_answer_draft(content: str) -> ChatAnswerDraft:
-    payload = parse_json_object(content)
-    payload = _normalize_answer_payload(payload)
-    try:
-        return ChatAnswerDraft.model_validate(payload)
-    except (ValidationError, ValueError) as exc:
-        raise ModelOutputError(f"Chat answer model returned invalid JSON: {exc}") from exc
-
-
 def parse_json_object(content: str) -> dict[str, Any]:
     text = content.strip()
     if text.startswith("```"):
@@ -183,20 +208,3 @@ def parse_json_object(content: str) -> dict[str, Any]:
 
 def messages_chars(messages: list[ChatMessage]) -> int:
     return sum(len(message.content) for message in messages)
-
-
-def _normalize_answer_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    citations = payload.get("citations")
-    if not isinstance(citations, list):
-        return payload
-    normalized = []
-    for citation in citations:
-        if not isinstance(citation, dict):
-            normalized.append(citation)
-            continue
-        item = dict(citation)
-        kind = str(item.get("kind") or "").strip().lower()
-        if kind == "source_digest":
-            item["kind"] = "page"
-        normalized.append(item)
-    return {**payload, "citations": normalized}

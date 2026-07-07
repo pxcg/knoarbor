@@ -299,7 +299,7 @@ class ChatEvidencePlanner:
         if action == "answer_with_gap":
             instructions.append("Local evidence is weak or missing; state the gap clearly before giving any tentative answer.")
         if action == "read_primary_if_detail_needed" and primary_page:
-            instructions.append(f"If the user needs more detail, call read_wiki_page for {primary_page.get('path')}.")
+            instructions.append(f"If more detail is needed, say that the maintained page {primary_page.get('path')} can be read for full detail.")
         if evidence_coverage.get("missing_dimensions"):
             instructions.append(f"Potential missing evidence dimensions: {', '.join(str(item) for item in evidence_coverage.get('missing_dimensions', []))}.")
         return instructions

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import json
 import tempfile
 import unittest
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -11,7 +11,6 @@ from knoarbor.core.errors import ExternalServiceError
 from knoarbor.core.schemas.chat import ChatMessageItem, ChatRequest
 from knoarbor.entrypoints.api import create_app
 from knoarbor.services import ApplicationServices
-from knoarbor.services.chat_answer import parse_answer_draft
 from knoarbor.services.chat_agent import ChatAgentService
 from knoarbor.services.chat_sessions import ChatSessionStore
 from knoarbor.services.memory import MemoryService
@@ -20,21 +19,6 @@ from tests.helpers.chat_fakes import FakeChatClient, FakeServices, FakeVaults, F
 
 
 class ChatAgentServiceTest(unittest.TestCase):
-    def test_answer_citation_page_roles_are_preserved(self) -> None:
-        draft = parse_answer_draft(
-            json.dumps(
-                {
-                    "answer": "Agent Loop answer.",
-                    "citations": [
-                        {"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"},
-                        {"kind": "page", "path": "OpenClaw.md", "title": "OpenClaw"},
-                    ],
-                }
-            )
-        )
-
-        self.assertEqual([citation.kind for citation in draft.citations], ["page", "page"])
-
     def test_search_then_final_answer(self) -> None:
         client = FakeChatClient(
             [
@@ -274,6 +258,45 @@ class ChatAgentServiceTest(unittest.TestCase):
         )
 
         self.assertEqual(response.answer, "not json")
+
+    def test_response_style_is_injected_only_for_answer_synthesis(self) -> None:
+        client = FakeChatClient([{"answer": "详细回答。", "citations": []}])
+        service = ChatAgentService(client_factory=lambda _request: client)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            vault = root / "vault"
+            vault.mkdir()
+            config = root / "config.yaml"
+            config.write_text(
+                f"""
+vault:
+  path: {vault}
+chat:
+  response_style: deep
+models:
+  providers: {{}}
+image_generation:
+  providers: {{}}
+""",
+                encoding="utf-8",
+            )
+
+            response = service.chat(
+                ChatRequest(
+                    messages=[ChatMessageItem(role="user", content="Agent Loop 是什么？")],
+                    config_path=str(config),
+                    vault_path=str(vault),
+                    append_ledger=False,
+                ),
+                FakeServices(),  # type: ignore[arg-type]
+            )
+
+        planner_prompt = "\n".join(message.content for message in client.requests[0].messages)
+        answer_prompt = "\n".join(message.content for message in client.requests[-1].messages)
+        self.assertNotIn("Response style profile", planner_prompt)
+        self.assertIn("Default answer depth: deep", answer_prompt)
+        self.assertIn("latest user message explicitly asks", answer_prompt)
+        self.assertEqual(response.stats["response_style"], "deep")
 
     def test_answer_directly_plan_is_respected(self) -> None:
         client = FakeChatClient(

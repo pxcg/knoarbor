@@ -80,6 +80,7 @@ class ChatAgentService:
             latest_user_text(context.conversation_messages),
             existing_session=existing_session,
         )
+        runtime_config = load_config(Path(request.config_path).expanduser().resolve() if request.config_path else default_config_path())
         loop = _ChatLoop(
             request=effective_request,
             current_messages=context.conversation_messages,
@@ -89,7 +90,8 @@ class ChatAgentService:
             initial_messages=context.model_messages,
             existing_session=existing_session,
             topic_anchor=topic_anchor,
-            model_retry=load_config(Path(request.config_path).expanduser().resolve() if request.config_path else default_config_path()).models.retry,
+            model_retry=runtime_config.models.retry,
+            response_style=runtime_config.chat.response_style,
             memory_used=context.memory_used,
             warnings=context.warnings,
             event_callback=event_callback,
@@ -127,6 +129,7 @@ class _ChatLoop:
     existing_session: ChatSessionRecord | None = None
     topic_anchor: ChatTopicAnchor | None = None
     model_retry: ModelRetryConfig = field(default_factory=ModelRetryConfig)
+    response_style: str = "balanced"
     answer_synthesizer: ChatAnswerSynthesizer = field(default_factory=ChatAnswerSynthesizer)
     trace: list[ChatToolTraceItem] = field(default_factory=list)
     events: list[ChatEvent] = field(default_factory=list)
@@ -206,6 +209,7 @@ class _ChatLoop:
             turn=answer_turn,
             max_tokens=_max_tokens(self.request),
             retry=self.model_retry,
+            response_style=self.response_style,
             token_callback=self._answer_delta_callback(answer_turn) if self.event_callback else None,
         )
         self.model_calls += 1
@@ -317,6 +321,7 @@ class _ChatLoop:
             "usage": dict(self.total_usage),
             "total_tokens": self.total_usage.get("total_tokens", 0),
             "topic_anchor": self.topic_anchor.model_dump(mode="json") if self.topic_anchor is not None else None,
+            "response_style": self.response_style,
         }
 
     def _capture_memory(self) -> None:
