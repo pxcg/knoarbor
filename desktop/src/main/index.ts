@@ -9,10 +9,16 @@ import {
 } from "./config.js";
 import { registerDesktopIpc } from "./ipc.js";
 import { installDesktopMenu } from "./menu.js";
+import {
+  registerRendererProtocol,
+  registerRendererProtocolScheme,
+  rendererEntryUrl,
+} from "./renderer-protocol.js";
 import { DesktopServiceManager } from "./service-manager.js";
 import { DesktopWindowManager } from "./window-manager.js";
 
 configureDesktopUserDataPath();
+registerRendererProtocolScheme();
 
 const config = resolveDesktopAppConfig();
 const serviceManager = new DesktopServiceManager();
@@ -34,6 +40,10 @@ if (singleInstanceLock) {
 async function startDesktopApp(): Promise<void> {
   log.initialize();
   electronApp.setAppUserModelId(config.appUserModelId);
+  registerRendererProtocol({
+    assetsRoot: config.rendererAssetsRoot,
+    getServiceEndpoint: () => serviceManager.getState().endpoint,
+  });
   const appIcon = optionalDesktopResourcePath("icons", "icon.png");
   if (process.platform === "darwin" && appIcon && app.dock) {
     app.dock.setIcon(appIcon);
@@ -45,23 +55,15 @@ async function startDesktopApp(): Promise<void> {
     optimizer.watchWindowShortcuts(window);
   });
 
-  const serviceState = await serviceManager.start(config.appServer);
-  const endpoint =
-    serviceState.status === "healthy" && serviceState.endpoint
-      ? serviceState.endpoint
-      : rendererFallbackUrl();
-  windowManager.createMainWindow(endpoint);
+  await serviceManager.start(config.appServer);
+  const rendererUrl = rendererEntryUrl();
+  windowManager.createMainWindow(rendererUrl);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      windowManager.createMainWindow(endpoint);
+      windowManager.createMainWindow(rendererUrl);
     }
   });
-}
-
-function rendererFallbackUrl(): string {
-  const fallback = new URL("../renderer/index.html", import.meta.url);
-  return fallback.toString();
 }
 
 function handleFatalStartupError(error: unknown): void {

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 
@@ -54,5 +56,5 @@ def create_app(services: ApplicationServices | None = None) -> FastAPI:
     app.include_router(create_sources_router(services))
     app.include_router(create_vaults_router(services))
     app.include_router(create_wiki_router(services))
-    app.include_router(create_ui_router())
+    app.include_router(create_ui_router(include_static=os.environ.get("KNOARBOR_DESKTOP") != "1"))
     return app

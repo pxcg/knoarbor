@@ -6,9 +6,9 @@
 - [x] Mark browser/Web mode as development-only in docs and code comments.
 - [x] Add IPC allowlist guidance to desktop architecture documentation.
 - [x] Remove production settings HTTP writes from desktop paths.
-- [ ] Move renderer loading fully to Electron resources.
-- [ ] Remove `src/knoarbor/ui/dist` from Python package data.
-- [ ] Retire FastAPI static UI routes in desktop production mode.
+- [x] Move renderer loading fully to Electron resources.
+- [x] Remove `src/knoarbor/ui/dist` from Python package data.
+- [x] Retire FastAPI static UI routes in desktop production mode.
 - [ ] Rename remaining `/ui/api/*` endpoints to business-local endpoint names.
 - [ ] Rename `web/` to `renderer/` or another accepted desktop-renderer name.
 - [ ] Update build scripts and CI after renderer rename.

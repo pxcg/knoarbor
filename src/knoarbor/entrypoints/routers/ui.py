@@ -38,24 +38,26 @@ class UiStatusResponse(BaseModel):
     roles: dict[str, int] = Field(default_factory=dict)
 
 
-def create_ui_router() -> APIRouter:
+def create_ui_router(*, include_static: bool = True) -> APIRouter:
     router = APIRouter()
     config_service = UiConfigService()
 
     # Transition-only developer console routes. Desktop production uses the
     # Electron bridge for local configuration and native capabilities.
-    @router.get("/", include_in_schema=False)
-    async def root_index() -> FileResponse:
-        return _ui_index_response()
+    if include_static:
 
-    @router.get("/ui", tags=["ui"])
-    async def ui_index() -> FileResponse:
-        return _ui_index_response()
+        @router.get("/", include_in_schema=False)
+        async def root_index() -> FileResponse:
+            return _ui_index_response()
 
-    @router.get("/ui/assets/{asset_path:path}", tags=["ui"])
-    async def ui_asset(asset_path: str) -> FileResponse:
-        asset = _resolve_ui_asset(f"assets/{asset_path}")
-        return _ui_asset_response(asset)
+        @router.get("/ui", tags=["ui"])
+        async def ui_index() -> FileResponse:
+            return _ui_index_response()
+
+        @router.get("/ui/assets/{asset_path:path}", tags=["ui"])
+        async def ui_asset(asset_path: str) -> FileResponse:
+            asset = _resolve_ui_asset(f"assets/{asset_path}")
+            return _ui_asset_response(asset)
 
     @router.get("/ui/api/config", response_model=UiConfigResponse, tags=["ui"])
     async def read_ui_config(config_path: str | None = Query(default=None)) -> UiConfigResponse:
@@ -123,10 +125,12 @@ def create_ui_router() -> APIRouter:
         asset = _resolve_vault_asset(vault_path, asset_path)
         return FileResponse(asset)
 
-    @router.get("/ui/{asset_path:path}", tags=["ui"])
-    async def ui_root_asset(asset_path: str) -> FileResponse:
-        asset = _resolve_ui_asset(asset_path)
-        return _ui_asset_response(asset)
+    if include_static:
+
+        @router.get("/ui/{asset_path:path}", tags=["ui"])
+        async def ui_root_asset(asset_path: str) -> FileResponse:
+            asset = _resolve_ui_asset(asset_path)
+            return _ui_asset_response(asset)
 
     return router
 

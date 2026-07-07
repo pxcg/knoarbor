@@ -5,6 +5,7 @@ import tempfile
 import unittest
 import re
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -34,6 +35,21 @@ class UiApiTests(unittest.TestCase):
         for root_asset in ("favicon.ico", "site.webmanifest", "knoarbor-logo.svg"):
             asset = client.get(f"/ui/{root_asset}")
             self.assertEqual(asset.status_code, 200)
+
+    def test_desktop_mode_does_not_serve_static_ui(self) -> None:
+        with patch.dict("os.environ", {"KNOARBOR_DESKTOP": "1"}):
+            client = TestClient(create_app())
+
+        self.assertEqual(client.get("/ui").status_code, 404)
+        self.assertEqual(client.get("/ui/assets/index.js").status_code, 404)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            response = client.get(
+                "/ui/api/config/diagnostics",
+                params={"config_path": str(Path(tmp_dir) / "config.yaml")},
+            )
+
+        self.assertEqual(response.status_code, 200)
 
     def test_vault_assets_read_raw_derived_asset_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

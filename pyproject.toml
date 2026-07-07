@@ -56,7 +56,9 @@ where = ["src"]
 "knoarbor" = ["config.example.yaml"]
 "knoarbor.examples" = ["*.md"]
 "knoarbor.semantic.prompts" = ["*.md"]
-"knoarbor.ui" = ["dist/*.html", "dist/*.ico", "dist/*.png", "dist/*.svg", "dist/*.webmanifest", "dist/assets/*"]
+
+[tool.setuptools.exclude-package-data]
+"knoarbor.ui" = ["dist/*", "dist/assets/*"]
 
 [tool.ruff]
 target-version = "py312"
