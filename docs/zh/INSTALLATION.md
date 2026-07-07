@@ -128,13 +128,13 @@ cd /path/to/MinerU
 仓库已经包含构建后的 renderer 资源。只有修改桌面 renderer 时才需要重新构建：
 
 ```bash
-cd web
+cd renderer
 npm install
 npm run build
 cd ..
 ```
 
-过渡期内，构建结果仍会复制到 `src/knoarbor/ui/dist/`，供 Python 开发者控制台使用。目标产品表面是桌面应用。
+构建结果写入 `renderer/dist/`。源码开发时 Python 开发者控制台读取该目录；桌面打包会把它复制到 `desktop/resources/renderer/`。
 
 ## 常用检查
 

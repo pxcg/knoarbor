@@ -39,11 +39,11 @@ TRACKED_ARTIFACT_PATTERNS = [
     ".local-dev/",
     ".uv-cache/",
     ".venv/",
-    "web/node_modules/",
-    "web/dist/",
-    "web/test-results/",
-    "web/playwright-report/",
-    "web/tsconfig.tsbuildinfo",
+    "renderer/node_modules/",
+    "renderer/dist/",
+    "renderer/test-results/",
+    "renderer/playwright-report/",
+    "renderer/tsconfig.tsbuildinfo",
     ".DS_Store",
     "__pycache__/",
     ".egg-info/",
@@ -113,8 +113,6 @@ def tracked_generated_artifacts() -> list[str]:
     tracked = run(["git", "ls-files"]).stdout.splitlines()
     findings: list[str] = []
     for path in tracked:
-        if path.startswith("src/knoarbor/ui/dist/"):
-            continue
         if any(pattern in path or path.startswith(pattern) for pattern in TRACKED_ARTIFACT_PATTERNS):
             findings.append(path)
     return findings

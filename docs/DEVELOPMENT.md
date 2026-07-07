@@ -34,13 +34,13 @@ Run the local development gate when preparing a release candidate:
 scripts/dev-check.sh
 ```
 
-The script runs frontend build, Ruff, documentation link checks, Python unit tests, read-only `doctor`, and Python package build in the required order. For final release candidates, run the full release gate:
+The script runs renderer build, Ruff, documentation link checks, Python unit tests, read-only `doctor`, and Python package build in the required order. For final release candidates, run the full release gate:
 
 ```bash
 scripts/release-check.sh
 ```
 
-`release-check.sh` runs `dev-check.sh`, `release-readiness.py`, and `clean-clone-smoke.sh` in order. `dev-check.sh` includes frontend i18n parity, frontend build, frontend dependency audit, Playwright UI smoke, Ruff, documentation link checks, Python tests, read-only `doctor`, and package build.
+`release-check.sh` runs `dev-check.sh`, `release-readiness.py`, and `clean-clone-smoke.sh` in order. `dev-check.sh` includes renderer i18n parity, renderer build, renderer dependency audit, Playwright UI smoke, Ruff, documentation link checks, Python tests, read-only `doctor`, and package build.
 
 When a model provider is available, run the live release-candidate smoke test:
 
@@ -94,28 +94,28 @@ TEMP_VAULT="$TMP_DIR/vault"
 # then run CLI/API checks against TEMP_CONFIG only.
 ```
 
-The only intentional tracked generated path is currently `src/knoarbor/ui/dist/`, because the Python developer console still reads it during the desktop-first transition. This path is scheduled for removal from Python package ownership in `specs/1.20-desktop-first-transition/`. All runtime vault content remains local user data.
+Generated renderer bundles are not tracked. The Python developer console reads `renderer/dist/` when it is present, and the desktop package copies that build into `desktop/resources/renderer/`. All runtime vault content remains local user data.
 
 ## Desktop Renderer And Developer Console
 
-The React app in `web/` is the desktop renderer implementation. The Python-hosted browser console is a developer fallback while the repository transitions to desktop-first packaging; it is not a standalone product surface.
+The React app in `renderer/` is the desktop renderer implementation. The Python-hosted browser console is a developer fallback while the repository transitions to desktop-first packaging; it is not a standalone product surface.
 
-Frontend source lives in `web/`. Build it manually when the UI changes:
+Frontend source lives in `renderer/`. Build it manually when the UI changes:
 
 ```bash
-cd web
+cd renderer
 npm install
 npm run build
 ```
 
-The generated static files are currently copied into `src/knoarbor/ui/dist/` so `uv run knoar serve` can serve the developer console at `/`. Future 1.20 work will move renderer ownership fully to the desktop package.
+The generated static files stay in `renderer/dist/`. `uv run knoar serve` can serve that directory as the developer console at `/`, while desktop packaging copies it into `desktop/resources/renderer/`.
 
-Do not commit `web/node_modules/`, `web/dist/`, or local TypeScript build cache files.
+Do not commit `renderer/node_modules/`, `renderer/dist/`, or local TypeScript build cache files.
 
 Run the browser smoke test when changing renderer navigation, layout, or API wiring:
 
 ```bash
-cd web
+cd renderer
 npx playwright install chromium
 npm run test:e2e
 ```
@@ -130,9 +130,9 @@ Build the Python package before release candidates:
 uv build
 ```
 
-These are the current required gates: Python unit tests, Ruff, documentation link checks, frontend build, frontend dependency audit, Playwright UI smoke, read-only `doctor`, and package build. Type checks and frontend linting are target gates and should not be treated as required until the tools are configured in the repository and CI.
+These are the current required gates: Python unit tests, Ruff, documentation link checks, renderer build, renderer dependency audit, Playwright UI smoke, read-only `doctor`, and package build. Type checks and renderer linting are target gates and should not be treated as required until the tools are configured in the repository and CI.
 
-When running checks in the same working tree, run them sequentially. The frontend build rewrites `src/knoarbor/ui/dist/`, while Python UI tests read that directory.
+When running checks in the same working tree, run them sequentially so renderer build output and desktop resource preparation do not overlap.
 
 Additional release helpers:
 
@@ -143,7 +143,7 @@ scripts/clean-clone-smoke.sh
 scripts/release-check.sh
 ```
 
-`prepare-release.py` synchronizes package metadata and creates release note placeholders. Run it from a clean tree before curating `CHANGELOG.md` and `docs/releases/<version>.md`. `release-readiness.py` checks branch, dirty tree state, required public files, and tracked private runtime paths. `clean-clone-smoke.sh` clones the local repository into a temporary directory and verifies install, frontend build, Python tests, read-only `doctor`, package build, and basic CLI commands without model API calls. `release-check.sh` runs the complete local release gate sequence.
+`prepare-release.py` synchronizes package metadata and creates release note placeholders. Run it from a clean tree before curating `CHANGELOG.md` and `docs/releases/<version>.md`. `release-readiness.py` checks branch, dirty tree state, required public files, and tracked private runtime paths. `clean-clone-smoke.sh` clones the local repository into a temporary directory and verifies install, renderer build, Python tests, read-only `doctor`, package build, and basic CLI commands without model API calls. `release-check.sh` runs the complete local release gate sequence.
 
 `live-release-candidate-smoke.sh` is intentionally separate from
 `release-check.sh` because it calls a real model provider and requires
@@ -185,7 +185,7 @@ Release flow:
 1. Finish and test changes on `dev`.
 2. Freeze `dev` for a release candidate. If stabilization needs multiple
    commits, create `release/vX.Y.Z` from `dev`.
-3. Run Python tests, frontend build, frontend dependency audit, Playwright UI
+3. Run Python tests, renderer build, renderer dependency audit, Playwright UI
    smoke, package build, clean-clone smoke checks, and any available live-model
    smoke test.
 4. Run `scripts/prepare-release.py <version>`, then curate `CHANGELOG.md` and

@@ -19,22 +19,36 @@ from knoarbor.storage.wiki_paths import content_root, source_digest_root
 
 class UiApiTests(unittest.TestCase):
     def test_ui_assets_are_served(self) -> None:
-        client = TestClient(create_app())
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            renderer_dist = Path(tmp_dir) / "dist"
+            assets_dir = renderer_dist / "assets"
+            assets_dir.mkdir(parents=True)
+            (renderer_dist / "index.html").write_text(
+                '<!doctype html><title>KnoArbor Console</title><link href="/ui/assets/index.css" rel="stylesheet"><script type="module" src="/ui/assets/index.js"></script>',
+                encoding="utf-8",
+            )
+            (assets_dir / "index.css").write_text("body{}", encoding="utf-8")
+            (assets_dir / "index.js").write_text("console.log('ok')", encoding="utf-8")
+            for root_asset in ("favicon.ico", "site.webmanifest", "knoarbor-logo.svg"):
+                (renderer_dist / root_asset).write_text(root_asset, encoding="utf-8")
 
-        index = client.get("/ui")
+            with patch.dict("os.environ", {"KNOARBOR_RENDERER_DIST": str(renderer_dist)}):
+                client = TestClient(create_app())
 
-        self.assertEqual(index.status_code, 200)
-        self.assertIn("KnoArbor Console", index.text)
-        asset_paths = set(re.findall(r'(?:src|href)="/ui/(assets/[^"]+\.(?:js|css))"', index.text))
-        self.assertTrue(asset_paths)
-        self.assertTrue(any(path.endswith(".js") for path in asset_paths))
-        self.assertTrue(any(path.endswith(".css") for path in asset_paths))
-        for asset_path in asset_paths:
-            asset = client.get(f"/ui/{asset_path}")
-            self.assertEqual(asset.status_code, 200)
-        for root_asset in ("favicon.ico", "site.webmanifest", "knoarbor-logo.svg"):
-            asset = client.get(f"/ui/{root_asset}")
-            self.assertEqual(asset.status_code, 200)
+                index = client.get("/ui")
+
+                self.assertEqual(index.status_code, 200)
+                self.assertIn("KnoArbor Console", index.text)
+                asset_paths = set(re.findall(r'(?:src|href)="/ui/(assets/[^"]+\.(?:js|css))"', index.text))
+                self.assertTrue(asset_paths)
+                self.assertTrue(any(path.endswith(".js") for path in asset_paths))
+                self.assertTrue(any(path.endswith(".css") for path in asset_paths))
+                for asset_path in asset_paths:
+                    asset = client.get(f"/ui/{asset_path}")
+                    self.assertEqual(asset.status_code, 200)
+                for root_asset in ("favicon.ico", "site.webmanifest", "knoarbor-logo.svg"):
+                    asset = client.get(f"/ui/{root_asset}")
+                    self.assertEqual(asset.status_code, 200)
 
     def test_desktop_mode_does_not_serve_static_ui(self) -> None:
         with patch.dict("os.environ", {"KNOARBOR_DESKTOP": "1"}):

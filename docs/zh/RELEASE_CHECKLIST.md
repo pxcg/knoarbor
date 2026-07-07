@@ -19,7 +19,7 @@ git ls-files | rg '(^vaults/|^dist/|node_modules|\.venv|\.uv-cache|\.pytest_cach
 
 - 打 tag 前 `git status --short` 为空。
 - 运行时知识库、本地工作流导出、构建产物、虚拟环境、缓存和私有设计记录没有被跟踪。
-- `src/knoarbor/ui/dist/` 暂时允许被跟踪，因为桌面优先过渡期内 Python 开发者控制台仍会使用它。
+- `renderer/dist/` 和 `desktop/resources/renderer/` 是生成产物，不应提交。
 
 运行时数据隔离：
 
@@ -236,7 +236,7 @@ GitHub Release 应包含：
 - dev-check：
 - release-readiness：
 - clean-clone-smoke：
-- frontend build：
+- renderer build：
 
 人工门禁：
 - 隐私：

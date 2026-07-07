@@ -21,7 +21,7 @@ uv run --extra dev python -m unittest discover -s tests
 ## 前端构建和 UI 冒烟
 
 ```bash
-cd web
+cd renderer
 npm install
 npm run check:i18n
 npm run build
@@ -36,7 +36,7 @@ npm run test:e2e
 - 针对打包后开发者控制台的导航冒烟；
 - 基础 UI/API 连接。
 
-桌面优先过渡期内，renderer 仍会复制到 `src/knoarbor/ui/dist/`，用于开发者控制台冒烟测试；不要提交 `web/node_modules/` 或 `web/dist/`。
+Renderer 构建输出保留在 `renderer/dist/`，并在桌面打包时复制到 `desktop/resources/renderer/`；不要提交 `renderer/node_modules/`、`renderer/dist/` 或准备好的桌面资源。
 
 ## 开发门禁
 
@@ -62,7 +62,7 @@ scripts/dev-check.sh
 ```bash
 uv run --extra dev ruff check src tests scripts
 uv run python scripts/check-doc-links.py
-cd web && npm run check:i18n
+cd renderer && npm run check:i18n
 ```
 
 这些检查已经纳入 `scripts/dev-check.sh` 和 CI。修改 Python 代码、公开文档或前端文案时，可以单独运行。

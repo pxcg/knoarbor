@@ -21,7 +21,7 @@ UV=(env -u VIRTUAL_ENV uv)
 # Safe: all writes below happen inside this temporary clone, never in the
 # maintainer's working tree or real runtime vault.
 "${UV[@]}" sync --extra dev
-(cd web && npm install && npm run build)
+(cd renderer && npm install && npm run build)
 "${UV[@]}" run python -m unittest discover -s tests
 "${UV[@]}" run knoar --help >/dev/null
 "${UV[@]}" run knoar init --vault wiki >/dev/null

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -156,15 +157,22 @@ def _ui_asset_response(asset: Path) -> FileResponse:
 
 
 def _resolve_ui_asset(name: str) -> Path:
-    ui_root = Path(__file__).resolve().parents[2] / "ui" / "dist"
+    ui_root = _ui_dist_root()
     asset_path = (ui_root / name).resolve()
     try:
         asset_path.relative_to(ui_root.resolve())
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Unknown UI asset") from exc
     if not asset_path.exists() or not asset_path.is_file():
-        raise HTTPException(status_code=404, detail="UI build asset is missing. Run `npm run build` in web/ first.")
+        raise HTTPException(status_code=404, detail="Renderer build asset is missing. Run `npm --prefix renderer run build` first.")
     return asset_path
+
+
+def _ui_dist_root() -> Path:
+    override = os.environ.get("KNOARBOR_RENDERER_DIST")
+    if override:
+        return Path(override).expanduser().resolve()
+    return Path(__file__).resolve().parents[4] / "renderer" / "dist"
 
 
 def _resolve_vault_asset(vault_path: str, asset_path: str) -> Path:

@@ -4,7 +4,7 @@
 
 Two independent architecture reviews were considered:
 
-- The desktop-first supporting review recommended a three-layer architecture: Electron product shell, React desktop renderer, and Python local business engine. It also recommended removing Python-hosted static UI, retiring `/ui/api/*`, and renaming `web/`.
+- The desktop-first supporting review recommended a three-layer architecture: Electron product shell, React desktop renderer, and Python local business engine. It also recommended removing Python-hosted static UI, retiring `/ui/api/*`, and renaming `renderer/`.
 - The challenge review warned against confusing desktop-first with IPC-first. It recommended keeping chat, query, ingest, lint, runs, wiki, reports, and model operations on the Python service API, while limiting IPC to native desktop capabilities.
 
 This design adopts both positions: KnoArbor becomes desktop-first, but the Python service remains the only business runtime.
@@ -21,8 +21,7 @@ Electron desktop shell
   - narrow IPC only
 
 React desktop renderer
-  future: renderer/ or app-ui/
-  current: web/
+  current: renderer/
   - UI state, views, interaction
   - desktop bridge for local capabilities
   - service client for business APIs
@@ -78,7 +77,7 @@ Keep current directories while changing ownership language:
 
 ```text
 desktop/      product shell and native bridge
-web/          desktop renderer implementation, not a web product
+renderer/     desktop renderer implementation, not a web product
 src/knoarbor/ Python local runtime
 ```
 
@@ -95,7 +94,8 @@ Remove Python package ownership of renderer dist:
 
 ### Phase 3: Rename Renderer
 
-Once Python static UI hosting is gone, rename `web/` to a desktop-oriented name. Preferred target:
+Once Python static UI hosting is gone, rename the old `web/` source directory to
+a desktop-oriented name. The selected target is:
 
 ```text
 renderer/

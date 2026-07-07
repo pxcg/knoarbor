@@ -153,14 +153,14 @@ See [Backup And Recovery](BACKUP_AND_RECOVERY.md) for more recovery guidance.
 When changing UI source:
 
 ```bash
-cd web
+cd renderer
 npm install
 npm run build
 ```
 
-During the desktop-first transition, the built renderer assets are copied to
-`src/knoarbor/ui/dist/` and served by `uv run knoar serve` for the developer
-console.
+The renderer build writes to `renderer/dist/`. Source checkouts serve that
+directory through `uv run knoar serve` for the developer console, and desktop
+packaging copies it into `desktop/resources/renderer/`.
 
 ## Still Blocked
 

@@ -44,7 +44,7 @@ uv run --extra dev python -m unittest discover tests
 If you change the web console:
 
 ```bash
-cd web
+cd renderer
 npm install
 npm run build
 ```
@@ -55,7 +55,7 @@ Build the package before release-oriented changes:
 uv build
 ```
 
-The web console is bundled into the Python package from `src/knoarbor/ui/dist/`. It is not published as a standalone npm package.
+The desktop renderer lives in `renderer/`. Its build output stays in `renderer/dist/` for source development and is copied into `desktop/resources/renderer/` for desktop packaging.
 
 See [Testing And Quality Gates](docs/TESTING.md) for the full local gate matrix,
 including release checks and live model smoke tests.

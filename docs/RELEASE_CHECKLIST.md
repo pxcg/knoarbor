@@ -19,7 +19,7 @@ Expected result:
 
 - `git status --short` is empty before tagging.
 - Runtime vaults, local workflow exports, build artifacts, virtual environments, caches, and private design notes are not tracked.
-- `src/knoarbor/ui/dist/` is temporarily allowed because the Python developer console still uses it during the desktop-first transition.
+- `renderer/dist/` and `desktop/resources/renderer/` are generated artifacts and must not be committed.
 
 Runtime data isolation:
 
@@ -73,8 +73,8 @@ The gate should cover:
 - Python lint with Ruff.
 - Local Markdown documentation link checks.
 - Python unit tests.
-- Frontend build.
-- Frontend dependency audit and UI smoke.
+- Renderer build.
+- Renderer dependency audit and UI smoke.
 - CLI smoke checks.
 - Package build.
 
@@ -237,7 +237,7 @@ Automated gates:
 - dev-check:
 - release-readiness:
 - clean-clone-smoke:
-- frontend build:
+- renderer build:
 
 Manual gates:
 - privacy:

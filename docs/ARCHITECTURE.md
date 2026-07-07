@@ -410,9 +410,9 @@ Agents do not read files, write pages, execute operations, or repair malformed u
 - External workflow tools are optional adapters and should call stable pipeline-level APIs.
 - The React renderer is the desktop UI for configuration, running, reports, wiki browsing, and graph inspection; it is not a separate workflow engine.
 
-## Frontend Boundaries
+## Renderer Boundaries
 
-The React frontend is the desktop renderer. It talks to the Python local
+The React renderer is the desktop UI. It talks to the Python local
 runtime API for business workflows and to the Electron preload bridge only for
 desktop-native capabilities. The Python-hosted browser console is a developer
 fallback during the desktop-first transition, not the primary product entry.
@@ -436,7 +436,7 @@ Non-responsibilities:
 - parsing wiki pages through a separate UI-only code path when a core `/wiki/*` read API exists;
 - silently repairing malformed API payloads that should have been validated by Python Core.
 
-The Vault Runtime is a frontend state boundary, not a storage layer. It maps configured vault profiles to stable UI identities, keeps React Query caches partitioned by `vaultId`, and passes the resolved vault path to API calls. This lets the UI switch active vaults without clearing unrelated page state and prepares future multi-vault views where several vault summaries can be shown side by side.
+The Vault Runtime is a renderer state boundary, not a storage layer. It maps configured vault profiles to stable UI identities, keeps React Query caches partitioned by `vaultId`, and passes the resolved vault path to API calls. This lets the UI switch active vaults without clearing unrelated page state and prepares future multi-vault views where several vault summaries can be shown side by side.
 
 For the 1.x line, KnoArbor keeps a lightweight local component system instead of adopting a full UI component framework. If forms, menus, dialogs, tables, and report views continue to grow, the next architectural step should be extracting shared UI primitives or adopting a small component library deliberately, not adding page-specific styling patches.
 

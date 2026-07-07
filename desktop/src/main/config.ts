@@ -24,10 +24,10 @@ export type DesktopAppServerConfig =
       host: string;
       mode: "managed";
       port: number;
+      rendererAssetsRoot: string;
       serviceCommand: string;
       serviceArgs: string[];
       serviceCwd: string;
-      webAssetsRoot: string;
     };
 
 export type DesktopAppConfig = {
@@ -40,7 +40,7 @@ export function resolveDesktopAppConfig(): DesktopAppConfig {
   return {
     appServer: resolveAppServerConfig(),
     appUserModelId: "com.knoarbor.desktop",
-    rendererAssetsRoot: resolveWebAssetsRoot(),
+    rendererAssetsRoot: resolveRendererAssetsRoot(),
   };
 }
 
@@ -82,14 +82,14 @@ function resolveAppServerConfig(): DesktopAppServerConfig {
     serviceCwd:
       process.env.KNOARBOR_DESKTOP_SERVICE_CWD?.trim() ||
       (app.isPackaged ? appDataRoot : findRepoRootFromDesktopRoot()),
-    webAssetsRoot: resolveWebAssetsRoot(),
+    rendererAssetsRoot: resolveRendererAssetsRoot(),
   };
 }
 
-function resolveWebAssetsRoot(): string {
+function resolveRendererAssetsRoot(): string {
   return app.isPackaged
-    ? join(process.resourcesPath, "web")
-    : join(findDesktopRoot(), "resources", "web");
+    ? join(process.resourcesPath, "renderer")
+    : join(findDesktopRoot(), "resources", "renderer");
 }
 
 export function ensureDesktopBootstrapConfig(config: DesktopAppServerConfig): void {

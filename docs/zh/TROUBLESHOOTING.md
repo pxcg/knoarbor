@@ -147,12 +147,12 @@ PY
 修改 UI 源码后运行：
 
 ```bash
-cd web
+cd renderer
 npm install
 npm run build
 ```
 
-桌面优先过渡期内，构建后的 renderer 资源会复制到 `src/knoarbor/ui/dist/`，并由 `uv run knoar serve` 作为开发者控制台提供。
+Renderer 构建输出位于 `renderer/dist/`。源码开发时 `uv run knoar serve` 会把该目录作为开发者控制台提供；桌面打包会复制到 `desktop/resources/renderer/`。
 
 ## 仍然无法解决
 

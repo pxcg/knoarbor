@@ -49,7 +49,7 @@ See [Documentation Governance](DOCUMENTATION_GOVERNANCE.md) for ownership and cl
 ## Contributors And Maintainers
 
 - [Release Preflight Checklist](RELEASE_CHECKLIST.md): repository, privacy, tests, docs, UI, and release gates before tagging.
-- [Testing And Quality Gates](TESTING.md): unit tests, frontend smoke, release checks, and live model smoke boundaries.
+- [Testing And Quality Gates](TESTING.md): unit tests, renderer smoke, release checks, and live model smoke boundaries.
 - [Development](DEVELOPMENT.md): setup, tests, package layout, design rules, and release notes.
 - [Maintainer Guide](MAINTAINERS.md): long-term branch, architecture, fallback, compatibility, and release governance.
 - [Documentation Governance](DOCUMENTATION_GOVERNANCE.md): document classes, ownership, cleanup, and archival rules for maintainers.

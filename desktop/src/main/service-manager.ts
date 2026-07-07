@@ -64,10 +64,10 @@ export class DesktopServiceManager {
       status: "starting",
     });
 
-    if (!existsSync(config.webAssetsRoot)) {
+    if (!existsSync(config.rendererAssetsRoot)) {
       this.setState({
         ...this.state,
-        lastError: `Packaged web resources are missing: ${config.webAssetsRoot}`,
+        lastError: `Packaged renderer resources are missing: ${config.rendererAssetsRoot}`,
         status: "failed",
       });
       return this.state;
@@ -129,7 +129,7 @@ export class DesktopServiceManager {
       logPath,
       serviceCwd: config.serviceCwd,
       stateDir,
-      webAssetsRoot: config.webAssetsRoot,
+      rendererAssetsRoot: config.rendererAssetsRoot,
     });
 
     const child = spawn(config.serviceCommand, args, {

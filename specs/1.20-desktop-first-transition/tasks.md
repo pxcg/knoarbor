@@ -10,7 +10,7 @@
 - [x] Remove `src/knoarbor/ui/dist` from Python package data.
 - [x] Retire FastAPI static UI routes in desktop production mode.
 - [x] Rename remaining `/ui/api/*` endpoints to business-local endpoint names.
-- [ ] Rename `web/` to `renderer/` or another accepted desktop-renderer name.
-- [ ] Update build scripts and CI after renderer rename.
+- [x] Rename `web/` to `renderer/`.
+- [x] Update build scripts and CI after renderer rename.
 - [ ] Add desktop startup and diagnostics smoke tests.
 - [ ] Add a release checklist gate that verifies desktop artifacts are primary.

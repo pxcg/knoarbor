@@ -139,15 +139,15 @@ The repository ships built renderer assets. Rebuild them only when changing the
 desktop renderer:
 
 ```bash
-cd web
+cd renderer
 npm install
 npm run build
 cd ..
 ```
 
-During the transition, the build still copies assets into
-`src/knoarbor/ui/dist/` for the Python developer console. The desktop package is
-the target product surface.
+The build writes assets to `renderer/dist/`. The Python developer console reads
+that directory in source checkouts, and the desktop package copies it into
+`desktop/resources/renderer/`.
 
 ## Common Checks
 

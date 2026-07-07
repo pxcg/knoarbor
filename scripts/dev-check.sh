@@ -14,14 +14,14 @@ TEMP_CONFIG="$TMP_DIR/config.yaml"
 TEMP_VAULT="$TMP_DIR/wiki"
 
 echo "== KnoArbor local gates =="
-echo "1/8 Frontend build"
-(cd web && npm run build)
+echo "1/8 Renderer build"
+(cd renderer && npm run build)
 
-echo "2/8 Frontend dependency audit"
-(cd web && npm audit --audit-level=moderate)
+echo "2/8 Renderer dependency audit"
+(cd renderer && npm audit --audit-level=moderate)
 
-echo "3/8 Frontend e2e smoke"
-(cd web && npm run test:e2e)
+echo "3/8 Renderer e2e smoke"
+(cd renderer && npm run test:e2e)
 
 echo "4/8 Python lint"
 uv run --extra dev ruff check src tests scripts

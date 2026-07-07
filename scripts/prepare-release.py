@@ -28,7 +28,7 @@ def main() -> int:
 
     update_pyproject(args.version)
     update_package_init(args.version)
-    update_web_package(args.version)
+    update_renderer_package(args.version)
     ensure_changelog_section(args.version, args.date)
     ensure_release_note(args.version)
 
@@ -58,8 +58,8 @@ def update_package_init(version: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-def update_web_package(version: str) -> None:
-    for relative in ["web/package.json", "web/package-lock.json"]:
+def update_renderer_package(version: str) -> None:
+    for relative in ["renderer/package.json", "renderer/package-lock.json"]:
         path = ROOT / relative
         if not path.exists():
             continue

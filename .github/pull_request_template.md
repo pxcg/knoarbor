@@ -29,6 +29,6 @@ Commands run:
 
 ```text
 uv run --extra dev python -m unittest discover tests
-cd web && npm run build
+cd renderer && npm run build
 uv build
 ```

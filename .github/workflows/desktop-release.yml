@@ -26,19 +26,19 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: |
-            web/package-lock.json
+            renderer/package-lock.json
             desktop/package-lock.json
 
-      - name: Install web dependencies
-        working-directory: web
+      - name: Install renderer dependencies
+        working-directory: renderer
         run: npm ci
 
       - name: Install desktop dependencies
         working-directory: desktop
         run: npm ci
 
-      - name: Build web
-        working-directory: web
+      - name: Build renderer
+        working-directory: renderer
         run: npm run build
 
       - name: Build macOS desktop artifacts
@@ -71,19 +71,19 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: |
-            web/package-lock.json
+            renderer/package-lock.json
             desktop/package-lock.json
 
-      - name: Install web dependencies
-        working-directory: web
+      - name: Install renderer dependencies
+        working-directory: renderer
         run: npm ci
 
       - name: Install desktop dependencies
         working-directory: desktop
         run: npm ci
 
-      - name: Build web
-        working-directory: web
+      - name: Build renderer
+        working-directory: renderer
         run: npm run build
 
       - name: Build Windows desktop artifact

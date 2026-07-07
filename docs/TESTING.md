@@ -22,7 +22,7 @@ Unit tests must not require real model provider credentials.
 ## Frontend Build And UI Smoke
 
 ```bash
-cd web
+cd renderer
 npm install
 npm run check:i18n
 npm run build
@@ -37,9 +37,9 @@ Scope:
 - navigation smoke against the packaged developer console;
 - basic UI/API wiring.
 
-During the desktop-first transition, the renderer is still copied into
-`src/knoarbor/ui/dist/` for developer-console smoke tests; do not commit
-`web/node_modules/` or `web/dist/`.
+Renderer build output stays in `renderer/dist/` and is copied into
+`desktop/resources/renderer/` for desktop packaging; do not commit
+`renderer/node_modules/`, `renderer/dist/`, or prepared desktop resources.
 
 ## Development Gate
 
@@ -49,8 +49,8 @@ scripts/dev-check.sh
 
 Current scope:
 
-- frontend build;
-- frontend dependency audit;
+- renderer build;
+- renderer dependency audit;
 - Playwright UI smoke;
 - Python lint with Ruff;
 - local Markdown documentation link check;
@@ -66,7 +66,7 @@ This script must not write to the maintainer's real `vaults/`, `config.yaml`, or
 ```bash
 uv run --extra dev ruff check src tests scripts
 uv run python scripts/check-doc-links.py
-cd web && npm run check:i18n
+cd renderer && npm run check:i18n
 ```
 
 These checks are part of `scripts/dev-check.sh` and CI. Run them directly when

@@ -7,7 +7,7 @@ In the desktop app, settings edits are local configuration changes, but the rend
 ## Goals
 
 - Move desktop configuration reads and writes off browser HTTP and into Electron IPC.
-- Keep web/browser mode on the existing HTTP API.
+- Keep renderer/browser mode on the existing HTTP API.
 - Reuse the Python `UiConfigService` implementation so YAML rendering, validation, vault initialization, diagnostics, and summaries stay single-sourced.
 - Keep workflow, chat, query, ingest, lint, model discovery, and page content operations on the local HTTP API.
 

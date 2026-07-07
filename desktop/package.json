@@ -19,8 +19,8 @@
     ],
     "extraResources": [
       {
-        "from": "resources/web",
-        "to": "web"
+        "from": "resources/renderer",
+        "to": "renderer"
       },
       {
         "from": "resources/service",
@@ -47,14 +47,14 @@
     }
   },
   "scripts": {
-    "build": "npm run prepare:web && electron-vite build && tsc -p tsconfig.json --noEmit",
+    "build": "npm run prepare:renderer && electron-vite build && tsc -p tsconfig.json --noEmit",
     "build:service": "node scripts/build-service.mjs",
     "dist:mac": "npm run build:service && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip",
     "dist:win": "npm run build:service && npm run build && set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win nsis",
-    "dev": "npm run prepare:web && electron-vite dev",
+    "dev": "npm run prepare:renderer && electron-vite dev",
     "pack:mac": "npm run build:service && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir",
     "pack:win": "npm run build:service && npm run build && set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win dir",
-    "prepare:web": "node scripts/prepare-web.mjs",
+    "prepare:renderer": "node scripts/prepare-renderer.mjs",
     "preview": "electron-vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

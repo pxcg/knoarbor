@@ -4,7 +4,7 @@
 
 ```bash
 uv sync
-cd web
+cd renderer
 npm install
 npm run build
 ```
@@ -15,7 +15,7 @@ npm run build
 uv run --extra dev ruff check src tests scripts
 uv run python scripts/check-doc-links.py
 uv run --extra dev python -m unittest discover tests
-cd web && npm run build
+cd renderer && npm run build
 uv build
 ```
 
@@ -44,19 +44,19 @@ scripts/live-release-candidate-smoke.sh
 
 完整测试矩阵和发布门禁边界见 [测试与质量门禁](TESTING.md)。
 
-当前发布门禁包含 Python 单元测试、Ruff、文档链接检查、前端构建、前端依赖安全扫描、Playwright UI 冒烟测试、只读 `doctor` 诊断和 Python 包构建。类型检查和前端 lint 是目标门禁；在工具链正式加入 `pyproject.toml`、`web/package.json` 和 CI 之前，不应把它们写成当前必跑命令。
+当前发布门禁包含 Python 单元测试、Ruff、文档链接检查、前端构建、前端依赖安全扫描、Playwright UI 冒烟测试、只读 `doctor` 诊断和 Python 包构建。类型检查和前端 lint 是目标门禁；在工具链正式加入 `pyproject.toml`、`renderer/package.json` 和 CI 之前，不应把它们写成当前必跑命令。
 
 修改 renderer 导航、布局或 API 连接时，运行浏览器冒烟测试：
 
 ```bash
-cd web
+cd renderer
 npx playwright install chromium
 npm run test:e2e
 ```
 
 Playwright 会在临时本地端口启动打包后的 FastAPI 应用并打开开发者控制台，因此它验证的是 `knoar serve` 过渡期使用的同一套路由形态。
 
-在同一个工作区本地运行检查时，应按顺序执行。前端构建会重写 `src/knoarbor/ui/dist/`，而 Python UI 测试会读取该目录，并行执行会产生短暂的资产 404。
+在同一个工作区本地运行检查时，应按顺序执行，避免 renderer 构建产物和桌面资源准备过程互相覆盖。
 
 其他发布辅助脚本：
 
@@ -103,7 +103,7 @@ TEMP_VAULT="$TMP_DIR/vault"
 # 后续 CLI/API 检查只使用 TEMP_CONFIG。
 ```
 
-当前唯一允许被跟踪的生成目录是 `src/knoarbor/ui/dist/`，因为桌面优先过渡期内 Python 开发者控制台仍会读取它。`specs/1.20-desktop-first-transition/` 已经规划后续将它从 Python package ownership 中移除。所有运行时知识库内容都属于用户本地数据。
+Renderer 构建产物不再跟踪提交。Python 开发者控制台在源码开发时读取 `renderer/dist/`，桌面打包会把该目录复制到 `desktop/resources/renderer/`。所有运行时知识库内容都属于用户本地数据。
 
 ## 分支与发布模型
 
@@ -172,7 +172,7 @@ KnoArbor 使用小型发布分支模型。目标是在保持公开历史清晰�
 ## 目录结构
 
 - `src/knoarbor/`：Python 核心服务、CLI、API 和流程实现。
-- `web/`：React + Vite 桌面 renderer 源码；过渡期也服务开发者控制台。
+- `renderer/`：React + Vite 桌面 renderer 源码；过渡期也服务开发者控制台。
 - `docs/`：公开文档。
 - `integrations/skills/`：通用 AI 工具技能说明。
 - `vaults/`：运行时知识库集合目录，默认不提交。

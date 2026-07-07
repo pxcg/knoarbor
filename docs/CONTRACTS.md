@@ -20,7 +20,7 @@ runtime contract.
 | Chat flow | tool trace, evidence pack, answer, citation resolver | `services.chat_*` |
 | Reports and ledgers | human reports, machine ledgers, failure artifacts, token ledger | `audit.*`, `storage.ledger` |
 | Public API | method-aware stable local HTTP API | `entrypoints.api_contract`, `docs/API_COMPATIBILITY.md` |
-| UI contract | display surfaces and UI-only adapters | `docs/UI_CONTRACT.md`, `web/src` |
+| UI contract | display surfaces and UI-only adapters | `docs/UI_CONTRACT.md`, `renderer/src` |
 
 ## Vault Layout
 
