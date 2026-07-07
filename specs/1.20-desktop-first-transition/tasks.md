@@ -13,4 +13,4 @@
 - [x] Rename `web/` to `renderer/`.
 - [x] Update build scripts and CI after renderer rename.
 - [x] Add desktop startup and diagnostics smoke tests.
-- [ ] Add a release checklist gate that verifies desktop artifacts are primary.
+- [x] Add a release checklist gate that verifies desktop artifacts are primary.

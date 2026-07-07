@@ -74,6 +74,7 @@ The gate should cover:
 - Local Markdown documentation link checks.
 - Python unit tests.
 - Renderer build.
+- Desktop smoke tests.
 - Renderer dependency audit and UI smoke.
 - CLI smoke checks.
 - Package build.
@@ -93,6 +94,7 @@ Expected result:
 - `ready: true`.
 - No tracked private paths.
 - No tracked generated artifacts outside intentional package data.
+- Desktop release artifacts are the primary GitHub Release outputs.
 - Required public files are present.
 
 ## 6. Clean Clone Smoke Test
@@ -238,6 +240,7 @@ Automated gates:
 - release-readiness:
 - clean-clone-smoke:
 - renderer build:
+- desktop smoke:
 
 Manual gates:
 - privacy:

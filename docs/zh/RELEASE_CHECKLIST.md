@@ -74,6 +74,7 @@ scripts/dev-check.sh
 - 本地 Markdown 文档链接检查。
 - Python 单元测试。
 - 前端构建。
+- 桌面 smoke 测试。
 - 前端依赖安全扫描和 UI 冒烟测试。
 - CLI smoke 检查。
 - Python 包构建。
@@ -93,6 +94,7 @@ scripts/release-readiness.py
 - `ready: true`。
 - 没有被跟踪的私有路径。
 - 没有被跟踪的非预期生成产物。
+- 桌面发布产物是 GitHub Release 的主产物。
 - 必需公开文件齐全。
 
 ## 6. 干净克隆测试
@@ -237,6 +239,7 @@ GitHub Release 应包含：
 - release-readiness：
 - clean-clone-smoke：
 - renderer build：
+- desktop smoke：
 
 人工门禁：
 - 隐私：
