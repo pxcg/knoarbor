@@ -1,13 +1,13 @@
-# Model Capability Probe Tasks
+# Model Capability Check Tasks
 
 ## P0
 
-- [x] Add model capability probe spec.
-- [x] Add model probe schemas.
-- [x] Add semantic discovery and minimal/structured probe helpers.
+- [x] Add model capability check spec.
+- [x] Add model check schemas.
+- [x] Add semantic discovery helpers.
 - [x] Add `ModelProbeService`.
 - [x] Add public `/models/*` API endpoints.
-- [x] Add tests for provider list, discovery, minimal probe, and structured probe.
+- [x] Add tests for provider list and discovery.
 
 ## P1
 
@@ -18,7 +18,6 @@
 
 ## Later
 
-- [ ] Add UI buttons for fetch models, test connection, detect capability, and apply recommendations.
-- [ ] Add CLI commands for model discovery and model probe.
-- [ ] Add workflow-level sample probe.
-- [ ] Add short TTL cache for repeated probes.
+- [ ] Add CLI commands for model discovery.
+- [ ] Add workflow-level sample smoke checks.
+- [ ] Add short TTL cache for repeated discovery checks.

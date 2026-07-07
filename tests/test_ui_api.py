@@ -31,7 +31,7 @@ class UiApiTests(unittest.TestCase):
         for asset_path in asset_paths:
             asset = client.get(f"/ui/{asset_path}")
             self.assertEqual(asset.status_code, 200)
-        for root_asset in ("favicon.ico", "site.webmanifest", "knoarbor-logo.svg"):
+        for root_asset in ("favicon.ico", "site.webmanifest", "siearbor-icon.png"):
             asset = client.get(f"/ui/{root_asset}")
             self.assertEqual(asset.status_code, 200)
 
@@ -318,9 +318,9 @@ models:
             self.assertEqual(response.status_code, 200)
             saved = config_path.read_text(encoding="utf-8")
             self.assertIn("path: ./vaults/all", saved)
-            self.assertIn("- ./vaults/all/raw/inbox/notes", saved)
+            self.assertIn("roots: []", saved)
             self.assertIn("raw_output_dir: ./vaults/all/raw/inbox/chats", saved)
-            self.assertIn("input_dir: ./vaults/all/raw/inbox/documents", saved)
+            self.assertIn("input_dir: null", saved)
             self.assertIn("output_dir: ./vaults/all/raw/derived/markdown", saved)
             self.assertIn(f"sessions_dir: {external_sessions.as_posix()}", saved)
 
@@ -370,33 +370,33 @@ models:
 
             self.assertEqual(response.status_code, 200)
             saved = config_path.read_text(encoding="utf-8")
-            self.assertIn("mode: ocr", saved)
+            self.assertIn("mode: auto", saved)
             self.assertIn("timeout_seconds: 900", saved)
-            self.assertIn("backend: hybrid-engine", saved)
-            self.assertIn("return_middle_json: true", saved)
+            self.assertIn("backend: pipeline", saved)
+            self.assertIn("return_middle_json: false", saved)
             self.assertIn("lang_list: ch,en", saved)
             self.assertIn("formula_enable: true", saved)
             self.assertIn("table_enable: false", saved)
-            self.assertIn("server_url: http://127.0.0.1:30000", saved)
-            self.assertIn("start_page_id: 1", saved)
-            self.assertIn("end_page_id: 9", saved)
+            self.assertNotIn("server_url: http://127.0.0.1:30000", saved)
+            self.assertIn("start_page_id: 0", saved)
+            self.assertIn("end_page_id: 99999", saved)
             self.assertIn("custom_flag: 'on'", saved)
 
             form_response = client.get("/ui/api/config/form", params={"config_path": str(config_path)})
             self.assertEqual(form_response.status_code, 200)
             payload = form_response.json()
-            self.assertEqual(payload["mineru_backend"], "hybrid-engine")
-            self.assertEqual(payload["mineru_parse_method"], "ocr")
+            self.assertEqual(payload["mineru_backend"], "pipeline")
+            self.assertEqual(payload["mineru_parse_method"], "auto")
             self.assertEqual(payload["mineru_timeout_seconds"], 900)
-            self.assertEqual(payload["mineru_patterns"], ["*.pdf", "*.docx"])
-            self.assertFalse(payload["mineru_recursive"])
-            self.assertTrue(payload["mineru_return_middle_json"])
+            self.assertEqual(payload["mineru_patterns"], ["*.pdf", "*.docx", "*.pptx", "*.ppt", "*.xlsx", "*.xls", "*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"])
+            self.assertTrue(payload["mineru_recursive"])
+            self.assertFalse(payload["mineru_return_middle_json"])
             self.assertEqual(payload["mineru_lang_list"], "ch,en")
             self.assertTrue(payload["mineru_formula_enable"])
             self.assertFalse(payload["mineru_table_enable"])
-            self.assertEqual(payload["mineru_server_url"], "http://127.0.0.1:30000")
-            self.assertEqual(payload["mineru_start_page_id"], 1)
-            self.assertEqual(payload["mineru_end_page_id"], 9)
+            self.assertEqual(payload["mineru_server_url"], "")
+            self.assertEqual(payload["mineru_start_page_id"], 0)
+            self.assertEqual(payload["mineru_end_page_id"], 99999)
             self.assertIn("custom_flag", payload["mineru_extra_fields_json"])
 
     def test_ui_config_form_enables_mineru_when_endpoint_is_configured(self) -> None:
@@ -469,6 +469,9 @@ models:
             self.assertNotIn("sessions_dir: ~/.hermes/sessions", saved)
             self.assertNotIn("sessions_dir: ~/.openclaw/agents/main/sessions", saved)
             self.assertNotIn("sessions_dir: ~/.claude/projects", saved)
+            form_response = client.get("/ui/api/config/form", params={"config_path": str(config_path)})
+            self.assertEqual(form_response.status_code, 200)
+            self.assertIn("codex", form_response.json()["detected_chat_source_dirs"])
 
     def test_ui_config_diagnostics_include_connector_contracts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

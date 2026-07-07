@@ -1,4 +1,4 @@
-# Model Capability Probe Requirements
+# Model Capability Check Requirements
 
 ## Goal
 
@@ -13,8 +13,6 @@ OpenAI-compatible runtimes such as vLLM and Ollama.
   provider and wants to know whether KnoArbor can reach it.
 - A user wants to fetch available model IDs from a provider endpoint instead of
   manually typing model names.
-- A user wants to know whether the selected model can return strict JSON for
-  structured semantic contracts.
 - A user wants KnoArbor to detect or recommend `context_window` and
   `max_output_tokens`.
 - A user wants to apply detected capability values to `config.yaml` through an
@@ -23,16 +21,15 @@ OpenAI-compatible runtimes such as vLLM and Ollama.
 ## Requirements
 
 - Model discovery reads provider metadata without making a generation call.
-- Model probing performs bounded, low-cost generation calls.
 - Provider credentials and API keys are never returned by diagnostics APIs.
 - Local unauthenticated providers are supported when `api_key_env` is empty.
 - Capability results are structured and can be consumed by API, CLI, UI, and
   host-AI skills.
-- Configuration writes are explicit. Probe calls may recommend config changes,
+- Configuration writes are explicit. Discovery calls may recommend config changes,
   but they do not mutate `config.yaml`.
 - Error states are classified into user-readable categories: unreachable
   endpoint, authentication failure, unsupported endpoint, model not found,
-  timeout, invalid provider response, and structured-output failure.
+  timeout, and invalid provider response.
 
 ## Non-Goals
 
@@ -46,11 +43,10 @@ OpenAI-compatible runtimes such as vLLM and Ollama.
 - `GET /models/providers` returns configured providers without secrets.
 - `POST /models/discover` returns model IDs and detected context metadata when
   the endpoint supports discovery.
-- `POST /models/probe` supports `minimal` and `structured` probe levels.
-- Probe responses include latency, model existence, structured-output status,
-  detected/effective context window, and suggested config values.
+- Discovery responses include model existence, detected/effective context
+  window, and suggested config values.
 - `POST /models/apply-capabilities` updates only allowed capability fields in
   `config.yaml`.
 - `GET /doctor` can continue using the shared model gateway health check.
-- Unit tests cover discovery, structured probe success/failure, local
-  unauthenticated providers, and config apply behavior.
+- Unit tests cover discovery, local unauthenticated providers, and config apply
+  behavior.

@@ -122,6 +122,7 @@ class UiConfigFormResponse(BaseModel):
     image_request_timeout_seconds: float = 120.0
     image_providers: list[UiImageGenerationProviderForm] = Field(default_factory=list)
     enabled_connectors: list[str] = Field(default_factory=list)
+    detected_chat_source_dirs: dict[str, list[str]] = Field(default_factory=dict)
     codex_enabled: bool = False
     codex_sessions_dir: str = ""
     codex_raw_output_dir: str = ""
@@ -153,7 +154,7 @@ class UiConfigFormResponse(BaseModel):
     mineru_return_middle_json: bool = False
     mineru_return_model_output: bool = False
     mineru_return_content_list: bool = False
-    mineru_return_images: bool = False
+    mineru_return_images: bool = True
     mineru_response_format_zip: bool = False
     mineru_lang_list: str = "ch"
     mineru_formula_enable: bool = True
@@ -211,7 +212,7 @@ class UiConfigFormUpdateRequest(BaseModel):
     mineru_return_middle_json: bool = False
     mineru_return_model_output: bool = False
     mineru_return_content_list: bool = False
-    mineru_return_images: bool = False
+    mineru_return_images: bool = True
     mineru_response_format_zip: bool = False
     mineru_lang_list: str = "ch"
     mineru_formula_enable: bool = True

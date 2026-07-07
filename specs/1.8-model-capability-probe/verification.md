@@ -1,4 +1,4 @@
-# Model Capability Probe Verification
+# Model Capability Check Verification
 
 ## Unit Tests
 
@@ -15,8 +15,6 @@ Expected coverage:
 - provider list hides secrets and marks credential readiness;
 - discovery parses OpenAI-compatible `/models` metadata;
 - Ollama context metadata can be detected from `/api/show`;
-- minimal probe validates exact `OK`;
-- structured probe validates JSON output;
 - apply endpoint updates only allowed provider fields.
 
 ## Manual Checks
@@ -29,9 +27,6 @@ curl http://127.0.0.1:8000/models/providers
 curl -X POST http://127.0.0.1:8000/models/discover \
   -H 'Content-Type: application/json' \
   -d '{"provider":"vllm"}'
-curl -X POST http://127.0.0.1:8000/models/probe \
-  -H 'Content-Type: application/json' \
-  -d '{"provider":"vllm","level":"minimal"}'
 ```
 
 For hosted providers, load `.env` first so `api_key_env` resolves.

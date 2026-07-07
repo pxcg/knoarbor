@@ -9,7 +9,6 @@ class ModelProbeBase(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
 
-ProbeLevel = Literal["connectivity"]
 ModelProbeStatus = Literal["ok", "warning", "error"]
 
 
@@ -62,32 +61,6 @@ class ModelDiscoveryResponse(ModelProbeBase):
     context_window_source: str = "unknown"
     configured_max_output_tokens: int | None = None
     suggested_config: ModelCapabilitySuggestion = Field(default_factory=ModelCapabilitySuggestion)
-    details: dict[str, object] = Field(default_factory=dict)
-
-
-class ModelProbeRequest(ModelProbeBase):
-    config_path: str | None = None
-    provider: str | None = None
-    level: ProbeLevel = "connectivity"
-
-
-class ModelProbeResponse(ModelProbeBase):
-    schema_version: Literal["model_probe.v1"] = "model_probe.v1"
-    provider: str
-    model: str
-    level: ProbeLevel
-    status: ModelProbeStatus
-    available: bool
-    message: str
-    latency_ms: int | None = None
-    output_valid: bool | None = None
-    structured_output: bool | None = None
-    detected_context_window: int | None = None
-    configured_context_window: int | None = None
-    effective_context_window: int | None = None
-    configured_max_output_tokens: int | None = None
-    suggested_config: ModelCapabilitySuggestion = Field(default_factory=ModelCapabilitySuggestion)
-    usage: dict[str, int] = Field(default_factory=dict)
     details: dict[str, object] = Field(default_factory=dict)
 
 

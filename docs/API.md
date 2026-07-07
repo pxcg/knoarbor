@@ -31,7 +31,7 @@ Public endpoints are organized by product capability, not by internal workflow s
 | Vault registry | `GET /vaults` | List configured knowledge-base vaults with IDs, names, paths, and availability |
 | Diagnostics | `GET /doctor` | Read-only setup checks |
 | Sources | `GET /sources` | Read source connector capability catalog |
-| Models | `GET /models/providers`, `GET /models/image-providers`, `POST /models/discover`, `POST /models/probe`, `POST /models/apply-capabilities` | List configured text/image providers, discover runtime model metadata, check provider API connectivity, and explicitly apply selected limits |
+| Models | `GET /models/providers`, `GET /models/image-providers`, `POST /models/discover`, `POST /models/apply-capabilities` | List configured text/image providers, check runtime model metadata, and explicitly apply selected model settings |
 | Ingest | `POST /ingest` | Compile configured sources, one normalized document, one file or folder, or recover a failed ingest |
 | Lint | `POST /lint` | Run deterministic structured maintenance or semantic maintenance |
 | Query | `POST /query` | Retrieve wiki context for a host AI |
@@ -413,11 +413,10 @@ Source file discovery remains part of `GET /doctor` runtime checks and the
 GET /models/providers
 GET /models/image-providers
 POST /models/discover
-POST /models/probe
 POST /models/apply-capabilities
 ```
 
-Model endpoints expose the configured model registry and the runtime checks
+Model endpoints expose the configured model registry and the provider checks
 needed before long semantic workflows. They are safe to call from Swagger,
 Apifox, scripts, and the local UI.
 
@@ -432,7 +431,10 @@ are used by the chat `generate_image` tool.
 `POST /models/discover` calls the adapter-specific model-list endpoint.
 OpenAI-compatible providers use `/models`; native Ollama providers use
 `/api/tags` and `/api/show` to detect model availability and context length.
-Discovery does not generate model tokens.
+Discovery does not send a chat completion request or generate model tokens.
+When the provider exposes model IDs, the response includes `model_ids` so the
+client can let users keep a manually entered model or select one of the
+discovered models.
 
 ```json
 {
@@ -441,22 +443,10 @@ Discovery does not generate model tokens.
 }
 ```
 
-`POST /models/probe` performs the same provider API connectivity check as
-runtime discovery and does not send a chat completion request. It validates the
-model-list endpoint, TLS, credentials, and whether the configured model appears
-in the provider metadata when that metadata is available.
-
-```json
-{
-  "config_path": "/path/to/config.yaml",
-  "provider": "deepseek"
-}
-```
-
 `POST /models/apply-capabilities` is the only model endpoint that writes
 configuration. It explicitly stores user-selected fields such as
-`context_window`, `max_output_tokens`, and `json_mode`; discovery and probe do
-not automatically modify `config.yaml`.
+`context_window`, `max_output_tokens`, and `json_mode`; discovery does not
+automatically modify `config.yaml`.
 
 ```json
 {

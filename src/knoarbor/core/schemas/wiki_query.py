@@ -57,7 +57,7 @@ class WikiSearchRequest(BaseModel):
     max_pages_to_read: int = Field(default=10, ge=1, le=30)
     max_excerpts_per_page: int = Field(default=3, ge=0, le=8)
     max_chars_per_excerpt: int = Field(default=800, ge=120, le=3000)
-    max_context_chars: int = Field(default=8000, ge=1000, le=30000)
+    max_context_chars: int = Field(default=200000, ge=1000, le=500000)
     include_related: bool = True
     include_content: bool = True
     record_query: bool = True

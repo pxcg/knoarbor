@@ -14,7 +14,6 @@ API 优先保持精简清晰，并服务持续演进的桌面端优先产品线�
 - `GET /models/providers`
 - `GET /models/image-providers`
 - `POST /models/discover`
-- `POST /models/probe`
 - `POST /models/apply-capabilities`
 - `POST /chat`
 - `POST /chat/stream`

@@ -99,11 +99,10 @@ models:
 
 - `GET /models/providers`：列出已配置的供应商，不访问模型运行时。
 - `GET /models/image-providers`：列出已配置的图片生成供应商，不访问图片生成运行时。
-- `POST /models/discover`：读取模型端点元数据，并尽量探测上下文长度，不触发生成。
-- `POST /models/probe`：执行小型生成探测；`minimal` 检查连通性，`structured` 检查 JSON 契约能力。
+- `POST /models/discover`：读取模型端点元数据，检查模型列表接口，并尽量探测上下文长度，不触发生成。
 - `POST /models/apply-capabilities`：显式把 `context_window`、`max_output_tokens` 和 `json_mode` 写回 `config.yaml`。
 
-发现和探测不会自动修改配置。建议先查看探测结果，再在确认模型能力后写回配置。
+发现不会自动修改配置。建议先查看检查结果，再在确认模型能力后写回配置。
 
 图片生成供应商和聊天/编译模型供应商分开配置。Chat、ingest、lint 和 query 使用
 `models`；图片生成使用 `image_generation`，只有当 chat planning 选择

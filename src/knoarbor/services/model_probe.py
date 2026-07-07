@@ -10,8 +10,6 @@ from knoarbor.core.schemas.model_probe import (
     ModelCapabilitySuggestion,
     ModelDiscoveryRequest,
     ModelDiscoveryResponse,
-    ModelProbeRequest,
-    ModelProbeResponse,
     ModelProvidersResponse,
     ModelProviderSummary,
 )
@@ -75,38 +73,6 @@ class ModelProbeService:
             details=_public_details(details),
         )
 
-    def probe(self, request: ModelProbeRequest) -> ModelProbeResponse:
-        config = load_config(request.config_path or default_config_path())
-        provider_name, provider = _resolve_provider(config.models.providers, request.provider or config.models.default_provider)
-        probe_provider = _provider_for_discovery(provider)
-        gateway = ModelGateway.from_config(provider_name, probe_provider, timeout_seconds=min(config.models.request_timeout_seconds, 10.0))
-        discovery = gateway.discover_models()
-        details = dict(discovery.details)
-        detected_context = _int_or_none(details.get("detected_context_window"))
-        effective_context = detected_context or provider.context_window
-        configured_model_found = _bool_or_none(details.get("configured_model_found"))
-        status = "error"
-        if discovery.available:
-            status = "warning" if provider.model and configured_model_found is False else "ok"
-        elapsed = _float_or_none(details.get("elapsed_seconds"))
-        return ModelProbeResponse(
-            provider=provider_name,
-            model=provider.model or "",
-            level=request.level,
-            status=status,
-            available=discovery.available,
-            message=_probe_message(discovery.message, provider.model, configured_model_found, discovery.available),
-            latency_ms=round(elapsed * 1000) if elapsed is not None else None,
-            output_valid=discovery.available,
-            structured_output=None,
-            detected_context_window=detected_context,
-            configured_context_window=provider.context_window,
-            effective_context_window=effective_context,
-            configured_max_output_tokens=provider.max_output_tokens,
-            suggested_config=_suggest_config(effective_context, structured_json=None),
-            details=_public_details(details),
-        )
-
     def apply_capabilities(self, request: ModelApplyCapabilitiesRequest) -> ModelApplyCapabilitiesResponse:
         path = resolve_ui_config_path(request.config_path, for_write=True)
         source_path = path if path.exists() else default_config_path()
@@ -165,15 +131,6 @@ def _provider_credentials_ready(provider: ModelProviderConfig) -> bool:
     return bool(provider.api_key())
 
 
-def _probe_message(base_message: str, configured_model: str | None, configured_model_found: bool | None, available: bool) -> str:
-    suffix = " No chat completion request was sent."
-    if not available:
-        return f"{base_message}{suffix}"
-    if configured_model and configured_model_found is False:
-        return f"{base_message} Configured model was not found in the discovered model list.{suffix}"
-    return f"{base_message}{suffix}"
-
-
 def _suggest_config(context_window: int | None, *, structured_json: bool | None) -> ModelCapabilitySuggestion:
     max_output = None
     if context_window:
@@ -196,13 +153,6 @@ def _int_or_none(value: object) -> int | None:
     if isinstance(value, int):
         return value if value > 0 else None
     return None
-
-
-def _float_or_none(value: object) -> float | None:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def _bool_or_none(value: object) -> bool | None:

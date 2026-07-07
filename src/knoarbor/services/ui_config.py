@@ -32,6 +32,9 @@ from knoarbor.services.ui_config_models import (
 from knoarbor.storage.source_metrics import connector_source_metric_identity, load_source_counts, source_metric_key, update_source_counts
 from knoarbor.storage.wiki_init import init_wiki_vault
 
+MINERU_BACKENDS = {"hybrid-auto-engine", "pipeline", "vlm-auto-engine"}
+DEFAULT_MINERU_BACKEND = "pipeline"
+
 
 class UiConfigService:
     """Owns UI-facing config read, validation, diagnostics, and writes."""
@@ -151,13 +154,11 @@ def config_to_form(config: KnoArborConfig) -> UiConfigFormResponse:
     openclaw = config.connectors.get("openclaw")
     claude_code = config.connectors.get("claude_code")
     generic_chat = config.connectors.get("generic_chat")
-    markdown = config.connectors.get("markdown")
     codex_settings = codex.settings if codex else {}
     hermes_settings = hermes.settings if hermes else {}
     openclaw_settings = openclaw.settings if openclaw else {}
     claude_code_settings = claude_code.settings if claude_code else {}
     generic_chat_settings = generic_chat.settings if generic_chat else {}
-    markdown_settings = markdown.settings if markdown else {}
     return UiConfigFormResponse(
         project_name=config.active_vault_name(),
         vault_path=str(config.vault.path),
@@ -214,6 +215,7 @@ def config_to_form(config: KnoArborConfig) -> UiConfigFormResponse:
             for name, provider in sorted(config.image_generation.providers.items())
         ],
         enabled_connectors=config.enabled_connectors(),
+        detected_chat_source_dirs=_detected_chat_source_dirs(),
         codex_enabled=bool(codex.enabled) if codex else False,
         codex_sessions_dir="",
         codex_raw_output_dir=str(codex_settings.get("raw_output_dir") or ""),
@@ -229,15 +231,15 @@ def config_to_form(config: KnoArborConfig) -> UiConfigFormResponse:
         generic_chat_enabled=bool(generic_chat.enabled) if generic_chat else False,
         generic_chat_roots=[str(item) for item in generic_chat_settings.get("roots", []) if item],
         generic_chat_raw_output_dir=str(generic_chat_settings.get("raw_output_dir") or ""),
-        markdown_enabled=bool(markdown.enabled) if markdown else True,
-        markdown_roots=[str(item) for item in markdown_settings.get("roots", []) if item],
-        markdown_raw_output_dir=str(markdown_settings.get("raw_output_dir") or ""),
+        markdown_enabled=False,
+        markdown_roots=[],
+        markdown_raw_output_dir=DEFAULT_MARKDOWN_RAW_OUTPUT_DIR,
         mineru_enabled=config.document_processing.mineru.enabled,
         mineru_endpoint=config.document_processing.mineru.endpoint or "",
-        mineru_input_dir=str(config.document_processing.mineru.input_dir or ""),
+        mineru_input_dir="",
         mineru_output_dir=str(config.document_processing.mineru.output_dir or ""),
-        mineru_parse_method=config.document_processing.mineru.mode or "",
-        mineru_backend=str(config.document_processing.mineru.extra_fields.get("backend") or "pipeline"),
+        mineru_parse_method=config.document_processing.mineru.mode or "auto",
+        mineru_backend=_normalize_mineru_backend(config.document_processing.mineru.extra_fields.get("backend")),
         mineru_timeout_seconds=config.document_processing.mineru.timeout_seconds,
         mineru_patterns=list(config.document_processing.mineru.patterns),
         mineru_recursive=config.document_processing.mineru.recursive,
@@ -255,6 +257,14 @@ def config_to_form(config: KnoArborConfig) -> UiConfigFormResponse:
         mineru_end_page_id=int(config.document_processing.mineru.extra_fields.get("end_page_id", 99999)),
         mineru_extra_fields_json=_mineru_extra_fields_json(config.document_processing.mineru.extra_fields),
     )
+
+
+def _detected_chat_source_dirs() -> dict[str, list[str]]:
+    detected: dict[str, list[str]] = {}
+    for name, default_dir in DEFAULT_CHAT_SESSION_DIRS.items():
+        path = Path(default_dir).expanduser()
+        detected[name] = [str(path)] if path.is_dir() else []
+    return detected
 
 
 def _provider_credentials_ready(provider: Any) -> bool:
@@ -587,9 +597,9 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
     )
     _upsert_generic_chat_connector(connectors, form.generic_chat_enabled, form.generic_chat_roots, form.generic_chat_raw_output_dir, base_dir=base_dir)
     markdown = dict(connectors.get("markdown") or {})
-    markdown["enabled"] = form.markdown_enabled
+    markdown["enabled"] = False
     markdown_settings = dict(markdown.get("settings") or {})
-    markdown_settings["roots"] = [_portable_config_path(root, base_dir) for root in form.markdown_roots if root.strip()]
+    markdown_settings["roots"] = []
     markdown_settings["raw_output_dir"] = _portable_config_path(form.markdown_raw_output_dir or DEFAULT_MARKDOWN_RAW_OUTPUT_DIR, base_dir)
     markdown["settings"] = markdown_settings
     connectors["markdown"] = markdown
@@ -600,12 +610,12 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
     mineru_endpoint = form.mineru_endpoint.strip()
     mineru["enabled"] = form.mineru_enabled or bool(mineru_endpoint)
     mineru["endpoint"] = mineru_endpoint or None
-    mineru["input_dir"] = _portable_config_path_or_none(form.mineru_input_dir, base_dir)
+    mineru["input_dir"] = None
     mineru["output_dir"] = _portable_config_path(form.mineru_output_dir or DEFAULT_MINERU_MARKDOWN_OUTPUT_DIR, base_dir)
-    mineru["mode"] = form.mineru_parse_method.strip() or None
+    mineru["mode"] = "auto"
     mineru["timeout_seconds"] = form.mineru_timeout_seconds
-    mineru["patterns"] = [pattern.strip() for pattern in form.mineru_patterns if pattern.strip()]
-    mineru["recursive"] = form.mineru_recursive
+    mineru["patterns"] = ["*.pdf", "*.docx", "*.pptx", "*.ppt", "*.xlsx", "*.xls", "*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"]
+    mineru["recursive"] = True
     mineru["extra_fields"] = _mineru_extra_fields_from_form(form)
     document_processing["mineru"] = mineru
     data["document_processing"] = document_processing
@@ -655,21 +665,26 @@ def _mineru_extra_fields_from_form(form: UiConfigFormUpdateRequest) -> dict[str,
         raise UserInputError("MinerU extra fields must be a JSON object.")
     fields = {
         **custom,
-        "backend": form.mineru_backend.strip() or "pipeline",
-        "return_md": form.mineru_return_md,
-        "return_middle_json": form.mineru_return_middle_json,
-        "return_model_output": form.mineru_return_model_output,
-        "return_content_list": form.mineru_return_content_list,
-        "return_images": form.mineru_return_images,
-        "response_format_zip": form.mineru_response_format_zip,
+        "backend": _normalize_mineru_backend(form.mineru_backend),
+        "return_md": True,
+        "return_middle_json": False,
+        "return_model_output": False,
+        "return_content_list": False,
+        "return_images": True,
+        "response_format_zip": False,
         "lang_list": form.mineru_lang_list.strip() or "ch",
         "formula_enable": form.mineru_formula_enable,
         "table_enable": form.mineru_table_enable,
-        "server_url": form.mineru_server_url.strip() or None,
-        "start_page_id": form.mineru_start_page_id,
-        "end_page_id": form.mineru_end_page_id,
+        "server_url": None,
+        "start_page_id": 0,
+        "end_page_id": 99999,
     }
     return {key: value for key, value in fields.items() if value is not None}
+
+
+def _normalize_mineru_backend(value: object) -> str:
+    backend = str(value or "").strip()
+    return backend if backend in MINERU_BACKENDS else DEFAULT_MINERU_BACKEND
 
 
 def _mineru_lang_list_value(value: object) -> str:

@@ -28,7 +28,6 @@ PUBLIC_STABLE_ROUTE_SPECS: tuple[ApiRouteSpec, ...] = (
     ApiRouteSpec("GET", "/models/providers", response_schema="model_providers.v1"),
     ApiRouteSpec("GET", "/models/image-providers", response_schema="image_providers.v1"),
     ApiRouteSpec("POST", "/models/discover", request_schema="model_discover_request.v1", response_schema="model_discover_response.v1"),
-    ApiRouteSpec("POST", "/models/probe", request_schema="model_probe_request.v1", response_schema="model_probe_response.v1"),
     ApiRouteSpec("POST", "/models/apply-capabilities", request_schema="model_capability_apply_request.v1", response_schema="model_capability_apply_response.v1"),
     ApiRouteSpec("POST", "/chat", request_schema="chat_request.v1", response_schema="chat_response.v1"),
     ApiRouteSpec("POST", "/chat/stream", request_schema="chat_request.v1", response_schema="chat_stream.v1"),

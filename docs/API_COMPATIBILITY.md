@@ -18,7 +18,6 @@ response schema, and error envelope form one contract.
 | `GET` | `/models/providers` | List configured model providers. |
 | `GET` | `/models/image-providers` | List configured image-generation providers. |
 | `POST` | `/models/discover` | Discover models from a provider endpoint. |
-| `POST` | `/models/probe` | Check provider API connectivity without sending a chat completion request. |
 | `POST` | `/models/apply-capabilities` | Persist selected model limits. |
 | `POST` | `/chat` | Run one chat turn. |
 | `POST` | `/chat/stream` | Run one streaming chat turn. |

@@ -113,38 +113,7 @@ class ModelProbeApiTests(unittest.TestCase):
         self.assertEqual(payload["model"], "")
         self.assertEqual(payload["model_ids"], ["qwen3:14b", "qwen3.6:27b-q4_K_M"])
 
-    def test_probe_endpoint_checks_api_connectivity_without_chat_completion(self) -> None:
-        discovery = ProviderModelDiscovery(
-            available=True,
-            message="ok",
-            details={"detected_context_window": 32768, "elapsed_seconds": 0.25, "configured_model_found": True},
-        )
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            config = Path(tmp_dir) / "config.yaml"
-            _write_config(config)
-            client = TestClient(create_app())
-
-            with (
-                patch("knoarbor.services.model_probe.ModelGateway.discover_models", return_value=discovery),
-                patch("knoarbor.services.model_probe.ModelGateway.complete") as complete,
-            ):
-                response = client.post(
-                    "/models/probe",
-                    json={"config_path": str(config), "provider": "local"},
-                )
-
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertEqual(payload["schema_version"], "model_probe.v1")
-        self.assertEqual(payload["level"], "connectivity")
-        self.assertEqual(payload["status"], "ok")
-        self.assertTrue(payload["output_valid"])
-        self.assertIsNone(payload["structured_output"])
-        self.assertEqual(payload["latency_ms"], 250)
-        self.assertIn("No chat completion request was sent.", payload["message"])
-        complete.assert_not_called()
-
-    def test_probe_endpoint_warns_when_configured_model_is_missing(self) -> None:
+    def test_discover_endpoint_warns_when_configured_model_is_missing(self) -> None:
         discovery = ProviderModelDiscovery(
             available=True,
             message="ok",
@@ -157,7 +126,7 @@ class ModelProbeApiTests(unittest.TestCase):
 
             with patch("knoarbor.services.model_probe.ModelGateway.discover_models", return_value=discovery):
                 response = client.post(
-                    "/models/probe",
+                    "/models/discover",
                     json={"config_path": str(config), "provider": "local"},
                 )
 
@@ -167,7 +136,7 @@ class ModelProbeApiTests(unittest.TestCase):
         self.assertTrue(payload["available"])
         self.assertIn("Configured model was not found", payload["message"])
 
-    def test_probe_endpoint_reports_api_connectivity_failure(self) -> None:
+    def test_discover_endpoint_reports_api_connectivity_failure(self) -> None:
         discovery = ProviderModelDiscovery(available=False, message="Provider endpoint request failed: refused", details={})
         with tempfile.TemporaryDirectory() as tmp_dir:
             config = Path(tmp_dir) / "config.yaml"
@@ -176,7 +145,7 @@ class ModelProbeApiTests(unittest.TestCase):
 
             with patch("knoarbor.services.model_probe.ModelGateway.discover_models", return_value=discovery):
                 response = client.post(
-                    "/models/probe",
+                    "/models/discover",
                     json={"config_path": str(config), "provider": "local"},
                 )
 
@@ -184,8 +153,7 @@ class ModelProbeApiTests(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["status"], "error")
         self.assertFalse(payload["available"])
-        self.assertFalse(payload["output_valid"])
-        self.assertIn("No chat completion request was sent.", payload["message"])
+        self.assertIn("Provider endpoint request failed", payload["message"])
 
     def test_apply_capabilities_explicitly_writes_selected_provider_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

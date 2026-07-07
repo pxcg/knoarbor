@@ -31,7 +31,7 @@ http://127.0.0.1:8000
 | 知识库注册表 | `GET /vaults` | 列出已配置知识库的 ID、名称、路径和可用状态 |
 | 诊断 | `GET /doctor` | 只读运行前检查 |
 | 资料来源 | `GET /sources` | 读取资料来源连接器能力清单 |
-| 模型供应商 | `GET /models/providers`, `GET /models/image-providers`, `POST /models/discover`, `POST /models/probe`, `POST /models/apply-capabilities` | 列出文本和图片模型供应商、发现运行时模型信息、检查供应商 API 连通性，并显式写回选定配置 |
+| 模型供应商 | `GET /models/providers`, `GET /models/image-providers`, `POST /models/discover`, `POST /models/apply-capabilities` | 列出文本和图片模型供应商、检查运行时模型信息，并显式写回选定配置 |
 | 知识编译 | `POST /ingest` | 编译配置来源、标准文档、单个文件或文件夹，或恢复失败编译 |
 | 校验维护 | `POST /lint` | 执行确定性、结构、质量或完整维护 |
 | 知识查询 | `POST /query` | 为宿主 AI 检索 Wiki 上下文 |
@@ -394,17 +394,16 @@ KnoArbor 支持哪些来源、每个连接器会产生哪些 `source_type`，以
 GET /models/providers
 GET /models/image-providers
 POST /models/discover
-POST /models/probe
 POST /models/apply-capabilities
 ```
 
-模型接口用于在长流程运行前检查供应商配置和 API 连通性，可由 Swagger、Apifox、脚本或本地前端调用。
+模型接口用于在长流程运行前检查供应商配置和模型列表，可由 Swagger、Apifox、脚本或本地前端调用。
 
 `GET /models/providers` 只读取当前模型配置，不访问模型运行时。返回内容会隐藏 API Key，只标注环境变量是否已配置。
 
 `GET /models/image-providers` 读取图片生成供应商配置。图片生成供应商和聊天/编译模型供应商分离，供 chat 的 `generate_image` 工具使用。
 
-`POST /models/discover` 调用适配器对应的模型列表接口。OpenAI 兼容供应商使用 `/models`；Ollama 原生供应商使用 `/api/tags` 和 `/api/show` 探测模型可用性与上下文长度。该接口不触发模型生成，因此不消耗生成 token。
+`POST /models/discover` 调用适配器对应的模型列表接口。OpenAI 兼容供应商使用 `/models`；Ollama 原生供应商使用 `/api/tags` 和 `/api/show` 探测模型可用性与上下文长度。该接口不发送对话生成请求，因此不消耗生成 token。供应商返回模型 ID 时，响应会包含 `model_ids`，前端可以让用户继续保留手动填写的模型，也可以从发现到的模型中选择一个。
 
 ```json
 {
@@ -413,16 +412,7 @@ POST /models/apply-capabilities
 }
 ```
 
-`POST /models/probe` 执行和运行时发现相同的供应商 API 连通性检查，不发送对话生成请求。它会验证模型列表接口、TLS、凭据，以及在供应商返回元数据时确认当前配置模型是否存在。
-
-```json
-{
-  "config_path": "/path/to/config.yaml",
-  "provider": "deepseek"
-}
-```
-
-`POST /models/apply-capabilities` 是唯一会写配置的模型接口。它显式保存用户选定的 `context_window`、`max_output_tokens` 和 `json_mode` 等字段；发现和探测接口不会自动修改 `config.yaml`。
+`POST /models/apply-capabilities` 是唯一会写配置的模型接口。它显式保存用户选定的 `context_window`、`max_output_tokens` 和 `json_mode` 等字段；发现接口不会自动修改 `config.yaml`。
 
 ```json
 {
