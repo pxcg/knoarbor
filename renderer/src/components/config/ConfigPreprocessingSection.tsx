@@ -1,11 +1,10 @@
 import { PathField } from "./ConfigFormControls";
-import type { AppNotice } from "../../appContext";
 import type { ConfigForm } from "../../api/client";
 import type { SectionProps } from "./ConfigSectionTypes";
 
 type ConfigPreprocessingSectionProps = SectionProps & {
   onCommit: (nextForm: ConfigForm) => Promise<void>;
-  onError: (notice: AppNotice | null) => void;
+  onError: (error: unknown) => void;
 };
 
 export function ConfigPreprocessingSection({ form, setForm, t, onCommit, onError }: ConfigPreprocessingSectionProps) {
@@ -15,8 +14,8 @@ export function ConfigPreprocessingSection({ form, setForm, t, onCommit, onError
     try {
       await onCommit(nextForm);
     } catch (error) {
-      setForm(previousForm);
-      onError({ message: error instanceof Error ? error.message : String(error), error: true });
+      setForm((current) => current === nextForm ? previousForm : current);
+      onError(error);
     }
   }
 
@@ -45,9 +44,17 @@ export function ConfigPreprocessingSection({ form, setForm, t, onCommit, onError
               <label className="field">
                 <span>{t("mineruBackend")}</span>
                 <select value={form.mineru_backend} onChange={(event) => void commit({ ...form, mineru_backend: event.target.value })}>
-                  <option value="hybrid-auto-engine">hybrid-auto-engine</option>
                   <option value="pipeline">pipeline</option>
                   <option value="vlm-auto-engine">vlm-auto-engine</option>
+                  <option value="hybrid-auto-engine">hybrid-auto-engine</option>
+                </select>
+              </label>
+              <label className="field">
+                <span>{t("mineruParseMethod")}</span>
+                <select value={form.mineru_parse_method} onChange={(event) => void commit({ ...form, mineru_parse_method: event.target.value })}>
+                  <option value="auto">auto</option>
+                  <option value="txt">txt</option>
+                  <option value="ocr">ocr</option>
                 </select>
               </label>
               <PathField

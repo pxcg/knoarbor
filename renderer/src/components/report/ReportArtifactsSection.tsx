@@ -4,10 +4,11 @@ import type { PageArtifact, ReportArtifacts } from "./reportParser";
 import { isWikiPagePath, pageName } from "./reportParser";
 import { ReportDiffBlock } from "./ReportDiffBlock";
 import { localizeOperationAction } from "./reportReadableLocalizers";
+import type { Language } from "../../types";
+import { userFacingError } from "../../userFacingError";
 
 type ReportArtifactsSectionProps = {
   artifacts: ReportArtifacts;
-  hasLegacyChangesWithoutDiff: boolean;
   inlinePagePreview: boolean;
   loadPage?: (path: string) => Promise<PageDetail>;
   preview: PageDetail | null;
@@ -17,11 +18,11 @@ type ReportArtifactsSectionProps = {
   t: (key: string) => string;
   onOpenPage: (path: string) => void;
   onPreviewPage: (path: string) => Promise<void>;
+  language: Language;
 };
 
 export function ReportArtifactsSection({
   artifacts,
-  hasLegacyChangesWithoutDiff,
   inlinePagePreview,
   loadPage,
   preview,
@@ -31,6 +32,7 @@ export function ReportArtifactsSection({
   t,
   onOpenPage,
   onPreviewPage,
+  language,
 }: ReportArtifactsSectionProps) {
   const pageArtifacts = [...artifacts.changedPages, ...artifacts.writtenPages, ...artifacts.relatedPages];
   return (
@@ -86,21 +88,9 @@ export function ReportArtifactsSection({
             {artifacts.failures.map((failure, index) => (
               <article className="report-failure-card" key={`${failure.source || "failure"}:${index}`}>
                 {failure.source && <strong>{failure.source}</strong>}
-                <p>{failure.message}</p>
-                <div>
-                  {failure.stage && <span className="pill">{failure.stage}</span>}
-                  {failure.code && <span className="pill danger">{failure.code}</span>}
-                </div>
+                <p>{userFacingError(failure.message, language)}</p>
               </article>
             ))}
-          </div>
-        </section>
-      )}
-      {hasLegacyChangesWithoutDiff && (
-        <section className="report-artifact-section">
-          <div className="report-diff-unavailable">
-            <strong>{t("reportDiffUnavailableTitle")}</strong>
-            <p>{t("reportDiffUnavailableCopy")}</p>
           </div>
         </section>
       )}

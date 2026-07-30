@@ -1,4 +1,5 @@
 import type { ConfigFormProvider, ModelProviderProbeState } from "../../api/client";
+import { currentModelProbeAssessment } from "../../modelProbeRuntime";
 
 export type ProviderRuntimeStatus = {
   tone: "ok" | "warning" | "error" | "unknown";
@@ -16,7 +17,7 @@ export function providerRuntimeStatus(provider: ConfigFormProvider, result: Mode
         tone: "ok",
         dotClass: "online",
         label: t("modelAvailable"),
-        detail: latest.message || provider.model || t("noModelSelected"),
+        detail: provider.model || t("noModelSelected"),
         checked: true,
       };
     }
@@ -25,7 +26,7 @@ export function providerRuntimeStatus(provider: ConfigFormProvider, result: Mode
         tone: "warning",
         dotClass: "warning",
         label: t("modelNeedsAttention"),
-        detail: latest.message || provider.model || t("noModelSelected"),
+        detail: t("modelNeedsAttention"),
         checked: true,
       };
     }
@@ -33,7 +34,7 @@ export function providerRuntimeStatus(provider: ConfigFormProvider, result: Mode
       tone: "error",
       dotClass: "offline",
       label: t("modelUnavailable"),
-      detail: latest.message || provider.model || t("noModelSelected"),
+      detail: t("modelUnavailable"),
       checked: true,
     };
   }
@@ -59,8 +60,11 @@ export function providerRuntimeStatus(provider: ConfigFormProvider, result: Mode
 }
 
 function currentModelProbeResult(provider: ConfigFormProvider, result: ModelProviderProbeState | undefined) {
-  if (!result) return undefined;
-  const discoveryModels = result.discovery?.model_ids || [];
-  if (result.discovery && (!provider.model || discoveryModels.includes(provider.model))) return result.discovery;
-  return undefined;
+  const assessment = currentModelProbeAssessment(result?.discovery, provider.model);
+  if (!assessment) return undefined;
+  return {
+    ...assessment.discovery,
+    configured_model_found: assessment.configuredModelFound,
+    status: assessment.status,
+  };
 }

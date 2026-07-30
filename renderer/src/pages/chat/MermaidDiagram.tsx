@@ -7,7 +7,7 @@ type MermaidDiagramProps = {
 type MermaidState =
   | { status: "rendering"; svg?: undefined; error?: undefined }
   | { status: "ready"; svg: string; error?: undefined }
-  | { status: "error"; svg?: undefined; error: string };
+  | { status: "error"; svg?: undefined };
 
 export function MermaidDiagram({ chart }: MermaidDiagramProps) {
   const rawId = useId();
@@ -38,7 +38,8 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
         const result = await mermaid.render(renderId, chart);
         if (!cancelled) setState({ status: "ready", svg: result.svg });
       } catch (error) {
-        if (!cancelled) setState({ status: "error", error: error instanceof Error ? error.message : String(error) });
+        console.error("Mermaid rendering failed", error);
+        if (!cancelled) setState({ status: "error" });
       }
     }
 
@@ -58,7 +59,7 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
 
   if (state.status === "error") {
     return (
-      <pre className="chat-mermaid-fallback" title={state.error}>
+      <pre className="chat-mermaid-fallback">
         <code>{chart}</code>
       </pre>
     );

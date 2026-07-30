@@ -1,22 +1,22 @@
 import { useState } from "react";
 
-import { getQueryTrends, searchWiki } from "../api/client";
-import type { AppContext } from "../appContext";
-import type { QueryResult } from "../api/client";
+import { searchWiki } from "../api/client";
+import type { QueryAppContext } from "../appContext";
+import type { QueryRawEvidence, QueryResult, QuerySearchResponse } from "../api/client";
 import { LoadingBlock } from "../components/LoadingBlock";
 import { InlineHelp } from "../components/InlineHelp";
 import type { VaultOption } from "../vaultRuntime";
 
 type Props = {
-  context: AppContext;
+  context: QueryAppContext;
   embedded?: boolean;
 };
 
 export function QueryPage({ context, embedded = false }: Props) {
-  const [query, setQuery] = useState("Agent Loop 控制模式");
+  const [query, setQuery] = useState("");
   const [queryVaultId, setQueryVaultId] = useState(context.activeVaultId === "all" ? "all" : context.activeVaultId);
-  const [pageDirs, setPageDirs] = useState("");
   const [scopedResults, setScopedResults] = useState<ScopedQueryResult[]>([]);
+  const [queryResponse, setQueryResponse] = useState<QuerySearchResponse | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const vaultChoices = [
     { id: "all", name: context.t("allVaults") },
@@ -27,51 +27,31 @@ export function QueryPage({ context, embedded = false }: Props) {
   async function handleSearch() {
     if (isSearching) return;
     if (!query.trim()) {
-      context.setNotice({ message: context.t("queryCannotBeEmpty"), error: true });
       return;
     }
     setIsSearching(true);
-    context.setNotice(null);
     try {
       const targetVaults = resolveQueryVaults(context.vaultOptions, activeQueryVaultId);
-      const pageDirsValue = pageDirs
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
-      const wikiPageDirs = pageDirsValue.length ? pageDirsValue : ["pages"];
       const response = await searchWiki(context.activeVaultSelector, query.trim(), {
-        mode: "balanced",
-        page_dirs: wikiPageDirs,
         all_vaults: activeQueryVaultId === "all",
         vault_ids: activeQueryVaultId === "all" ? [] : targetVaults.map((vault) => vault.id),
-        include_content: true,
-        max_context_chars: 200000,
       });
       const nextScopedResults = (response.results || []).map((result) => ({
         vault: vaultForResult(context.vaultOptions, context.activeVaultId, context.vaultPath, result),
         result,
       }));
       setScopedResults(nextScopedResults);
-      context.setQueryResults(nextScopedResults.map((item) => item.result));
-      context.setQueryContextPack(response.context_pack || "");
-      if (targetVaults.some((vault) => vault.id === context.activeVaultId)) {
-        const trend = await getQueryTrends(context.activeVaultSelector);
-        context.setQueryTrend(trend);
-      }
+      setQueryResponse(response);
     } catch (error) {
-      context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
+      console.error("Knowledge query failed", error);
     } finally {
       setIsSearching(false);
     }
   }
 
-  const repeatedGaps = context.queryTrend?.repeated_gap_queries || [];
-  const visibleResults = scopedResults.length ? scopedResults : context.queryResults.map((result) => ({
-    vault: context.vaultOptions.find((vault) => vault.id === context.activeVaultId) || { id: context.activeVaultId, name: context.activeVaultId, path: context.vaultPath },
-    result,
-  }));
+  const visibleResults = scopedResults;
   const hasQueryResults = visibleResults.length > 0;
-  const hasContextPack = Boolean(context.queryContextPack);
+  const rawEvidence = queryResponse?.raw_evidence || [];
 
   return (
     <section className={embedded ? "embedded-section" : "view active"}>
@@ -91,7 +71,7 @@ export function QueryPage({ context, embedded = false }: Props) {
           <span>{context.t("questionOrTopic")}</span>
           <input value={query} onChange={(event) => setQuery(event.target.value)} />
         </label>
-        <div className="query-controls">
+        <div className="query-controls query-controls-single">
           <div className="field">
             <span>{context.t("queryVaultScope")}</span>
             <div className="query-vault-switcher" role="radiogroup" aria-label={context.t("queryVaultScope")}>
@@ -110,39 +90,7 @@ export function QueryPage({ context, embedded = false }: Props) {
             </div>
             <small>{context.t("queryAcrossVaults")}</small>
           </div>
-          <label className="field">
-            <span>{context.t("initialPageDirs")}</span>
-            <input value={pageDirs} onChange={(event) => setPageDirs(event.target.value)} placeholder="pages" />
-            <small>{context.t("initialPageDirsHint")}</small>
-          </label>
         </div>
-        <div className="query-health">
-          <article>
-            <span>{context.t("queryTrendSample")}</span>
-            <strong>{context.queryTrend?.sample_size ?? 0}</strong>
-          </article>
-          <article>
-            <span>{context.t("queryNoResultCount")}</span>
-            <strong>{context.queryTrend?.no_result_count ?? 0}</strong>
-          </article>
-          <article>
-            <span>{context.t("queryLowConfidenceCount")}</span>
-            <strong>{context.queryTrend?.low_confidence_count ?? 0}</strong>
-          </article>
-        </div>
-        {!!repeatedGaps.length && (
-          <aside className="query-gap-panel">
-            <h3>{context.t("repeatedQueryGaps")}</h3>
-            <p>{context.t("repeatedQueryGapsCopy")}</p>
-            <div className="query-gap-list">
-              {repeatedGaps.map((item) => (
-                <span key={item.query}>
-                  {item.query} <strong>{item.count}</strong>
-                </span>
-              ))}
-            </div>
-          </aside>
-        )}
         <div className="result-list" aria-busy={isSearching}>
           {isSearching ? (
             <LoadingBlock title={context.t("querySearching")} copy={context.t("querySearchingCopy")} />
@@ -150,7 +98,7 @@ export function QueryPage({ context, embedded = false }: Props) {
             visibleResults.map(({ vault, result }) => (
               <article className="result-item" key={`${vault.id}:${result.path}`}>
                 <div className="result-item-header">
-                  <h3>{result.title || result.path}</h3>
+                  <h3>{queryResultTitle(result, rawEvidence)}</h3>
                   <div className="button-row compact-row">
                     <button className="button secondary small-button" type="button" onClick={() => openResultPage(context, vault, result.path)}>
                       {context.t("openInWiki")}
@@ -163,36 +111,10 @@ export function QueryPage({ context, embedded = false }: Props) {
                     </button>
                   </div>
                 </div>
-                <div className="result-meta">
+                <div className="result-meta query-result-meta">
                   <span className="origin-badge vault-origin">{context.t("sourceVault")}: {vault.name}</span>
-                  <span className={`origin-badge ${result.match_kind === "related" ? "related" : "direct"}`}>
-                    {result.match_kind === "related" ? context.t("relatedContext") : context.t("directMatch")}
-                  </span>
-                  <span>{result.path}</span>
-                  <span>{result.relevance}</span>
-                  <span>{context.t("score")} {Number(result.score || 0).toFixed(1)}</span>
-                  <span>{context.t("matched")} {(result.matched_fields || []).join(", ") || context.t("unknown")}</span>
                 </div>
-                {result.reason && <p className="result-reason">{result.reason}</p>}
-                <p>{result.summary || context.t("noSummary")}</p>
-                {!!result.claims?.length && (
-                  <ul className="compact-list">
-                    {result.claims.slice(0, 3).map((point) => (
-                      <li key={point}>{point}</li>
-                    ))}
-                  </ul>
-                )}
-                {!!result.excerpts?.length && (
-                  <details>
-                    <summary>{context.t("excerpts")}</summary>
-                    {result.excerpts.slice(0, 2).map((excerpt) => (
-                      <blockquote key={`${result.path}:${excerpt.heading}:${excerpt.score}`}>
-                        <strong>{excerpt.heading || context.t("excerpt")}</strong>
-                        <p>{excerpt.content}</p>
-                      </blockquote>
-                    ))}
-                  </details>
-                )}
+                <p>{result.reason}</p>
               </article>
             ))
           ) : null}
@@ -202,18 +124,24 @@ export function QueryPage({ context, embedded = false }: Props) {
         <div className="panel-header">
           <div>
             <h2>
-              {context.t("contextPack")}
-              <InlineHelp text={context.t("contextPackCopy")} />
+              {context.t("rawEvidence")}
+              <InlineHelp text={context.t("rawEvidenceCopy")} />
             </h2>
           </div>
-          <button className="button secondary" onClick={() => void navigator.clipboard?.writeText(context.queryContextPack || "")}>
-            {context.t("copy")}
-          </button>
         </div>
         {isSearching ? (
           <LoadingBlock title={context.t("queryContextBuilding")} copy={context.t("queryContextBuildingCopy")} compact />
+        ) : rawEvidence.length ? (
+          <div className="raw-evidence-list">
+            {rawEvidence.map((item) => (
+              <RawEvidenceCard item={item} key={item.evidence_id} context={context} />
+            ))}
+          </div>
         ) : (
-          <pre className={`output light ${hasContextPack ? "" : "output-empty"}`}>{context.queryContextPack || context.t("runSearchForContext")}</pre>
+          <div className="raw-evidence-empty">
+            <strong>{context.t("rawEvidenceEmpty")}</strong>
+            <p>{context.t("rawEvidenceEmptyCopy")}</p>
+          </div>
         )}
       </article>
     </section>
@@ -225,6 +153,26 @@ type ScopedQueryResult = {
   result: QueryResult;
 };
 
+function RawEvidenceCard({ item, context }: { item: QueryRawEvidence; context: QueryAppContext }) {
+  const title = item.title || item.source_path || item.source_unit_id;
+  return (
+    <article className="raw-evidence-card">
+      <div className="raw-evidence-card-header">
+        <h3>{title}</h3>
+        <span className={`origin-badge ${item.relevance || "medium"}`}>{item.relevance || context.t("unknown")}</span>
+      </div>
+      <blockquote>
+        <p>{item.content || item.excerpt}</p>
+      </blockquote>
+    </article>
+  );
+}
+
+function queryResultTitle(result: QueryResult, evidence: QueryRawEvidence[]): string {
+  const source = evidence.find((item) => item.locator_page_paths?.includes(result.path));
+  return source?.title || result.title || result.path;
+}
+
 function resolveQueryVaults(
   vaults: VaultOption[],
   queryVaultId: string,
@@ -235,7 +183,7 @@ function resolveQueryVaults(
   return current.length ? current : concreteVaults.slice(0, 1);
 }
 
-function openResultPage(context: AppContext, vault: VaultOption, path: string) {
+function openResultPage(context: QueryAppContext, vault: VaultOption, path: string) {
   context.openWikiPageInVault(vault.id, path);
 }
 
@@ -251,12 +199,11 @@ function vaultForResult(vaults: VaultOption[], activeVaultId: string, activeVaul
   };
 }
 
-function openResultGraph(context: AppContext, vault: VaultOption, path: string) {
-  context.setActiveVaultId(vault.id);
-  context.openPageInGraph(path);
+function openResultGraph(context: QueryAppContext, vault: VaultOption, path: string) {
+  context.openPageInGraph(path, vault.id);
 }
 
-function askAboutResult(context: AppContext, vault: VaultOption, result: QueryResult) {
+function askAboutResult(context: QueryAppContext, vault: VaultOption, result: QueryResult) {
   const title = result.title || result.path;
   context.openChatWithPrompt(`请解释「${title}」（${result.path}），并说明它和我当前问题的关系。`, vault.id);
 }

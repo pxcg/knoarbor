@@ -1,19 +1,18 @@
 import { useState } from "react";
 
-import type { AppNotice } from "../../appContext";
 import type { ConfigForm, ConfigVaultProfile } from "../../api/client";
-import { canDeleteDesktopDirectory, canOpenDesktopPath, canSelectDesktopDirectory, deleteDesktopDirectory, openDesktopPath, selectDesktopDirectory } from "../../desktop/desktopBridge";
+import { canOpenDesktopPath, canSelectDesktopDirectory, openDesktopPath, selectDesktopDirectory } from "../../desktop/desktopBridge";
 import { productIdentity } from "../../product";
-import { readableVaultName } from "../../vaultRuntime";
+import { readableVaultName, vaultIdSlug } from "../../vaultRuntime";
 import type { SectionProps } from "./ConfigSectionTypes";
 
 type ConfigBasicSectionProps = SectionProps & {
   onCommit: (nextForm: ConfigForm) => Promise<void>;
-  onError: (notice: AppNotice | null) => void;
+  onError: (error: unknown) => void;
 };
 
 export function ConfigBasicSection({ form, setForm, t, onCommit, onError }: ConfigBasicSectionProps) {
-  const [deletingVaultIndex, setDeletingVaultIndex] = useState<number | null>(null);
+  const [removingVaultIndex, setRemovingVaultIndex] = useState<number | null>(null);
 
   async function commit(nextForm: ConfigForm) {
     const previousForm = form;
@@ -21,14 +20,14 @@ export function ConfigBasicSection({ form, setForm, t, onCommit, onError }: Conf
     try {
       await onCommit(nextForm);
     } catch (error) {
-      setForm(previousForm);
-      onError({ message: error instanceof Error ? error.message : String(error), error: true });
+      setForm((current) => current === nextForm ? previousForm : current);
+      onError(error);
     }
   }
 
   async function createNewVaultDraft() {
     if (!canSelectDesktopDirectory()) {
-      window.alert(t("desktopDirectoryPickerUnavailable"));
+      onError(new Error(t("desktopDirectoryPickerUnavailable")));
       return;
     }
     const result = await selectDesktopDirectory({
@@ -40,7 +39,7 @@ export function ConfigBasicSection({ form, setForm, t, onCommit, onError }: Conf
     const vaults = normalizedVaults(form);
     const baseName = vaultNameFromPath(result.path) || t("newVaultDefaultName");
     const name = uniqueVaultName(vaults, baseName);
-    const id = uniqueVaultId(vaults, slugifyVaultId(name || baseName));
+    const id = uniqueVaultId(vaults, vaultIdSlug(name || baseName));
     const path = result.path;
     await commit({
       ...form,
@@ -59,34 +58,17 @@ export function ConfigBasicSection({ form, setForm, t, onCommit, onError }: Conf
   async function removeVault(index: number) {
     const vaults = normalizedVaults(form);
     const target = vaults[index];
-    if (!target || vaults.length <= 1 || deletingVaultIndex !== null) return;
-    if (!canDeleteDesktopDirectory()) {
-      onError({ message: t("desktopDirectoryDeleteUnavailable"), error: true });
-      return;
-    }
+    if (!target || vaults.length <= 1 || removingVaultIndex !== null) return;
     const confirmed = window.confirm(t("removeVaultConfirm").replace("{name}", target.name).replace("{path}", target.path));
     if (!confirmed) return;
 
     const nextVaults = vaults.filter((_, candidateIndex) => candidateIndex !== index);
-    const previousForm = form;
     const nextForm = syncedVaultForm(nextVaults);
-    setDeletingVaultIndex(index);
-    setForm(nextForm);
+    setRemovingVaultIndex(index);
     try {
-      await onCommit(nextForm);
-      const result = await deleteDesktopDirectory(target.path);
-      if (!result.deleted) throw new Error(result.error || t("removeVaultDeleteFailed"));
-      onError({ message: t("removeVaultDeleted").replace("{name}", target.name) });
-    } catch (error) {
-      setForm(previousForm);
-      try {
-        await onCommit(previousForm);
-      } catch {
-        // Keep the original deletion error visible; the user can reopen settings to reload persisted state.
-      }
-      onError({ message: error instanceof Error ? error.message : String(error), error: true });
+      await commit(nextForm);
     } finally {
-      setDeletingVaultIndex(null);
+      setRemovingVaultIndex(null);
     }
   }
 
@@ -137,8 +119,8 @@ export function ConfigBasicSection({ form, setForm, t, onCommit, onError }: Conf
                   {t("openVaultFolder")}
                 </button>
               )}
-              <button className="icon-button vault-remove-button" type="button" onClick={() => void removeVault(index)} aria-label={t("removeVault")} disabled={normalizedVaults(form).length <= 1 || deletingVaultIndex !== null}>
-                {deletingVaultIndex === index ? "…" : "×"}
+              <button className="icon-button vault-remove-button" type="button" onClick={() => void removeVault(index)} aria-label={t("removeVault")} disabled={normalizedVaults(form).length <= 1 || removingVaultIndex !== null}>
+                {removingVaultIndex === index ? "…" : "×"}
               </button>
             </div>
           </div>
@@ -186,12 +168,4 @@ function uniqueVaultName(vaults: ConfigVaultProfile[], baseName: string): string
   let suffix = 2;
   while (used.has(`${baseName} ${suffix}`)) suffix += 1;
   return `${baseName} ${suffix}`;
-}
-
-function slugifyVaultId(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, "-")
-    .replace(/^-+|-+$/g, "");
 }

@@ -1,20 +1,29 @@
 import {
   readChatSession,
   type ChatCitation,
+  type ChatResponse,
+  type ChatAnswerProvenance,
+  type QueryRawEvidence,
   type ChatStreamEvent,
   type ModelProviderSummary,
   type PageDetail,
 } from "../../api/client";
-import type { AppContext } from "../../appContext";
+import type { ChatAppContext } from "../../appContext";
+import { currentModelProbeAssessment } from "../../modelProbeRuntime";
 
 export type ChatTurn = {
+  turnId?: string;
+  messageId?: string;
   role: "user" | "assistant";
   content: string;
   citations?: ChatCitation[];
+  rawEvidence?: QueryRawEvidence[];
   hiddenEvidenceCount?: number;
   citationWarnings?: string[];
   kind?: "answer" | "error" | "status";
+  errorAction?: "settings" | "none";
   streaming?: boolean;
+  answerProvenance?: ChatAnswerProvenance;
 };
 
 export type ChatFollowup = {
@@ -29,6 +38,8 @@ export type ChatRequestStage = "idle" | "preparing" | "retrieving" | "generating
 export type ChatCitationPreview = {
   citation: ChatCitation;
   page: PageDetail | null;
+  highlightTerm: string | null;
+  highlightTerms: string[];
   loading: boolean;
   error: string | null;
 };
@@ -49,7 +60,7 @@ export function buildExcerptTitle(content: string): string {
     .replace(/^#+\s*/, "")
     .trim();
   if (!compact) return "Chat excerpt";
-  return compact.length > 48 ? `${compact.slice(0, 48)}...` : compact;
+  return compact;
 }
 
 export function appendStreamingAssistantDelta(turns: ChatTurn[], delta: string): ChatTurn[] {
@@ -71,7 +82,7 @@ export function replaceStreamingAssistant(turns: ChatTurn[], replacement: ChatTu
   return [...turns.slice(0, lastIndex), replacement];
 }
 
-export function chatStageLabel(stage: ChatRequestStage, context: AppContext) {
+export function chatStageLabel(stage: ChatRequestStage, context: ChatAppContext) {
   if (stage === "regenerating") return context.t("chatStageRegenerating");
   if (stage === "retrieving") return context.t("chatStageRetrieving");
   if (stage === "generating") return context.t("chatStageGenerating");
@@ -100,7 +111,7 @@ export function modelProviderOptionLabel(provider: ModelProviderSummary) {
   return provider.name;
 }
 
-export function chatProviderStatus(providerName: string, providers: ModelProviderSummary[], context: AppContext) {
+export function chatProviderStatus(providerName: string, providers: ModelProviderSummary[], context: ChatAppContext) {
   const provider = providers.find((item) => item.name === providerName);
   if (!provider) return "unknown";
   const result = currentModelProbeResult(provider, context.modelProbeResults[provider.name]);
@@ -110,7 +121,7 @@ export function chatProviderStatus(providerName: string, providers: ModelProvide
   return "error";
 }
 
-export function chatProviderStatusLabel(providerName: string, context: AppContext) {
+export function chatProviderStatusLabel(providerName: string, context: ChatAppContext) {
   const provider = context.modelProviders?.providers.find((item) => item.name === providerName);
   if (!provider) return context.t("modelNotChecked");
   const result = currentModelProbeResult(provider, context.modelProbeResults[provider.name]);
@@ -122,23 +133,30 @@ export function chatProviderStatusLabel(providerName: string, context: AppContex
   return context.t("modelUnavailable");
 }
 
-export function currentModelProbeResult(provider: ModelProviderSummary, result: AppContext["modelProbeResults"][string]) {
-  if (!result) return undefined;
-  const discoveryModels = result.discovery?.model_ids || [];
-  if (result.discovery && (!provider.model || discoveryModels.includes(provider.model))) return result.discovery;
-  return undefined;
+export function currentModelProbeResult(provider: ModelProviderSummary, result: ChatAppContext["modelProbeResults"][string]) {
+  const assessment = currentModelProbeAssessment(result?.discovery, provider.model);
+  if (!assessment) return undefined;
+  return {
+    ...assessment.discovery,
+    configured_model_found: assessment.configuredModelFound,
+    status: assessment.status,
+  };
 }
 
 export function sessionRecordToTurns(record: Awaited<ReturnType<typeof readChatSession>>): ChatTurn[] {
   if (record.turns?.length) {
     return record.turns.flatMap((turn) => [
-      { role: "user" as const, content: turn.user_message.content },
+      { role: "user" as const, content: turn.user_message.content, turnId: turn.turn_id, messageId: turn.user_message.message_id },
       {
         role: "assistant" as const,
         content: turn.assistant_message.content,
+        turnId: turn.turn_id,
+        messageId: turn.assistant_message.message_id,
         citations: turn.citations || [],
+        rawEvidence: rawEvidenceFromToolTrace(turn.tool_trace || []),
         hiddenEvidenceCount: turn.hidden_evidence_count || 0,
         citationWarnings: turn.citation_warnings || [],
+        answerProvenance: turn.answer_provenance,
       },
     ]);
   }
@@ -148,9 +166,56 @@ export function sessionRecordToTurns(record: Awaited<ReturnType<typeof readChatS
       role: message.role === "assistant" ? "assistant" : "user",
       content: message.content,
       citations: message.role === "assistant" ? record.citations : undefined,
+      rawEvidence: message.role === "assistant" ? rawEvidenceFromToolTrace(record.tool_trace || []) : undefined,
       hiddenEvidenceCount: message.role === "assistant" ? record.hidden_evidence_count || 0 : undefined,
       citationWarnings: message.role === "assistant" ? record.citation_warnings || [] : undefined,
     }));
+}
+
+export function rawEvidenceFromChatResponse(response: ChatResponse): QueryRawEvidence[] {
+  return rawEvidenceFromToolTrace(response.tool_trace || []);
+}
+
+export function evidenceForCitation(
+  citation: ChatCitation,
+  evidenceItems: QueryRawEvidence[],
+): QueryRawEvidence | undefined {
+  if (citation.evidence_id) {
+    return evidenceItems.find((item) => item.evidence_id === citation.evidence_id);
+  }
+  if (citation.source_unit_id) {
+    return evidenceItems.find((item) => item.source_unit_id === citation.source_unit_id);
+  }
+  return undefined;
+}
+
+export function rawEvidenceFromToolTrace(toolTrace: Array<{ result?: Record<string, unknown> }>): QueryRawEvidence[] {
+  const seen = new Set<string>();
+  const items: QueryRawEvidence[] = [];
+  for (const trace of toolTrace) {
+    const rawEvidence = Array.isArray(trace.result?.raw_evidence) ? trace.result.raw_evidence : [];
+    for (const rawItem of rawEvidence) {
+      if (!isRawEvidence(rawItem)) continue;
+      const key = rawItem.evidence_id || rawItem.source_unit_id;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push(rawItem);
+    }
+  }
+  return items;
+}
+
+function isRawEvidence(value: unknown): value is QueryRawEvidence {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.evidence_id === "string"
+    && typeof item.raw_record_id === "string"
+    && typeof item.raw_revision_id === "string"
+    && typeof item.source_unit_id === "string"
+    && typeof item.source_record_id === "string"
+    && typeof item.excerpt === "string"
+  );
 }
 
 export function latestAssistantTurnIndex(turns: ChatTurn[]) {

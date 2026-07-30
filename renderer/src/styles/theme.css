@@ -1,0 +1,262 @@
+:root.theme-dark {
+  color-scheme: dark;
+  --bg: #101112;
+  --surface: #171819;
+  --surface-soft: #1c1e1f;
+  --surface-raised: #232526;
+  --surface-tint: #1d1f20;
+  --surface-subtle: #1b1d1e;
+  --surface-hover: #242627;
+  --surface-selected: #252829;
+  --surface-table-header: #252728;
+  --surface-table-alt: #1d1f20;
+  --border: #323536;
+  --border-strong: #505455;
+  --text: #f0f1f1;
+  --muted: #9a9e9f;
+  --muted-strong: #c8cbcc;
+  --accent: #22b89b;
+  --accent-strong: #6ee3cc;
+  --blue: #79a7ff;
+  --amber: #f0b45c;
+  --violet: #b79aff;
+  --rose: #fb7185;
+  --danger: #ff8d80;
+  --success: #67d39c;
+  --shadow: 0 22px 54px rgba(0, 0, 0, 0.34);
+  --shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.22);
+}
+
+:root.theme-dark body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+:root.theme-dark select,
+:root.theme-dark input,
+:root.theme-dark textarea {
+  color-scheme: dark;
+  background: #151718;
+  border-color: var(--border);
+  color: var(--text);
+}
+
+:root.theme-dark select option {
+  background: #151718;
+  color: var(--text);
+}
+
+:root.theme-dark ::placeholder {
+  color: #777c7e;
+}
+
+:root.theme-dark .app-shell,
+:root.theme-dark .main,
+:root.theme-dark .view.active,
+:root.theme-dark .chat-page,
+:root.theme-dark .chat-layout,
+:root.theme-dark .chat-thread-panel,
+:root.theme-dark .chat-thread,
+:root.theme-dark .settings-modal-content {
+  background: var(--bg);
+}
+
+:root.theme-dark .sidebar,
+:root.theme-dark .topbar,
+:root.theme-dark .settings-modal,
+:root.theme-dark .settings-embedded-panel,
+:root.theme-dark .chat-session-sidebar,
+:root.theme-dark .chat-composer,
+:root.theme-dark .chat-input-shell,
+:root.theme-dark .chat-context-menu,
+:root.theme-dark .chat-bubble,
+:root.theme-dark .panel,
+:root.theme-dark .hero-panel,
+:root.theme-dark .page-intro,
+:root.theme-dark .workspace-hero,
+:root.theme-dark .knowledge-header,
+:root.theme-dark .settings-card,
+:root.theme-dark .settings-subcard,
+:root.theme-dark .diagnostic-card,
+:root.theme-dark .diagnostic-item,
+:root.theme-dark .query-card,
+:root.theme-dark .report-card,
+:root.theme-dark .token-stat-card,
+:root.theme-dark .token-flow-card,
+:root.theme-dark .run-card,
+:root.theme-dark .empty-state,
+:root.theme-dark .loading-block,
+:root.theme-dark .runtime-card div,
+:root.theme-dark .vault-profile-row,
+:root.theme-dark .chat-source-row,
+:root.theme-dark .wiki-card,
+:root.theme-dark .graph-detail-card {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-soft);
+  color: var(--text);
+}
+
+:root.theme-dark .settings-modal-backdrop {
+  background: rgba(2, 6, 5, 0.58);
+}
+
+:root.theme-dark .import-source-icon {
+  background: var(--surface-raised);
+  border-color: var(--border);
+}
+
+:root.theme-dark .button,
+:root.theme-dark .icon-button,
+:root.theme-dark .workspace-settings-trigger,
+:root.theme-dark .secondary-nav-item,
+:root.theme-dark .language-switch,
+:root.theme-dark .topbar-vault-select select,
+:root.theme-dark .custom-select-trigger,
+:root.theme-dark .custom-select-options,
+:root.theme-dark .checkbox-field,
+:root.theme-dark .thinking-mode-control {
+  background: var(--surface-raised);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+:root.theme-dark .button.primary {
+  background: linear-gradient(135deg, #138873, #1fb79b);
+  color: #ffffff;
+  box-shadow: 0 12px 28px rgba(11, 111, 91, 0.28);
+}
+
+:root.theme-dark .button.secondary:hover,
+:root.theme-dark .button.ghost:hover,
+:root.theme-dark .icon-button:hover,
+:root.theme-dark .workspace-settings-trigger:hover,
+:root.theme-dark .custom-select-trigger:hover,
+:root.theme-dark .custom-select-trigger[aria-expanded="true"],
+:root.theme-dark .secondary-nav-item:hover {
+  background: #1b2a24;
+  border-color: var(--border-strong);
+  color: var(--accent-strong);
+}
+
+:root.theme-dark .nav-item:hover {
+  background: #17231e;
+  border-color: rgba(34, 184, 155, 0.22);
+}
+
+:root.theme-dark .chat-session-folder-header:hover,
+:root.theme-dark .chat-session-row:hover,
+:root.theme-dark .chat-session-row.active,
+:root.theme-dark .chat-citation-card:hover {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+:root.theme-dark .chat-citation-index {
+  background: var(--surface-tint);
+  color: var(--accent-strong);
+}
+
+:root.theme-dark .settings-action-note.warning,
+:root.theme-dark .report-warning,
+:root.theme-dark .run-warning {
+  background: #2b2112;
+  border-color: #6f5121;
+  color: #f0c879;
+}
+
+:root.theme-dark .nav-item.active {
+  background: #0f8f74;
+  border-color: #0f8f74;
+  color: #ffffff;
+}
+
+:root.theme-dark .nav-icon,
+:root.theme-dark .sidebar-toggle:hover,
+:root.theme-dark .custom-select-options button:hover,
+:root.theme-dark .custom-select-options button.selected,
+:root.theme-dark .chat-session-folder-header:hover,
+:root.theme-dark .secondary-nav-item.active {
+  background: #173329;
+  color: var(--accent-strong);
+}
+
+:root.theme-dark .nav-item.active .nav-icon,
+:root.theme-dark .secondary-nav-item.active {
+  color: #ffffff;
+}
+
+:root.theme-dark .chat-empty-state h2,
+:root.theme-dark .chat-preview-header h3,
+:root.theme-dark .topbar-kicker,
+:root.theme-dark h1,
+:root.theme-dark h2,
+:root.theme-dark h3,
+:root.theme-dark strong {
+  color: var(--text);
+}
+
+:root.theme-dark .chat-composer,
+:root.theme-dark .chat-thread-panel.welcome-mode .chat-composer {
+  border-color: var(--border-strong);
+}
+
+:root.theme-dark .chat-composer textarea {
+  background: transparent;
+}
+
+:root.theme-dark .chat-message.user .chat-bubble {
+  background: #0f493d;
+  color: #ffffff;
+}
+
+:root.theme-dark .chat-message.assistant .chat-bubble {
+  background: transparent;
+  box-shadow: none;
+}
+
+:root.theme-dark .chat-answer-markdown code,
+:root.theme-dark .chat-mermaid-diagram,
+:root.theme-dark .chat-answer-markdown pre,
+:root.theme-dark .chat-preview-content img,
+:root.theme-dark .chat-answer-markdown img {
+  background: #151718;
+  border-color: var(--border);
+}
+
+:root.theme-dark .data-table th,
+:root.theme-dark .token-page .data-table th {
+  background: var(--surface-raised);
+  color: var(--muted-strong);
+}
+
+:root.theme-dark .data-table td {
+  color: var(--muted-strong);
+}
+
+:root.theme-dark .skeleton-field {
+  background: linear-gradient(90deg, #1b1d1e, #292c2d, #1b1d1e);
+  border-color: var(--border);
+}
+
+:root.theme-dark .diagnostic-item.ok,
+:root.theme-dark .run-status-pill.completed,
+:root.theme-dark .query-source-pill {
+  background: #10261f;
+  border-color: #235844;
+}
+
+:root.theme-dark .diagnostic-item.error,
+:root.theme-dark .chat-error {
+  background: #2a1715;
+  border-color: #6b342e;
+}
+
+:root.theme-dark .settings-section-link:hover,
+:root.theme-dark .settings-section-link.active,
+:root.theme-dark .model-discovery-row.selected {
+  background: #173329;
+  border-color: rgba(34, 184, 155, 0.34);
+  color: var(--accent-strong);
+}
+

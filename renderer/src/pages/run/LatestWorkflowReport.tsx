@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 
 import { getPage, getReport, type ReportDetail } from "../../api/client";
-import type { AppContext } from "../../appContext";
+import type { RunAppContext } from "../../appContext";
 import { localizeReportKind, localizeReportTitle } from "../../components/reportLabels";
 import { InlineHelp } from "../../components/InlineHelp";
 import { ReportSummaryCard } from "../../components/report/ReportSummaryCard";
@@ -9,7 +9,7 @@ import { ReportSummaryCard } from "../../components/report/ReportSummaryCard";
 const ReportReadableView = lazy(() => import("../../components/report/ReportReadableView").then((module) => ({ default: module.ReportReadableView })));
 
 type Props = {
-  context: AppContext;
+  context: RunAppContext;
   mode: "both" | "ingest" | "lint";
 };
 
@@ -53,7 +53,7 @@ export function LatestWorkflowReport({ context, mode }: Props) {
             <InlineHelp text={context.t(helpKey)} />
           </h2>
         </div>
-        <button className="button secondary" type="button" onClick={() => context.openReport(detail.path)}>
+        <button className="button secondary" type="button" onClick={() => context.openReport(detail.path, context.activeVaultId)}>
           {context.t("openReport")}
         </button>
       </div>
@@ -64,6 +64,7 @@ export function LatestWorkflowReport({ context, mode }: Props) {
       <Suspense fallback={<p className="panel-copy">{context.t("loading")}</p>}>
         <ReportReadableView
           content={detail.content}
+          language={context.language}
           t={context.t}
           onOpenPage={context.openWikiPage}
           loadPage={(path) => getPage(context.activeVaultSelector, path)}

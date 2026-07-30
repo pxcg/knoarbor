@@ -59,7 +59,6 @@ export function Sidebar({ activeView, collapsed, serviceOnline, language, t, onC
         </div>
         <div className="brand-copy">
           <div className="brand-title">{productIdentity.name}</div>
-          <div className="brand-subtitle">{t("appTagline")}</div>
         </div>
         <button className="sidebar-toggle" type="button" onClick={onToggleCollapsed} title={collapsed ? t("expandSidebar") : t("collapseSidebar")} aria-label={collapsed ? t("expandSidebar") : t("collapseSidebar")}>
           <span aria-hidden="true">{collapsed ? "›" : "‹"}</span>

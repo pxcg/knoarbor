@@ -3,14 +3,14 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const source = readFileSync(resolve(root, "src/i18n/data.ts"), "utf8");
-
-const dictBody = extractObjectBody(source, "const dictionaries");
-const enBody = extractPropertyBody(dictBody, "en");
-const zhBody = extractPropertyBody(dictBody, "zh");
+const domains = ["ui", "config", "workflows"];
+const enBody = readLocale("en");
+const zhBody = readLocale("zh");
 
 const enKeys = extractKeys(enBody);
 const zhKeys = extractKeys(zhBody);
+assertUnique("en", enKeys);
+assertUnique("zh", zhKeys);
 
 const missingInZh = difference(enKeys, zhKeys);
 const missingInEn = difference(zhKeys, enKeys);
@@ -22,19 +22,19 @@ if (missingInZh.length || missingInEn.length) {
   process.exit(1);
 }
 
-console.log(`i18n parity ok: ${enKeys.length} keys`);
+console.log(`i18n parity ok: ${new Set(enKeys).size} keys`);
+
+function readLocale(language) {
+  return domains.map((domain) => {
+    const source = readFileSync(resolve(root, `src/i18n/locales/${language}-${domain}.ts`), "utf8");
+    return extractObjectBody(source, `const ${domain}`);
+  }).join("\n");
+}
 
 function extractObjectBody(text, marker) {
   const start = text.indexOf(marker);
   if (start < 0) throw new Error(`Cannot find marker: ${marker}`);
   const brace = text.indexOf("{", start);
-  return readBalancedBraces(text, brace);
-}
-
-function extractPropertyBody(text, propertyName) {
-  const match = new RegExp(`\\b${propertyName}\\s*:`).exec(text);
-  if (!match) throw new Error(`Cannot find property: ${propertyName}`);
-  const brace = text.indexOf("{", match.index);
   return readBalancedBraces(text, brace);
 }
 
@@ -77,7 +77,14 @@ function extractKeys(body) {
   while ((match = keyPattern.exec(body))) {
     keys.push(match[1] || match[2] || match[3]);
   }
-  return Array.from(new Set(keys)).sort();
+  return keys.sort();
+}
+
+function assertUnique(language, keys) {
+  const duplicates = keys.filter((key, index) => key === keys[index - 1]);
+  if (!duplicates.length) return;
+  console.error(`Duplicate ${language} keys:\n${Array.from(new Set(duplicates)).map((key) => `- ${key}`).join("\n")}`);
+  process.exit(1);
 }
 
 function difference(left, right) {

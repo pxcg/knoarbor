@@ -1,10 +1,9 @@
 import { useMemo } from "react";
-import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import {
   getActiveRuns,
   getConfig,
-  getDoctor,
   getGraph,
   getHealth,
   getModelProviders,
@@ -16,26 +15,23 @@ import {
   getVaults,
   type ConfigSummary,
 } from "./api/client";
-import { fetchVaultOverview } from "./appRuntime";
 import { queryKeys } from "./queryKeys";
 import type { ViewName } from "./types";
-import { buildVaultOptions, buildVaultSelector, concreteVaultOptions, resolveActiveVault, resolveConcreteVault } from "./vaultRuntime";
+import { buildVaultOptions, buildVaultSelector, resolveConcreteVault } from "./vaultRuntime";
 
 type AppQueriesInput = {
   activeView: ViewName;
   configPath: string | null;
   selectedVaultId: string;
   summary: ConfigSummary;
-  t: (key: string) => string;
 };
 
-export function useAppQueries({ activeView, configPath, selectedVaultId, summary, t }: AppQueriesInput) {
+export function useAppQueries({ activeView, configPath, selectedVaultId, summary }: AppQueriesInput) {
   const isRunView = activeView === "ingest" || activeView === "lint";
-  const needsVaultStatus = activeView === "overview" || activeView === "sources" || activeView === "chat" || activeView === "wiki";
-  const needsReports = activeView === "overview" || activeView === "ingest" || activeView === "lint" || activeView === "reports";
-  const needsRecentRuns = activeView === "overview" || isRunView;
-  const needsVaultOverview = activeView === "overview" || activeView === "reports";
-  const shouldPollRuns = activeView === "overview" || isRunView;
+  const needsVaultStatus = activeView === "chat" || activeView === "wiki";
+  const needsReports = activeView === "ingest" || activeView === "lint" || activeView === "reports";
+  const needsRecentRuns = isRunView;
+  const shouldPollRuns = isRunView;
 
   const healthQuery = useQuery({
     queryKey: queryKeys.health,
@@ -68,20 +64,11 @@ export function useAppQueries({ activeView, configPath, selectedVaultId, summary
     placeholderData: keepPreviousData,
   });
   const vaultOptions = useMemo(() => buildVaultOptions(effectiveSummary, vaultsQuery.data), [effectiveSummary, vaultsQuery.data]);
-  const activeVault = useMemo(() => resolveActiveVault(vaultOptions, selectedVaultId, effectiveSummary), [effectiveSummary, selectedVaultId, vaultOptions]);
-  const concreteOptions = useMemo(() => concreteVaultOptions(vaultOptions), [vaultOptions]);
+  const activeVault = useMemo(() => resolveConcreteVault(vaultOptions, selectedVaultId, effectiveSummary), [effectiveSummary, selectedVaultId, vaultOptions]);
   const activeConcreteVault = useMemo(() => resolveConcreteVault(vaultOptions, selectedVaultId, effectiveSummary), [effectiveSummary, selectedVaultId, vaultOptions]);
   const vaultPath = activeConcreteVault.path;
   const activeVaultId = activeVault.id;
   const activeVaultSelector = useMemo(() => buildVaultSelector(effectiveConfigPath, activeConcreteVault), [activeConcreteVault, effectiveConfigPath]);
-
-  const doctorQuery = useQuery({
-    queryKey: queryKeys.doctor(effectiveConfigPath),
-    queryFn: () => getDoctor(effectiveConfigPath, { checkModelRuntime: false, checkConnectorRuntime: false }),
-    enabled: configQuery.isSuccess && activeView === "overview",
-    staleTime: 60_000,
-    placeholderData: keepPreviousData,
-  });
 
   const statusQuery = useQuery({
     queryKey: queryKeys.status(activeVaultId),
@@ -143,17 +130,6 @@ export function useAppQueries({ activeView, configPath, selectedVaultId, summary
     placeholderData: keepPreviousData,
   });
 
-  const vaultOverviewQueries = useQueries({
-    queries: concreteOptions.map((vault) => ({
-      queryKey: queryKeys.overview(vault.id),
-      queryFn: () => fetchVaultOverview(vault, effectiveConfigPath),
-      enabled: configQuery.isSuccess && concreteOptions.length > 1 && needsVaultOverview,
-      staleTime: 20_000,
-      placeholderData: keepPreviousData,
-    })),
-  });
-
-  const doctorReport = doctorQuery.data || null;
   const status = statusQuery.data || null;
   const graph = graphQuery.data || null;
   const pages = pagesQuery.data?.pages || [];
@@ -162,51 +138,31 @@ export function useAppQueries({ activeView, configPath, selectedVaultId, summary
   const activeRuns = activeRunsQuery.data?.runs || [];
   const recentRuns = recentRunsQuery.data?.runs || [];
   const modelProviders = modelProvidersQuery.data || null;
-  const vaultOverviews = vaultOptions.length > 1
-    ? concreteOptions.map((vault, index) => {
-      const query = vaultOverviewQueries[index];
-      return query?.data || {
-        vault,
-        status: vault.id === activeVaultId ? status : null,
-        activeRuns: vault.id === activeVaultId ? activeRuns : [],
-        recentRuns: vault.id === activeVaultId ? recentRuns : [],
-        reports: vault.id === activeVaultId ? reports : [],
-        error: query?.error instanceof Error ? query.error.message : query?.isError ? t("vaultRefreshFailed") : null,
-      };
-    })
-    : [{
-      vault: activeConcreteVault,
-      status,
-      activeRuns,
-      recentRuns,
-      reports,
-      error: null,
-    }];
-
   return {
     activeConcreteVault,
     activeRuns,
     activeVaultId,
     activeVaultSelector,
-    concreteOptions,
     configQuery,
-    doctorReport,
     effectiveConfigPath,
     effectiveSummary,
     graph,
+    graphReady: graphQuery.isSuccess && !graphQuery.isPlaceholderData && !graphQuery.isFetching,
     healthQuery,
     modelProviders,
     needsRecentRuns,
     needsReports,
     needsVaultStatus,
     pages,
+    pagesReady: pagesQuery.isSuccess && !pagesQuery.isPlaceholderData && !pagesQuery.isFetching,
     queryTrend,
     recentRuns,
     reports,
+    reportsReady: reportsQuery.isSuccess && !reportsQuery.isPlaceholderData && !reportsQuery.isFetching,
     shouldPollRuns,
     status,
     vaultOptions,
-    vaultOverviews,
+    vaultRegistryReady: vaultsQuery.isSuccess,
     vaultPath,
   };
 }

@@ -1,4 +1,5 @@
-import type { AppContext } from "../../appContext";
+import type { RunAppContext } from "../../appContext";
+import { userFacingError } from "../../userFacingError";
 import type { RunEvent, RunRecord } from "../../types";
 import {
   asRecord,
@@ -17,7 +18,7 @@ import {
   type RunSourceInfo,
 } from "./RunPanelModel";
 
-export function RunSummaryBox({ context, events, run }: { context: AppContext; events: RunEvent[]; run: RunRecord }) {
+export function RunSummaryBox({ context, events, run }: { context: RunAppContext; events: RunEvent[]; run: RunRecord }) {
   const metrics = asRecord(run.metrics);
   const stats = asRecord(run.result_summary?.stats);
   const semanticCalls = numberValue(metrics.semantic_call_count) ?? numberValue(asRecord(metrics.semantic).semantic_call_count) ?? latestEventNumber(events, ["semantic_call_count", "semantic_calls"]);
@@ -48,7 +49,7 @@ export function RunSummaryBox({ context, events, run }: { context: AppContext; e
   );
 }
 
-export function RunFlowPlaceholder({ context, flow }: { context: AppContext; flow?: RunRecord["flow"] }) {
+export function RunFlowPlaceholder({ context, flow }: { context: RunAppContext; flow?: RunRecord["flow"] }) {
   const flows = [
     { key: "ingest", title: context.t("importMaterials"), stages: flowStages("ingest") },
     { key: "lint", title: context.t("lintTitle"), stages: flowStages("lint") },
@@ -73,10 +74,10 @@ export function RunFlowPlaceholder({ context, flow }: { context: AppContext; flo
   );
 }
 
-export function RunNodeDetails({ context, events, run, selectedNode }: { context: AppContext; events: RunEvent[]; run: RunRecord; selectedNode: string }) {
+export function RunNodeDetails({ context, events, run, selectedNode }: { context: RunAppContext; events: RunEvent[]; run: RunRecord; selectedNode: string }) {
   const nodes = flowStages(run.flow);
   const node = nodes.find((item) => item.key === selectedNode) || nodes[0];
-  const nodeEvents = events.filter((event) => eventNodeKey(event, run.flow) === node.key).slice(-8);
+  const nodeEvents = events.filter((event) => eventNodeKey(event, run.flow) === node.key);
   const fallbackMessage = node.key === currentStageKey(run) ? run.message || run.stage : context.t("noNodeEvents");
   const resultItems = node.key === "done" ? runResultItems(run, context.t) : [];
   return (
@@ -125,7 +126,7 @@ export function RunStageTrack({
   run,
   selectedNode,
 }: {
-  context: AppContext;
+  context: RunAppContext;
   events: RunEvent[];
   onSelect: (node: string) => void;
   run: RunRecord;
@@ -182,13 +183,12 @@ export function RunSourceBadge({ info }: { info: RunSourceInfo }) {
   );
 }
 
-export function RunErrorBox({ context, run }: { context: AppContext; run: RunRecord }) {
+export function RunErrorBox({ context, run }: { context: RunAppContext; run: RunRecord }) {
   if (!hasRunErrorInfo(run) || !run.error_info) return null;
   return (
     <div className="run-error-box">
-      <strong>{run.error_info.code || context.t("error")}</strong>
-      <span>{run.error_info.message || run.error}</span>
-      {run.error_info.hint && <small>{run.error_info.hint}</small>}
+      <strong>{context.t("error")}</strong>
+      <span>{userFacingError(run.error_info.message || run.error, context.language)}</span>
     </div>
   );
 }

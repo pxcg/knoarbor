@@ -1,10 +1,11 @@
 import type { PageDetail } from "../../api/client";
-import type { AppContext } from "../../appContext";
+import type { WikiAppContext } from "../../appContext";
 import { AsyncMarkdownPreview } from "../../components/AsyncMarkdownPreview";
 import {
   extractWikiSections,
   orderWikiSections,
   parseMarkdownTable,
+  parseProjectionClaims,
   plainCellText,
   wikiSectionLabel,
   type WikiSection,
@@ -15,11 +16,13 @@ export function WikiStructuredPreview({
   context,
   highlightTerm,
   onHighlightTerm,
+  onOpenEvidence,
 }: {
   detail: PageDetail;
-  context: AppContext;
+  context: WikiAppContext;
   highlightTerm?: string | null;
   onHighlightTerm?: (term: string) => void;
+  onOpenEvidence?: (term: string) => void;
 }) {
   const sections = extractWikiSections(detail.content);
   if (!sections.length) {
@@ -35,7 +38,7 @@ export function WikiStructuredPreview({
       />
     );
   }
-  const ordered = orderWikiSections(sections);
+  const ordered = orderWikiSections(sections).filter((section) => section.key !== "source");
   return (
     <div className="wiki-structured-preview">
       {ordered.map((section) => (
@@ -43,7 +46,7 @@ export function WikiStructuredPreview({
           <div className="wiki-structure-heading">
             <span>{wikiSectionLabel(section.key, section.title, context.language)}</span>
           </div>
-          <WikiSectionContent section={section} context={context} highlightTerm={highlightTerm} onHighlightTerm={onHighlightTerm} />
+          <WikiSectionContent section={section} context={context} highlightTerm={highlightTerm} onHighlightTerm={onHighlightTerm} onOpenEvidence={onOpenEvidence} />
         </section>
       ))}
     </div>
@@ -55,12 +58,41 @@ function WikiSectionContent({
   context,
   highlightTerm,
   onHighlightTerm,
+  onOpenEvidence,
 }: {
   section: WikiSection;
-  context: AppContext;
+  context: WikiAppContext;
   highlightTerm?: string | null;
   onHighlightTerm?: (term: string) => void;
+  onOpenEvidence?: (term: string) => void;
 }) {
+  if (section.key === "claims") {
+    const claims = parseProjectionClaims(section.content);
+    if (claims.length) {
+      return (
+        <div className="wiki-claim-list">
+          {claims.map((claim) => (
+            <article className="wiki-claim" key={claim.id}>
+              <span className="wiki-claim-id">{claim.id}</span>
+              <AsyncMarkdownPreview content={claim.statement} className="wiki-section-markdown" />
+              {claim.evidence && onOpenEvidence ? (
+                <details className="wiki-claim-evidence">
+                  <summary title={context.t("wikiClaimEvidence")} aria-label={context.t("wikiClaimEvidence")}>▸</summary>
+                  <button
+                    className="wiki-claim-evidence-card"
+                    type="button"
+                    onClick={() => onOpenEvidence(evidenceHighlightTerm(claim.evidence))}
+                  >
+                    <AsyncMarkdownPreview content={evidencePreview(claim.evidence)} className="wiki-section-markdown" />
+                  </button>
+                </details>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      );
+    }
+  }
   if (section.key === "relations" || section.key === "evidence" || section.key === "attachments") {
     const table = parseMarkdownTable(section.content);
     if (table) {
@@ -96,4 +128,17 @@ function WikiSectionContent({
       onHighlightTerm={onHighlightTerm}
     />
   );
+}
+
+function evidenceHighlightTerm(evidence: string) {
+  return evidencePreview(evidence);
+}
+
+function evidencePreview(evidence: string) {
+  return evidence
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("Source:"))
+    .map((line) => line.replace(/^\s*>\s?/, ""))
+    .join("\n")
+    .trim();
 }

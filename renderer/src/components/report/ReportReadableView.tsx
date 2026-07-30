@@ -5,7 +5,9 @@ import { localizeReportLabel, localizeReportSection, localizeReportValue } from 
 import { ReportArtifactsSection } from "./ReportArtifactsSection";
 import { ReportExecutiveSummary } from "./ReportExecutiveSummary";
 import { ReportValue } from "./ReportValue";
-import { getReportMetricNumber, isWikiPagePath, parseReport, parseReportArtifacts } from "./reportParser";
+import { isWikiPagePath, parseReport, parseReportArtifacts } from "./reportParser";
+import type { Language } from "../../types";
+import { userFacingError } from "../../userFacingError";
 
 type ReportReadableViewProps = {
   content: string;
@@ -13,14 +15,13 @@ type ReportReadableViewProps = {
   onOpenPage: (path: string) => void;
   loadPage?: (path: string) => Promise<PageDetail>;
   inlinePagePreview?: boolean;
+  language: Language;
 };
 
-export function ReportReadableView({ content, t, onOpenPage, loadPage, inlinePagePreview = false }: ReportReadableViewProps) {
+export function ReportReadableView({ content, t, onOpenPage, loadPage, inlinePagePreview = false, language }: ReportReadableViewProps) {
   const report = parseReport(content);
   const artifacts = parseReportArtifacts(content);
   const wikiWrittenPages = artifacts.writtenPages.filter((artifact) => isWikiPagePath(artifact.path)).length;
-  const legacyChangeCount = getReportMetricNumber(content, "applied_operations");
-  const hasLegacyChangesWithoutDiff = legacyChangeCount > 0 && artifacts.changedPages.length === 0 && !content.includes("## Page Changes");
   const [preview, setPreview] = useState<PageDetail | null>(null);
   const [previewPath, setPreviewPath] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -41,7 +42,7 @@ export function ReportReadableView({ content, t, onOpenPage, loadPage, inlinePag
     try {
       setPreview(await loadPage(path));
     } catch (error) {
-      setPreviewError(error instanceof Error ? error.message : String(error));
+      setPreviewError(userFacingError(error, language));
     } finally {
       setPreviewLoading(false);
     }
@@ -58,7 +59,6 @@ export function ReportReadableView({ content, t, onOpenPage, loadPage, inlinePag
       />
       <ReportArtifactsSection
         artifacts={artifacts}
-        hasLegacyChangesWithoutDiff={hasLegacyChangesWithoutDiff}
         inlinePagePreview={inlinePagePreview}
         loadPage={loadPage}
         preview={preview}
@@ -68,6 +68,7 @@ export function ReportReadableView({ content, t, onOpenPage, loadPage, inlinePag
         t={t}
         onOpenPage={onOpenPage}
         onPreviewPage={previewPage}
+        language={language}
       />
       {(!!report.metrics.length || !!report.sections.length) && (
         <details className="report-technical-details">

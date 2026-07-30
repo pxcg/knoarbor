@@ -100,7 +100,7 @@
 .vault-overview-card,
 .vault-run-card {
   appearance: none;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
   color: inherit;
@@ -231,7 +231,7 @@
 .next-step-card {
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--text);
   cursor: pointer;
   display: grid;
@@ -318,7 +318,7 @@
 .preflight-next-steps {
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface);
   display: grid;
   gap: 8px;
   margin-bottom: 14px;

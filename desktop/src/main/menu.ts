@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, shell, type MenuItemConstructorOptions } from "electron";
 import type { DesktopCommand } from "../preload/types.js";
 
-export function installDesktopMenu(input: { githubUrl: string | null }): void {
+export function installDesktopMenu(input: { helpUrl: string | null }): void {
   const isMac = process.platform === "darwin";
   const platformEditItems: MenuItemConstructorOptions[] = isMac
     ? [
@@ -76,16 +76,16 @@ export function installDesktopMenu(input: { githubUrl: string | null }): void {
         { role: "togglefullscreen" },
       ],
     },
-    ...(input.githubUrl
+    ...(input.helpUrl
       ? [
           {
             label: "Help",
             submenu: [
               {
                 click: () => {
-                  void shell.openExternal(input.githubUrl!);
+                  void shell.openExternal(input.helpUrl as string);
                 },
-                label: "GitHub",
+                label: "Help",
               },
             ],
           } satisfies MenuItemConstructorOptions,

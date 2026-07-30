@@ -17,6 +17,7 @@ type AppShellProps = {
   onToggleSidebar: () => void;
   onOpenWorkspaceSettings: () => void;
   sidebarSlot?: ReactNode;
+  secondaryAction?: ReactNode;
 };
 
 export function AppShell({
@@ -31,6 +32,7 @@ export function AppShell({
   onToggleSidebar,
   onOpenWorkspaceSettings,
   sidebarSlot,
+  secondaryAction,
 }: AppShellProps) {
   const secondaryItems = secondaryNavItems(activeView);
 
@@ -66,24 +68,27 @@ export function AppShell({
           </header>
         )}
         {secondaryItems.length > 1 && (
-          <nav className="secondary-nav" aria-label={t("secondaryNavigation")}>
-            {secondaryItems.map((item) => (
-              <button
-                key={item}
-                className={`secondary-nav-item ${activeView === item ? "active" : ""}`}
-                type="button"
-                onClick={() => onChangeView(item)}
-                onFocus={() => onPreloadView?.(item)}
-                onMouseEnter={() => onPreloadView?.(item)}
-                title={`${viewTitles[language][item]} · ${navCopy[language][item]}`}
-              >
-                <LineIcon name={item} />
-                <span>
-                  <strong>{viewTitles[language][item]}</strong>
-                </span>
-              </button>
-            ))}
-          </nav>
+          <div className="secondary-nav-row">
+            <nav className="secondary-nav" aria-label={t("secondaryNavigation")}>
+              {secondaryItems.map((item) => (
+                <button
+                  key={item}
+                  className={`secondary-nav-item ${activeView === item ? "active" : ""}`}
+                  type="button"
+                  onClick={() => onChangeView(item)}
+                  onFocus={() => onPreloadView?.(item)}
+                  onMouseEnter={() => onPreloadView?.(item)}
+                  title={`${viewTitles[language][item]} · ${navCopy[language][item]}`}
+                >
+                  <LineIcon name={item} />
+                  <span>
+                    <strong>{viewTitles[language][item]}</strong>
+                  </span>
+                </button>
+              ))}
+            </nav>
+            {secondaryAction}
+          </div>
         )}
         <div className="main-content">
           {children}

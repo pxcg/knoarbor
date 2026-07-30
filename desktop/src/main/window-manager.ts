@@ -1,15 +1,14 @@
 import { BrowserWindow, shell } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { optionalDesktopResourcePath } from "./assets.js";
-import { desktopProduct } from "./product.js";
+import { optionalDesktopAppIconPath } from "./assets.js";
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 
 export class DesktopWindowManager {
   private mainWindow?: BrowserWindow;
 
-  createMainWindow(url: string): BrowserWindow {
+  createMainWindow(url: string, input: { title: string }): BrowserWindow {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.focusMainWindow();
       return this.mainWindow;
@@ -18,11 +17,11 @@ export class DesktopWindowManager {
     const window = new BrowserWindow({
       backgroundColor: "#ffffff",
       height: 900,
-      icon: optionalDesktopResourcePath("icons", "icon.png"),
+      icon: optionalDesktopAppIconPath(),
       minHeight: 720,
       minWidth: 1080,
       show: false,
-      title: desktopProduct.name,
+      title: input.title,
       titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
       trafficLightPosition:
         process.platform === "darwin" ? { x: 18, y: 18 } : undefined,
@@ -70,4 +69,5 @@ export class DesktopWindowManager {
     if (!window || window.isDestroyed()) return;
     window.webContents.send("knoarbor-desktop:service-state-changed", state);
   }
+
 }

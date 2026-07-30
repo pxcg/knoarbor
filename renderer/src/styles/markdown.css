@@ -71,7 +71,7 @@
 .markdown-rendered code {
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #f8fafc;
+  background: var(--surface-subtle);
   color: var(--text);
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 0.92em;
@@ -95,8 +95,9 @@
 }
 
 .markdown-rendered table {
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
+  max-width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   margin: 14px 0 18px;
   font-size: 13px;
@@ -108,20 +109,22 @@
   padding: 8px 10px;
   text-align: left;
   vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .markdown-rendered th {
-  background: #f3f7fb;
+  background: var(--surface-table-header);
   color: var(--text);
   font-weight: 700;
 }
 
 .markdown-rendered tr:nth-child(even) td {
-  background: #fbfdff;
+  background: var(--surface-table-alt);
 }
 
 .markdown-rendered blockquote {
-  background: #f8fafc;
+  background: var(--surface-subtle);
   border-left-color: var(--accent);
   border-radius: 0 8px 8px 0;
   padding: 10px 12px;

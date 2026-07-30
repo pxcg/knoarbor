@@ -4,8 +4,8 @@ import { isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { desktopProduct } from "./product.js";
 
-const RENDERER_SCHEME = desktopProduct.rendererScheme;
-const RENDERER_HOST = desktopProduct.rendererHost;
+const RENDERER_SCHEME = "knoarbor";
+const RENDERER_HOST = "renderer";
 
 type RendererProtocolOptions = {
   assetsRoot: string;

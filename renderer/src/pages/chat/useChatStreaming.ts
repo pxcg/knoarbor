@@ -5,13 +5,15 @@ import {
   sendChatMessageStream,
   type ChatMessageItem,
   type ChatStreamEvent,
+  type VaultSelector,
 } from "../../api/client";
-import type { AppContext } from "../../appContext";
-import { readableChatError } from "./ChatEvidence";
+import type { ChatAppContext } from "../../appContext";
+import { chatErrorPresentation, readableChatError } from "./ChatEvidence";
 import {
   appendStreamingAssistantDelta,
   chatStageFromStreamEvent,
   latestAssistantTurnIndex,
+  rawEvidenceFromChatResponse,
   replaceStreamingAssistant,
   type ChatRequestStage,
   type ChatTurn,
@@ -21,14 +23,17 @@ type ChatStreamingInput = {
   activeChatProvider: string;
   apiMessages: ChatMessageItem[];
   chatVaultReady: boolean;
-  context: AppContext;
+  chatVaultSelector: VaultSelector;
+  context: ChatAppContext;
   input: string;
   isSending: boolean;
   refreshSidebarSessions: () => void;
   sessionId: string | null;
+  sessionRevision: number | null;
   setInput: (value: string) => void;
   setIsSending: (value: boolean) => void;
   setSessionId: (value: string | null) => void;
+  setSessionRevision: (value: number | null) => void;
   setTurns: (updater: ChatTurn[] | ((current: ChatTurn[]) => ChatTurn[])) => void;
   turns: ChatTurn[];
 };
@@ -37,14 +42,17 @@ export function useChatStreaming({
   activeChatProvider,
   apiMessages,
   chatVaultReady,
+  chatVaultSelector,
   context,
   input,
   isSending,
   refreshSidebarSessions,
   sessionId,
+  sessionRevision,
   setInput,
   setIsSending,
   setSessionId,
+  setSessionRevision,
   setTurns,
   turns,
 }: ChatStreamingInput) {
@@ -66,36 +74,42 @@ export function useChatStreaming({
     activeChatAbortRef.current = controller;
     try {
       const response = await sendChatMessageStream(
-        context.activeVaultSelector,
+        chatVaultSelector,
         [...apiMessages, { role: "user", content }],
         {
           session_id: sessionId,
-          all_vaults: context.activeVaultId === "all",
-          max_turns: 6,
+          expected_session_revision: sessionId ? sessionRevision : null,
+          all_vaults: context.chatScopeVaultId === "all",
           provider: activeChatProvider || undefined,
         },
         (event) => applyStreamEvent(event),
         controller.signal,
       );
       setSessionId(response.session_id || sessionId);
+      setSessionRevision(response.session_revision);
       setTurns((current) => replaceStreamingAssistant(current, {
         role: "assistant",
+        turnId: response.turn_id,
         content: response.answer,
         citations: response.citations || [],
+        rawEvidence: rawEvidenceFromChatResponse(response),
         hiddenEvidenceCount: response.hidden_evidence_count || 0,
         citationWarnings: response.citation_warnings || [],
+        answerProvenance: response.answer_provenance,
       }));
       refreshSidebarSessions();
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
-        context.setNotice({ message: context.t("chatStopped") });
         setTurns((current) => replaceStreamingAssistant(current, { role: "assistant", content: context.t("chatStoppedInline"), kind: "status" }));
         return;
       }
-      const rawMessage = error instanceof Error ? error.message : String(error);
-      const message = readableChatError(rawMessage, context);
-      context.setNotice({ message, error: true });
-      setTurns((current) => replaceStreamingAssistant(current, { role: "assistant", content: message, kind: "error" }));
+      const presentation = chatErrorPresentation(error, context);
+      setTurns((current) => replaceStreamingAssistant(current, {
+        role: "assistant",
+        content: presentation.message,
+        kind: "error",
+        errorAction: presentation.action,
+      }));
     } finally {
       if (activeChatAbortRef.current === controller) activeChatAbortRef.current = null;
       clearStageTimers();
@@ -112,6 +126,8 @@ export function useChatStreaming({
     if (!sessionId || isSending || isRegenerating || !chatVaultReady) return;
     const latestAssistantIndex = latestAssistantTurnIndex(turns);
     if (latestAssistantIndex < 0) return;
+    const targetTurnId = turns[latestAssistantIndex]?.turnId;
+    if (!targetTurnId || sessionRevision === null) return;
     const previousTurns = turns;
     setTurns(turns.slice(0, latestAssistantIndex));
     setIsRegenerating(true);
@@ -121,35 +137,38 @@ export function useChatStreaming({
     activeChatAbortRef.current = controller;
     try {
       const response = await retryChatSession(
-        context.activeVaultSelector,
+        chatVaultSelector,
         sessionId,
         {
-          all_vaults: context.activeVaultId === "all",
-          max_turns: 6,
+          all_vaults: context.chatScopeVaultId === "all",
+          target_turn_id: targetTurnId,
+          expected_session_revision: sessionRevision,
           provider: activeChatProvider || undefined,
         },
         controller.signal,
       );
       setSessionId(response.session_id || sessionId);
+      setSessionRevision(response.session_revision);
       setTurns((current) => [
         ...current,
         {
           role: "assistant",
+          turnId: response.turn_id,
           content: response.answer,
           citations: response.citations || [],
+          rawEvidence: rawEvidenceFromChatResponse(response),
           hiddenEvidenceCount: response.hidden_evidence_count || 0,
           citationWarnings: response.citation_warnings || [],
+          answerProvenance: response.answer_provenance,
         },
       ]);
       refreshSidebarSessions();
     } catch (error) {
       setTurns(previousTurns);
       if (error instanceof DOMException && error.name === "AbortError") {
-        context.setNotice({ message: context.t("chatStopped") });
         return;
       }
-      const rawMessage = error instanceof Error ? error.message : String(error);
-      context.setNotice({ message: readableChatError(rawMessage, context), error: true });
+      console.error("Chat regeneration failed", readableChatError(error, context));
     } finally {
       if (activeChatAbortRef.current === controller) activeChatAbortRef.current = null;
       clearStageTimers();
@@ -160,49 +179,49 @@ export function useChatStreaming({
   }
 
   async function regenerateTurn(assistantIndex: number) {
-    if (!sessionId || isSending || isRegenerating || !chatVaultReady) return;
+    if (!sessionId || isSending || isRegenerating || !chatVaultReady || assistantIndex !== turns.length - 1) return;
     const userIndex = assistantIndex - 1;
     if (userIndex < 0 || turns[userIndex]?.role !== "user") return;
+    const targetTurnId = turns[assistantIndex]?.turnId;
+    if (!targetTurnId || sessionRevision === null) return;
     const truncatedTurns = turns.slice(0, userIndex + 1);
     const previousTurns = turns;
     setTurns([...truncatedTurns, { role: "assistant", content: "", streaming: true }]);
     setIsRegenerating(true);
     setIsSending(true);
     beginRequestStages("regenerating");
-    const truncatedMessages: ChatMessageItem[] = truncatedTurns
-      .filter((turn) => turn.role === "user" || turn.role === "assistant")
-      .map((turn) => ({ role: turn.role, content: turn.content }));
     const controller = new AbortController();
     activeChatAbortRef.current = controller;
     try {
-      const response = await sendChatMessageStream(
-        context.activeVaultSelector,
-        truncatedMessages,
+      const response = await retryChatSession(
+        chatVaultSelector,
+        sessionId,
         {
-          session_id: sessionId,
-          all_vaults: context.activeVaultId === "all",
-          max_turns: 6,
+          target_turn_id: targetTurnId,
+          expected_session_revision: sessionRevision,
+          all_vaults: context.chatScopeVaultId === "all",
           provider: activeChatProvider || undefined,
         },
-        (event) => applyStreamEvent(event),
         controller.signal,
       );
       setTurns((current) => replaceStreamingAssistant(current, {
         role: "assistant",
+        turnId: response.turn_id,
         content: response.answer,
         citations: response.citations || [],
+        rawEvidence: rawEvidenceFromChatResponse(response),
         hiddenEvidenceCount: response.hidden_evidence_count || 0,
         citationWarnings: response.citation_warnings || [],
+        answerProvenance: response.answer_provenance,
       }));
+      setSessionRevision(response.session_revision);
       refreshSidebarSessions();
     } catch (error) {
       setTurns(previousTurns);
       if (error instanceof DOMException && error.name === "AbortError") {
-        context.setNotice({ message: context.t("chatStopped") });
         return;
       }
-      const rawMessage = error instanceof Error ? error.message : String(error);
-      context.setNotice({ message: readableChatError(rawMessage, context), error: true });
+      console.error("Chat turn regeneration failed", readableChatError(error, context));
     } finally {
       if (activeChatAbortRef.current === controller) activeChatAbortRef.current = null;
       clearStageTimers();

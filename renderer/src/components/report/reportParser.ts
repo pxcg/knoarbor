@@ -78,11 +78,9 @@ export function parseReport(content: string): { metrics: ReportMetric[]; section
   }
 
   return {
-    metrics: metrics.slice(0, 18),
+    metrics,
     sections: sections
-      .map((section) => ({ ...section, items: section.items.slice(0, 8) }))
-      .filter((section) => section.items.length)
-      .slice(0, 8),
+      .filter((section) => section.items.length),
   };
 }
 
@@ -206,8 +204,22 @@ export function getReportMetricNumber(content: string, key: string): number {
 
 export function extractWikiPagePaths(value: string): string[] {
   const paths = new Set<string>();
-  for (const match of value.matchAll(/\b(?:sources\/)?[^\s,`]+?\.md\b/g)) {
-    paths.add(match[0].replace(/[.)\]}]+$/, ""));
+  const addPath = (candidate: string) => {
+    const normalized = candidate.trim().replace(/^<|>$/g, "");
+    if (normalized.endsWith(".md")) paths.add(normalized);
+  };
+
+  for (const match of value.matchAll(/`([^`\r\n]+\.md)`/g)) addPath(match[1]);
+  for (const match of value.matchAll(/\[[^\]]*\]\(([^)\r\n]+\.md)\)/g)) addPath(match[1]);
+
+  const listItem = value.match(/^\s*[-*+]\s+(.+?)\s*$/)?.[1];
+  if (listItem && !listItem.includes("`") && !listItem.includes("](") && listItem.endsWith(".md")) {
+    addPath(listItem);
+    return [...paths];
+  }
+
+  for (const match of value.matchAll(/(?:^|[\s(])((?:sources\/)?[^\s,`()\[\]{}]+\.md)(?=$|[\s,).;\]}])/gu)) {
+    addPath(match[1]);
   }
   return [...paths];
 }

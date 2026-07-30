@@ -4,7 +4,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   getActiveRuns,
   getConfig,
-  getDoctor,
   getGraph,
   getHealth,
   getModelProviders,
@@ -15,7 +14,7 @@ import {
   getStatus,
   getVaults,
 } from "./api/client";
-import type { AppNotice, VaultRefreshScope } from "./appContext";
+import type { VaultRefreshScope } from "./appContext";
 import { queryKeys } from "./queryKeys";
 import type { ViewName } from "./types";
 import { buildVaultOptions, buildVaultSelector, resolveConcreteVault, type VaultOption } from "./vaultRuntime";
@@ -28,9 +27,7 @@ type AppRefreshInput = {
   needsReports: boolean;
   needsVaultStatus: boolean;
   selectedVaultId: string;
-  setNotice: (notice: AppNotice | null) => void;
   shouldPollRuns: boolean;
-  t: (key: string) => string;
 };
 
 export function useAppRefresh({
@@ -41,9 +38,7 @@ export function useAppRefresh({
   needsReports,
   needsVaultStatus,
   selectedVaultId,
-  setNotice,
   shouldPollRuns,
-  t,
 }: AppRefreshInput) {
   const queryClient = useQueryClient();
 
@@ -63,13 +58,11 @@ export function useAppRefresh({
     const results = await Promise.allSettled(tasks);
     const failure = results.find((result) => result.status === "rejected");
     if (failure?.status === "rejected") {
-      const reason = failure.reason || t("vaultRefreshFailed");
-      setNotice({ message: reason instanceof Error ? reason.message : String(reason), error: true });
+      console.error("Vault refresh failed", failure.reason);
     }
-  }, [activeConcreteVault, effectiveConfigPath, queryClient, setNotice, t]);
+  }, [activeConcreteVault, effectiveConfigPath, queryClient]);
 
   const refreshAll = useCallback(async () => {
-    setNotice(null);
     try {
       const configResult = await queryClient.fetchQuery({ queryKey: queryKeys.config, queryFn: getConfig });
       const nextRegistry = await queryClient.fetchQuery({
@@ -82,13 +75,6 @@ export function useAppRefresh({
       const refreshTasks: Promise<unknown>[] = [
         queryClient.fetchQuery({ queryKey: queryKeys.health, queryFn: getHealth, staleTime: 0 }),
       ];
-      if (activeView === "overview") {
-        refreshTasks.push(queryClient.fetchQuery({
-          queryKey: queryKeys.doctor(configResult.config_path),
-          queryFn: () => getDoctor(configResult.config_path, { checkModelRuntime: false, checkConnectorRuntime: false }),
-          staleTime: 0,
-        }));
-      }
       if (needsVaultStatus || needsReports || needsRecentRuns || shouldPollRuns) {
         refreshTasks.push(loadVaultState(nextVault, {
           status: needsVaultStatus,
@@ -106,7 +92,7 @@ export function useAppRefresh({
       if (activeView === "query") {
         refreshTasks.push(queryClient.fetchQuery({ queryKey: queryKeys.queryTrends(nextVault.id), queryFn: () => getQueryTrends(nextSelector), staleTime: 0 }));
       }
-      if (activeView === "chat" || activeView === "settings") {
+      if (activeView === "chat") {
         refreshTasks.push(queryClient.fetchQuery({
           queryKey: queryKeys.modelProviders(configResult.config_path),
           queryFn: () => getModelProviders(configResult.config_path),
@@ -116,10 +102,10 @@ export function useAppRefresh({
       await Promise.all(refreshTasks);
       return true;
     } catch (error) {
-      setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
+      console.error("Application refresh failed", error);
       return false;
     }
-  }, [activeView, loadVaultState, needsRecentRuns, needsReports, needsVaultStatus, queryClient, selectedVaultId, setNotice, shouldPollRuns]);
+  }, [activeView, loadVaultState, needsRecentRuns, needsReports, needsVaultStatus, queryClient, selectedVaultId, shouldPollRuns]);
 
   return { loadVaultState, refreshAll };
 }

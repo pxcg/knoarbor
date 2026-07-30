@@ -1,14 +1,15 @@
-import type { AppContext } from "../appContext";
+import type { RunAppContext } from "../appContext";
 import { RunPage } from "./RunPage";
 
 type Props = {
-  context: AppContext;
+  active: boolean;
+  context: RunAppContext;
 };
 
-export function LintPage({ context }: Props) {
+export function LintPage({ active, context }: Props) {
   return (
     <section className="view active">
-      <RunPage context={context} embedded mode="lint" />
+      <RunPage active={active} context={context} embedded mode="lint" />
     </section>
   );
 }

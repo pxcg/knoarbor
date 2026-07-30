@@ -5,6 +5,11 @@
   --surface-soft: #ffffff;
   --surface-raised: #ffffff;
   --surface-tint: #ffffff;
+  --surface-subtle: var(--surface-subtle);
+  --surface-hover: var(--surface-hover);
+  --surface-selected: #edf7f2;
+  --surface-table-header: var(--surface-table-header);
+  --surface-table-alt: var(--surface-table-alt);
   --border: #dfe6e1;
   --border-strong: #aebbb4;
   --text: #18231f;
@@ -43,7 +48,7 @@ body,
 
 body {
   margin: 0;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--text);
   font-family:
     system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "Noto Sans CJK SC", "PingFang SC", Arial, sans-serif;
@@ -64,7 +69,7 @@ select {
 }
 
 select option {
-  background: #ffffff;
+  background: var(--surface);
   color: var(--text);
 }
 
@@ -82,7 +87,7 @@ select option {
 }
 
 .sidebar {
-  background: #ffffff;
+  background: var(--surface);
   backdrop-filter: none;
   border-right: 1px solid rgba(31, 54, 40, 0.08);
   padding: 18px 12px 14px;
@@ -100,11 +105,13 @@ select option {
 }
 
 .brand {
-  display: flex;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 26px;
   align-items: center;
   gap: 9px;
+  min-height: 36px;
   min-width: 0;
-  padding: 0 4px 2px;
+  padding: 0 4px;
   position: relative;
 }
 
@@ -123,25 +130,22 @@ select option {
 
 .brand-title {
   font-weight: 760;
-  font-size: 15px;
+  font-size: 16px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .brand-copy {
-  flex: 1;
   min-width: 0;
 }
 
-.brand-subtitle,
 .sidebar-footer,
 .metric-hint,
 .panel-copy,
 .eyebrow {
   color: var(--muted);
-}
-
-.brand-subtitle {
-  font-size: 10px;
-  line-height: 1.32;
 }
 
 .nav {
@@ -263,7 +267,7 @@ select option {
 
 .workspace-settings-trigger {
   align-items: center;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
   color: var(--muted-strong);
@@ -331,6 +335,7 @@ select option {
 }
 
 .sidebar.collapsed .brand {
+  display: flex;
   justify-content: center;
   flex-direction: column;
   gap: 6px;
@@ -442,7 +447,7 @@ select option {
   top: 0;
   z-index: 12;
   padding: 8px 0 14px;
-  background: #ffffff;
+  background: var(--surface);
   backdrop-filter: none;
   flex-wrap: nowrap;
 }
@@ -499,7 +504,7 @@ select option {
 }
 
 .inline-help-tooltip {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: var(--shadow);
@@ -579,7 +584,7 @@ h2 {
 }
 
 .topbar-vault-select select {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
@@ -603,7 +608,7 @@ h2 {
 .language-switch {
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--surface);
   padding: 3px;
   display: flex;
   gap: 3px;
@@ -626,13 +631,21 @@ h2 {
   color: #ffffff;
 }
 
-.secondary-nav {
+.secondary-nav-row {
   flex: 0 0 auto;
   display: flex;
-  align-items: stretch;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
   margin: -6px 0 18px;
   padding: 0 0 2px;
+}
+
+.secondary-nav {
+  display: flex;
+  align-items: stretch;
+  flex: 1 1 auto;
+  gap: 8px;
+  min-width: 0;
   overflow-x: auto;
 }
 
@@ -641,7 +654,7 @@ h2 {
   width: auto;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--muted-strong);
   cursor: pointer;
   display: grid;
@@ -693,7 +706,7 @@ h2 {
   text-decoration: none;
   cursor: pointer;
   color: var(--text);
-  background: #ffffff;
+  background: var(--surface);
   white-space: nowrap;
   font-size: 12px;
   font-weight: 680;
@@ -712,7 +725,7 @@ h2 {
 }
 
 .settings-modal {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: 0 28px 90px rgba(15, 23, 42, 0.2);
@@ -751,6 +764,40 @@ h2 {
   padding: 16px;
   scrollbar-color: rgba(71, 86, 79, 0.26) transparent;
   scrollbar-width: thin;
+}
+
+.delete-confirmation-dialog {
+  height: auto;
+  max-height: calc(100vh - 56px);
+  width: min(480px, calc(100vw - 56px));
+}
+
+.delete-confirmation-dialog .settings-modal-content {
+  display: block;
+  overflow: visible;
+  padding: 0;
+}
+
+.delete-confirmation-copy {
+  padding: 24px 20px;
+}
+
+.delete-confirmation-copy p {
+  line-height: 1.65;
+  margin: 0;
+}
+
+.delete-confirmation-dialog .settings-action-note {
+  margin: 0 20px 20px;
+}
+
+.delete-confirmation-actions {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 14px 20px;
 }
 
 .settings-section-panel::-webkit-scrollbar,
@@ -811,7 +858,7 @@ h2 {
 
 .icon-button {
   align-items: center;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--muted-strong);
@@ -876,7 +923,7 @@ h2 {
 
 .custom-select-trigger {
   align-items: center;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
   color: var(--text);
@@ -897,8 +944,19 @@ h2 {
   border-color: rgba(15, 143, 116, 0.32);
 }
 
+.custom-select-chevron {
+  flex: 0 0 auto;
+  height: 14px;
+  transition: transform 160ms ease;
+  width: 14px;
+}
+
+.custom-select-trigger[aria-expanded="true"] .custom-select-chevron {
+  transform: rotate(180deg);
+}
+
 .custom-select-options {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 16px 36px rgba(24, 35, 31, 0.14);

@@ -1,7 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 
-import type { AppNotice } from "../../appContext";
-import type { ConfigForm, ModelProviderProbeState } from "../../api/client";
+import type { ConfigForm, ImageProviderProbeResponse, ModelProviderProbeState } from "../../api/client";
 import { ChatModelProvidersSection } from "./ChatModelProvidersSection";
 import { ImageModelProvidersSection } from "./ImageModelProvidersSection";
 
@@ -16,16 +15,24 @@ export function ConfigModelProvidersSection({
   setForm,
   t,
   probeResults,
+  imageProbeResults,
   pendingAction,
+  imagePendingProvider,
   onDiscover,
+  onImageProbe,
+  onImageProbeInvalidated,
   onCommit,
   onError,
 }: SectionProps & {
   probeResults: Record<string, ModelProviderProbeState>;
+  imageProbeResults: Record<string, ImageProviderProbeResponse>;
   pendingAction: string | null;
+  imagePendingProvider: string | null;
   onDiscover: (provider: string) => void;
+  onImageProbe: (provider: string) => void;
+  onImageProbeInvalidated: (provider: string) => void;
   onCommit: (nextForm: ConfigForm) => Promise<void>;
-  onError: (notice: AppNotice | null) => void;
+  onError: (error: unknown) => void;
 }) {
   return (
     <>
@@ -39,7 +46,17 @@ export function ConfigModelProvidersSection({
         onCommit={onCommit}
         onError={onError}
       />
-      <ImageModelProvidersSection form={form} setForm={setForm} t={t} onCommit={onCommit} onError={onError} />
+      <ImageModelProvidersSection
+        form={form}
+        setForm={setForm}
+        t={t}
+        probeResults={imageProbeResults}
+        pendingProvider={imagePendingProvider}
+        onProbe={onImageProbe}
+        onProbeInvalidated={onImageProbeInvalidated}
+        onCommit={onCommit}
+        onError={onError}
+      />
     </>
   );
 }

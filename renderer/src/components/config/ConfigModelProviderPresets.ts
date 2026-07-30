@@ -2,6 +2,18 @@ import type { ConfigFormProvider, ConfigImageProvider } from "../../api/client";
 
 export const PROVIDER_PRESETS: ConfigFormProvider[] = [
   {
+    name: "deepseek",
+    adapter: "openai_compatible",
+    base_url: "https://api.deepseek.com",
+    api_key: "",
+    model: "deepseek-v4-flash",
+    json_mode: true,
+    tls_ca_file: "",
+    context_window: null,
+    max_output_tokens: null,
+    extra_body: { thinking: { type: "disabled" } },
+  },
+  {
     name: "vllm",
     adapter: "openai_compatible",
     base_url: "http://localhost:8001/v1",
@@ -27,6 +39,19 @@ export const PROVIDER_PRESETS: ConfigFormProvider[] = [
 ];
 
 export const IMAGE_PROVIDER_PRESETS: ConfigImageProvider[] = [
+  {
+    name: "local-chat-image",
+    adapter: "openai_chat_image",
+    base_url: "http://127.0.0.1:8000/v1",
+    endpoint_path: "/chat/completions",
+    api_key: "",
+    model: "SenseNova-U1-8B",
+    tls_ca_file: "",
+    resolution: "",
+    num_inference_steps: 20,
+    guidance: 4,
+    extra_body: {},
+  },
   {
     name: "sensenova",
     adapter: "sensenova_image",

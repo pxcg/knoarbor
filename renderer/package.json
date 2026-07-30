@@ -1,12 +1,13 @@
 {
   "name": "@knoarbor/renderer",
   "private": true,
-  "version": "2.3.1",
+  "version": "2.5.3",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "check:i18n": "node scripts/check-i18n-parity.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "build": "npm run check:i18n && tsc -b && vite build && node scripts/report-bundle-size.mjs",
     "bundle:report": "node scripts/report-bundle-size.mjs",
     "test:e2e": "playwright test",
@@ -16,12 +17,15 @@
     "@lobehub/icons-static-svg": "^1.91.0",
     "@tanstack/react-query": "^5.100.14",
     "cytoscape": "^3.29.2",
+    "katex": "^0.16.47",
     "lucide-react": "^1.17.0",
     "mermaid": "^11.16.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1"
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

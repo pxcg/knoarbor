@@ -1,14 +1,15 @@
-import type { AppContext } from "../appContext";
+import type { RunAppContext } from "../appContext";
 import { RunPage } from "./RunPage";
 
 type Props = {
-  context: AppContext;
+  active: boolean;
+  context: RunAppContext;
 };
 
-export function ImportPage({ context }: Props) {
+export function ImportPage({ active, context }: Props) {
   return (
     <section className="view active import-page">
-      <RunPage context={context} embedded mode="ingest" />
+      <RunPage active={active} context={context} embedded mode="ingest" />
     </section>
   );
 }

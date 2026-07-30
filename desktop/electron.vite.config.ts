@@ -8,7 +8,6 @@ export default defineConfig({
       rollupOptions: {
         external: ["electron", /^@electron-toolkit\/utils/, /^electron-log/],
         input: {
-          diagnostics: resolve(__dirname, "src/main/diagnostics.ts"),
           index: resolve(__dirname, "src/main/index.ts"),
         },
       },
@@ -21,15 +20,6 @@ export default defineConfig({
         external: ["electron"],
         input: {
           index: resolve(__dirname, "src/preload/index.ts"),
-        },
-      },
-    },
-  },
-  renderer: {
-    build: {
-      rollupOptions: {
-        input: {
-          index: resolve(__dirname, "src/renderer/index.html"),
         },
       },
     },

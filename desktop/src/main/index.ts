@@ -1,24 +1,26 @@
 import { electronApp, optimizer } from "@electron-toolkit/utils";
 import { app, BrowserWindow } from "electron";
 import log from "electron-log/main";
-import { optionalDesktopResourcePath } from "./assets.js";
+import { join } from "node:path";
+import { optionalDesktopAppIconPath } from "./assets.js";
 import {
-  configureDesktopUserDataPath,
+  configureDesktopDataPaths,
   ensureDesktopBootstrapConfig,
   resolveDesktopAppConfig,
 } from "./config.js";
 import { registerDesktopIpc } from "./ipc.js";
 import { installDesktopMenu } from "./menu.js";
+import { desktopProduct } from "./product.js";
 import {
   registerRendererProtocol,
   registerRendererProtocolScheme,
   rendererEntryUrl,
 } from "./renderer-protocol.js";
 import { DesktopServiceManager } from "./service-manager.js";
+import { coordinateManagedServiceShutdown } from "./shutdown-coordinator.js";
 import { DesktopWindowManager } from "./window-manager.js";
-import { desktopProduct } from "./product.js";
 
-configureDesktopUserDataPath();
+configureDesktopDataPaths();
 registerRendererProtocolScheme();
 
 const config = resolveDesktopAppConfig();
@@ -39,18 +41,22 @@ if (singleInstanceLock) {
 }
 
 async function startDesktopApp(): Promise<void> {
+  if (config.appServer.mode === "managed") {
+    const appDataRoot = config.appServer.appDataRoot;
+    log.transports.file.resolvePathFn = () => join(appDataRoot, "logs", "desktop.log");
+  }
   log.initialize();
   electronApp.setAppUserModelId(config.appUserModelId);
   registerRendererProtocol({
-    assetsRoot: config.rendererAssetsRoot,
+    assetsRoot: config.appServer.mode === "managed" ? config.appServer.rendererAssetsRoot : config.rendererAssetsRoot,
     getServiceEndpoint: () => serviceManager.getState().endpoint,
   });
-  const appIcon = optionalDesktopResourcePath("icons", "icon.png");
+  const appIcon = optionalDesktopAppIconPath();
   if (process.platform === "darwin" && appIcon && app.dock) {
     app.dock.setIcon(appIcon);
   }
   ensureDesktopBootstrapConfig(config.appServer);
-  installDesktopMenu({ githubUrl: desktopProduct.helpUrl });
+  installDesktopMenu({ helpUrl: desktopProduct.helpUrl });
 
   app.on("browser-window-created", (_, window) => {
     optimizer.watchWindowShortcuts(window);
@@ -58,11 +64,10 @@ async function startDesktopApp(): Promise<void> {
 
   await serviceManager.start(config.appServer);
   const rendererUrl = rendererEntryUrl();
-  windowManager.createMainWindow(rendererUrl);
-
+  windowManager.createMainWindow(rendererUrl, { title: desktopProduct.name });
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      windowManager.createMainWindow(rendererUrl);
+      windowManager.createMainWindow(rendererUrl, { title: desktopProduct.name });
     }
   });
 }
@@ -72,8 +77,8 @@ function handleFatalStartupError(error: unknown): void {
   app.quit();
 }
 
-app.on("before-quit", () => {
-  void serviceManager.stop();
+coordinateManagedServiceShutdown(app, serviceManager, (error) => {
+  log.error("Failed to stop the managed service before desktop shutdown", error);
 });
 
 app.on("window-all-closed", () => {

@@ -15,4 +15,3 @@
   },
   "include": ["src/**/*.ts", "electron.vite.config.ts"]
 }
-

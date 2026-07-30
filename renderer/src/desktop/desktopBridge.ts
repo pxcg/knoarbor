@@ -1,17 +1,8 @@
-type DesktopPickerResult = {
-  canceled: boolean;
-  path?: string;
-};
-
-type DesktopEnvironment = {
-  isDesktopApp: true;
-  platform: string;
-  versions: {
-    chrome: string;
-    electron: string;
-    node: string;
-  };
-};
+import type {
+  DesktopCommand,
+  DesktopEnvironment,
+  DesktopPickerResult,
+} from "../../../desktop/src/preload/types";
 
 export function getDesktopBridge() {
   return window.knoarborDesktop ?? null;
@@ -56,10 +47,17 @@ export async function readDesktopVaults(configPath?: string | null): Promise<unk
 }
 
 export async function getDesktopEnvironment(): Promise<DesktopEnvironment | null> {
-  return (await getDesktopBridge()?.getEnvironment()) as DesktopEnvironment | null;
+  return (await getDesktopBridge()?.getEnvironment()) ?? null;
 }
 
-export function onDesktopCommand(listener: (command: KnoArborDesktopCommand) => void) {
+export async function resolveDesktopServiceUrl(path: string): Promise<string | null> {
+  const endpoint = (await getDesktopBridge()?.getServiceState())?.endpoint?.trim();
+  if (!endpoint) return null;
+  const base = endpoint.endsWith("/") ? endpoint : `${endpoint}/`;
+  return new URL(path.replace(/^\/+/, ""), base).toString();
+}
+
+export function onDesktopCommand(listener: (command: DesktopCommand) => void) {
   return getDesktopBridge()?.onCommand(listener);
 }
 
@@ -84,13 +82,13 @@ export function canOpenDesktopPath() {
   return Boolean(getDesktopBridge()?.openPath);
 }
 
-export async function deleteDesktopDirectory(path: string) {
-  if (!path) return { deleted: false };
-  return getDesktopBridge()?.deleteDirectory(path) ?? { deleted: false };
+export async function revealDesktopPath(path: string) {
+  if (!path) return { opened: false };
+  return getDesktopBridge()?.revealPath(path) ?? { opened: false };
 }
 
-export function canDeleteDesktopDirectory() {
-  return Boolean(getDesktopBridge()?.deleteDirectory);
+export function canRevealDesktopPath() {
+  return Boolean(getDesktopBridge()?.revealPath);
 }
 
 export async function selectDesktopDirectory(options?: { defaultPath?: string; title?: string }): Promise<DesktopPickerResult> {

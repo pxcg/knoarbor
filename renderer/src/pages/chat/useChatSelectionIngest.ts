@@ -1,7 +1,12 @@
 import { useState } from "react";
 
-import { ingestChatSession, ingestExcerpt } from "../../api/client";
-import type { AppContext } from "../../appContext";
+import type { ChatAppContext } from "../../appContext";
+import {
+  defaultExcerptTargetVaultId,
+  excerptDraftIsValid,
+  submitExcerptDraft,
+  type ExcerptIngestDraft,
+} from "../../ingest/excerptIngest";
 import {
   buildExcerptTitle,
   selectedTextOrNull,
@@ -11,52 +16,46 @@ import {
 
 type ChatSelectionIngestInput = {
   chatVaultReady: boolean;
-  context: AppContext;
+  context: ChatAppContext;
   sessionId: string | null;
   setContextMenu: (value: null) => void;
+  turns: ChatTurn[];
 };
 
-export function useChatSelectionIngest({ chatVaultReady, context, sessionId, setContextMenu }: ChatSelectionIngestInput) {
+type PendingChatIngest = { kind: "excerpt"; key: string } & ExcerptIngestDraft;
+
+export function useChatSelectionIngest({ chatVaultReady, context, sessionId, setContextMenu, turns }: ChatSelectionIngestInput) {
   const [ingestingExcerptKey, setIngestingExcerptKey] = useState<string | null>(null);
   const [selectedMessageIndices, setSelectedMessageIndices] = useState<Set<number>>(new Set());
   const [ingestingMessages, setIngestingMessages] = useState(false);
+  const [pendingIngest, setPendingIngest] = useState<PendingChatIngest | null>(null);
 
-  async function archiveExcerpt(turn: ChatTurn, index: number) {
-    if (turn.role !== "assistant" || turn.kind === "error" || turn.kind === "status" || !chatVaultReady) return;
+  function archiveExcerpt(turn: ChatTurn, index: number) {
+    if (turn.role !== "assistant" || !turnCanBeIngested(turn) || !chatVaultReady) return;
     const excerptText = selectedTextOrTurnContent(turn.content);
     if (!excerptText) {
-      context.setNotice({ message: context.t("chatExcerptEmpty"), error: true });
       return;
     }
     const excerptKey = `${index}:${excerptText.slice(0, 24)}`;
-    setIngestingExcerptKey(excerptKey);
-    try {
-      const response = await ingestExcerpt(context.activeVaultSelector, {
-        excerpt_text: excerptText,
-        excerpt_title: buildExcerptTitle(excerptText),
-        excerpt_context: {
+    setPendingIngest({
+      kind: "excerpt",
+      content: excerptText,
+      title: buildExcerptTitle(excerptText),
+      targetVaultId: defaultExcerptTargetVaultId(context),
+      key: excerptKey,
+      context: {
           source_app: "knoarbor_chat",
           session_id: sessionId,
-          turn_index: index,
+          turn_id: turn.turnId,
+          message_id: turn.messageId,
           role: turn.role,
           selection_used: selectedTextOrNull() !== null,
-        },
-      });
-      context.setNotice({
-        message: response.run_id ? `${context.t("chatExcerptQueued")} ${response.run_id}` : context.t("chatExcerptQueued"),
-        actionLabel: context.t("viewRun"),
-        onAction: () => context.navigate("ingest"),
-      });
-      await context.refreshAll();
-      context.navigate("ingest");
-    } catch (error) {
-      context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
-    } finally {
-      setIngestingExcerptKey(null);
-    }
+      },
+    });
   }
 
   function toggleMessageSelection(messageIndex: number) {
+    if (!turnCanBeIngested(turns[messageIndex])) return;
     setSelectedMessageIndices((prev) => {
       const next = new Set(prev);
       if (next.has(messageIndex)) next.delete(messageIndex);
@@ -69,26 +68,50 @@ export function useChatSelectionIngest({ chatVaultReady, context, sessionId, set
     setSelectedMessageIndices(new Set());
   }
 
-  async function ingestSelectedMessages() {
+  function ingestSelectedMessages() {
     if (!sessionId || !selectedMessageIndices.size || !chatVaultReady) return;
     const indices = Array.from(selectedMessageIndices).sort((a, b) => a - b);
-    const turnIndices = [...new Set(indices.map((index) => Math.floor(index / 2)))];
+    setPendingIngest({
+      kind: "excerpt",
+      content: selectedMessagesContent(turns, indices),
+      context: {
+        source_app: "knoarbor_chat",
+        session_id: sessionId,
+        message_indices: indices,
+        selection_used: true,
+      },
+      key: `selected:${indices.join(",")}`,
+      title: selectedMessagesTitle(turns, indices),
+      targetVaultId: defaultExcerptTargetVaultId(context),
+    });
+  }
+
+  function updatePendingExcerpt(draft: ExcerptIngestDraft) {
+    setPendingIngest((current) => current ? { ...current, ...draft } : current);
+  }
+
+  function cancelPendingIngest() {
+    if (ingestingMessages || ingestingExcerptKey) return;
+    setPendingIngest(null);
+  }
+
+  async function confirmPendingIngest() {
+    if (!excerptDraftIsValid(pendingIngest)) return;
     setIngestingMessages(true);
     setContextMenu(null);
+    setIngestingExcerptKey(pendingIngest.key);
     try {
-      const response = await ingestChatSession(context.activeVaultSelector, sessionId, { turn_indices: turnIndices });
-      context.setNotice({
-        message: response.run_id ? `${context.t("chatExcerptQueued")} ${response.run_id}` : context.t("chatExcerptQueued"),
-        actionLabel: context.t("viewRun"),
-        onAction: () => context.navigate("ingest"),
-      });
+      const response = await submitExcerptDraft(context.configPath, pendingIngest);
       await context.refreshAll();
-      context.navigate("ingest");
+      if (response.run_id) context.openRun(response.run_id, pendingIngest.targetVaultId, response.flow);
+      else context.navigate("ingest");
       setSelectedMessageIndices(new Set());
+      setPendingIngest(null);
     } catch (error) {
-      context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
+      console.error("Chat excerpt ingest failed", error);
     } finally {
       setIngestingMessages(false);
+      setIngestingExcerptKey(null);
     }
   }
 
@@ -98,8 +121,29 @@ export function useChatSelectionIngest({ chatVaultReady, context, sessionId, set
     ingestSelectedMessages,
     ingestingExcerptKey,
     ingestingMessages,
+    pendingIngest,
     selectedMessageIndices,
     setSelectedMessageIndices,
+    updatePendingExcerpt,
+    cancelPendingIngest,
+    confirmPendingIngest,
     toggleMessageSelection,
   };
+}
+
+export function turnCanBeIngested(turn: ChatTurn | undefined): boolean {
+  if (!turn || turn.kind === "error" || turn.kind === "status" || turn.streaming) return false;
+  return Boolean(turn.content.trim());
+}
+
+function selectedMessagesTitle(turns: ChatTurn[], indices: number[]): string {
+  const firstText = indices.map((index) => turns[index]?.content || "").find((content) => content.trim()) || "KnoArbor Chat";
+  return buildExcerptTitle(firstText);
+}
+
+function selectedMessagesContent(turns: ChatTurn[], indices: number[]): string {
+  return indices
+    .map((index) => turns[index]?.content.trim() || "")
+    .filter(Boolean)
+    .join("\n\n");
 }
