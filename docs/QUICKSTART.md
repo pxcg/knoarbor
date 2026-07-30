@@ -11,7 +11,7 @@ For the first run, keep the setup narrow:
 - use the bundled `agent-loop.md` example;
 - use one OpenAI-compatible provider such as DeepSeek, OpenAI, OpenRouter, LM Studio, or vLLM, or native Ollama;
 - run `doctor` before semantic workflows;
-- verify the result in desktop Chat, or in the developer console when running from source.
+- verify the result in the local Chat page.
 
 ## 1. Install
 
@@ -66,20 +66,19 @@ Run structural maintenance:
 uv run knoar lint --mode deterministic
 ```
 
-The generated wiki pages are written under:
+Ingest writes raw-grounded machine indexes and reports. Wiki pages are optional
+projection artifacts and, when generated explicitly, are written under:
 
 ```text
 vaults/default/wiki/pages/
 ```
 
 Open this `wiki/pages/` directory in Obsidian when you only want the maintained
-Markdown wiki, without raw sources, reports, or machine state.
+Markdown projection, without raw sources, reports, or machine state.
 
-## 4. Open Chat
+## 4. Open The Local Console
 
-For the desktop app, open the workspace and use **Chat** directly.
-
-When running from source, start the local service:
+Start the local service:
 
 ```bash
 uv run knoar serve
@@ -88,13 +87,13 @@ uv run knoar serve
 If port `8000` is already in use, the server chooses the next available local
 port and prints the actual URL.
 
-Then open the developer console:
+Open the local console:
 
 ```text
 http://127.0.0.1:8000
 ```
 
-In Chat:
+In the console:
 
 1. Open **Chat**.
 2. Ask `Agent Loop 是什么？`.
@@ -121,7 +120,7 @@ uv run knoarbor --help
 ## 6. Add Your Own Sources
 
 After the bundled example works, add your own source roots in `config.yaml` or
-desktop Settings, then run:
+the local console settings, then run:
 
 ```bash
 uv run knoar ingest --write
@@ -150,7 +149,7 @@ uv run knoar lint --mode semantic
 Apply reviewed semantic maintenance operations:
 
 ```bash
-uv run knoar lint --mode semantic --apply-reviewed
+uv run knoar lint --mode semantic
 ```
 
 ## Next Documents

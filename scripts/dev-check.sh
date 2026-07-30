@@ -14,37 +14,43 @@ TEMP_CONFIG="$TMP_DIR/config.yaml"
 TEMP_VAULT="$TMP_DIR/wiki"
 
 echo "== KnoArbor local gates =="
-echo "1/12 Renderer build"
+echo "1/14 Renderer build"
 (cd renderer && npm run build)
 
-echo "2/12 Renderer dependency audit"
+echo "2/14 Renderer dependency audit"
 (cd renderer && npm audit --audit-level=moderate)
 
-echo "3/12 Renderer e2e smoke"
+echo "3/14 Renderer e2e smoke"
 (cd renderer && npm run test:e2e)
 
-echo "4/12 Python lint"
+echo "4/14 Desktop contracts"
+(cd desktop && npm run typecheck && npm test && npm run verify:icons && npm run build)
+
+echo "5/14 Desktop production dependency audit"
+(cd desktop && npm audit --omit=dev --audit-level=high)
+
+echo "6/14 Python lint"
 uv run --extra dev ruff check src tests scripts
 
-echo "5/12 Documentation governance"
+echo "7/14 Documentation governance"
 uv run python scripts/check-doc-governance.py
 
-echo "6/12 Documentation links"
+echo "8/14 Documentation links"
 uv run python scripts/check-doc-links.py
 
-echo "7/12 Product identity generation"
+echo "9/14 Architecture governance"
+uv run python scripts/check-architecture.py
+
+echo "10/14 Product identity generation"
 uv run python scripts/generate-product-identity.py --check
 
-echo "8/12 Public product boundary"
+echo "11/14 Public product boundary"
 uv run python scripts/check-public-product-boundary.py
 
-echo "9/12 Development method"
-uv run python scripts/project-development-harness.py validate-method
-
-echo "10/12 Python tests"
+echo "12/14 Python tests"
 uv run python -m unittest discover -s tests
 
-echo "11/12 CLI diagnostics"
+echo "13/14 CLI diagnostics"
 # Keep release checks isolated from the maintainer's real config.yaml and wiki/.
 uv run python - "$TEMP_CONFIG" "$TEMP_VAULT" <<'PY'
 from pathlib import Path
@@ -64,7 +70,7 @@ PY
 uv run knoar --config "$TEMP_CONFIG" init --vault "$TEMP_VAULT" >/dev/null
 DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY:-knoarbor-release-smoke-key}" uv run knoar --config "$TEMP_CONFIG" doctor >/dev/null
 
-echo "12/12 Python package build"
+echo "14/14 Python package build"
 uv build
 
 echo "All local gates passed."

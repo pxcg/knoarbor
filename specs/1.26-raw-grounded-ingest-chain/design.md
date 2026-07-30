@@ -2,8 +2,8 @@
 
 ## Status
 
-Accepted target design for public convergence, including retained local
-Markdown and Obsidian image assets. Implementation remains pending.
+Implemented revision to the 1.26 baseline, including retained local Markdown
+and Obsidian image assets.
 
 ## Decision Summary
 

@@ -3,6 +3,43 @@
 This document lists the current test gates and their intended scope. The goal is
 to keep local checks predictable without touching user runtime data.
 
+## Default Change Validation
+
+Start with the changed-file planner:
+
+```bash
+uv run python scripts/plan-affected-validation.py
+```
+
+In a dirty worktree containing more than one task, pass the exact task files so
+unrelated changes do not inflate the plan:
+
+```bash
+uv run python scripts/plan-affected-validation.py --paths path/to/owner.py tests/test_owner.py
+```
+
+It reports a path-based risk floor, mechanically determinable commands, and the
+remaining owner/direct-consumer test review. The risk floor can only be raised
+after inspecting the actual public, persisted, semantic, lifecycle, packaging,
+or release dependency closure. Run its mechanical subset with `--run`, then add
+the focused tests required by that review.
+
+R3 does not automatically require full unit discovery, `dev-check.sh`, desktop
+packaging, or live-model tests. Those gates are selected only when the changed
+dependency closure reaches them or work enters a release/full-acceptance node.
+
+For an Initiative, the affected planner informs the fixed method gate catalog
+but does not own completion. `project-development-harness.py baseline` captures
+the workspace and baseline profile; `run-gates --phase integration` binds the
+integration stage to the same fixed checks; `acceptance` reruns their stable
+identities and enforces `gate-delta` plus `scope`. Selected full-chain or
+live-model gates use `record-external-gate` with a result, evidence ID, and
+SHA-256 digest—never raw output. An identical pre-existing
+failure stays visible without being
+attributed to the Initiative. A new or changed hard failure blocks acceptance;
+a soft failure requires a recorded owner, acknowledgement, and expiry/removal
+condition.
+
 ## Local Unit Tests
 
 ```bash
@@ -23,7 +60,7 @@ Unit tests must not require real model provider credentials.
 
 ```bash
 cd renderer
-npm install
+npm ci
 npm run check:i18n
 npm run build
 npm run test:e2e
@@ -34,14 +71,13 @@ Scope:
 - Chinese/English UI translation key parity;
 - TypeScript build;
 - Vite production bundle;
-- navigation smoke against the packaged developer console;
+- navigation smoke against the packaged FastAPI console;
 - basic UI/API wiring.
 
-Renderer build output stays in `renderer/dist/` and is copied into
-`desktop/resources/renderer/` for desktop packaging; do not commit
-`renderer/node_modules/`, `renderer/dist/`, or prepared desktop resources.
+Renderer output is local build output; do not commit
+`renderer/node_modules/` or `renderer/dist/`.
 
-## Development Gate
+## Broad Development Gate
 
 ```bash
 scripts/dev-check.sh
@@ -49,22 +85,27 @@ scripts/dev-check.sh
 
 Current scope:
 
-- renderer build;
-- renderer dependency audit;
+- frontend build;
+- frontend dependency audit;
 - Playwright UI smoke;
+- desktop type/build, update repository contracts, and production dependency audit;
 - Python lint with Ruff;
-- local Markdown documentation link check;
+- architecture dependency and cycle governance;
+- documentation governance and local Markdown link checks;
 - Python unit tests;
 - CLI diagnostics against a temporary config and temporary vault;
 - Python package build.
 
 This script must not write to the maintainer's real `vaults/`, `config.yaml`, or
-`.env`.
+`.env`. It is a broad integration gate, not the default command for every local
+change.
 
 ## Individual Quality Gates
 
 ```bash
 uv run --extra dev ruff check src tests scripts
+uv run python scripts/check-architecture.py
+uv run python scripts/check-doc-governance.py
 uv run python scripts/check-doc-links.py
 cd renderer && npm run check:i18n
 ```
@@ -101,7 +142,15 @@ Current scope:
 - release readiness checks;
 - clean clone smoke test.
 
-The clean clone smoke test writes only inside a temporary clone.
+The clean clone smoke test checks out the exact candidate commit and writes only
+inside a temporary clone.
+
+## Continuous Integration
+
+Pushes and pull requests targeting `KnoArbor` run Python lint/tests,
+architecture and documentation governance, renderer build/Playwright, desktop
+contracts, and package build. A `knoarbor-v*` tag cannot build publishable
+desktop artifacts until `release-check.sh` passes from that exact tag.
 
 ## Live Model Smoke
 
@@ -110,16 +159,34 @@ set -a && source .env && set +a
 scripts/live-release-candidate-smoke.sh
 ```
 
+Required environment variables are `KNOARBOR_LIVE_MODEL_API_KEY`,
+`KNOARBOR_LIVE_MODEL_BASE_URL`, and `KNOARBOR_LIVE_MODEL_NAME`.
+
 Scope:
 
 - temporary Markdown ingest;
 - temporary Codex-session ingest;
 - structural lint;
 - query;
+- one Raw-grounded Chat answer with resolved citations;
+- one verified no-match general answer with explicit provenance and no local citations;
 - non-Markdown missing-preprocessor negative check.
 
 This test calls a real model provider and is intentionally separate from the
 default release gate. It must use a temporary vault and temporary config.
+
+## Persistent Real-Document Benchmark
+
+Real-document quality evaluation is opt-in and must use a dedicated local
+benchmark vault plus a disposable execution vault. Keep source identities and
+reviewed expected evidence stable, but never treat product-generated Raw,
+projections, indexes, sessions, or reports as fixture authority.
+
+Raw/span fidelity, wrong-vault leakage, unsupported grounded propositions, and
+incorrect general-knowledge routing are hard failures. Report retrieval,
+answer coverage, latency, tokens, and storage separately; an aggregate score
+must not hide a critical failure. Private corpora and provider credentials are
+never committed to the public repository.
 
 ## Manual Release Review
 

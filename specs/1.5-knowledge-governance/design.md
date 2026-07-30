@@ -1,97 +1,120 @@
 # 1.5 Knowledge Governance Design
 
-## Owning Layers
-
-| Layer | Responsibility |
-| --- | --- |
-| Maintenance | Scan rules, candidates, reviewed operations, execution routing, verification. |
-| Semantic | Diagnose/review/draft contracts only. |
-| Storage / Writer | Apply approved page changes and preserve atomic write behavior. |
-| Report / Audit | Lint reports, operation ledgers, before/after evidence, unresolved issue history. |
-| Runtime | Queue state, events, cancellation, failure reporting. |
-| UI | Present reports, diffs, and issue status; do not decide maintenance policy. |
-
-## Governance Flow
+## Authority Model
 
 ```text
-scan
-  -> deterministic safe fixes
-  -> semantic candidates
-  -> maintenance review
-  -> executor routing
-  -> deterministic operation apply
-  -> draft write apply
-  -> provenance refresh apply
-  -> graph repair apply
-  -> verify
-  -> rescan / report / ledger
+raw material
+  -> source record
+  -> canonical facts + raw evidence
+  -> knowledge atom index
+  -> query indexes
+  -> generated page projection
 ```
 
-## Executor Boundaries
+Raw-derived authority flows from left to right. A user edit is accepted only
+through the projection-edit command, which parses supported fields and
+publishes the next canonical revision; downstream Markdown is never copied
+wholesale into canonical storage.
 
-| Executor | Input | Writes | Automatic Boundary |
-| --- | --- | --- | --- |
-| Deterministic wiki operation | Approved `deterministic_wiki_operation` candidates | Targeted page identity metadata, wiki links, body sections, source trace sections, redactions | Safe/low-risk operations with complete parameters. |
-| Draft write | Approved `draft_write` candidates | Reviewed page drafts or section rewrites | Requires semantic review and writer validation. |
-| Provenance refresh | Approved `refresh_request` queue items | Source digest pages and bidirectional source links | Executes when a raw source exists or an existing source digest can be matched through source aliases. |
-| Graph review | Approved graph queue items | Reports and queue records for weak or dense graph structure | Records graph governance work without writing navigation links into page bodies. |
-| Governance queue | Approved audit findings | Reports and ledgers only | Duplicate merge, dense graph pruning, claim review, deletion, and ambiguous source repair. |
+## Ownership
 
-## Operation Taxonomy
+| Layer | Owner | Lint authority |
+| --- | --- | --- |
+| Raw material | source lifecycle | read and report |
+| Source records / canonical facts / evidence | ingest | validate; execute reingest |
+| Knowledge atoms | ingest publication | validate; execute reingest |
+| Query indexes | index publication | validate; execute deterministic rebuild |
+| Generated pages | projection renderer | validate; execute deterministic rebuild |
+| Reports / ledgers | lint | write |
 
-Operation names should be stable, executor-specific, and narrow. Broad labels
-such as "fix page" are not acceptable. Every operation must declare:
+## Flow
 
-- issue/evidence source;
-- target page(s);
-- action name;
-- executor hint;
-- risk level;
-- confidence;
-- expected effect;
-- verification rule.
+```text
+collect active canonical state
+  -> deterministic integrity scan
+  -> apply bounded derived-state repairs
+  -> optional semantic quality diagnosis
+  -> build owner-routed repair plan
+  -> execute ingest / materialization owners
+  -> rescan
+  -> report / ledger
+```
 
-## Automatic Governance Policy
+Semantic diagnosis is advisory. It receives bounded locator and canonical
+evidence, returns findings, and cannot emit page drafts or executable content
+patches.
 
-The maintenance layer should reduce routine manual work by executing bounded
-repairs after review. Automatic execution is appropriate when:
+## Repair Matrix
 
-- the evidence identifies an existing target page;
-- the operation changes only metadata, source provenance, or bounded page sections covered by the current schema;
-- the executor can produce a before/after diff;
-- a rescan can verify that the relevant deterministic issue is reduced.
+| Finding | Resolution |
+| --- | --- |
+| Missing or unreadable raw | report only |
+| Missing source/facts/evidence association | reingest request |
+| Invalid atom reference or semantic extraction concern | reingest request |
+| Missing/stale machine index | index rebuild request |
+| Missing/stale generated projection | projection rebuild request |
+| Markdown presentation defect in generated page | projection rebuild request |
+| Privacy finding in raw or canonical facts | report only; source lifecycle owns correction |
+| External freshness or factual uncertainty | report only |
 
-Operations remain queued when they require semantic content judgment, external
-fact checking, page deletion, page merge, dense graph pruning, or ambiguous
-source reconstruction.
+## Repair Plan Contract
 
-## Report Contract
+Repair actions are data passed to owner workflows, not local patch operations:
 
-Lint reports should be enough for both humans and UI:
+```json
+{
+  "queue_type": "reingest_request | index_rebuild_request | projection_rebuild_request | report_only",
+  "source_record_id": "optional stable source identity",
+  "target": "source, index generation, or projection path",
+  "issue_type": "stable issue code",
+  "reason": "evidence-bound explanation",
+  "evidence": []
+}
+```
 
-- summary metrics;
-- deterministic issues;
-- semantic candidates;
-- review decisions;
-- applied operations;
-- before/after diffs for modified pages;
-- deferred or rejected operations;
-- verification results;
-- repeated issue signals.
+The action is consumed automatically by the owning lifecycle. Lint does not
+emulate that lifecycle through local page patches or repeated semantic retries.
 
-## Rejected Alternatives
+## Projection Edit Contract
 
-### Let The Review Agent Execute Repairs
+`source_index` projection edits reuse the existing canonical revision stream:
 
-Rejected because model agents should not own file writes or operation
-execution.
+```text
+submitted Markdown
+  -> validate immutable identity / Source / Attachments / evidence
+  -> parse synthesis / existing claims / entities / relations
+  -> publish canonical revision with revision_origin=user_edit
+  -> materialize projection and indexes
+```
 
-### Keep Complex Operations Report-Only Forever
+The revision stores `parent_revision_id` and `edited_fields` in existing
+processing metadata and diagnostics. No second fact layer or user-revision
+directory exists. A later raw ingest carries forward only those explicit
+fields. New claims are rejected by the free-text editor because they do not
+have a raw evidence identity; an evidence-aware operation is required to add
+them.
 
-Rejected because the project goal is autonomous governance. Complex operations
-may execute once evidence, executor, and verification are explicit.
+## Removed Active Paths
 
-### Use UI-Only Diff Logic
+- semantic draft compilation;
+- model-authored `rewrite_section`, `improve_summary`,
+  `remove_chatty_content`, and `strengthen_provenance` writes;
+- direct page merge/split/delete governance;
+- provenance page creation from projection text;
+- automatic deferred semantic retry rounds.
 
-Rejected because CLI/API/skill users also need to understand maintenance
-changes. Diff evidence belongs in reports/audit artifacts.
+Historical schemas may remain readable for stored reports during migration,
+but new runs do not produce or execute those actions.
+
+## Verification
+
+- deterministic issue identities remain stable;
+- semantic models do not author replacement facts or page patches;
+- repair actions name their owning lifecycle and evidence;
+- rebuild execution, when available, uses the same publication functions as
+  ingest rather than a lint-specific writer;
+- lint orchestrates repairs through the owning ingest or materialization
+  workflow and verifies the resulting state with a deterministic rescan.
+- reingest resolves the exact immutable `SourceDocument` from the active
+  revision's owning input generation; source units are not concatenated into a
+  synthetic replacement input.

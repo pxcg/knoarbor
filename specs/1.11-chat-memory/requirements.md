@@ -33,7 +33,7 @@ turning memory into another wiki or raw-source archive.
 
 ## Non-Goals
 
-- Replacing wiki pages or source digests.
+- Replacing wiki pages or source records.
 - Storing arbitrary full chat transcripts as memory.
 - Adding a database requirement.
 - Adding an external memory provider.

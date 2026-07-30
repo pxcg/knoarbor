@@ -18,7 +18,7 @@ tests, and release notes.
 | Architecture layers and ownership | `docs/ARCHITECTURE.md`, `docs/zh/ARCHITECTURE.md` |
 | Frozen cross-layer contracts | `docs/CONTRACTS.md`, `docs/UI_CONTRACT.md` |
 | Durable architecture decisions | `docs/adr/*.md` |
-| Knowledge atom ingest boundary | `docs/adr/0001-knowledge-atom-ingest.md`, `specs/1.13-knowledge-atom-ingest/` |
+| Knowledge atom ingest boundary | `docs/adr/0001-knowledge-atom-ingest.md`, `specs/1.26-raw-grounded-ingest-chain/`, `specs/1.27-deterministic-entity-identity/` |
 | Maintainer process and governance | `docs/MAINTAINERS.md`, `docs/zh/MAINTAINERS.md` |
 | Public API contract | `docs/API_COMPATIBILITY.md`, `docs/API.md`, `src/knoarbor/entrypoints/api_contract.py` |
 | CLI contract | `docs/CLI.md`, `src/knoarbor/cli_commands/parser.py` |
@@ -26,6 +26,11 @@ tests, and release notes.
 | Error contract | `docs/ERROR_CODES.md`, `src/knoarbor/core/errors.py` |
 | Release decision | `docs/RELEASE_CHECKLIST.md`, `scripts/release-check.sh` |
 | Feature-level requirements, design, tasks, and verification | `specs/<feature>/` |
+| Spec lifecycle, owner domain, and successor chain | `specs/registry.json` |
+
+`registry.json` is authoritative for whether a spec is Proposed, Accepted,
+Implemented, Superseded, or Historical. The lists below are navigation views
+and must not establish a second lifecycle policy.
 
 ## Active Roadmap Specs
 
@@ -38,21 +43,16 @@ tests, and release notes.
 | 1.7.x | [CLI/API/Skill Closure](1.7-cli-api-skill-closure/requirements.md) | Public surface parity, response envelopes, skill operation maturity before 2.0. |
 | 1.8.x | [Model Capability Probe](1.8-model-capability-probe/requirements.md) | Provider discovery, bounded probes, local-model capability detection, explicit config writes. |
 | 1.9.x | [Vault Workspaces](1.9-vault-workspaces/requirements.md) | Vault registry, vault ID selection, multi-vault UX, workspace identity. |
-| 1.10.x | [Wiki Chat Agent](1.10-wiki-chat-agent/requirements.md) | Console chat surface, page-first evidence retrieval, answer synthesis, and `/chat` contract. |
+| 1.10.x | [Wiki Chat Agent](1.10-wiki-chat-agent/requirements.md) | Console chat surface, answer synthesis, sessions, and `/chat` orchestration. Query evidence is owned by 1.38. |
 | 1.11.x | [Chat Memory](1.11-chat-memory/requirements.md) | Vault-scoped chat preferences, memory recall, explicit memory capture, and memory audit events. |
-| 1.12.x | [Response Evidence Selection](1.12-response-evidence-selection/requirements.md) | Page-level primary/supporting/source selection, rejected candidates, runtime evidence pack, and citation presentation. |
-| 1.13.x | [Knowledge Atom Ingest](1.13-knowledge-atom-ingest/requirements.md) | Source unitization, evidence-backed entities, claims, and relations between source digest and page drafting. |
-| 1.14.x | Superseded by [Vault Layout v2](1.17-vault-layout-v2/requirements.md) | Canonical `raw/`, `wiki/pages`, `wiki/sources`, `maintenance/`, and `.knoarbor/` layout with no typed physical page directories. |
-| 1.15.x | [Desktop App](1.15-desktop-app/requirements.md) | Electron desktop surface, managed Python service lifecycle, desktop renderer loading, update boundaries, and desktop app-data boundaries. |
-| 1.20.x | [Desktop-First Transition](1.20-desktop-first-transition/requirements.md) | Desktop as the official product entry, renderer/runtime ownership, IPC allowlist, and retirement of web-product surfaces. |
-| 1.26.x | [Raw-Grounded Ingest Chain](1.26-raw-grounded-ingest-chain/requirements.md) | Semantic extraction, deterministic factual compilation, immutable knowledge payloads, and Raw-first projections. |
-| 1.27.x | [Deterministic Entity Identity](1.27-deterministic-entity-identity/requirements.md) | Immutable source contributions, deterministic canonical linking, reference closure, and rebuildable identity. |
-| 1.37.x | [Local-First Ingest Simplification](1.37-local-first-ingest-simplification/requirements.md) | Transactional local execution, crash-safe factual revisions, recovery, materialization, and immutable index publication. |
-| 1.41.x | [Project Development Harness](1.41-project-development-harness/requirements.md) | Bounded Initiative admission, typed role handoffs, deterministic gates, resumable evidence, and controlled delivery. |
-| 1.42.x | [Public Product Line Convergence](1.42-public-product-line-convergence/requirements.md) | Public-safe capability convergence, canonical product identity, compatibility classification, and public-upstream/private-downstream governance. |
-
-Desktop App product shape:
-[Chat-first desktop product shape](1.15-desktop-app/product-shape.md).
+| 1.21.x | [Vault Artifacts And AppData Boundary](1.21-vault-artifacts-and-appdata-boundary/requirements.md) | Single app-data install root, vault artifact boundaries, generated image storage, and backup semantics. |
+| 1.26.x | [Raw-Grounded Ingest Chain](1.26-raw-grounded-ingest-chain/requirements.md) | Clean raw-first ingest stages, segment-level extraction, minimal locator metadata, deterministic projection, and diagnostics separation. |
+| 1.27.x | [Deterministic Entity Identity](1.27-deterministic-entity-identity/requirements.md) | Stable entity contributions, identity resolution, and cross-source linking. |
+| 1.37.x | [Local-First Ingest Simplification](1.37-local-first-ingest-simplification/requirements.md) | Local operation ownership, source-level recovery, one materialization epoch, and removal of persistent worker machinery. |
+| 1.38.x | [Unified Active Raw Evidence Retrieval](1.38-semantic-indexed-raw-query/requirements.md) | Atom/claim and Raw-unit locator recall, unified active evidence identities, typed query outcomes, and raw-only factual context. |
+| 1.39.x | [Codebase Modularity](1.39-codebase-modularity/requirements.md) | Backend dependency direction, responsibility boundaries, frontend domain organization, and maintainability gates. |
+| 1.41.x | [Project Development Harness](1.41-project-development-harness/requirements.md) | Optional bounded-development tooling; ordinary SDD and repository gates remain valid delivery paths. |
+| 1.42.x | [Public Product Line Convergence](1.42-public-product-line-convergence/requirements.md) | Public-safe capability convergence, canonical product identity, compatibility classification, and upstream/downstream governance. |
 
 ## Spec Lifecycle
 
@@ -85,6 +85,19 @@ state, implementation, and verification aligned.
 Full specs and ADRs can be used together. The ADR records the durable decision;
 the feature spec records implementation requirements, task state, and
 verification.
+
+## Lifecycle
+
+- `Proposed`: under review and not authorized for implementation.
+- `Accepted`: current owner with approved design and remaining work.
+- `Implemented`: current owner whose required baseline is verified.
+- `Superseded`: replaced by named successor specs and retained as history.
+- `Historical`: useful context that owns no current implementation boundary.
+
+Current lifecycle is read from `registry.json`. New specs are allowed only when
+no current spec owns the affected contract. Historical gaps in numbering and
+incomplete superseded spec shapes are preserved rather than filled with empty
+documents.
 
 ## File Shape
 
@@ -166,3 +179,9 @@ In particular:
 - Keep connector-specific logic inside connectors, not semantic agents.
 - Keep semantic agents narrow: prompt + schema + validation, not storage or
   lifecycle policy.
+## Ingest Runtime Owner
+
+[1.37 Local-First Ingest Simplification](1.37-local-first-ingest-simplification/design.md)
+is the implemented owner for local ingest execution, recovery, factual
+publication, and materialization. Intermediate designs 1.28 through 1.36 were
+retired after their durable conclusions moved into 1.37 and ADR 0004.

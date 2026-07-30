@@ -12,9 +12,9 @@ uv run knoar doctor
 uv run knoar status --vault vaults/default
 ```
 
-`doctor` is read-only. It checks configuration, vault structure, model
-environment variables, connector availability, document preprocessing settings,
-and recent run state.
+`doctor` is read-only. It checks configuration, vault structure, model API key
+fields, connector availability, document preprocessing settings, and recent run
+state.
 
 ## Config File Does Not Exist
 
@@ -77,18 +77,14 @@ Fix:
 
 ```bash
 uv run knoar --config config.yaml status --vault vaults/default
-uv run python - <<'PY'
-from pathlib import Path
-from knoarbor.storage import update_index
-update_index(Path("vaults/default"))
-PY
+uv run knoar ingest --rebuild-materialization
 ```
 
 Then refresh the console.
 
 ## Ingest Skips Sources
 
-Skipping is usually expected when the source checkpoint hash has not changed.
+Skipping is usually expected when the source revision key has not changed.
 
 Check:
 
@@ -96,8 +92,8 @@ Check:
 - Connector roots in `config.yaml`.
 - `uv run knoar sources --connector markdown --json`.
 
-To process a changed file, edit the source content or remove only the relevant
-checkpoint after making a backup. Do not delete the whole vault to force ingest.
+To intentionally process the same source again, use `--force-reprocess`.
+Do not edit `ingest.sqlite` or delete the whole vault to force ingest.
 
 ## PDF Or Office File Fails To Ingest
 
@@ -139,11 +135,7 @@ stops at the next checkpoint.
 If files were restored manually, rebuild indexes:
 
 ```bash
-uv run python - <<'PY'
-from pathlib import Path
-from knoarbor.storage import update_index
-update_index(Path("vaults/default"))
-PY
+uv run knoar ingest --rebuild-materialization
 ```
 
 See [Backup And Recovery](BACKUP_AND_RECOVERY.md) for more recovery guidance.
@@ -158,9 +150,7 @@ npm install
 npm run build
 ```
 
-The renderer build writes to `renderer/dist/`. Source checkouts serve that
-directory through `uv run knoar serve` for the developer console, and desktop
-packaging copies it into `desktop/resources/renderer/`.
+The built assets are written to `renderer/dist`; desktop packaging reads that directory directly.
 
 ## Still Blocked
 

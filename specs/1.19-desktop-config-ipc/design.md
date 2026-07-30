@@ -6,7 +6,8 @@ In the desktop app, settings edits are local configuration changes, but the rend
 
 ## Goals
 
-- Move desktop configuration reads and writes off browser HTTP and into Electron IPC.
+- Move desktop configuration writes off browser HTTP and into Electron IPC.
+- Keep read-only settings queries on the local runtime fast path so opening Settings does not spawn a Python helper for every panel.
 - Keep renderer/browser mode on the existing HTTP API.
 - Reuse the Python `UiConfigService` implementation so YAML rendering, validation, vault initialization, diagnostics, and summaries stay single-sourced.
 - Keep workflow, chat, query, ingest, lint, model discovery, and page content operations on the local HTTP API.
@@ -20,20 +21,16 @@ In the desktop app, settings edits are local configuration changes, but the rend
 
 ## Design
 
-The renderer detects `window.knoarborDesktop?.config`. When present, config-related client functions call the desktop bridge:
+The renderer detects `window.knoarborDesktop?.config`. The bridge name and IPC namespace follow the KnoArbor desktop branch so the company-project desktop build does not carry stale product naming. When present, config write functions call the desktop bridge:
 
-- `getConfig`
 - `saveConfig`
-- `getConfigForm`
 - `saveConfigForm`
-- `getConfigDiagnostics`
-- `getVaults`
 
-When the bridge is absent, those functions keep using the existing HTTP API.
+Read-only settings functions use the local runtime API through the Electron renderer protocol. In packaged desktop builds this is a local `GET` path through Electron main, not a browser upload. When the bridge is absent, write functions keep using the existing HTTP API for browser/developer mode.
 
 Electron main exposes these operations through IPC and invokes a local Python CLI command, `knoar desktop-config`, with JSON over stdin/stdout. The CLI delegates to `UiConfigService`, producing the same response shapes as the HTTP routes.
 
-This keeps the desktop write path local:
+This keeps the desktop write path local and DLP-safe:
 
 ```text
 renderer settings state
@@ -44,7 +41,7 @@ renderer settings state
   -> config.yaml
 ```
 
-The HTTP write path remains available for browser mode and API users:
+The HTTP write path remains available only for browser mode and API users:
 
 ```text
 browser settings state
@@ -53,6 +50,25 @@ browser settings state
   -> UiConfigService
   -> config.yaml
 ```
+
+Packaged desktop builds must not use this HTTP path for settings persistence.
+
+## Atomic Config Persistence
+
+`UiConfigService` is the only config-write authority for raw and structured
+writes. It validates the complete candidate, writes a private temporary file in
+the config directory, flushes it to durable storage, and atomically replaces
+`config.yaml`. Electron bootstrap uses the same private-file expectations when
+creating the initial config. Neither renderer nor Electron main performs
+partial YAML edits.
+
+## Vault Profile Removal
+
+Vault profile removal is a configuration operation owned by `UiConfigService`.
+The renderer persists the remaining profiles through the same config IPC path;
+Electron exposes no arbitrary directory-deletion bridge for this interaction.
+Deleting vault content is a separate, currently unsupported lifecycle and must
+not be inferred from removing a profile.
 
 ## IPC Commands
 

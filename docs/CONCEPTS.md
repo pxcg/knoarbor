@@ -1,6 +1,6 @@
 # Core Concepts
 
-KnoArbor is an AI-native wiki engine that compiles multi-source information into a traceable, maintainable knowledge network. It is built around three phases and one durable artifact: a Markdown wiki vault.
+KnoArbor is an AI-native knowledge engine that compiles multi-source information into a traceable, maintainable local knowledge network. Its factual authority is the immutable source and knowledge revision store selected by active SQLite heads; Markdown wiki pages and machine indexes are rebuildable projections for people and tools.
 
 ## Raw Source
 
@@ -20,41 +20,45 @@ Raw sources are preserved for provenance. Automated workflows should not rewrite
 
 This keeps the rest of the system independent from source-specific details.
 
-## Wiki Page Identity
+## Vault Authorities And Projections
 
 The maintained wiki uses one canonical layout per vault:
 
 - `wiki/pages/<slug>.md`: maintained knowledge pages.
-- `wiki/sources/<slug>.md`: source digest and audit pages.
+- `.knoarbor/facts/`: immutable source processing and knowledge
+  generations selected by SQLite active heads. Older vaults may also contain
+  legacy `wiki/sources/*.md` audit pages.
 - `raw/**`: original or normalized source material.
 - `maintenance/reports/**`: human-readable run reports.
 - `.knoarbor/index/**`: machine indexes for page lookup and graph traversal.
 
-Knowledge pages do not use physical type directories. Their durable structure
+Knowledge pages do not use physical type directories. Their maintained structure
 lives in page sections: `Summary`, `Claims`, `Relations`, `Synthesis`,
 `Entities`, and `Evidence`. UI browsing views are derived from
 `.knoarbor/index/graph_index.json` rather than written as wiki files.
 
 ## Ingest
 
-Ingest compiles new source material into wiki pages:
+Ingest commits new source material as immutable factual revisions and then
+materializes wiki and index projections:
 
 ```text
 Connector / Document Processor
   -> SourceDocument
-  -> Checkpoint / Segmentation
-  -> Source Normalize
-  -> Source Digest
-  -> Knowledge Atoms
-  -> Page Plan
-  -> Draft Compile / Review
-  -> Write / Index / Report
+  -> Freeze / Normalize / Segment
+  -> Source Units
+  -> Knowledge Atoms + Evidence Edges
+  -> Atomic Revision Publication
+  -> Wiki / Index Materialization
+  -> Report
 ```
 
 Connectors and document processors only prepare source material. Semantic ingest
-decides whether to create, update, or skip pages. It should not blindly create
-one page per source. Merge, archive, delete, rename, and long-term page lifecycle
-governance belong to lint/maintenance.
+owns factual extraction and evidence linkage; materialization derives readable
+pages and navigation indexes from the committed revision. Projection failure is
+recovered by rematerializing the active revision without repeating model work.
+Merge, archive, delete, rename, and long-term page lifecycle governance belong
+to lint/maintenance.
 
 ## Lint
 
@@ -68,13 +72,18 @@ Deterministic lint checks structure, links, source provenance, and page contract
 
 ## Query
 
-Query retrieves wiki context for a host AI tool:
+Query retrieves claim-backed raw evidence for Chat or a host AI tool:
 
 ```text
-User query -> Search wiki -> Context pack -> Host AI answer
+User query -> Rank active atoms -> Select claims -> Resolve active raw units
+           -> Evidence pack -> Chat / host AI answer
 ```
 
-KnoArbor does not need to replace Hermes, Codex, OpenClaw, Claude Code, or other assistants. It provides durable context and provenance.
+Query is deterministic and model-free. Pages may provide navigation locators,
+but only complete raw units reached through explicit claim evidence edges supply
+factual answer material. KnoArbor does not need to replace Hermes, Codex,
+OpenClaw, Claude Code, or other assistants; it provides durable context and
+provenance.
 
 ## Runtime Vaults
 

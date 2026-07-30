@@ -2,9 +2,9 @@
 
 ## Status
 
-Accepted target design for local ingest execution, crash recovery,
-materialization, index publication, and knowledge revision. Implementation
-remains pending against the KnoArbor 2.3.1 baseline.
+Accepted. The implemented baseline remains the owning design for local ingest
+execution, crash recovery, materialization, and index publication. The knowledge
+revision amendment remains under implementation.
 
 ## Decision Summary
 
@@ -33,7 +33,7 @@ The system removes mechanisms whose only purpose was online-service behavior:
 - run JSON as cancellation or workflow control;
 - direct transactional index publication outside the materializer.
 
-The accepted fact-layout amendment does not add a lifecycle owner. It replaces
+The implemented fact-layout amendment does not add a lifecycle owner. It replaces
 the revision file shape and physical path through the existing
 `IngestExecutionSession -> storage.source_revisions -> TransactionalIngestStore`
 publication boundary.

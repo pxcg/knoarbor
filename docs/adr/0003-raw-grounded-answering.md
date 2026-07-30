@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Partially Superseded by ADRs 0006 and 0007
 
 ## Context
 
@@ -105,9 +105,15 @@ remain source-oriented and one-to-one auditable.
 - Current ingest writes deterministic projection pages under `wiki/pages/` and
   does not write source-record Markdown under `wiki/sources/`.
 
-## Follow-Up Boundary
+## Supersession
 
-Later query and Chat contracts may add non-grounded general-model modes or
-additional active-Raw locator channels. Such extensions must remain explicit
-and cannot turn generated prose into factual authority. Every knowledge-base
-citation continues to resolve to the active Raw authority defined here.
+[ADR 0006](0006-source-separated-chat-answering.md) replaces only the rule that
+every Chat knowledge answer must be raw-grounded. General-model Chat answers
+are a separate, non-grounded source mode and cannot create knowledge-base
+citations or become raw authority through automatic Chat ingest.
+
+[ADR 0007](0007-unified-active-raw-evidence-retrieval.md) replaces the rule that
+an explicit claim evidence edge is the only path allowed to locate Raw. Atom
+and claim signals remain preferred semantic locators, while active Raw-unit
+lexical recall becomes a second locator channel. Both channels converge on the
+same active Raw factual authority defined by this ADR.

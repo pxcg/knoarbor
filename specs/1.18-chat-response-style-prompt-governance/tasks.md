@@ -1,72 +1,87 @@
-# 1.18 Chat Response Style And Prompt Governance Tasks
+# 1.18 Chat Semantic Model Contract Tasks
 
-## P0 Prompt Governance Boundary Fixes
+## Retrieval Planner
 
-- [x] Confirm prompt governance boundary fixes remain in scope before shipping
-  the Settings control.
-- [x] Remove or rewrite answer-stage instructions that imply the answer
-  synthesizer can call tools.
-- [x] Add evidence-as-data prompt boundaries so wiki/source/attachment text
-  cannot override system, tool, citation, or data-handling policy.
-- [x] Add explicit attachment-image discipline: render only observed
-  `markdown_src` values.
-- [x] Add visual-evidence discipline: do not imply pixel-level image inspection
-  without OCR, metadata, description, or future visual-analysis evidence.
-- [x] Tighten `generate_image` planning text so evidence-based generation
-  matches actual multi-round execution semantics and uses minimum necessary
-  wiki-derived visual details.
+- [x] Provide the locator-only Active Corpus Catalog to one planner call.
+- [x] Keep the literal latest question outside model authority in every region
+  group.
+- [x] Accept only exact visible region IDs and one regional expression.
+- [x] Preserve dialogue resolution, advisory language hints, multi-branch
+  selection, and literal-only degradation without script-based rejection.
+- [x] Keep named-source and advisory language rules in the planner prompt
+  without a duplicated code-owned planning checklist or source-image retrieval
+  recipe.
+- [x] Keep Raw content, claims, attachment identity, paths, and internal
+  revision/evidence identities out of planner input.
 
-## P1 Config And Settings
+## Prior Final-Answer Baseline
 
-- [x] Add `chat.response_style` to core config with values `concise`,
-  `balanced`, and `deep`.
-- [x] Add UI form read/write fields for `chat_response_style`.
-- [x] Preserve `chat.auto_ingest` while rendering the updated `chat` config.
-- [x] Add Settings > General segmented control for answer depth.
-- [x] Save style changes immediately and reload persisted form state after
-  successful save.
-- [x] Add English and Chinese UI labels.
+- [x] Remove physically separate grounded/general answer paths and code-owned
+  keyword routing.
+- [x] Establish one whole-response authority: Raw, general knowledge, or gap.
+- [x] Keep planner rewrites outside answer-model input.
+- [x] Derive public provenance, citations, and source-image rendering in code.
 
-## P2 Answer Style Injection
+## Answer Decision
 
-- [x] Add a small response-style instruction builder in the chat context or
-  answer synthesis layer.
-- [x] Inject the validated response-style system message into final answer
-  synthesis.
-- [x] Make explicit latest-turn length/detail instructions take precedence over
-  the saved default response style.
-- [x] Record selected `response_style` in chat response stats.
-- [x] Update `wiki_chat_answer.md` with stable product voice and answer-depth
-  rules.
-- [x] Ensure the answer prompt keeps citations, evidence gaps, and attachment
-  discipline independent from style.
+- [x] Keep support selection qualitative and source-owned without numeric span
+  targets, exhaustive-vocabulary lists, or question-type branches.
+- [x] Resolve presentation-only references across complete dialogue and allow
+  any eligible source visual relevant to selected answer parts, omitting only
+  clearly unrelated visuals without requiring superiority to text.
+- [x] Decide image availability before finalizing the unsupported remainder and
+  keep the near-output checklist compact.
+- [ ] Keep the strict five-field `mode`, `spans`, `visuals`, `gap`, and
+  conditional `generated_image_prompt` output contract.
+- [ ] Give Answer Decision the original question, dialogue-only history, typed
+  retrieval outcome, all current Query-authorized Raw support, visual
+  semantics, and runtime capability.
+- [ ] Validate support selection, visual ownership, deduplication, mode
+  invariants, and generated-image prompt authorization in code.
+- [ ] Keep planner rewrites, paths, durable identities, offsets, scores, and
+  attachment Markdown outside the model payload.
 
-## P3 Legacy And Deduplication Cleanup
+## Response Composer
 
-- [ ] Deduplicate repeated evidence-role wording where it creates maintenance
-  risk.
-- [x] Decide whether `parse_answer_draft` is removable legacy code; remove it
-  if no production path uses it.
+- [x] Generate the near-model output example from validated mode, gap, and
+  actual call-local source/generated visual references.
+- [x] Make Raw near-model examples owner-local by placing each material's
+  source visuals after that material's example text instead of demonstrating a
+  tail gallery.
+- [x] Prefer source visuals after their first specific explanation while
+  retaining justified galleries and the existing owner-before validation
+  boundary.
+- [x] Avoid demonstrating available generated visuals only at the response
+  tail when an explanatory continuation can make the example positional.
+- [ ] Map validated selections to call-local materials containing exact Raw
+  text in source order, one code-owned reader-facing source label, and only
+  selected visual semantics.
+- [ ] Give Response Composer no unselected Raw, support IDs, Query metadata,
+  paths, offsets, or durable identities.
+- [ ] Require every selected material in text and every selected visual exactly
+  once after preceding text has established the visual's owner material.
+- [ ] Preserve latest-message language, explicit format instructions, complete
+  substantive dialogue, and optional partial-gap wording while removing
+  code-rendered citations and images from model-visible history.
+- [ ] Invoke authorized generation between Answer Decision and Response
+  Composer, then expose only call-local result semantics and typed failure.
+- [ ] Require Response Composer to place every successful generated visual
+  exactly once and remove generated-image prompting from its output.
+- [ ] Treat every user, dialogue, Raw, caption, and extracted-visual field as
+  untrusted data in the composer prompt.
+- [ ] Allow natural multi-block Markdown, code, formulas, index notation,
+  syntax examples, and technical paths while rejecting standalone
+  citation-like markers, model-authored image Markdown, and internal material
+  identities in reader-facing prose through the existing bounded retry path.
 
-## P4 Verification
+## Replacement Closure
 
-- [x] Add config tests for default, valid, and invalid `chat.response_style`.
-- [x] Add UI config form tests for style read/write and preservation of
-  `chat.auto_ingest`.
-- [x] Add chat context tests that verify style instructions are included in
-  answer synthesis and not included in tool planning.
-- [ ] Add prompt fixture tests for concise, balanced, deep, and explicit
-  per-turn overrides such as "详细展开" and "只给结论".
-- [ ] Add planner tests for existing attachment images vs new image generation.
-- [ ] Add planner or loop tests for evidence-based image generation not relying
-  on unavailable same-plan search output.
-- [ ] Add answer prompt/evidence tests that forbid invented image paths.
-- [x] Run backend chat tests.
-- [x] Run frontend build.
-- [x] Rebuild desktop app and service after implementation.
-
-## Deferred
-
-- [ ] Free-form per-vault custom instructions after enterprise policy review.
-- [ ] Per-session temporary style override in the chat composer.
-- [ ] Prompt evaluation dashboards for style adherence.
+- [ ] Replace the live unified-answer prompt, schema, and invocation with the
+  two fixed answer stages.
+- [ ] Preserve public response/session v4, streaming, retry, cancellation,
+  persistence, citation, and image-artifact behavior.
+- [ ] Keep terminal retrieval failures code-owned and typed.
+- [ ] Maintain and run the complete 76-case Chat Gold v2 structural baseline.
+- [ ] Verify deterministic sync, stream, retry, provenance, citation,
+  source-image, and generated-image fixtures.
+- [ ] Delete the post-composition generated-image append path.

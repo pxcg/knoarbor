@@ -2,8 +2,8 @@
 
 ## Status
 
-Accepted target contract for public convergence. Implementation remains
-pending against the KnoArbor 2.3.1 baseline.
+Accepted. The baseline is implemented and the current contract revision remains
+under implementation.
 
 ## Ownership
 

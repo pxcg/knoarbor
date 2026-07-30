@@ -126,12 +126,41 @@ Rename the remaining `/ui/api/*` endpoints into business-local endpoints:
 
 ```text
 Electron main
-  -> resolve app-data and config path
+  -> resolve the platform-local product root
+  -> bind Electron profile to state/electron
+  -> bind Electron persistent session data to state/electron
+  -> reserve cache/ for rebuildable app-owned cache
+  -> resolve config and state/endpoint.json
   -> bootstrap config/vault layout if missing
   -> start Python local service on 127.0.0.1
   -> load renderer from packaged resources
   -> expose service endpoint and desktop bridge through preload
 ```
+
+The product root is resolved independently from Electron `userData`; changing
+Electron profile placement must never move the vault or configuration
+authority. The packaged service receives one runtime directory environment
+variable understood by Python and writes no home-directory endpoint.
+
+### Desktop Shutdown, Replacement, And Windows Uninstall
+
+Electron main owns the lifetime of the managed Python child. A quit request is
+held until the service manager's bounded shutdown completes; the application
+then resumes quitting exactly once.
+
+The stable Windows application GUID makes reinstall and version upgrade an
+in-place replacement flow: the installer invokes the registered old
+uninstaller and then installs the new application without asking the user to
+perform a separate uninstall. The NSIS uninstaller is also a recovery boundary
+for a service left behind by an older build or abnormal desktop termination. It
+matches the service by the exact executable path under the current `$INSTDIR`,
+terminates that process before file removal, and aborts uninstall if the process
+cannot be stopped. It does not match by image name alone.
+
+Interactive uninstall offers one explicit local-data deletion choice and
+defaults to preservation. That choice covers only `$LOCALAPPDATA\KnoArbor`;
+configured external vaults remain independently owned and are never removed by
+installation, replacement, or uninstall.
 
 ### Settings Save
 

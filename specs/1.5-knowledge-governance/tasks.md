@@ -1,42 +1,42 @@
 # 1.5 Knowledge Governance Tasks
 
-## Operation Taxonomy
+## Architecture Closure
 
-- [done] Audit existing lint operation names and executor hints.
-- [done] Document frozen operation categories in this spec.
-- [later] Add tests that reject unknown or unsupported operation names.
+- [x] Freeze canonical authority and lint ownership boundaries.
+- [x] Remove semantic draft compilation from active lint runs.
+- [x] Remove lint-owned provenance page writes.
+- [x] Replace page-content actions with rebuild, reingest, or report requests.
+- [x] Remove automatic deferred semantic retry loops.
+- [x] Execute approved repairs automatically through owner workflows.
+- [x] Deduplicate reingest per canonical source and materialization per run.
+- [x] Rescan after repair execution.
 
-## Evidence And Review
+## Integrity Scan
 
-- [next] Ensure every reviewed decision records evidence, confidence, risk,
-  expected effect, and executor fit.
-- [later] Add repeated rejection tracking.
-- [later] Add unresolved issue carryover summary.
+- [x] Preserve deterministic Markdown and atom-index diagnostics.
+- [x] Classify canonical association defects as reingest requests.
+- [x] Classify index and projection drift as rebuild requests.
 
-## Reports And Diffs
+## Contracts And Tests
 
-- [done] Ensure applied operations include before/after diff evidence.
-- [later] Normalize report data for UI rendering without parsing prose.
-- [later] Add report schema examples to docs once stable.
+- [x] Update semantic prompts to emit read-only governance findings.
+- [x] Prove semantic models emit findings rather than replacement content.
+- [x] Prove lint writes only through ingest and materialization owners.
+- [x] Prove reports and ledgers preserve repair plans and execution results.
+- [x] Remove obsolete execution, write, verification, and rescan result fields.
+- [x] Remove inactive operation-verification modules and draft-compile fakes.
+- [x] Run lint-specific and full local gates.
 
-## Automatic Governance Executors
+## Projection Editing
 
-- [done] Execute approved provenance refresh requests when raw sources or
-  matching source digest aliases exist.
-- [done] Execute approved safe graph repairs for weak links and source digests
-  without knowledge links.
-- [later] Add explicit duplicate merge executor only when merge evidence and
-  archive policy are fully specified.
-- [later] Add dense graph pruning only after a stable pruning policy exists.
-
-## Quality Governance
-
-- [later] Expand quality metrics and scoring boundaries.
-- [later] Add freshness candidate policy.
-- [later] Add duplicate/merge governance when executor support is explicit.
+- [x] Replace direct generated-page writes with canonical revision publication.
+- [x] Parse synthesis, existing claims, entities, and relations deterministically.
+- [x] Keep source identity, evidence, title path identity, and attachments immutable.
+- [x] Rematerialize projections and indexes after commit.
+- [x] Carry explicit edited fields through later raw ingest.
 
 ## Deferred
 
-- [deferred] Fully automatic page deletion.
-- [deferred] Mandatory external web fact checking.
-- [deferred] Multi-user approval workflow.
+- External freshness verification.
+- Automatic source correction.
+- Cross-source semantic conflict resolution.

@@ -9,403 +9,119 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-3776AB.svg" alt="Python 3.12+">
-  <img src="https://img.shields.io/badge/status-2.2.1%20desktop%20release-0f766e.svg" alt="2.2.1 desktop release status">
+  <img src="https://img.shields.io/badge/status-2.5.3%20desktop%20release-0f766e.svg" alt="2.5.3 desktop release status">
   <a href="docs/QUICKSTART.md"><img src="https://img.shields.io/badge/docs-quickstart-111827.svg" alt="Quickstart"></a>
 </p>
 
-KnoArbor is an AI-native wiki engine that compiles multi-source information into a traceable, maintainable knowledge network, helping scattered knowledge grow like a tree.
-
-KnoArbor provides a durable knowledge layer for tools such as Hermes, Codex, Obsidian, local CLI workflows, and future AI assistants.
+KnoArbor is a local-first AI knowledge system for compiling documents,
+conversations, and notes into traceable knowledge that can be maintained and
+queried over time.
 
 ```text
-Raw sources -> Ingest -> Markdown wiki -> Lint -> Query context
+Local sources -> evidence units -> knowledge indexes -> raw-grounded answers
+                                  -> readable Markdown projections
 ```
 
-## At A Glance
+## What It Does
 
-| Area | What KnoArbor provides |
-| --- | --- |
-| Input | Markdown notes, AI chat sessions, generic chat logs, and optional MinerU-preprocessed rich documents |
-| Output | A local Markdown wiki with maintained pages, source digest audit pages, raw assets, reports, ledgers, and graph indexes |
-| Interfaces | Desktop app first, with CLI, local FastAPI runtime API, developer console, and host-AI skill template |
-| Runtime model | Local-first, single-user, file-based vaults with queue, locks, checkpoints, and reports |
+- imports Markdown, supported chat histories, and optionally preprocessed rich
+  documents;
+- preserves immutable source material and evidence-backed source revisions;
+- extracts entities, claims, and relations as semantic retrieval metadata;
+- retrieves raw evidence and source units for factual answers;
+- maintains readable Markdown projections and a local knowledge graph;
+- exposes the same vault through the desktop app, CLI, local HTTP API, and host
+  AI skill integration;
+- records local reports, ledgers, citations, and recovery state.
 
-## Why KnoArbor
+KnoArbor runs locally for an individual user. File operations and vault state
+remain local; configured model APIs are the principal network capability.
 
-Most AI knowledge workflows either keep raw files and search them repeatedly, or let conversations disappear into long chat logs. KnoArbor follows a different pattern:
-
-- keep raw sources immutable;
-- compile useful content into maintained wiki pages;
-- preserve provenance from generated pages back to sources;
-- lint the wiki for structure, links, source chains, and quality;
-- query the maintained wiki as evidence for a host AI.
-
-This makes the wiki a reusable artifact, not a transient retrieval result.
-
-## Features
-
-- **Local-first vault**: generated pages live in a normal Markdown folder that can be opened in Obsidian.
-- **Ingest pipeline**: converts supported sources into `source_document.v1`, extracts knowledge, plans page operations, reviews drafts, writes pages, and records reports.
-- **Lint pipeline**: scans deterministic wiki issues, diagnoses structural/provenance/quality problems, reviews maintenance actions, and applies approved repairs.
-- **Query pipeline**: returns ranked pages, excerpts, source pointers, graph context, and a context pack for external AI tools.
-- **Wiki chat**: answers from maintained wiki pages with citations, source previews, and session history.
-- **Source provenance**: separates raw sources, source digest pages, and generated knowledge pages.
-- **Multi-vault profiles**: manage multiple named local knowledge bases from one configuration and query one or many vaults.
-- **Model adapters**: works with DeepSeek, OpenAI, OpenRouter, LM Studio, vLLM-compatible endpoints, and native Ollama.
-- **Desktop app, CLI, and local API**: use the packaged desktop app as the primary product entry. Source checkouts can still run the CLI, local HTTP runtime API, or developer console while the desktop-first transition continues.
-- **Skill integration**: includes a generic local wiki skill template for AI tools that can call a local HTTP service.
-
-## Product Tour
-
-The desktop app is the primary workspace. Its renderer exposes Chat for asking the maintained wiki, Flows for ingest/lint/query operations, and Knowledge for page and graph inspection. The browser console served by the Python service remains a developer fallback during the desktop-first transition.
-
-### Chat
-
-Ask questions directly from the desktop workspace, keep session history in the local vault, and inspect citations behind answers.
+## Workspace
 
 <p align="center">
   <img src="docs/assets/knoarbor-desktop-chat.png" alt="KnoArbor desktop chat workspace" width="920">
 </p>
 
-### Flows
+The desktop workspace provides Chat, ingest and maintenance flows, source and
+report inspection, Wiki browsing, and graph navigation. See the
+[Showcase](docs/SHOWCASE.md) for the full product tour.
 
-Launch and monitor ingest, lint, query, report, and token-analysis workflows from one operational surface.
+## Install
 
-<p align="center">
-  <img src="docs/assets/knoarbor-desktop-flows.png" alt="KnoArbor desktop flows workspace" width="920">
-</p>
-
-### Knowledge Graph
-
-Browse the maintained wiki as page-level relationships, with wiki links and semantic page neighborhoods shown as graph edges.
-
-<p align="center">
-  <img src="docs/assets/knoarbor-desktop-graph.png" alt="KnoArbor desktop knowledge graph" width="920">
-</p>
-
-## Installation
-
-Requirements:
-
-- Python 3.12
-- [uv](https://docs.astral.sh/uv/)
-- One model provider, either OpenAI-compatible or native Ollama
+Requirements: Python 3.12+, [uv](https://docs.astral.sh/uv/), and a configured
+model provider.
 
 ```bash
-git clone https://github.com/pxcg/knoarbor.git
-cd knoarbor
+git clone https://github.com/pxcg/KnoArbor.git
+cd KnoArbor
 uv sync
 ```
 
-For a complete local installation path, see [Installation](docs/INSTALLATION.md).
+See [Installation](docs/INSTALLATION.md) for provider, desktop, and document
+processing setup.
 
-## Quick Start
-
-Create local configuration and initialize a vault:
+## First Run
 
 ```bash
 uv run knoar first-run --vault ./vaults/default
-```
-
-This creates `config.yaml`, initializes `./vaults/default`, and copies a small bundled
-Markdown example to `vaults/default/raw/inbox/notes/agent-loop.md`.
-
-Open `config.yaml` or Settings and set one model provider with `base_url`,
-`api_key`, and `model`.
-
-Check local readiness before running semantic workflows:
-
-```bash
 uv run knoar doctor
-```
-
-Compile the bundled example into wiki pages:
-
-```bash
 uv run knoar ingest --connector markdown --write
-uv run knoar lint --mode deterministic
-```
-
-Start the local service for CLI/API development:
-
-```bash
 uv run knoar serve
 ```
 
-For development, open the developer console:
+Then open `http://127.0.0.1:8000`. The complete guided path is in
+[Quickstart](docs/QUICKSTART.md).
 
-```text
-http://127.0.0.1:8000
-```
+## Storage Model
 
-In the console, open Chat and ask:
+- `raw/` contains source-faithful inputs and deterministic derivatives.
+- `.knoarbor/facts/` and `.knoarbor/ingest.sqlite` contain published
+  factual ingest state.
+- `wiki/pages/` contains authored pages and deterministic readable projections.
+- `.knoarbor/index/` contains rebuildable machine indexes.
+- `maintenance/reports/` and `.knoarbor/ledgers/` contain audit material.
 
-```text
-Agent Loop 是什么？
-```
-
-You can also query the maintained wiki from the terminal:
-
-```bash
-uv run knoar query "Agent Loop 是什么？"
-```
-
-The full command `knoarbor` is also available:
-
-```bash
-uv run knoarbor --help
-```
-
-## Core Concepts
-
-KnoArbor organizes knowledge into three layers:
-
-```text
-vaults/
-└── default/
-    ├── wiki/
-    │   ├── pages/    # maintained knowledge pages
-    │   └── sources/  # source digest and provenance audit pages
-    ├── raw/
-    │   ├── inbox/       # user-provided source files
-    │   ├── normalized/  # connector/document-processor outputs
-    │   ├── assets/      # extracted images, media, pages, and tables
-    │   └── sidecars/    # attachment and processor metadata
-    ├── maintenance/  # human-readable run reports
-    └── .knoarbor/    # machine state, indexes, ledgers, locks, runs
-```
-
-The runtime `vaults/` workspace is ignored by git because it can contain private notes, source documents, generated pages, and run records. Use `vaults/default/wiki/pages` as the clean Obsidian-facing folder when you only want maintained Wiki pages.
-Knowledge pages live in one flat `wiki/pages/` namespace. Their meaning is expressed by page-body sections: `Summary`, numbered `Claims`, `Entities`, typed `Relations`, `Evidence`, `Synthesis`, and optional `Attachments`. Source digest audit pages live in `wiki/sources/`; browsing views are derived from machine indexes and rendered by the UI instead of being written as extra wiki directories.
-
-## Usage
-
-### Ingest sources
-
-Inspect configured source connectors before running semantic ingest:
-
-```bash
-uv run knoar sources --connector codex --json
-```
-
-For first-run troubleshooting, use the read-only doctor command:
-
-```bash
-uv run knoar doctor --connector markdown
-uv run knoar doctor --json
-```
-
-The JSON preflight output is compact by default. Add `--include-content` only
-when you need the full normalized source document payload.
-
-Run all enabled connectors from `config.yaml`:
-
-```bash
-uv run knoar ingest --write
-```
-
-Long-running CLI workflows are progress-first by default. `ingest` and `lint` follow the local run queue and print event /
-heartbeat lines for human-readable output. Use `--json` for pure structured
-output or `--no-follow` for synchronous summary output.
-
-Run one connector:
-
-```bash
-uv run knoar ingest --connector markdown --write
-uv run knoar ingest --connector hermes --write
-uv run knoar ingest --connector openclaw --write
-```
-
-Run a single prepared `source_document.v1`:
-
-```bash
-uv run knoar ingest --source-document /path/to/source_document.json --write
-```
-
-Run one file or folder path:
-
-```bash
-uv run knoar ingest --input /path/to/note.md --write
-uv run knoar ingest --input /path/to/paper.pdf --write
-uv run knoar ingest --input /path/to/folder --write
-```
-
-Markdown files enter ingest directly. Folder input discovers Markdown files
-recursively by default. Non-Markdown files require a configured MinerU-compatible
-preprocessor; if it is missing or unreachable, the run fails with an explicit
-configuration error. KnoArbor does not redistribute MinerU or its model weights;
-users who enable the adapter should install MinerU separately and follow MinerU's
-license and attribution requirements.
-
-### Maintain the wiki
-
-Structured maintenance:
-
-```bash
-uv run knoar lint --mode deterministic
-```
-
-Semantic maintenance:
-
-```bash
-uv run knoar lint --mode semantic
-```
-
-Semantic maintenance applies approved writes by default. To review without writing, add `--no-apply-reviewed`.
-
-```bash
-uv run knoar lint --mode semantic
-```
-
-### Query context
-
-```bash
-uv run knoar query "What does this wiki know about Agent Loop?"
-uv run knoar query --json "Agent Loop control patterns"
-```
-
-Query is retrieval-only and returns context for host AI tools. Use Wiki Chat when KnoArbor should synthesize an evidence-backed answer inside the app.
-
-## Current Status
-
-KnoArbor is in the 2.2 desktop-focused release line. The desktop shell, source-based local service, CLI, stable HTTP API, bundled console, multi-vault configuration, and host-AI skill template are intended to be usable as a single-user local knowledge engine.
-
-Implemented today:
-
-- Markdown, Hermes session, Codex session, OpenClaw session, Claude Code session, and generic chat source connectors.
-- Optional MinerU-compatible document preprocessing into Markdown.
-- Ingest, lint, and query pipelines in Python Core.
-- Wiki Chat with evidence-backed answers, citations, session history, retry, and session ingest.
-- FastAPI service and CLI entry points.
-- Local React console bundled with the Python package.
-- Runtime wiki initialization, machine index, queue, locks, ledgers, reports, and checkpoints.
-- Multi-vault configuration, query, run/report listing, and skill drilldown.
-
-Not included in the current local-first release:
-
-- Hosted SaaS deployment.
-- Built-in vector database.
-- Built-in MinerU model/runtime.
-- Packaged external workflow templates.
-
-## Configuration
-
-Model providers are configured in `config.yaml`:
-
-```yaml
-models:
-  default_provider: deepseek
-  default_max_tokens: 30000
-  request_timeout_seconds: 600
-  providers:
-    deepseek:
-      base_url: https://api.deepseek.com
-      api_key:
-      model: deepseek-v4-flash
-```
-
-Model providers run through the ModelGateway boundary. OpenAI-compatible endpoints work by default; Ollama can also use a native `/api/chat` adapter for local thinking models. Local endpoints such as Ollama or vLLM can leave `api_key` empty. See [Configuration](docs/CONFIGURATION.md) for provider examples and connector settings.
-
-## Architecture
-
-KnoArbor is a workflow-first system with narrow semantic contracts:
-
-```text
-Connectors
-  -> Source Pipeline
-  -> Semantic Contracts
-  -> Write Pipeline
-  -> Lint Maintenance
-  -> Query Retrieval
-```
-
-Main package layout:
-
-```text
-src/knoarbor/
-├── entrypoints/       # FastAPI app and routers
-├── services/          # API-to-pipeline adapters
-├── pipelines/         # ingest, lint, query, write orchestration
-├── connectors/        # source discovery and conversion
-├── semantic/          # prompts, contracts, model client
-├── storage/           # vault, index, paths, ledgers, writer
-├── retrieval/         # search, links, Markdown extraction
-├── maintenance/       # lint scan and operation execution
-├── presenters/        # API/CLI/skill response shaping
-└── core/              # schemas, config, redaction, common rules
-```
-
-See [Architecture](docs/ARCHITECTURE.md) and [Provenance Design](docs/PROVENANCE_DESIGN.md) for the detailed design.
+Raw evidence and source units are factual answer material. Wiki pages and atom
+metadata are semantic locators and readable projections. See
+[Core Concepts](docs/CONCEPTS.md), [Architecture](docs/ARCHITECTURE.md), and
+[Provenance](docs/PROVENANCE_DESIGN.md).
 
 ## Documentation
 
+- [Documentation Index](docs/README.md)
 - [Showcase](docs/SHOWCASE.md)
 - [Quickstart](docs/QUICKSTART.md)
 - [Configuration](docs/CONFIGURATION.md)
 - [CLI Reference](docs/CLI.md)
 - [API Reference](docs/API.md)
-- [API Compatibility](docs/API_COMPATIBILITY.md)
-- [Core Concepts](docs/CONCEPTS.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Backup And Recovery](docs/BACKUP_AND_RECOVERY.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Provenance Design](docs/PROVENANCE_DESIGN.md)
-- [Roadmap](docs/ROADMAP.md)
-- [Testing And Quality Gates](docs/TESTING.md)
+- [Contracts](docs/CONTRACTS.md)
 - [Development](docs/DEVELOPMENT.md)
-- [Contributing](CONTRIBUTING.md)
-- [Support](SUPPORT.md)
 - [Changelog](CHANGELOG.md)
-- [Security](SECURITY.md)
 
 ## Development
 
-Run the current required checks:
-
 ```bash
-scripts/dev-check.sh
+python scripts/plan-affected-validation.py
 ```
 
-For release candidates, use `scripts/release-check.sh`. It runs the local gate plus release-readiness and clean-clone smoke checks.
+The planner reports mechanically required gates and the focused-test review
+that still requires engineering judgment. Release candidates use
+`scripts/release-check.sh`. Development and release workflow details belong to [Development](docs/DEVELOPMENT.md),
+[Testing](docs/TESTING.md), and the
+[Release Checklist](docs/RELEASE_CHECKLIST.md).
 
-When a real DeepSeek-compatible provider is available, also run:
+## Privacy And Security
 
-```bash
-scripts/live-release-candidate-smoke.sh
-```
-
-This validates the live `ingest -> lint -> query` path on temporary Markdown
-and chat sources, plus the explicit non-Markdown preprocessor error path.
-
-See [Development](docs/DEVELOPMENT.md) for package layout and contribution notes.
-
-## Security and Privacy
-
-KnoArbor is designed for local-first use. Raw sources and generated wiki pages can contain private information. Do not commit runtime vault data.
-
-Ignored by default:
-
-- `config.yaml`
-- `config.local.yaml`
-- `vaults/`
-- `.local-dev/`
-- `.venv/`
-- `.uv-cache/`
-
-Report security issues through [SECURITY.md](SECURITY.md).
-
-## Star History
-
-<a href="https://www.star-history.com/#pxcg/knoarbor&Date">
-  <img src="https://api.star-history.com/svg?repos=pxcg/knoarbor&type=Date" alt="KnoArbor star history" />
-</a>
+Runtime vaults, local config, model credentials, and generated reports may
+contain private information and are excluded from source control by default.
+Do not commit API keys or personal vault content. Report vulnerabilities through
+[SECURITY.md](SECURITY.md).
 
 ## License
 
-KnoArbor is licensed under the [Apache License 2.0](LICENSE).
-
-```text
-Copyright 2026 KnoArbor contributors
-```
-
-See [NOTICE](NOTICE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for attribution, third-party icon, and project identity notes. The Apache-2.0 license does not grant trademark rights to the KnoArbor name.
+KnoArbor is licensed under the [Apache License 2.0](LICENSE). See
+[NOTICE](NOTICE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for
+attribution and trademark notes.

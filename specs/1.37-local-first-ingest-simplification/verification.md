@@ -255,13 +255,35 @@ uv run python -m unittest discover -s tests -p 'test_*.py'
 Frontend typecheck/build and desktop tests are required when public route,
 response, or lifecycle behavior changes.
 
-## Convergence Baseline
+## Current Result
 
-Before implementation, record the KnoArbor 2.3.1 lifecycle module count, line
-count, durable tables, lease owners, background workers, publication entry
-points, and current full-suite result. After implementation, repeat the same
-measurements and reject closure if duplicate authorities or unbounded lifecycle
-owners remain.
+Implementation baseline recorded before v5 edits:
+
+- lifecycle scope: 3,542 production lines across transactional store, runtime,
+  ingest/derived dispatchers, derived views, retention, ingest pipeline,
+  coordinator, and run projection;
+- three vault worker/registry modules;
+- two lease types (`AttemptLease`, `DerivedJobLease`);
+- two additional durable recovery/derivation tables (`derived_jobs`,
+  `segment_results`);
+- API lifespan, coordinator, CLI, and index refresh all call the superseded
+  runtime/outbox path.
+
+Implementation verification completed on 2026-07-10:
+
+- lifecycle scope: 2,645 production lines, down 897 lines (25.32 percent)
+  from the 3,542-line baseline;
+- zero persistent vault worker/registry modules;
+- one lease type (`AttemptLease`) and no renewal thread;
+- no `derived_jobs`, `DerivedJobLease`, `segment_results`, or `task_commands`;
+- one vault-level `materialization_state` with resumable prepared publication;
+- v4-only preflight and migration to v5, with older formats rejected;
+- two-process claim and vault-lock tests pass;
+- external mutation during index scanning is detected and rebuilt before
+  `CURRENT` publication;
+- final full Python suite: 588 tests passed;
+- Ruff, compileall, renderer production build, desktop typecheck, and desktop
+  renderer integration checks pass.
 
 ## MinerU Identity And Readiness Verification
 

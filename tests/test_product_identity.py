@@ -61,11 +61,11 @@ class ProductIdentityTests(unittest.TestCase):
 
     def test_packaging_identity_matches_manifest(self) -> None:
         manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-        desktop_package = json.loads((ROOT / "desktop" / "package.json").read_text(encoding="utf-8"))
+        desktop_builder = (ROOT / "desktop" / "electron-builder.config.cjs").read_text(encoding="utf-8")
         renderer_manifest = json.loads((ROOT / "renderer" / "public" / "site.webmanifest").read_text(encoding="utf-8"))
 
-        self.assertEqual(desktop_package["build"]["appId"], manifest["desktop"]["app_id"])
-        self.assertEqual(desktop_package["build"]["productName"], manifest["product"]["name"])
+        self.assertIn(f'appId: "{manifest["desktop"]["app_id"]}"', desktop_builder)
+        self.assertIn(f'productName: "{manifest["product"]["name"]}"', desktop_builder)
         self.assertEqual(renderer_manifest["name"], manifest["product"]["name"])
 
 

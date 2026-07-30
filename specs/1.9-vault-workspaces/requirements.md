@@ -24,3 +24,13 @@ vaults by stable IDs whenever a `config.yaml` is available.
   `vault_path` as the explicit one-off path selector.
 - Existing single-vault configs continue to materialize a default vault profile.
 - Tests cover API, CLI, and skill-level vault listing.
+- Renderer workspace pages always resolve a concrete vault. The virtual
+  all-vault selector is confined to explicitly multi-vault reads such as Chat
+  and Query.
+- Each vault-scoped page exposes a page-local knowledge-base switcher and
+  persists its own concrete selection; changing one page must not silently
+  change another page. Chat and Query retain their separate multi-vault scopes.
+- Reports use that concrete page selection directly and expose no second
+  all-vault filter.
+- Report and run navigation rejects missing vault identity instead of opening a
+  same-path or same-ID record from the current workspace.

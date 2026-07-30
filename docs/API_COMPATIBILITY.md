@@ -17,14 +17,16 @@ response schema, and error envelope form one contract.
 | `POST` | `/lint` | Start or run wiki maintenance. |
 | `GET` | `/models/providers` | List configured model providers. |
 | `GET` | `/models/image-providers` | List configured image-generation providers. |
+| `POST` | `/models/image-probe` | Run an explicit image-generation smoke test. |
 | `POST` | `/models/discover` | Discover models from a provider endpoint. |
 | `POST` | `/models/apply-capabilities` | Persist selected model limits. |
 | `POST` | `/chat` | Run one chat turn. |
 | `POST` | `/chat/stream` | Run one streaming chat turn. |
-| `GET` | `/chat/sessions` | List chat sessions. |
+| `GET` | `/chat/sessions` | List paginated chat-session summaries (`limit`, `offset`, `total_count`, `has_more`). |
 | `GET` | `/chat/sessions/{session_id}` | Read one chat session. |
 | `PATCH` | `/chat/sessions/{session_id}` | Update chat session metadata. |
 | `DELETE` | `/chat/sessions/{session_id}` | Delete or archive a chat session. |
+| `DELETE` | `/chat/sessions/{session_id}/turns/{turn_id}` | Delete one turn with session revision protection. |
 | `POST` | `/chat/sessions/{session_id}/ingest` | Compile one chat session through ingest. |
 | `POST` | `/chat/sessions/{session_id}/close` | Close one chat session. |
 | `POST` | `/chat/sessions/{session_id}/retry` | Retry the latest failed chat answer. |
@@ -41,8 +43,12 @@ response schema, and error envelope form one contract.
 | `GET` | `/runs/{run_id}/events` | Read run events. |
 | `GET` | `/runs/{run_id}/stream` | Stream run events. |
 | `POST` | `/runs/{run_id}/cancel` | Request cancellation. |
+| `POST` | `/ingest/materialization/rebuild` | Rebuild deterministic projections and indexes from committed facts. |
 | `GET` | `/wiki/pages` | List maintained wiki pages. |
-| `GET` | `/wiki/pages/content` | Read one wiki or source digest page. |
+| `GET` | `/wiki/pages/content` | Read one wiki or source record page. |
+| `PATCH` | `/wiki/pages/content` | Edit allowed structured projection fields. |
+| `DELETE` | `/wiki/pages/content` | Delete one maintained page through its owning service. |
+| `PATCH` | `/wiki/pages/raw` | Submit a revised Raw source through standard queued ingest. |
 | `GET` | `/wiki/pages/relations` | Read page links and relation context. |
 
 Different workflow variants are selected by request fields such as `execution`, `kind`, and `mode`.
@@ -58,4 +64,4 @@ surface, not as additional top-level paths.
 - Public methods, paths, request fields, and required response fields are
   updated together with this file and the API surface tests.
 - Optional response fields may be added.
-- Packaged desktop settings writes use the Electron bridge. The `/config*` HTTP routes are for local development and diagnostics.
+- Desktop-local renderer endpoints are internal to the packaged desktop app and are not stable integration APIs.

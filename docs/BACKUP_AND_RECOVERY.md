@@ -7,6 +7,11 @@ and `.env` are intentionally ignored by git.
 This document explains what should be backed up, what can be recovered from git,
 and what must never be overwritten by tests or release scripts.
 
+Desktop data uses one platform-local root containing `config.yaml`, `vaults/`,
+`state/`, `logs/`, `cache/`, and `tmp/`. Backup excludes disposable data only
+at those canonical app-owned paths. A user source directory named `Cache`,
+`logs`, or `tmp` remains durable vault content and is included.
+
 ## What To Back Up
 
 Back up these files and directories if you want to preserve your local knowledge
@@ -20,14 +25,33 @@ vaults/
 
 Recommended backup scope:
 
-- `vaults/**/*.md`: maintained wiki pages and reports.
-- `vaults/default/.knoarbor/`: machine indexes, ledgers, run records, and locks.
-- `vaults/default/raw/`: copied or normalized raw sources if you choose to keep them.
-- `config.yaml`: vault path, connector roots, model provider names, and runtime
-  limits.
-- `.env`: model provider API keys and other local secrets.
+- `vaults/default/wiki/`: maintained pages and readable source projections.
+- `vaults/default/raw/`: copied inputs, normalized Markdown, source attachments, and source metadata.
+- `vaults/default/artifacts/`: chat-generated images and other user-visible tool artifacts.
+- `vaults/default/maintenance/`: human-readable workflow reports and archives.
+- `vaults/default/.knoarbor/ingest.sqlite` and `.knoarbor/facts/`: transactional
+  source heads, attempts, cursors, and immutable raw-grounded factual revisions.
+  Back them up together.
+- `vaults/default/.knoarbor/chat/`, `.knoarbor/memory/`, `.knoarbor/ledgers/`,
+  and `.knoarbor/runs/`: optional continuity data when you want to preserve
+  chat history, audit history, and run diagnostics. Incremental ingest cursors
+  are already part of `ingest.sqlite`.
+- `state/electron/`, `state/chat/sessions/`, `state/artifacts/`, and
+  `state/ledgers/`: optional
+  continuity, user-visible artifacts, and audit data for all-vault chat
+  sessions.
+- `config.yaml`: vault path, connector roots, model provider names, API keys,
+  and runtime limits.
+- `.env`: optional local development environment variables and other local
+  secrets that are not part of model settings.
 
-Keep `.env` in a secret manager or encrypted backup. Do not publish it.
+Rebuildable or disposable directories such as `.knoarbor/index/`,
+`.knoarbor/locks/`, `.knoarbor/tmp/`, app `cache/`, app
+`tmp/`, and app `state/` outside `state/electron/`, `state/chat/sessions/`,
+`state/artifacts/`, and `state/ledgers/` are not core knowledge backups.
+
+Keep `config.yaml` and `.env` in a secret manager or encrypted backup when
+they contain secrets. Do not publish them.
 
 ## What Git Can Recover
 
@@ -66,11 +90,7 @@ vault, use a known commit:
 
 ```bash
 git restore --source=<commit> --worktree -- vaults
-uv run python - <<'PY'
-from pathlib import Path
-from knoarbor.storage import update_index
-update_index(Path("vaults/default"))
-PY
+uv run knoar ingest --vault vaults/default --rebuild-materialization
 ```
 
 Because `vaults/` is ignored, restored files remain local runtime data and should
@@ -82,11 +102,7 @@ If Markdown pages exist but the UI or query cannot see them, rebuild the human
 and machine indexes:
 
 ```bash
-uv run python - <<'PY'
-from pathlib import Path
-from knoarbor.storage import update_index
-update_index(Path("vaults/default"))
-PY
+uv run knoar ingest --vault vaults/default --rebuild-materialization
 ```
 
 Then check:

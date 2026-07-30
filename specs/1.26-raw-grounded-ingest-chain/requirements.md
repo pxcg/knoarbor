@@ -2,8 +2,8 @@
 
 ## Status
 
-Accepted target contract for public convergence. Implementation and
-verification remain pending against the KnoArbor 2.3.1 baseline.
+Implemented extraction, fact-file, projection, and retained local-image
+revision. Automated and isolated real-provider verification are complete.
 
 ## Ownership
 

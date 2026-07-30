@@ -13,14 +13,16 @@ API 优先保持精简清晰，并服务持续演进的桌面端优先产品线�
 - `POST /lint`
 - `GET /models/providers`
 - `GET /models/image-providers`
+- `POST /models/image-probe`
 - `POST /models/discover`
 - `POST /models/apply-capabilities`
 - `POST /chat`
 - `POST /chat/stream`
-- `GET /chat/sessions`
+- `GET /chat/sessions`（通过 `limit`、`offset` 分页，并返回 `total_count`、`has_more`）
 - `GET /chat/sessions/{session_id}`
 - `PATCH /chat/sessions/{session_id}`
 - `DELETE /chat/sessions/{session_id}`
+- `DELETE /chat/sessions/{session_id}/turns/{turn_id}`
 - `POST /chat/sessions/{session_id}/ingest`
 - `POST /chat/sessions/{session_id}/close`
 - `POST /chat/sessions/{session_id}/retry`
@@ -37,8 +39,12 @@ API 优先保持精简清晰，并服务持续演进的桌面端优先产品线�
 - `GET /runs/{run_id}/events`
 - `GET /runs/{run_id}/stream`
 - `POST /runs/{run_id}/cancel`
+- `POST /ingest/materialization/rebuild`
 - `GET /wiki/pages`
 - `GET /wiki/pages/content`
+- `PATCH /wiki/pages/content`
+- `DELETE /wiki/pages/content`
+- `PATCH /wiki/pages/raw`
 - `GET /wiki/pages/relations`
 
 不同功能通过 `execution`、`kind`、`mode` 等请求字段选择。
@@ -52,4 +58,4 @@ API 优先保持精简清晰，并服务持续演进的桌面端优先产品线�
 
 - 公开路径和必填字段变更必须同步更新本文档和 API 表面测试。
 - 响应可以增加可选字段。
-- 打包后的桌面端设置写入使用 Electron bridge。`/config*` HTTP 路由仅用于本地开发和诊断。
+- 桌面本地 renderer 端点属于打包桌面应用的内部接口，不作为稳定集成 API。

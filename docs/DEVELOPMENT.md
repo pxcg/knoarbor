@@ -20,41 +20,17 @@ uv run knoar serve
 
 ## Tests
 
-Run the current test suite:
-
 ```bash
-uv run --extra dev ruff check src tests scripts
-uv run python scripts/check-doc-links.py
-uv run --extra dev python -m unittest discover tests
+uv run python scripts/plan-affected-validation.py
 ```
 
-Run the local development gate when preparing a release candidate:
-
-```bash
-scripts/dev-check.sh
-```
-
-The script runs renderer build, Ruff, documentation link checks, Python unit tests, read-only `doctor`, and Python package build in the required order. For final release candidates, run the full release gate:
-
-```bash
-scripts/release-check.sh
-```
-
-`release-check.sh` runs `dev-check.sh`, `release-readiness.py`, and `clean-clone-smoke.sh` in order. `dev-check.sh` includes renderer i18n parity, renderer build, renderer dependency audit, Playwright UI smoke, Ruff, documentation link checks, Python tests, read-only `doctor`, and package build.
-
-When a model provider is available, run the live release-candidate smoke test:
-
-```bash
-set -a && source .env && set +a
-scripts/live-release-candidate-smoke.sh
-```
-
-This creates a temporary vault, runs Markdown ingest, Codex-session ingest,
-structural lint, query, and a negative non-Markdown preprocessor check. The
-temporary directory is removed automatically.
-
-For the complete test matrix and release gate boundaries, see
-[Testing And Quality Gates](TESTING.md).
+Use `--run` for the mechanically selected subset, then add focused owner and
+direct-consumer tests from the actual dependency closure. `scripts/dev-check.sh`
+is a broad integration/release checkpoint, not the default for every change.
+The command and test taxonomy are owned by
+[Testing And Quality Gates](TESTING.md). Release decisions use the
+[Release Checklist](RELEASE_CHECKLIST.md). This document does not duplicate
+their individual gates.
 
 If your environment blocks the default uv cache path, use a project-local cache:
 
@@ -94,13 +70,13 @@ TEMP_VAULT="$TMP_DIR/vault"
 # then run CLI/API checks against TEMP_CONFIG only.
 ```
 
-Generated renderer bundles are not tracked. The Python developer console reads `renderer/dist/` when it is present, and the desktop package copies that build into `desktop/resources/renderer/`. All runtime vault content remains local user data.
+Renderer build output lives in the ignored local directory `renderer/dist`. All runtime vault content remains local user data.
 
-## Desktop Renderer And Developer Console
+## Web Console
 
-The React app in `renderer/` is the desktop renderer implementation. The Python-hosted browser console is a developer fallback while the repository transitions to desktop-first packaging; it is not a standalone product surface.
+The renderer is built from `renderer/` and is not published as a standalone npm package.
 
-Frontend source lives in `renderer/`. Build it manually when the UI changes:
+Renderer source lives in `renderer/`. Build it manually when the UI changes:
 
 ```bash
 cd renderer
@@ -108,11 +84,11 @@ npm install
 npm run build
 ```
 
-The generated static files stay in `renderer/dist/`. `uv run knoar serve` can serve that directory as the developer console at `/`, while desktop packaging copies it into `desktop/resources/renderer/`.
+The generated static files stay in `renderer/dist`; desktop packaging reads that directory directly.
 
 Do not commit `renderer/node_modules/`, `renderer/dist/`, or local TypeScript build cache files.
 
-Run the browser smoke test when changing renderer navigation, layout, or API wiring:
+Run the browser smoke test when changing console navigation, layout, or API wiring:
 
 ```bash
 cd renderer
@@ -120,7 +96,43 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The Playwright web server starts the packaged FastAPI app on a temporary local port and opens the developer console, so it validates the same route shape used by `knoar serve` until the renderer is loaded only from desktop resources.
+The Playwright web server starts the packaged FastAPI app on a temporary local port and opens the bundled management console, so it validates the same route shape used by `knoar serve`.
+
+## Development Method
+
+Material changes use the lightest valid SDD level described in
+[`specs/README.md`](../specs/README.md): identify the accepted owner, update the
+specification before changing cross-layer contracts, implement at the owning
+boundary, and close with tests, documentation, and coherent commits.
+
+`integrations/skills` contains distributable host-AI integration skills only.
+
+## Desktop Build
+
+Install both frontend workspaces before the first desktop build:
+
+```bash
+cd renderer && npm install && cd ..
+cd desktop && npm install && cd ..
+```
+
+Before packaging or installation, inventory installed copies, running
+processes, user data, external vaults, and build residue. Keep build cleanup,
+application replacement, local-data reset, and external-vault deletion as
+separate explicitly selected operations.
+
+After that inventory, an unpacked macOS application is built from the repository root with:
+
+```bash
+npm run pack:mac
+```
+
+The desktop package command is self-contained: it removes previous generated
+package artifacts, then rebuilds the renderer, bundled Python service, Electron
+main process, and preload before invoking the packager. Generated output remains
+under ignored build directories; it is never committed. Packaging never implies
+data deletion or installation, and only one explicitly verified
+`/Applications/KnoArbor.app` may be installed.
 
 ## Package Build
 
@@ -130,96 +142,31 @@ Build the Python package before release candidates:
 uv build
 ```
 
-These are the current required gates: Python unit tests, Ruff, documentation link checks, renderer build, renderer dependency audit, Playwright UI smoke, read-only `doctor`, and package build. Type checks and renderer linting are target gates and should not be treated as required until the tools are configured in the repository and CI.
-
-When running checks in the same working tree, run them sequentially so renderer build output and desktop resource preparation do not overlap.
-
-Additional release helpers:
-
-```bash
-scripts/prepare-release.py 0.5.2
-scripts/release-readiness.py
-scripts/clean-clone-smoke.sh
-scripts/release-check.sh
-```
-
-`prepare-release.py` synchronizes package metadata and creates release note placeholders. Run it from a clean tree before curating `CHANGELOG.md` and `docs/releases/<version>.md`. `release-readiness.py` checks branch, dirty tree state, required public files, and tracked private runtime paths. `clean-clone-smoke.sh` clones the local repository into a temporary directory and verifies install, renderer build, Python tests, read-only `doctor`, package build, and basic CLI commands without model API calls. `release-check.sh` runs the complete local release gate sequence.
-
-`live-release-candidate-smoke.sh` is intentionally separate from
-`release-check.sh` because it calls a real model provider and requires
-`DEEPSEEK_API_KEY`.
+Release helpers and their required order are documented in
+[Testing And Quality Gates](TESTING.md) and
+[Release Checklist](RELEASE_CHECKLIST.md).
 
 ## Branch And Release Model
 
-KnoArbor uses a small release-oriented branch model. The goal is to keep public
-history easy to understand while still allowing active development.
+`KnoArbor` is the active integration and release branch of the company
+repository. Legacy `origin/main` and `origin/dev` retain upstream history but
+are not the default targets for current KnoArbor development.
 
-Branch roles:
+- Start focused work from `KnoArbor` and use `codex/*`, `feature/*`, `fix/*`, or
+  `docs/*` branches when isolation is needed.
+- Keep commits scoped to one owner or user-visible concern and merge them back
+  into `KnoArbor` only after affected validation passes.
+- Create production tags from a clean `KnoArbor` checkout using the
+  `knoarbor-vX.Y.Z` namespace.
+- For a release candidate, run `scripts/release-check.sh`, prepare the changelog
+  and `docs/releases/vX.Y.Z.md`, then build/sign/package through the desktop
+  lifecycle and release procedures.
+- Urgent fixes branch from the released `KnoArbor` commit and return to
+  `KnoArbor` after the patch release.
 
-- `main`: public release branch. It should always represent the latest public
-  release line or a release-ready documentation update. It must stay buildable,
-  documented, and suitable for tagging. Every non-trivial movement of `main`
-  must correspond to a public version tag and GitHub release.
-- `dev`: daily integration branch for the next minor or patch release. Feature
-  work is merged here first. `dev` may move faster than `main`, but it should
-  still pass the normal development gate before being pushed.
-- `feature/*`: focused product or architecture work branched from `dev`.
-- `fix/*`: focused bug fixes branched from `dev`, or from `main` only for an
-  urgent public hotfix.
-- `docs/*`: documentation-only work branched from `dev`, unless it fixes public
-  release documentation on `main`.
-- `release/*`: optional short-lived release-candidate stabilization branches
-  created from `dev` when a release needs more than one validation pass.
-
-Daily development flow:
-
-1. Start new work from `dev`, not from `main`.
-2. Use a focused branch name, such as `feature/source-segmentation` or
-   `fix/query-context-pack`.
-3. Keep commits scoped to one architectural or user-facing concern.
-4. Run the relevant local checks before merging into `dev`.
-5. Merge or fast-forward into `dev`; do not tag from `dev`.
-
-Release flow:
-
-1. Finish and test changes on `dev`.
-2. Freeze `dev` for a release candidate. If stabilization needs multiple
-   commits, create `release/vX.Y.Z` from `dev`.
-3. Run Python tests, renderer build, renderer dependency audit, Playwright UI
-   smoke, package build, clean-clone smoke checks, and any available live-model
-   smoke test.
-4. Run `scripts/prepare-release.py <version>`, then curate `CHANGELOG.md` and
-   `docs/releases/v<version>.md`.
-5. Merge or fast-forward the release candidate into `main`.
-6. Tag the release from `main` only, for example `v1.1.0`.
-7. Publish package artifacts only after the `main` tag exists.
-8. Merge `main` back into `dev` if release notes, version metadata, or hotfixes
-   changed on `main`.
-
-If development commits are accidentally pushed to `main` after a previous
-public tag, prefer creating the missing version tag and release when the branch
-is releasable. Do not rewrite public history unless the commit contains secrets,
-private runtime data, or another release-blocking leak. After the tag is
-created, move ongoing work back to `dev`.
-
-Hotfix flow:
-
-1. Branch `fix/<issue>` from `main` only when the released version needs an
-   urgent patch.
-2. Keep the change minimal and run the release gate appropriate for the touched
-   area.
-3. Merge into `main`, tag a patch release, then merge `main` back into `dev`.
-
-Hard rules:
-
-- Do not tag releases from `dev`, feature branches, or a dirty working tree.
-- Do not push runtime vault data, private config, `.env`, local workflow exports,
-  or maintainer-only notes to any public branch.
-- Do not rewrite public release tags after they have been announced, except to
-  correct a release process failure before users have consumed the artifact.
-- Do not use `main` as the normal daily development branch after `dev` exists.
-- Do not leave `main` ahead of the latest public tag without an explicit release
-  decision.
+Do not rewrite consumed release tags or push runtime vaults, private config,
+`.env`, local workflow exports, or maintainer-only notes. A dirty working tree
+is never a release source.
 
 ## Spec-Driven Development Flow
 
@@ -262,12 +209,12 @@ the same change instead of adding a local workaround.
 src/knoarbor/
 ├── core/          # schemas, config, hashing, redaction, shared rules
 ├── connectors/    # source adapters
-├── pipelines/     # ingest, lint, query, write orchestration
+├── pipelines/     # ingest, lint, and query orchestration
 ├── semantic/      # prompt contracts, model client, semantic workflows
-├── storage/       # vault, paths, index, ledger, writer
+├── storage/       # vault, immutable facts, indexes, and materialization
 ├── audit/         # reports, ledgers, query records
-├── maintenance/   # lint scanner and wiki operations
-├── retrieval/     # markdown and link retrieval
+├── maintenance/   # lint scanners and maintenance analysis
+├── retrieval/     # knowledge and page retrieval
 ├── presenters/    # context pack formatting
 ├── services/      # API service adapters
 └── entrypoints/   # FastAPI routes
@@ -282,8 +229,10 @@ Short version:
 - Keep Python Core independent from host AI tools, external workflow adapters, and individual connectors.
 - Keep connectors source-specific, but convert outputs to shared source contracts.
 - Keep semantic contracts explicit: prompt + JSON schema + Pydantic validation.
-- Keep vault writes centralized in storage/write pipelines.
+- Keep factual writes centralized in source revisions and SQLite source-head
+  publication; keep user-visible wiki pages in the materialization layer.
 - Prefer root-cause and architecture fixes over local fallback patches.
+- Run `uv run python scripts/check-architecture.py` when changing module ownership or cross-layer imports.
 - Do not add fallback behavior unless it has been reviewed as a long-term reliability mechanism.
 - Do not commit runtime wiki data, private raw sources, or model credentials.
 
@@ -306,8 +255,8 @@ Checklist:
    - checkpoint, segmentation hint, and external-service flags.
 4. Keep source-specific parsing inside the connector. Do not add connector
    branches to ingest semantic prompts, page writers, or API routes.
-5. Emit normalized `SourceDocument` values before checkpointing, segmentation,
-   page planning, or drafting.
+5. Emit normalized `SourceDocument` values before immutable input admission,
+   segmentation, semantic extraction, or factual publication.
 6. Add connector tests for discovery, normalization, capability metadata, and
    malformed input.
 7. Update API/CLI/config docs only when the public connector surface changes.

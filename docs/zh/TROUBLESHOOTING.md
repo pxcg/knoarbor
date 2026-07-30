@@ -11,7 +11,7 @@ uv run knoar doctor
 uv run knoar status --vault vaults/default
 ```
 
-`doctor` 是只读检查，会检查配置、知识库结构、模型环境变量、输入来源、文档预处理设置和最近运行状态。
+`doctor` 是只读检查，会检查配置、知识库结构、模型 API Key 字段、输入来源、文档预处理设置和最近运行状态。
 
 ## 配置文件不存在
 
@@ -74,18 +74,14 @@ uv run knoar doctor
 
 ```bash
 uv run knoar --config config.yaml status --vault vaults/default
-uv run python - <<'PY'
-from pathlib import Path
-from knoarbor.storage import update_index
-update_index(Path("vaults/default"))
-PY
+uv run knoar ingest --rebuild-materialization
 ```
 
 然后刷新控制台。
 
 ## Ingest 跳过资料
 
-如果 source checkpoint hash 没有变化，跳过通常是预期行为。
+如果 source revision key 没有变化，跳过通常是预期行为。
 
 检查：
 
@@ -93,7 +89,8 @@ PY
 - `config.yaml` 中的 connector roots。
 - `uv run knoar sources --connector markdown --json`。
 
-如果确实需要重新处理某个已变化文件，先备份，再只清理相关 checkpoint。不要为了强制 ingest 删除整个知识库。
+如果确实需要重新处理同一来源，请使用 `--force-reprocess`。不要手工修改
+`ingest.sqlite`，也不要为了强制 ingest 删除整个知识库。
 
 ## PDF 或 Office 文件无法 ingest
 
@@ -133,11 +130,7 @@ uv run knoar runs cancel <run_id> --vault vaults/default
 如果手动恢复了 Markdown 页面，需要重建索引：
 
 ```bash
-uv run python - <<'PY'
-from pathlib import Path
-from knoarbor.storage import update_index
-update_index(Path("vaults/default"))
-PY
+uv run knoar ingest --rebuild-materialization
 ```
 
 更多恢复说明见 [备份与恢复](BACKUP_AND_RECOVERY.md)。
@@ -152,7 +145,8 @@ npm install
 npm run build
 ```
 
-Renderer 构建输出位于 `renderer/dist/`。源码开发时 `uv run knoar serve` 会把该目录作为开发者控制台提供；桌面打包会复制到 `desktop/resources/renderer/`。
+构建产物写入 `renderer/dist`。桌面打包命令会自动重建该目录；单独执行这里的
+命令仅用于前端开发验证。
 
 ## 仍然无法解决
 

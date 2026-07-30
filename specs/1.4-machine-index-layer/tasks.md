@@ -1,41 +1,39 @@
 # 1.4 Machine Index Layer Tasks
 
-Status values:
+## Completed
 
-- `[next]`: next reasonable implementation work.
-- `[later]`: still in 1.4 scope, but not the next change.
-- `[deferred]`: intentionally outside 1.4.
+- [x] Publish immutable, content-addressed index generations.
+- [x] Verify the exact artifact set and per-file hashes before use.
+- [x] Select one generation through atomic `CURRENT` replacement.
+- [x] Route graph and page navigation readers through `IndexSnapshot`.
+- [x] Keep default knowledge query on the 1.38 atom/claim/evidence authority.
+- [x] Delete disconnected Graph-led and page-provider implementations.
 
-## Provider Contract
+## Remaining
 
-- [done] Define `PageIndexRecord` and `IndexProvider` contracts.
-- [done] Add provider tests with the current Markdown provider.
-- [done] Move current retrieval callers onto the provider boundary.
-- [done] Add field-weighted BM25 page scoring to the Markdown provider.
-
-## Durable Local Index
-
-- [later] Design local index artifact path under the vault runtime boundary.
-- [later] Implement SQLite FTS provider.
-- [later] Track provider schema version and rebuild metadata.
-
-## Rebuild And Freshness
-
-- [later] Add rebuild service.
-- [later] Add freshness diagnostics.
-- [later] Decide whether rebuild is CLI-only first or public API at the same time.
-
-## Query Integration
-
-- [done] Record scoring model in query trace.
-- [done] Expose page roles in query output: primary, supporting, and source.
-- [done] Expose `answer_scope`, `answer_set`, and `evidence_coverage` so page-first callers can handle broad questions without treating pages as raw chunks.
-- [later] Use durable machine index when fresh and available.
-- [later] Keep Markdown provider as explicit fallback until durable provider is stable.
-- [later] Record durable index provider and freshness in query trace.
+- [ ] Define user-facing freshness status without adding a second lifecycle owner.
+- [ ] Freeze rebuild CLI/API/report contracts before exposing them publicly.
+- [ ] Replace the navigation-only manifest with the composite navigation,
+  retrieval, and active-fact generation contract.
+- [ ] Add reusable normalized revision shards and one globally built SQLite
+  FTS5 `LexicalSnapshot` for the document semantics owned by 1.38.
+- [ ] Verify FTS5 capability in supported Python and packaged desktop runtimes;
+  fail explicitly without another scorer.
+- [ ] Publish/recover retrieval generations atomically with existing
+  materialization lifecycle ownership.
 
 ## Deferred
 
-- [deferred] Mandatory vector database.
-- [deferred] Cross-device index sync.
-- [deferred] Hosted search service.
+- mandatory vector database;
+- hosted search service;
+- cross-device index synchronization.
+
+## Two-Channel Snapshot Revision
+
+- [x] Keep Claim, Entity, and Relation documents in the atom/claim FTS channel.
+- [x] Resolve Relation matches through batch-local `source_claim_ids`.
+- [x] Exclude synthesis and graph artifacts from the retrieval snapshot.
+- [x] Publish lexical and navigation generations through one fact-fenced
+  atomic `CURRENT`.
+- [ ] Prove deterministic rebuild, crash safety, packaged SQLite capability,
+  and old-revision exclusion.

@@ -1,0 +1,17 @@
+{
+  "name": "knoarbor-workspace",
+  "private": true,
+  "version": "2.5.3",
+  "scripts": {
+    "build:renderer": "npm --prefix renderer run build",
+    "build:desktop": "npm --prefix desktop run build",
+    "build:desktop-service": "npm --prefix desktop run build:service",
+    "check:desktop-renderer": "npm --prefix desktop run check:renderer",
+    "clean:desktop-package": "npm --prefix desktop run clean:package",
+    "pack:mac": "npm --prefix desktop run pack:mac",
+    "pack:win": "npm --prefix desktop run pack:win",
+    "dist:mac": "npm --prefix desktop run dist:mac",
+    "dist:win": "npm --prefix desktop run dist:win",
+    "typecheck:desktop": "npm --prefix desktop run typecheck"
+  }
+}

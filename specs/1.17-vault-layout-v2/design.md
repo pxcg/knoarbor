@@ -7,20 +7,20 @@ vaults/<id>/
   raw/
     inbox/
       documents/
+      chats/
       media/
       notes/
-    normalized/
-      chats/
+    derived/
       excerpts/
       markdown/
-    assets/
-      images/
-      media/
-      pages/
-      tables/
-    sidecars/
-      documents/
-      sources/
+      assets/
+        images/
+        media/
+        pages/
+        tables/
+      metadata/
+        documents/
+        sources/
   wiki/
     pages/
     sources/
@@ -32,6 +32,14 @@ vaults/<id>/
       run-failure/
     archives/
   .knoarbor/
+    facts/
+      .staging/
+      <source-key>/
+        <revision-key>/
+          source.json
+          knowledge.json
+          diagnostics.json
+          manifest.json
     index/
     ledgers/
     checkpoints/
@@ -49,7 +57,7 @@ vaults/<id>/
 - `storage.wiki_paths` maps logical wiki paths to the human-facing wiki layer.
 - Logical page references keep their user-facing shape:
   - `Foo.md` resolves to `wiki/pages/Foo.md`.
-  - `sources/Foo Source.md` resolves to `wiki/sources/Foo Source.md`.
+  - legacy `sources/Foo Source.md` resolves to `wiki/sources/Foo Source.md`.
 - Report APIs return paths relative to the vault root, for example `maintenance/reports/ingest/ingest_report_<run_id>.md`.
 - Ledger APIs return paths relative to the vault root, for example `.knoarbor/ledgers/ingest.jsonl`.
 
@@ -64,11 +72,21 @@ vaults/<id>/
   parser-specific payloads.
 - `wiki/pages/**` stores maintained knowledge pages using the frozen wiki page
   schema.
-- `wiki/sources/**` stores source digest audit pages using the frozen source
-  digest schema.
+- `wiki/sources/**` is a reserved readable namespace for legacy source record
+  audit pages. Current ingest does not write it.
 - `maintenance/**` stores human-readable reports and archives.
 - `.knoarbor/**` stores machine runtime state, ledgers, indexes, queues, locks,
   and chat sessions.
+- `.knoarbor/facts/**` stores immutable source revisions. `source.json` owns
+  normalized source identity, units, ranges, and attachment metadata;
+  `knowledge.json` owns accepted synthesis, entities, claims, relations, and
+  evidence; `diagnostics.json` owns non-factual extraction audit data;
+  `manifest.json` binds the revision identity and file hashes.
+- `<source-key>` and `<revision-key>` are deterministic safe encodings or hashes
+  of typed identities. They are path identities rather than display labels.
+- `.knoarbor/facts/.staging/<random>/` is the only random fact path. Readers
+  never inspect staging, and successful publication atomically renames a staged
+  tree to its deterministic revision path.
 
 ## Compatibility
 
@@ -78,11 +96,18 @@ old runtime ledgers. Tests and local experiments must create temporary vaults
 with this layout instead of initializing or rewriting a user's configured
 vault.
 
+The implemented fact amendment migrates active
+`.knoarbor/source_revisions/generations/**` content during the bounded 1.37
+startup migration. After verification, production readers and writers use only
+`.knoarbor/facts/**`; the legacy tree is removed rather than retained as a
+fallback authority.
+
 ## Obsidian Guidance
 
-Users who want to browse only maintained knowledge pages in Obsidian should
-open `vaults/<id>/wiki/pages`. Users who want to inspect provenance can also
-open `vaults/<id>/wiki`, where `sources/` contains source digest audit pages.
+Users who want to browse maintained projections in Obsidian should open
+`vaults/<id>/wiki/pages`. Existing `wiki/sources/` content is historical;
+current provenance is inspected through structured facts, raw units, reports,
+and projection metadata.
 Opening the entire vault is supported for file inspection, but the intended
 human knowledge surface is the `wiki` layer, while raw inputs, assets, reports,
 and machine state remain outside normal wiki browsing.

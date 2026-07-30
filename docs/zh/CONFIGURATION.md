@@ -9,25 +9,26 @@ KnoArbor 的主要配置在 `config.yaml`，模型接口密钥也保存在本地
 
 ```text
 macOS: ~/Library/Application Support/KnoArbor/config.yaml
-Windows: %APPDATA%/KnoArbor/config.yaml
-Linux: ~/.config/KnoArbor/config.yaml
+Windows: %LOCALAPPDATA%/KnoArbor/config.yaml
+Linux: ${XDG_DATA_HOME:-~/.local/share}/KnoArbor/config.yaml
 ```
 
-`config_version` 表示配置 schema 版本。第一版公开配置为：
+`config_version` 表示配置 schema 版本。当前配置版本为：
 
 ```yaml
-config_version: 1
+config_version: 3
 ```
 
-后续如果出现不兼容配置变更，应提供迁移 helper，而不是静默改变行为。
+版本 3 是首个受支持的桌面配置基线。未正式发布的版本 1、2 配置会被明确拒绝，
+不会保留迁移分支；未来若出现不兼容变更，必须提供显式迁移。
 
 配置加载顺序固定为：
 
 ```text
-读取 YAML/JSON -> 迁移 schema -> 解析本地路径 -> 校验类型化配置
+读取 YAML/JSON -> 校验 schema 版本 -> 解析本地路径 -> 校验类型化配置
 ```
 
-迁移 helper 只做结构迁移。它可以在未来 schema 中移动或重命名字段，但不能猜测用户意图、修复密钥或编造本地路径。如果配置文件版本高于当前 KnoArbor 支持的版本，程序会明确报错。
+未来的迁移 helper 只做结构迁移，不能猜测用户意图、修复密钥或编造本地路径。
 
 ## 知识库目录
 
@@ -45,6 +46,8 @@ vault:
 
 `vaults.profiles` 是正式的多知识库配置。每个 profile 包含稳定 ID、显示名称和本地路径。`vaults.default` 选择当前默认知识库；CLI、API、前端和宿主 AI skill 在没有单次请求路径覆盖时都会使用该默认知识库。
 
+在设置中移除知识库 profile 只会从当前配置注销它。KnoArbor 不会删除或修改所选本地文件夹；文件系统内容删除属于由用户另行管理的操作。
+
 `all` 是保留的虚拟查询范围，不应作为真实 profile ID。需要查询全部知识库时使用 `all_vaults: true` 或 `vault_id: "all"`；真实知识库建议使用 `default`、`personal`、`team` 等稳定 ID。
 
 `vault.path` 是当前默认知识库解析后的路径，用于简单单知识库部署和内部请求默认值。当配置了 `vaults.profiles` 时，KnoArbor 会从 `vaults.default` 自动派生 `vault.path`。
@@ -53,21 +56,18 @@ vault:
 
 ## 模型供应商
 
+OpenAI 兼容供应商的 `base_url` 表示 API 根地址。可以填写
+`https://gateway.example/v1`，也可以粘贴完整的
+`https://gateway.example/v1/chat/completions`；两者都会规范化保存为前者。
+KnoArbor 不会自动补 `/v1`，也不会猜测残缺路径。
+
 ```yaml
 models:
-  default_provider: deepseek
-  providers:
-    deepseek:
-      base_url: https://api.deepseek.com
-      api_key:
-      model: deepseek-v4-flash
-      json_mode: true
-      tls_ca_file:
-      context_window:
-      max_output_tokens:
+  default_provider:
+  providers: {}
 ```
 
-推荐默认只配置一个模型供应商。需要备用模型、本地模型或特殊端点时，再添加新的 provider。
+默认不预置任何模型供应商。请在桌面端设置页添加 vLLM、Ollama 或自定义 OpenAI 兼容接口，再选择默认供应商。需要备用模型、本地模型或特殊端点时，再添加新的 provider。
 模型调用统一经过 `ModelGateway`。provider 默认使用 `openai_compatible` 适配器；Ollama 可以设置 `adapter: ollama`，直接调用原生 `/api/chat`。对于 Qwen 等 thinking 模型，原生 Ollama 适配器会默认发送 `think: false`，避免 OpenAI 兼容层出现 reasoning 很长、正文为空或返回过慢的问题。托管供应商通常需要 `api_key`，本地或内网端点（如 Ollama、vLLM）可以留空 `api_key`。
 本地供应商启动后，运行 `uv run knoar doctor --json` 可以检查模型是否可用。OpenAI 兼容适配器会检查 `/models`；Ollama 原生适配器会检查 `/api/tags` 和 `/api/show`。Ollama、vLLM 等本地模型建议显式配置 `context_window` 和 `max_output_tokens`，例如 32K 上下文模型可以先设置为 `context_window: 32768`、`max_output_tokens: 8000`。运行时诊断会尝试从 vLLM `/v1/models` 元数据和 Ollama `/api/show` 自动探测上下文长度；探测不到时回退到配置中的 `context_window`。
 单次 CLI/API 请求传入的 `max_tokens` 优先级最高；未传入时使用选中 provider 的 `max_output_tokens`；provider 未配置时再使用 `models.default_max_tokens`。
@@ -99,6 +99,7 @@ models:
 
 - `GET /models/providers`：列出已配置的供应商，不访问模型运行时。
 - `GET /models/image-providers`：列出已配置的图片生成供应商，不访问图片生成运行时。
+- `POST /models/image-probe`：明确生成一张测试图片，并返回受限的可用性信息。
 - `POST /models/discover`：读取模型端点元数据，检查模型列表接口，并尽量探测上下文长度，不触发生成。
 - `POST /models/apply-capabilities`：显式把 `context_window`、`max_output_tokens` 和 `json_mode` 写回 `config.yaml`。
 
@@ -126,9 +127,13 @@ image_generation:
 
 ## 对话入库
 
-KnoArbor 自己的 Chat 会话保存在当前知识库的 `.knoarbor/chat/`。它们默认
-不是已维护 Wiki 页面。用户可以在控制台或 API 中手动把某个会话排队进入
-标准 ingest 流程。
+KnoArbor 对单个知识库的 Chat 会话保存在该知识库的 `.knoarbor/chat/`。
+跨全部知识库的 Chat 会话属于应用状态，保存在当前 `config.yaml` 同级的
+`state/chat/sessions/`。它们默认不是已维护 Wiki 页面。用户可以在控制台或
+API 中手动把某个会话排队进入标准 ingest 流程。
+
+跨全部知识库的 Chat 会话是应用级历史，不是具体入库目标；入库前需要先切换
+到某一个具体知识库。
 
 关闭会话时也可以按策略自动触发入库：
 
@@ -148,7 +153,7 @@ chat:
 
 ## 对话记忆
 
-对话记忆保存 Wiki Chat Agent 使用的长期交互偏好。它与 Wiki 页面和 Source Digest 分离：
+对话记忆保存 Wiki Chat Agent 使用的长期交互偏好。它与 Wiki 页面和 Source Record 分离：
 
 ```yaml
 memory:
@@ -278,7 +283,8 @@ document_processing:
     mode_field: parse_method
     extra_fields:
       backend: pipeline
-      lang_list: ch
+      lang_list:
+        - ch
       formula_enable: true
       table_enable: true
       start_page_id: 0
@@ -295,15 +301,20 @@ MinerU 只负责把 PDF/DOCX/PPTX 等富文档转换为 Markdown；最终仍由 
 
 当 MinerU 输出图片时，KnoArbor 会在生成的 Markdown 旁边写入
 `*.attachments.json` 附件清单。Markdown connector 也会扫描正文里的图片链接，
-例如 `![figure](images/a.png)`。进入 ingest 后，这些附件会写入 source
-digest 审计页的 `## Attachments` 章节，并以紧凑表格展示 topic、description
+例如 `![figure](images/a.png)`。进入 materialization 后，这些附件会写入可读
+source projection 的 `## Attachments` 章节，并以紧凑表格展示 topic、description
 和 path。MIME type、内容 hash、页码、bbox、MinerU 原始图片解析结果等完整审计字段保留在 sidecar metadata 中。图片二进制不会发送给语义模型。
 当维护后的 Wiki 页面需要引用附件时，页面正文只保留 topic/description
-附件行；文件路径保留在来源审计页和 sidecar metadata 中。
+附件行；文件路径保留在 source projection 和 sidecar metadata 中。
 
 管理界面默认只展示 MinerU 服务地址。只有当你的 MinerU 部署需要切换
-`pipeline`、`vlm-engine`、`hybrid-engine`、`vlm-http-client`、`hybrid-http-client` 等后端、调整
+`pipeline`、`vlm-auto-engine`、`hybrid-auto-engine` 等后端、调整
 `parse_method`、文件匹配规则或额外 multipart 字段时，再展开高级配置修改。
+基线只接受 `pipeline`、`vlm-auto-engine` 和 `hybrid-auto-engine`；未发布的旧别名会被拒绝。
+
+诊断面板会通过 `GET /health` 验证服务；仅填写地址但服务不可达时不会显示为可用。
+原生 JSON 返回和 `response_format_zip: true` 均受支持，ZIP 中的每个路径通过安全
+校验后才会被解压。回环地址和私有网络中的 MinerU 地址不会经过环境 HTTP 代理。
 
 KnoArbor 不内置、不分发 MinerU 运行时、模型权重或素材。如果启用该 adapter，需要用户自行安装并运行 MinerU，同时遵守 MinerU 自身的许可和署名要求。KnoArbor 这里只与 MinerU 兼容 HTTP 端点交互。
 
@@ -319,16 +330,21 @@ ingest:
     soft_chars_per_segment: 12000
     max_segments_per_source: 20
     min_segment_chars: 1000
-  recovery:
-    enabled: true
-    execution_ledger_path: .knoarbor/ledgers/ingest_execution.jsonl
-  concurrency:
-    max_concurrent_sources: 1
 ```
 
-当前策略：Markdown 按标题切分，Codex/Hermes/OpenClaw/Claude Code 按完整 turn group 切分，解析文档按章节/页段切分，普通文本按段落切分。checkpoint 仍在 source/window 层提交，避免部分 segment 成功后误标记整份来源已完成。
+ingest 只有统一的语义提取路径：短内容通常只调用一次模型，提出 entities、claims、
+relations、topics、synthesis、retrieval phrases 和 evidence spans；长内容按字符预算
+切分，每个 segment 运行同一契约。确定性代码负责校验合并、把 evidence 绑定到
+source units、原子发布事实 revision 与 active head，再物化可读 source projection
+和 machine-index projection。
 
-`recovery` 会写入机器可读的 source/segment 执行账本，用于运行恢复和排障。`concurrency.max_concurrent_sources` 只作用于 dry-run/preflight ingest；写入型 ingest 在同一个 vault 内保持串行，以保护页面写入和 checkpoint。
+当前策略：Markdown 按标题切分，Codex/Hermes/OpenClaw/Claude Code 按完整 turn group 切分，解析文档按章节/页段切分，普通文本按段落切分。事实发布仍在 source/window 层完成，避免部分 segment 成功后误选为 active revision。
+
+事务恢复始终属于 ingest：不可变 command、attempt、source head 和 source cursor
+存放在 `ingest.sqlite`，run report 是面向用户的诊断界面。单个切分 source 内的
+独立模型调用使用代码计算的自适应窗口，不提供用户并发设置；vault 提交仍保持
+串行，以保护 raw、索引和 SQLite source cursor。MinerU 文件夹转换会采用服务
+声明的 `max_concurrent_requests` 容量；服务未声明时安全回退为 1。
 
 ## 运行限制
 
@@ -350,7 +366,7 @@ models:
 
 长文档编译、质量审查和多页面维护需要更长超时时间。建议根据模型供应商的实际速度调整。
 
-语义模型重试是 `SemanticRunner` 的显式运行策略，不是下游节点的兜底清洗。它只重试可重试的供应商错误和结构化输出不符合契约的情况；页面写入仍然必须等完整 source 或已审核维护批次通过后才执行，因此重试不会绕过 ingest/lint 的写入边界。
+语义模型重试是 `SemanticRunner` 的显式运行策略，不是下游节点的兜底清洗。它只重试可重试的供应商错误和结构化输出不符合契约的情况。Ingest 仅在来源事务通过后发布；lint 不写入规范知识或投影内容。
 
 `retryable_error_codes` 是公开的重试白名单，应保持收敛。外部服务错误、模型输出/语义契约错误、存储冲突适合重试；确定性的输入、配置和策略拒绝应先修复原因，而不是自动重试。
 
@@ -368,4 +384,5 @@ privacy:
   redact_private_ips: false
 ```
 
-`redact_source_paths_in_pages` 会保留 checkpoint 使用的真实来源路径，但写入 Wiki 页面时使用脱敏后的来源标识，避免把本机用户名和绝对路径沉淀到知识库页面里。
+`redact_source_paths_in_pages` 会在内部 SQLite source cursor 中保留真实来源路径，
+但写入 Wiki 页面时使用脱敏后的来源标识，避免把本机用户名和绝对路径沉淀到知识库页面里。

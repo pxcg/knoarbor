@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted target design for public convergence. Implementation remains pending.
+Accepted revision to the implemented 1.27 baseline.
 
 ## Decision
 

@@ -1,95 +1,77 @@
 # 1.4 Machine Index Layer Design
 
-## Owning Layers
-
-| Layer | Responsibility |
-| --- | --- |
-| Retrieval / Index | Provider interface, index records, freshness checks, search execution, rebuild status. |
-| Storage | Low-level index artifact paths and atomic writes. |
-| Pipeline Query | Consume provider results and build context packs. |
-| Pipeline Ingest / Lint | Trigger scoped refresh only through the provider contract. |
-| Entry Adapters | Expose rebuild/status commands and HTTP surfaces when stabilized. |
-| UI | Display index freshness and rebuild state; do not implement indexing logic. |
-
-## Target Boundary
+## Accepted Boundary
 
 ```text
-wikis pages
-  -> PageIndexRecord
-  -> MachineIndexProvider
-      -> MarkdownIndexProvider
-      -> SQLiteFtsIndexProvider
-      -> optional VectorIndexProvider
-  -> Query BM25 seed retrieval
-  -> graph_index relation expansion
-  -> Query / Lint / Ingest related-page lookup
+active factual revisions + maintained projections
+  -> compile/reuse normalized factual revision shards
+  -> build navigation generation + global SQLite FTS5 retrieval generation
+  -> stage one CompositeIndexGeneration
+  -> verify fact fence, manifest, database capability, and all artifacts
+  -> atomic CURRENT replacement
+  -> one verified IndexSnapshot per reader
+  -> UI navigation / graph / diagnostics + 1.38 lexical recall
 ```
 
-The durable local graph boundary is:
+`storage.wiki_index` owns generation construction and publication.
+`storage.index_snapshot` owns generation lookup, manifest verification, artifact
+hash verification, and snapshot identity. Runtime materialization owns when a
+new build is required; readers do not publish or repair snapshots themselves.
 
-```text
-.knoarbor/
-  index/
-    manifest.json
-    graph_index.json
-```
+The active composite generation identifies:
 
-Compatibility payloads such as `pages.json`, `links.json`, `sources.json`, and
-`search.json` can remain while UI/query code is migrated. `index.md` is not a
-default retrieval surface; if introduced again, it should be generated as an
-optional export view from the machine index.
+- `navigation_generation_id`;
+- `retrieval_generation_id`;
+- `active_fact_generation`.
 
-Query consumes the machine index in two steps:
+Its navigation artifacts contain:
 
-1. `pages.json` materializes searchable pages and keeps page-level BM25 as the
-   deterministic entry retrieval layer.
-2. `graph_index.json` expands those seed pages through shared entities,
-   explicit relation triples, and source-audit links. This preserves wiki-style
-   page recall without turning the system back into chunk-level RAG.
+- `pages.json`: readable projection metadata;
+- `links.json`: page navigation links;
+- `sources.json`: source navigation metadata;
+- `search.json`: deterministic navigation search records;
+- `graph_index.json`: page graph payload.
 
-## Public Contract Candidates
+Default knowledge query bypasses these page artifacts and opens the verified
+SQLite FTS5 `LexicalSnapshot` owned by ADR 0008. Specification 1.38 defines its
+fielded documents, query behavior, fusion, and active evidence semantics.
 
-The exact public surface is not frozen yet. Candidate surfaces:
+RetrievalShards are normalized immutable build inputs keyed by factual revision
+content. Readers never query them independently. Publication merges the active
+shards into one global database so document statistics remain coherent. A
+navigation-only build may reuse the same retrieval generation; retrieval
+cursors bind that ID and remain valid.
 
-```bash
-knoar index status
-knoar index rebuild
-```
+SQLite and FTS5 are implementation details behind `LexicalSnapshot`, but there
+is only one production implementation. Build and release probes must create and
+query an FTS5 table in the actual packaged service runtime. Capability failure
+is explicit and has no runtime scorer fallback.
 
-```http
-GET /index/status
-POST /index/rebuild
-```
+## Failure And Recovery
 
-These should only become public after the provider contract and report schema
-are tested. Until then, keep index work behind internal services.
-
-## Freshness Model
-
-Index freshness should compare:
-
-- page path;
-- page content hash or modified timestamp;
-- provider schema version;
-- index build timestamp;
-- last failure state.
-
-Freshness is advisory for query and diagnostic for UI. It must not mutate wiki
-pages by itself.
+- missing `CURRENT`: report no active snapshot and request materialization where
+  the caller owns recovery; a query reader never rebuilds inline;
+- invalid generation ID, missing artifact, hash mismatch, or schema mismatch:
+  readers fail explicitly; the startup lifecycle owner requests one clean
+  materialization before admitting readers;
+- unsupported lexical payload schema: rebuild a complete current-schema
+  generation from active facts and atomically publish it; do not mutate the
+  old database or active factual revisions;
+- crash before `CURRENT`: staged/unselected generation remains unreachable;
+- crash after `CURRENT`: the selected verified generation is readable and
+  materialization state can finish idempotently.
 
 ## Rejected Alternatives
 
-### Use `index.md` As The Machine Index
+- provider classes with no production caller;
+- Graph-led/page-BM25 fallback for default query;
+- in-place mutation of active index JSON;
+- rebuilding inside a read request without lifecycle ownership.
+- querying per-revision shards and normalizing scores at request time;
+- maintaining FTS5 and custom-postings implementations in parallel.
 
-Rejected because `index.md` is optimized for humans and can change formatting
-without intending to change retrieval semantics.
+## Relation Atom Materialization
 
-### Require Vector Search First
-
-Rejected because it increases install complexity and contradicts the local
-lightweight default.
-
-### Put Indexing In Query Only
-
-Rejected because ingest, lint, query, and UI all need a shared view of page
-metadata and freshness.
+Relation atoms are indexed in the ordinary atom/claim FTS channel. Their
+batch-local `source_claim_ids` remain locator edges to Claims and active Raw.
+The machine index publishes no relation adjacency or graph generation.

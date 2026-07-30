@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR 0004](0004-ingest-factual-authority.md). The public
+`wiki/pages/` namespace remains, while its factual-authority and materialization
+model is replaced.
 
 ## Context
 
@@ -42,14 +44,14 @@ Each vault uses one canonical layout:
     ledgers/
     checkpoints/
     runs/
-    queue/
+    ingest/
     locks/
     logs/
     chat/
       sessions/
 ```
 
-Knowledge pages live only under `wiki/pages/`. Source digest pages live only
+Knowledge pages live only under `wiki/pages/`. Source record pages live only
 under `wiki/sources/`. Runtime state and machine indexes live under
 `.knoarbor/`. Human-readable reports live under `maintenance/reports/`.
 
@@ -109,7 +111,7 @@ turn file paths into a type system and make multi-dimensional pages awkward.
 
 ### Single Flat Wiki Directory
 
-Rejected. Source digests are audit artifacts and should not be mixed with
+Rejected. Source records are audit artifacts and should not be mixed with
 ordinary knowledge pages.
 
 ### Generated Physical Views

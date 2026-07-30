@@ -14,3 +14,11 @@
 - [x] Update build scripts and CI after renderer rename.
 - [x] Add desktop startup and diagnostics smoke tests.
 - [x] Add a release checklist gate that verifies desktop artifacts are primary.
+- [x] Resolve the product root independently from Electron profile and cache
+  paths.
+- [x] Pass the single canonical runtime state directory to the Python service
+  and remove unpublished endpoint compatibility paths.
+- [x] Make desktop quit await managed-service shutdown and add an exact-path
+  Windows uninstall cleanup boundary.
+- [x] Preserve local data by default while offering explicit local-data removal
+  during interactive Windows uninstall.

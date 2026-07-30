@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted target contract; public implementation has not started.
+Accepted revision; implementation remains in progress.
 
 ## Tasks
 

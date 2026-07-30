@@ -2,14 +2,14 @@
 
 ## Status
 
-Accepted target contract for public convergence. Implementation remains
-pending against the KnoArbor 2.3.1 baseline. The authoritative lifecycle and
-owner domain are registered in `specs/registry.json`.
+Accepted. The local-first baseline and fact-layout publication amendment are
+implemented; the knowledge revision contract remains under implementation. The
+authoritative lifecycle and owner domain are registered in `specs/registry.json`.
 
-This specification is the sole public owner for the target local-first ingest
-lifecycle. No public specifications 1.28 through 1.36 are activated. Immutable
-input generations, transactional factual revisions, and immutable index
-generations remain valid unless explicitly changed here.
+It supersedes the runtime, derived-dispatch, recovery-cache, and index-refresh
+designs in specifications 1.28 through 1.36. Immutable input generations,
+transactional factual revisions, and immutable index generations remain valid
+unless explicitly changed here.
 
 ## Product Context
 
@@ -18,8 +18,8 @@ loopback HTTP process, and the CLI operate on local vault files and local
 SQLite databases. The application is not an online service and does not promise
 background execution while it is closed.
 
-External network access is limited to explicit capabilities such as model API
-calls and software updates. There is no multi-machine worker fleet, distributed
+External network access is limited to explicitly configured model API calls.
+There is no multi-machine worker fleet, distributed
 queue, remote database, or server-side vault owner.
 
 The design must tolerate more than one local process, such as the desktop app

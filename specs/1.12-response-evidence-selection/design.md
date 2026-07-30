@@ -1,5 +1,10 @@
 # 1.12 Response Evidence Selection Design
 
+## Lifecycle
+
+Superseded by `1.38-semantic-indexed-raw-query`. The `AnswerSetSelector`
+described below has been removed from default query.
+
 ## Layer Position
 
 ```text
@@ -22,7 +27,7 @@ The selector returns:
 - `primary_paths`: pages that can directly answer the current question.
 - `supporting_paths`: pages that add necessary mechanisms, implementation
   details, comparisons, caveats, or adjacent context.
-- `source_paths`: source digest pages used for provenance.
+- `source_paths`: source record pages used for provenance.
 - `further_reading_paths`: relevant pages that are useful follow-up material
   but should not shape the answer.
 - `rejected_candidates`: pages considered but excluded from the answer set,
@@ -39,7 +44,7 @@ The first implementation uses structural signals:
 - direct match versus graph expansion;
 - matched fields such as title, summary, claims, relations, entities, and body;
 - evidence diversity from page role, directory, entities, headings, and graph reasons;
-- source digest role.
+- source record role.
 
 ## Primary Selection
 

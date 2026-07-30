@@ -86,7 +86,7 @@ Workflow APIs should preserve envelope shape:
 CLI `--json` should expose the same concepts. Human output can summarize but
 should not hide report paths, run IDs, or error codes.
 
-`/query` keeps its own retrieval schema (`wiki_query.v1`) because it is a
+`/query` keeps its own retrieval schema (`wiki_query.v2`) because it is a
 read-only evidence endpoint, not a workflow run envelope.
 
 ## Rejected Alternatives

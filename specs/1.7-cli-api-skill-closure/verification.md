@@ -5,7 +5,7 @@
 Required when public entry points change:
 
 ```bash
-uv run python -m unittest tests.test_api_surface tests.test_cli tests.test_skill_query_helper tests.test_run_monitor tests.test_query_pipeline
+uv run python -m unittest tests.test_api_surface tests.test_cli tests.test_skill_query_helper tests.test_run_monitor tests.test_semantic_indexed_query
 uv run python scripts/check-doc-links.py
 ```
 

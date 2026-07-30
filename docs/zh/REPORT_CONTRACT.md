@@ -21,8 +21,8 @@ maintenance/
 
 | 流程 | 目录 | 用途 |
 | --- | --- | --- |
-| ingest | `maintenance/reports/ingest/` | 资料处理、分段、页面规划、写入门禁、页面写入、局部 lint、Token 摘要。 |
-| lint | `maintenance/reports/lint/` | 确定性问题、语义候选、审查决策、已应用操作、diff、验证、复扫。 |
+| ingest | `maintenance/reports/ingest/` | 资料处理、分段、索引元数据抽取、确定性编译校验、source revision 提交、物化请求、局部 lint、Token 摘要。 |
+| lint | `maintenance/reports/lint/` | 问题、修复计划、所有者流程执行结果、修复后复扫、指标与警告。 |
 | query | `maintenance/reports/query/` | 查询候选、答案集合轨迹、指导信息、缺口、上下文包。 |
 | run-failure | `maintenance/reports/run-failure/` | 流程专属报告尚未生成时的通用早期失败记录。 |
 
@@ -39,8 +39,7 @@ maintenance/
     query_feedback.jsonl
     token.jsonl
   runs/
-  checkpoints/
-  queue/
+  ingest/
   locks/
   logs/
 ```
@@ -51,7 +50,7 @@ maintenance/
 | --- | --- |
 | `ingest.jsonl` | `ingest_run.v1` |
 | `lint_run.jsonl` | `lint_run_record.v1` |
-| `query.jsonl` | `query_record.v1` |
+| `query.jsonl` | `query_record.v2` |
 | `query_feedback.jsonl` | `query_feedback.v1` |
 | `token.jsonl` | `token_ledger.v1` |
 | 流程台账中的失败记录 | `run_failure_record.v1` |
@@ -66,6 +65,12 @@ maintenance/
 - 失败台账行：包含错误码、阶段、请求摘要、可重试性和提示的机器记录。
 
 失败记录使用 `run_failure_record.v1`。它们在常规流程结果生成前写入，保留 UI、CLI 和日志解释失败运行所需的上下文。
+
+## Ingest 物化
+
+Ingest 报告区分事实提交和确定性物化。`source_revision` 标识已经提交的
+raw-grounded 事实，source 条目记录 vault 物化已经被请求；最终物化告警由事务运行记录承载。
+重建 projection 与 machine index 不调用模型，也不会回滚已经提交的 source revision。
 
 ## 职责归属
 

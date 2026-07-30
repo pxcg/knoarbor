@@ -4,13 +4,34 @@ All notable public changes to KnoArbor will be documented in this file.
 
 This project follows a simple release-note format for public releases.
 
+## 2.5.3 - 2026-07-30
+
+### Added
+
+- Added immutable factual source revisions, active source heads, unified Raw evidence handles, deterministic entity identity, and rebuildable retrieval snapshots.
+- Added editable Raw revisions and Markdown projections with explicit reingest and materialization boundaries.
+- Added current Chat retrieval planning, answer decision, response composition, citation resolution, and generated-image placement contracts.
+
+### Changed
+
+- Replaced the legacy ingest, wiki-writer, graph-led retrieval, and page-first chat authorities with one transactional ingest and unified active-Raw retrieval architecture.
+- Updated the renderer, API clients, settings, run monitoring, knowledge editing, desktop IPC, packaging, and public documentation to the 2.5.3 contracts.
+- Kept the public desktop identity at `ai.knoarbor.desktop` and excluded enterprise distribution and update-channel behavior.
+
+### Validation
+
+- `uv run python -m unittest discover -s tests` — 797 tests.
+- `npm --prefix renderer run typecheck && npm --prefix renderer run build && npm --prefix renderer run test:e2e` — 27 interaction tests.
+- `npm --prefix desktop run typecheck && npm --prefix desktop test && npm --prefix desktop run verify:icons && npm --prefix desktop run build`.
+- Documentation, architecture, product-identity, public-boundary, package, and clean-clone gates.
+
 ## 2.3.1 - 2026-07-07
 
 ### Changed
 
 - Moved the desktop UI source from the legacy web workspace into the renderer workspace.
 - Packaged the desktop renderer as local Electron resources instead of loading the UI through the local HTTP service.
-- Routed desktop configuration saves through Electron IPC so enterprise DLP tools do not treat config updates as browser uploads.
+- Routed desktop configuration saves through Electron IPC so local settings do not traverse the HTTP API.
 
 ### Fixed
 
