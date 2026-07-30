@@ -44,7 +44,7 @@ uv run --extra dev python -m unittest -q \
   tests.test_product_identity tests.test_core_config tests.test_ui_api
 npm --prefix renderer run build
 npm --prefix desktop run typecheck
-npm --prefix desktop run test:smoke
+npm --prefix desktop test
 ```
 
 ## Persisted Migration
@@ -95,3 +95,45 @@ full-chain acceptance workflow.
 
 Record exact commands, commit OID, platform, result, and unresolved residual
 risk before marking the specification Implemented.
+
+## Compatibility And Release Decision
+
+| Contract | Decision | Evidence |
+| --- | --- | --- |
+| KnoArbor 2.3.1 config and vaults | Automatically migrated | Historical config, vault, ingest-state, and revision-integrity fixtures |
+| Public Python package, CLI, and HTTP API | Compatible additions with typed outcomes | Python owner and API-surface tests |
+| Renderer and desktop IPC | Coordinated 2.5.3 contract update | Renderer E2E and desktop contract tests |
+| Desktop application data | Preserved; uninstall never deletes external vaults | Desktop lifecycle and installer tests |
+| Private updater and provider defaults | Explicitly rejected | Public-boundary scan and updater-free package graph |
+
+The public release is `2.5.3`: a public minor-line convergence from 2.3.1 with
+automatic persisted migration. The number describes the KnoArbor contract and
+does not import private release ancestry.
+
+## Delivery Record
+
+The implementation was validated on macOS arm64 from public baseline
+`18fde631`. Ordinary Git/SDD delivery was used; the optional Initiative Harness
+was not invoked.
+
+Required closure commands:
+
+```bash
+./scripts/dev-check.sh
+./scripts/clean-clone-smoke.sh
+npm --prefix desktop run pack:mac
+npm --prefix desktop run pack:win
+python3 scripts/check-public-product-boundary.py
+git diff --check
+git merge-base --is-ancestor 18fde631 HEAD
+git merge-base --is-ancestor 53da106c HEAD  # expected non-zero
+```
+
+The macOS package must report `ai.knoarbor.desktop`, version `2.5.3`, pass
+strict code-signature structure verification, launch its bundled service
+binary, and contain no private marker in authored resources. Windows packaging
+must run on a native Windows host: the command now fails before preparation on
+macOS or Linux so a Mach-O/ELF service cannot be silently embedded in a Windows
+shell. Windows icon, application identity, installer, lifecycle, and
+fail-closed host contracts are covered by the desktop automated suite; a
+native Windows release runner remains required for a distributable `.exe`.

@@ -125,7 +125,7 @@
       "id": "1.42",
       "path": "1.42-public-product-line-convergence",
       "title": "Public Product Line Convergence",
-      "lifecycle": "Accepted",
+      "lifecycle": "Implemented",
       "owner": "public-safe convergence, product identity authority, and upstream/downstream governance"
     },
     {
