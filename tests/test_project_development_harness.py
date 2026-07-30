@@ -512,14 +512,15 @@ class ProjectDevelopmentHarnessTests(unittest.TestCase):
     def test_failure_fingerprint_distinguishes_repository_location(self) -> None:
         with TemporaryDirectory() as directory:
             root, _ = self._repository(directory)
-            design = HARNESS._redacted_summary(
-                f'File "{root}/specs/test/design.md", line 1\nAssertionError: invalid contract'.encode(),
-                root, 1, "gate", 1,
-            )
-            acceptance = HARNESS._redacted_summary(
-                f'File "{root}/specs/test/acceptance.md", line 1\nAssertionError: invalid contract'.encode(),
-                root, 1, "gate", 1,
-            )
+            with unittest.mock.patch.dict(os.environ, {"GITHUB_JOB": "test"}):
+                design = HARNESS._redacted_summary(
+                    f'File "{root}/specs/test/design.md", line 1\nAssertionError: invalid contract'.encode(),
+                    root, 1, "gate", 1,
+                )
+                acceptance = HARNESS._redacted_summary(
+                    f'File "{root}/specs/test/acceptance.md", line 1\nAssertionError: invalid contract'.encode(),
+                    root, 1, "gate", 1,
+                )
 
         self.assertNotEqual(design["output_fingerprint"], acceptance["output_fingerprint"])
         self.assertEqual(design["diagnostic_locations"], ["specs/test/design.md"])

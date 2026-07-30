@@ -41,6 +41,10 @@ SECRET_PATTERNS = (
     re.compile(r"\bBearer\s+\S+", re.IGNORECASE),
     re.compile(r"\b(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)\s*[:=]\s*\S+", re.IGNORECASE),
 )
+SENSITIVE_ENV_NAME_PATTERN = re.compile(
+    r"(?:^|_)(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTHORIZATION|COOKIE)(?:_|$)",
+    re.IGNORECASE,
+)
 CANARY_PATH_PATTERN = re.compile(r"(?:/Users/|/home/|[A-Za-z]:\\Users\\)[^\s:]+")
 ABSOLUTE_PRIVATE_PATTERN = re.compile(r"(?:^|\s)(?:/(?!/)[^\s]+|[A-Za-z]:\\[^\s]+)")
 GATE_PRIVATE_PATH_PATTERN = re.compile(
@@ -1208,8 +1212,8 @@ def _sanitized_gate_output(output: bytes, root: Path) -> tuple[str, str]:
     for root_value in sorted({str(root), str(root.resolve())}, key=len, reverse=True):
         redacted = redacted.replace(root_value, "<repo>")
     redacted = redacted.replace(str(Path.home()), "<home>")
-    for value in os.environ.values():
-        if len(value) >= 4:
+    for name, value in os.environ.items():
+        if len(value) >= 4 and SENSITIVE_ENV_NAME_PATTERN.search(name):
             redacted = redacted.replace(value, "<env>")
     for pattern in SECRET_PATTERNS:
         redacted = pattern.sub("<redacted>", redacted)
