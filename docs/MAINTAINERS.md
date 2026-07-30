@@ -118,14 +118,13 @@ Follow the branch model in [Development](DEVELOPMENT.md#branch-and-release-model
 
 In short:
 
-- daily work starts from `dev`;
-- focused work uses `feature/*`, `fix/*`, or `docs/*`;
-- release tags are created from `main` only;
-- urgent hotfixes may branch from `main`, then must be merged back into `dev`;
+- daily work starts from the current `main`;
+- focused work uses `codex/*`, `feature/*`, `fix/*`, or `docs/*`;
+- accepted work returns to `main` only after affected validation passes;
+- release tags and urgent hotfixes are created from `main`;
+- reusable changes flow from public `main` into the private downstream, never
+  from the private branch into public history;
 - public release tags remain stable after users have consumed them.
-
-If a change is committed directly to `main` for documentation or release
-metadata, merge `main` back into `dev` before continuing feature work.
 
 `main` should not drift ahead of the latest public tag. When it does and the
 content is releasable, create the missing version tag and release notes instead

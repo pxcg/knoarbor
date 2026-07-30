@@ -91,13 +91,12 @@ KnoArbor 对影响架构、公开契约、来源 connector、语义契约、流�
 
 简要规则：
 
-- 日常工作从 `dev` 开始；
-- 聚焦变更使用 `feature/*`、`fix/*` 或 `docs/*`；
-- release tag 只从 `main` 创建；
-- 紧急热修可以从 `main` 切分支，但必须合回 `dev`；
+- 日常工作从最新 `main` 开始；
+- 聚焦变更使用 `codex/*`、`feature/*`、`fix/*` 或 `docs/*`；
+- 变更通过 affected validation 后只合回 `main`；
+- release tag 与紧急热修都从 `main` 创建；
+- 可复用变更从公共 `main` 流向私有下游，不能从私有分支反向进入公共历史；
 - 公开 release tag 被用户消费后保持稳定。
-
-如果因为文档或发布元数据直接修改了 `main`，继续功能开发前需要把 `main` 合回 `dev`。
 
 `main` 不应长期领先最新公开 tag。如果发生这种情况，且内容可以发布，优先补齐缺失的版本 tag 和 release notes，而不是重写公开历史。只有出现密钥、私有运行时数据或其他无法安全发布的泄漏时，才考虑重写 `main`。
 

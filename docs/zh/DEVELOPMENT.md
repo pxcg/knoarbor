@@ -58,19 +58,17 @@ renderer 构建产物位于被忽略的本地目录 `renderer/dist`。所有运�
 
 ## 分支与发布模型
 
-`KnoArbor` 是公司仓库当前的集成与发布分支。旧的 `origin/main` 和 `origin/dev`
-保留上游历史，但不是当前 KnoArbor 开发的默认目标。
+`main` 是公共集成与发布分支，所有可复用能力优先在这里落地。私有
+`SieArbor` 产品线只在下游吸收已接受的公共变更，不能反向合入公共历史。
 
-- 聚焦工作从 `KnoArbor` 开始，需要隔离时使用 `codex/*`、`feature/*`、`fix/*`
-  或 `docs/*` 分支。
+- 聚焦工作从最新 `main` 开始，需要隔离时使用 `codex/*`、`feature/*`、
+  `fix/*` 或 `docs/*` 分支。
 - 每个提交只处理一个 owner 或用户可见问题，affected validation 通过后再合回
-  `KnoArbor`。
-- 生产 tag 只能从干净的 `KnoArbor` checkout 创建，使用
-  `knoarbor-vX.Y.Z` 命名空间。
+  `main`。
+- 生产 tag 只能从干净的 `main` checkout 创建，使用 `vX.Y.Z` 命名空间。
 - 发布候选先运行 `scripts/release-check.sh`，准备 changelog 与
   `docs/releases/vX.Y.Z.md`，再按桌面生命周期和发布流程完成构建、签名与打包。
-- 紧急修复从已发布的 `KnoArbor` commit 分支，并在 patch release 后回到
-  `KnoArbor`。
+- 紧急修复从已发布的 `main` commit 分支，并在 patch release 后回到 `main`。
 
 不得重写已被用户消费的 release tag，也不得推送运行时 vault、私有配置、`.env`、
 本地工作流导出或维护者内部笔记。Dirty working tree 不能作为发布来源。
