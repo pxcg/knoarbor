@@ -18,12 +18,17 @@
     {"id":"1.18","path":"1.18-chat-response-style-prompt-governance","title":"Chat Response Style Prompt Governance","lifecycle":"Accepted","owner":"chat response prompt governance"},
     {"id":"1.19","path":"1.19-desktop-config-ipc","title":"Desktop Config IPC","lifecycle":"Accepted","owner":"desktop configuration IPC"},
     {"id":"1.20","path":"1.20-desktop-first-transition","title":"Desktop First Transition","lifecycle":"Implemented","owner":"desktop runtime transition"},
+    {"id":"1.26","path":"1.26-raw-grounded-ingest-chain","title":"Raw-Grounded Ingest Chain","lifecycle":"Accepted","owner":"semantic extraction, deterministic factual compilation, persisted knowledge payloads, and source extraction projections"},
+    {"id":"1.27","path":"1.27-deterministic-entity-identity","title":"Deterministic Entity Identity","lifecycle":"Accepted","owner":"source contribution linking and vault-canonical entity identity"},
+    {"id":"1.37","path":"1.37-local-first-ingest-simplification","title":"Local-First Ingest Simplification","lifecycle":"Accepted","owner":"transactional ingest execution, factual revisions, recovery, materialization, and index publication"},
     {"id":"1.41","path":"1.41-project-development-harness","title":"Project Development Harness","lifecycle":"Accepted","owner":"bounded initiative admission, role handoffs, deterministic gates, and delivery evidence"},
     {"id":"1.42","path":"1.42-public-product-line-convergence","title":"Public Product Line Convergence","lifecycle":"Accepted","owner":"public-safe convergence, product identity authority, and upstream/downstream governance"}
   ],
   "reserved_ids": {
     "1.14": "Superseded design line represented by 1.17.",
     "1.16": "Unused; reserved to preserve historical numbering.",
-    "1.21-1.40": "Reserved for accepted SieArbor-era contract lines that may be ported only through public-safe owner review."
+    "1.21-1.25": "Reserved for contract lines that may be activated only through public-safe owner review.",
+    "1.28-1.36": "Reserved; 1.37 is the sole public owner for the target local-first ingest lifecycle.",
+    "1.38-1.40": "Reserved for contract lines that may be activated only through public-safe owner review."
   }
 }

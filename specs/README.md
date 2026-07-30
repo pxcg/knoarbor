@@ -45,6 +45,9 @@ tests, and release notes.
 | 1.14.x | Superseded by [Vault Layout v2](1.17-vault-layout-v2/requirements.md) | Canonical `raw/`, `wiki/pages`, `wiki/sources`, `maintenance/`, and `.knoarbor/` layout with no typed physical page directories. |
 | 1.15.x | [Desktop App](1.15-desktop-app/requirements.md) | Electron desktop surface, managed Python service lifecycle, desktop renderer loading, update boundaries, and desktop app-data boundaries. |
 | 1.20.x | [Desktop-First Transition](1.20-desktop-first-transition/requirements.md) | Desktop as the official product entry, renderer/runtime ownership, IPC allowlist, and retirement of web-product surfaces. |
+| 1.26.x | [Raw-Grounded Ingest Chain](1.26-raw-grounded-ingest-chain/requirements.md) | Semantic extraction, deterministic factual compilation, immutable knowledge payloads, and Raw-first projections. |
+| 1.27.x | [Deterministic Entity Identity](1.27-deterministic-entity-identity/requirements.md) | Immutable source contributions, deterministic canonical linking, reference closure, and rebuildable identity. |
+| 1.37.x | [Local-First Ingest Simplification](1.37-local-first-ingest-simplification/requirements.md) | Transactional local execution, crash-safe factual revisions, recovery, materialization, and immutable index publication. |
 | 1.41.x | [Project Development Harness](1.41-project-development-harness/requirements.md) | Bounded Initiative admission, typed role handoffs, deterministic gates, resumable evidence, and controlled delivery. |
 | 1.42.x | [Public Product Line Convergence](1.42-public-product-line-convergence/requirements.md) | Public-safe capability convergence, canonical product identity, compatibility classification, and public-upstream/private-downstream governance. |
 

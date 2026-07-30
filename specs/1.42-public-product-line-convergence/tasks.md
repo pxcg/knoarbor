@@ -9,7 +9,9 @@ Status: In Progress
 - [x] Establish the public spec registry and convergence owner.
 - [x] Record the public-upstream/private-downstream ADR.
 - [x] Add the classified transfer manifest.
-- [x] Bootstrap the generic Initiative Harness for subsequent strict slices.
+- [x] Retain the generic Initiative Harness as an optional maintainer utility.
+- [x] Record ordinary SDD, Git, and verification closure as the convergence
+  delivery process.
 
 ## Phase 1 — Product Identity Boundary
 
@@ -22,7 +24,7 @@ Status: In Progress
 
 ## Phase 2 — Factual Ingest And Storage
 
-- [ ] Reconcile the accepted Raw-grounded ingest specifications and ADRs.
+- [x] Reconcile the accepted Raw-grounded ingest specifications and ADRs.
 - [ ] Port immutable factual revisions and active-head storage.
 - [ ] Port transactional ingest coordination, execution, recovery, and
   deterministic materialization.

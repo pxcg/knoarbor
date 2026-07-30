@@ -143,13 +143,14 @@ distribution metadata. Binary assets require explicit provenance review.
 Candidate commits contain no private parent even when their content was
 reimplemented from a reviewed private source.
 
-## Governance Bootstrap
+## Delivery Governance
 
-The 2.3.1 public baseline predates the Initiative Harness. The first convergence
-slice establishes the registry, this accepted spec, the durable ADR, and the
-generic harness before subsequent strict implementation runs. This bootstrap is
-bounded to governance and product identity and is reviewed directly through
-the spec and Git baseline.
+Convergence uses ordinary spec-driven slices: the owning specification records
+accepted contracts and task state, Git records coherent implementation units,
+and focused plus dependency-closure tests provide verification evidence. The
+generic Initiative Harness remains an optional maintainer utility and is not a
+required authority, approval boundary, baseline, or delivery dependency for
+this convergence.
 
 ## Rejected Alternatives
 
