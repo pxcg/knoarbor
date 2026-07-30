@@ -34,23 +34,44 @@ class UiApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_ui_assets_are_served(self) -> None:
-        with patch.dict("os.environ", {"KNOARBOR_DESKTOP": ""}, clear=False):
-            client = TestClient(create_app())
-
-            index = client.get("/ui")
-
-            self.assertEqual(index.status_code, 200)
-            self.assertIn("KnoArbor Console", index.text)
-            asset_paths = set(re.findall(r'(?:src|href)="/ui/(assets/[^"]+\.(?:js|css))"', index.text))
-            self.assertTrue(asset_paths)
-            self.assertTrue(any(path.endswith(".js") for path in asset_paths))
-            self.assertTrue(any(path.endswith(".css") for path in asset_paths))
-            for asset_path in asset_paths:
-                asset = client.get(f"/ui/{asset_path}")
-                self.assertEqual(asset.status_code, 200)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            ui_root = Path(tmp_dir)
+            assets = ui_root / "assets"
+            assets.mkdir()
+            (assets / "index.js").write_text("console.log('KnoArbor');\n", encoding="utf-8")
+            (assets / "index.css").write_text(":root { color-scheme: light; }\n", encoding="utf-8")
+            (ui_root / "index.html").write_text(
+                '<title>KnoArbor Console</title>'
+                '<link rel="stylesheet" href="/ui/assets/index.css">'
+                '<script src="/ui/assets/index.js"></script>',
+                encoding="utf-8",
+            )
             for root_asset in ("favicon.ico", "site.webmanifest", "knoarbor-logo.svg"):
-                asset = client.get(f"/ui/{root_asset}")
-                self.assertEqual(asset.status_code, 200)
+                (ui_root / root_asset).write_text(root_asset, encoding="utf-8")
+
+            with patch.dict(
+                "os.environ",
+                {
+                    "KNOARBOR_DESKTOP": "",
+                    "KNOARBOR_RENDERER_DIST": str(ui_root),
+                },
+                clear=False,
+            ):
+                client = TestClient(create_app())
+                index = client.get("/ui")
+
+                self.assertEqual(index.status_code, 200)
+                self.assertIn("KnoArbor Console", index.text)
+                asset_paths = set(re.findall(r'(?:src|href)="/ui/(assets/[^"]+\.(?:js|css))"', index.text))
+                self.assertTrue(asset_paths)
+                self.assertTrue(any(path.endswith(".js") for path in asset_paths))
+                self.assertTrue(any(path.endswith(".css") for path in asset_paths))
+                for asset_path in asset_paths:
+                    asset = client.get(f"/ui/{asset_path}")
+                    self.assertEqual(asset.status_code, 200)
+                for root_asset in ("favicon.ico", "site.webmanifest", "knoarbor-logo.svg"):
+                    asset = client.get(f"/ui/{root_asset}")
+                    self.assertEqual(asset.status_code, 200)
 
     def test_vault_assets_read_raw_derived_asset_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

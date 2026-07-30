@@ -1265,11 +1265,15 @@ def _redacted_summary(output: bytes, root: Path, returncode: int, gate_id: str, 
         if not value.startswith(("/", "<")) and ".." not in Path(value).parts and (root / value).is_file():
             locations.add(value)
     projection = _diagnostic_projection(redacted, returncode)
+    fingerprint_projection = {
+        "diagnostics": projection,
+        "locations": sorted(locations),
+    }
     return {
         "gate_id": gate_id,
         "exit_code": returncode,
         "duration_ms": elapsed_ms,
-        "output_fingerprint": digest_json(projection),
+        "output_fingerprint": digest_json(fingerprint_projection),
         "output_lines": len(text.splitlines()),
         "diagnostic_locations": sorted(locations)[:20],
     }
