@@ -15,11 +15,11 @@
     "clean:package": "node scripts/clean-package-artifacts.mjs",
     "prepare:package": "npm run clean:package && npm run build:renderer && npm run build:service && npm run build",
     "dist:mac": "npm run prepare:package && electron-builder --config electron-builder.config.cjs --mac dmg zip --publish never",
-    "dist:win": "npm run prepare:package && npm run verify:icons && node scripts/run-windows-builder.mjs nsis",
+    "dist:win": "node scripts/run-windows-builder.mjs verify-host && npm run prepare:package && npm run verify:icons && node scripts/run-windows-builder.mjs nsis",
     "test": "node --test tests/*.test.mjs",
     "dev": "npm run check:renderer && electron-vite dev",
     "pack:mac": "npm run prepare:package && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.config.cjs --mac dir",
-    "pack:win": "npm run prepare:package && npm run verify:icons && node scripts/run-windows-builder.mjs dir",
+    "pack:win": "node scripts/run-windows-builder.mjs verify-host && npm run prepare:package && npm run verify:icons && node scripts/run-windows-builder.mjs dir",
     "preview": "electron-vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "verify:icons": "node scripts/verify-icon-assets.mjs"

@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import {
   WIN_CODE_SIGN_SHA256,
   archiveSha256,
+  assertWindowsPackagingHost,
   builderInvocation,
   cachePaths,
   extractionArguments,
@@ -52,6 +53,18 @@ test("electron-builder runs through its JavaScript CLI without a Windows cmd wra
     "--publish",
     "never",
   ]);
+});
+
+test("Windows packaging rejects hosts that would bundle a non-Windows service", () => {
+  assert.doesNotThrow(() => assertWindowsPackagingHost("win32"));
+  assert.throws(
+    () => assertWindowsPackagingHost("darwin"),
+    /native Windows host.*knoar-service\.exe/,
+  );
+  assert.throws(
+    () => assertWindowsPackagingHost("linux"),
+    /native Windows host.*knoar-service\.exe/,
+  );
 });
 
 test("winCodeSign extraction excludes the complete macOS subtree", () => {

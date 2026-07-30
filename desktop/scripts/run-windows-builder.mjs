@@ -58,6 +58,14 @@ export function builderInvocation(target, root = desktopRoot) {
   };
 }
 
+export function assertWindowsPackagingHost(platform = process.platform) {
+  if (platform !== "win32") {
+    throw new Error(
+      "Windows packaging requires a native Windows host so the bundled knoar-service.exe is a Windows executable.",
+    );
+  }
+}
+
 async function exists(path) {
   try {
     await access(path);
@@ -147,19 +155,21 @@ export async function prepareWindowsCodeSignCache(
 
 async function main() {
   const target = process.argv[2];
-  if (!new Set(["dir", "nsis"]).has(target)) {
-    throw new Error("Expected Windows target: dir or nsis");
+  if (!new Set(["verify-host", "dir", "nsis"]).has(target)) {
+    throw new Error("Expected Windows target: verify-host, dir, or nsis");
+  }
+  assertWindowsPackagingHost();
+  if (target === "verify-host") {
+    return;
   }
 
   const env = {
     ...process.env,
     ...(target === "dir" ? { CSC_IDENTITY_AUTO_DISCOVERY: "false" } : {}),
   };
-  if (process.platform === "win32") {
-    const paths = cachePaths();
-    await prepareWindowsCodeSignCache(paths);
-    env.ELECTRON_BUILDER_CACHE = paths.root;
-  }
+  const paths = cachePaths();
+  await prepareWindowsCodeSignCache(paths);
+  env.ELECTRON_BUILDER_CACHE = paths.root;
   const invocation = builderInvocation(target);
   await run(invocation.command, invocation.args, { cwd: desktopRoot, env });
 }
@@ -170,4 +180,3 @@ if (process.argv[1] && resolve(process.argv[1]) === scriptPath) {
     process.exitCode = 1;
   });
 }
-
