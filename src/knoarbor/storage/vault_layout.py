@@ -99,6 +99,14 @@ def runtime_root(vault_path: Path) -> Path:
     return vault_root(vault_path) / RUNTIME_ROOT_DIR
 
 
+def runtime_facts_root(vault_path: Path) -> Path:
+    return runtime_root(vault_path) / "facts"
+
+
+def runtime_fact_staging_root(vault_path: Path) -> Path:
+    return runtime_facts_root(vault_path) / ".staging"
+
+
 def runtime_index_root(vault_path: Path) -> Path:
     return runtime_root(vault_path) / "index"
 
