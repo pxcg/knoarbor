@@ -64,7 +64,7 @@ data["vault"]["path"] = str(vault)
 data["vaults"]["profiles"]["default"]["path"] = str(vault)
 data["connectors"]["markdown"]["settings"]["roots"] = [
     str(vault / "raw" / "inbox" / "notes"),
-    str(vault / "raw" / "normalized" / "markdown"),
+    str(vault / "raw" / "derived" / "markdown"),
 ]
 data["models"]["default_provider"] = "release-smoke"
 data["models"]["providers"]["release-smoke"] = {
