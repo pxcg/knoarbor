@@ -7,12 +7,22 @@ import threading
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 from knoarbor.core.errors import RunNotFound, error_info
-from knoarbor.core.schemas.run_monitor import ACTIVE_RUN_STATUSES, TERMINAL_RUN_STATUSES, RunEvent, RunFlow, RunListResponse, RunProgress, RunRecord, RunStatus
+from knoarbor.core.schemas.run_monitor import (
+    ACTIVE_RUN_STATUSES,
+    TERMINAL_RUN_STATUSES,
+    RunEvent,
+    RunFlow,
+    RunListResponse,
+    RunProgress,
+    RunRecord,
+    RunStatus,
+)
 from knoarbor.runtime.events import KNOWN_RUN_EVENT_TYPES
 from .logging import runtime_logger
+from .locks import FileLock
 
 
 _CURRENT_MONITOR: contextvars.ContextVar[RunMonitor | None] = contextvars.ContextVar("knoarbor_run_monitor", default=None)
@@ -34,11 +44,20 @@ class RunMonitor:
     JSON files. It does not own workflow decisions or retry policy.
     """
 
-    def __init__(self, *, vault_path: Path, flow: RunFlow, run_id: str | None = None, metadata: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        vault_path: Path,
+        flow: RunFlow,
+        run_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        cancellation_probe: Callable[[], bool] | None = None,
+    ) -> None:
         self.vault_path = vault_path.expanduser().resolve()
         self.flow = flow
         self.run_id = run_id or _new_run_id()
         self.metadata = metadata or {}
+        self._cancellation_probe = cancellation_probe
         self.run_dir = runs_dir(self.vault_path)
         self.record_path = self.run_dir / f"{self.run_id}.json"
         self.events_path = self.run_dir / f"{self.run_id}.events.jsonl"
@@ -87,7 +106,9 @@ class RunMonitor:
         )
         self._write_record(record)
         self.event("run_queued", message=message, status="queued", stage="queued")
-        logger.info("run_queued run_id=%s flow=%s vault=%s metadata=%s", self.run_id, self.flow, self.vault_path, _compact_mapping(self.metadata))
+        logger.info(
+            "run_queued run_id=%s flow=%s vault=%s metadata=%s", self.run_id, self.flow, self.vault_path, _compact_mapping(self.metadata)
+        )
         return record
 
     def heartbeat(
@@ -146,24 +167,33 @@ class RunMonitor:
             metrics=metrics,
         )
         with self._lock:
-            self._sequence += 1
-            event = RunEvent(
-                run_id=self.run_id,
-                sequence=self._sequence,
-                created_at=_now(),
-                event_type=event_type,
-                status=record.status,
-                stage=record.stage,
-                message=message,
-                current_item=record.current_item,
-                progress=record.progress,
-                metrics=metrics or {},
-                payload=_event_safe_payload(payload or {}),
+            with FileLock(self.events_path.with_suffix(".lock")):
+                self._sequence = self._last_event_sequence() + 1
+                event = RunEvent(
+                    run_id=self.run_id,
+                    sequence=self._sequence,
+                    created_at=_now(),
+                    event_type=event_type,
+                    status=record.status,
+                    stage=record.stage,
+                    message=message,
+                    current_item=record.current_item,
+                    progress=record.progress,
+                    metrics=metrics or {},
+                    payload=_event_safe_payload(payload or {}),
+                )
+                self.run_dir.mkdir(parents=True, exist_ok=True)
+                with self.events_path.open("a", encoding="utf-8") as handle:
+                    handle.write(event.model_dump_json() + "\n")
+            logger.info(
+                "run_event run_id=%s flow=%s event=%s stage=%s status=%s message=%s",
+                self.run_id,
+                self.flow,
+                event_type,
+                record.stage,
+                record.status,
+                message,
             )
-            self.run_dir.mkdir(parents=True, exist_ok=True)
-            with self.events_path.open("a", encoding="utf-8") as handle:
-                handle.write(event.model_dump_json() + "\n")
-            logger.info("run_event run_id=%s flow=%s event=%s stage=%s status=%s message=%s", self.run_id, self.flow, event_type, record.stage, record.status, message)
             return event
 
     def _append_event_for_record(
@@ -177,27 +207,38 @@ class RunMonitor:
         if event_type not in KNOWN_RUN_EVENT_TYPES:
             logger.warning("unknown_run_event_type run_id=%s flow=%s event=%s", self.run_id, self.flow, event_type)
         with self._lock:
-            self._sequence += 1
-            event = RunEvent(
-                run_id=self.run_id,
-                sequence=self._sequence,
-                created_at=_now(),
-                event_type=event_type,
-                status=record.status,
-                stage=record.stage,
-                message=message,
-                current_item=record.current_item,
-                progress=record.progress,
-                metrics={},
-                payload=_event_safe_payload(payload or {}),
+            with FileLock(self.events_path.with_suffix(".lock")):
+                self._sequence = self._last_event_sequence() + 1
+                event = RunEvent(
+                    run_id=self.run_id,
+                    sequence=self._sequence,
+                    created_at=_now(),
+                    event_type=event_type,
+                    status=record.status,
+                    stage=record.stage,
+                    message=message,
+                    current_item=record.current_item,
+                    progress=record.progress,
+                    metrics={},
+                    payload=_event_safe_payload(payload or {}),
+                )
+                self.run_dir.mkdir(parents=True, exist_ok=True)
+                with self.events_path.open("a", encoding="utf-8") as handle:
+                    handle.write(event.model_dump_json() + "\n")
+            logger.info(
+                "run_event run_id=%s flow=%s event=%s stage=%s status=%s message=%s",
+                self.run_id,
+                self.flow,
+                event_type,
+                record.stage,
+                record.status,
+                message,
             )
-            self.run_dir.mkdir(parents=True, exist_ok=True)
-            with self.events_path.open("a", encoding="utf-8") as handle:
-                handle.write(event.model_dump_json() + "\n")
-            logger.info("run_event run_id=%s flow=%s event=%s stage=%s status=%s message=%s", self.run_id, self.flow, event_type, record.stage, record.status, message)
             return event
 
-    def complete(self, *, message: str = "Run completed.", result_summary: dict[str, Any] | None = None, metrics: dict[str, Any] | None = None) -> RunRecord:
+    def complete(
+        self, *, message: str = "Run completed.", result_summary: dict[str, Any] | None = None, metrics: dict[str, Any] | None = None
+    ) -> RunRecord:
         return self._finish(
             status="completed",
             stage="completed",
@@ -241,14 +282,14 @@ class RunMonitor:
             record.last_heartbeat_at = now
             record.finished_at = now
             record.elapsed_seconds = _elapsed(record.started_at)
-            self._write_record_unlocked(record)
-        self.event(
+        self._append_event_for_record(
+            record,
             "run_failed" if status == "failed" else "run_cancelled",
             message=str(public_info.get("message") or exc),
-            status=status,
-            stage=record.stage,
             payload={"error": public_info},
         )
+        with self._lock:
+            self._write_record_unlocked(record)
         logger.error(
             "run_finished run_id=%s flow=%s status=%s stage=%s elapsed_seconds=%.2f error_code=%s retryable=%s message=%s action=%s",
             self.run_id,
@@ -281,6 +322,10 @@ class RunMonitor:
         return self.read()
 
     def raise_if_cancelled(self) -> None:
+        if self._cancellation_probe is not None:
+            if self._cancellation_probe():
+                raise RunCancelled(f"Run {self.run_id} was cancelled.")
+            return
         record = self.read()
         if record.cancel_requested or record.status == "cancelling":
             raise RunCancelled(f"Run {self.run_id} was cancelled.")
@@ -310,9 +355,10 @@ class RunMonitor:
 
     def _write_record_unlocked(self, record: RunRecord) -> None:
         self.run_dir.mkdir(parents=True, exist_ok=True)
-        tmp = self.record_path.with_suffix(".json.tmp")
-        tmp.write_text(record.model_dump_json(indent=2), encoding="utf-8")
-        tmp.replace(self.record_path)
+        with FileLock(self.record_path.with_suffix(".lock")):
+            tmp = self.record_path.with_name(f".{self.record_path.name}.{uuid.uuid4().hex}.tmp")
+            tmp.write_text(record.model_dump_json(indent=2), encoding="utf-8")
+            tmp.replace(self.record_path)
 
     def _start_heartbeat_loop(self) -> None:
         if self._heartbeat_thread and self._heartbeat_thread.is_alive():
@@ -359,8 +405,9 @@ class RunMonitor:
             record.result_summary = result_summary or {}
             if metrics:
                 record.metrics = {**record.metrics, **metrics}
+        self._append_event_for_record(record, event_type, message=message, payload=result_summary or {})
+        with self._lock:
             self._write_record_unlocked(record)
-        self.event(event_type, message=message, status=status, stage=stage, payload=result_summary or {})
         logger.info(
             "run_finished run_id=%s flow=%s status=%s stage=%s elapsed_seconds=%.2f summary=%s metrics=%s report=%s",
             self.run_id,
@@ -457,7 +504,6 @@ def request_cancel(vault_path: Path, run_id: str) -> RunRecord:
 
 def _reconcile_stale_record(path: Path, record: RunRecord) -> RunRecord:
     if record.status in TERMINAL_RUN_STATUSES:
-        _write_reconciled_queue_state(path.parents[2], record.run_id, record.status)
         return record
     stale_seconds = _seconds_since(record.last_heartbeat_at)
     if record.cancel_requested or record.status == "cancelling":
@@ -513,7 +559,6 @@ def _finish_orphaned_record(
         record.error = _format_error(error_info)
     path.write_text(record.model_dump_json(indent=2), encoding="utf-8")
     vault_path = path.parents[2]
-    _write_reconciled_queue_state(vault_path, record.run_id, status)
     monitor = RunMonitor(vault_path=vault_path, flow=record.flow, run_id=record.run_id, metadata=record.metadata)
     monitor._append_event_for_record(record, event_type, message=message, payload={"reconciled": True, "error": error_info or {}})
     return record
@@ -533,11 +578,7 @@ def _compact_mapping(value: dict[str, Any] | None, *, max_items: int = 8) -> str
 
 def _event_safe_payload(value: Any) -> Any:
     if isinstance(value, dict):
-        return {
-            str(key): _event_safe_payload(item)
-            for key, item in value.items()
-            if str(key) != "content"
-        }
+        return {str(key): _event_safe_payload(item) for key, item in value.items() if str(key) != "content"}
     if isinstance(value, list):
         return [_event_safe_payload(item) for item in value]
     return value
@@ -555,23 +596,6 @@ def _compact_value(value: Any) -> str:
 def _report_path(summary: dict[str, Any]) -> str:
     report = summary.get("report_path")
     return str(report) if report else "-"
-
-
-def _write_reconciled_queue_state(vault_path: Path, run_id: str, status: str) -> None:
-    path = vault_path / ".knoarbor" / "queue" / f"{run_id}.json"
-    if not path.exists():
-        return
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        payload = {
-            "schema_version": "run_queue_task.v1",
-            "run_id": run_id,
-            "record_path": f".knoarbor/runs/{run_id}.json",
-        }
-    payload["queue_status"] = status
-    payload["reconciled"] = True
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def _seconds_since(timestamp: str) -> float:

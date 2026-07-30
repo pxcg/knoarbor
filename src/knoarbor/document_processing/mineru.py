@@ -3,12 +3,22 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
+import http.client
+import io
+import ipaddress
 import json
+import mimetypes
 import os
 from pathlib import Path
+from pathlib import PurePosixPath
+import re
 import shutil
+import socket
+import stat
 import uuid
 from urllib import error, request
+from urllib.parse import urlsplit, urlunsplit
+import zipfile
 
 from knoarbor.core.attachments import (
     dedupe_attachments,
@@ -42,38 +52,10 @@ class MinerUDocumentProcessor:
         if not input_dir.exists() or not input_dir.is_dir():
             raise SourceNotFound(f"MinerU input directory does not exist: {input_dir}")
 
-        output_dir = config.output_dir.expanduser().resolve()
-        output_dir.mkdir(parents=True, exist_ok=True)
-
         items: list[DocumentProcessingItem] = []
         for path in _discover_input_files(input_dir, config.patterns, config.recursive):
             try:
-                response = self._post(config, path, output_dir)
-                output_path = _materialize_markdown(path, output_dir, response, config)
-                if output_path is None:
-                    items.append(
-                        DocumentProcessingItem(
-                            adapter=self.name,
-                            input_path=str(path),
-                            status="failed",
-                            reason="MinerU completed but no Markdown output was found.",
-                            error_type="MissingMarkdownOutput",
-                            error_message="Configure response_markdown_field/response_path_field or ensure the service writes <stem>.md.",
-                        )
-                    )
-                    continue
-                attachments = _discover_output_attachments(path, output_path, output_dir, response)
-                write_attachment_sidecar(output_path, attachments, source=self.name)
-                items.append(
-                    DocumentProcessingItem(
-                        adapter=self.name,
-                        input_path=str(path),
-                        output_path=str(output_path),
-                        status="processed",
-                        reason=f"Processed by MinerU HTTP service with status {response.status_code}.",
-                        attachments=attachments,
-                    )
-                )
+                items.append(self.process_file(config, path, input_root=input_dir))
             except Exception as exc:
                 items.append(
                     DocumentProcessingItem(
@@ -87,7 +69,13 @@ class MinerUDocumentProcessor:
                 )
         return items
 
-    def process_file(self, config: MinerUDocumentProcessingConfig, input_path: Path) -> DocumentProcessingItem:
+    def process_file(
+        self,
+        config: MinerUDocumentProcessingConfig,
+        input_path: Path,
+        *,
+        input_root: Path | None = None,
+    ) -> DocumentProcessingItem:
         _validate_service_config(config)
         path = input_path.expanduser().resolve()
         if not path.exists() or not path.is_file():
@@ -95,14 +83,16 @@ class MinerUDocumentProcessor:
 
         output_dir = config.output_dir.expanduser().resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
-        response = self._post(config, path, output_dir)
-        output_path = _materialize_markdown(path, output_dir, response, config)
+        source_output_dir = _source_output_dir(output_dir, path, input_root)
+        source_output_dir.mkdir(parents=True, exist_ok=True)
+        response = self._post(config, path, source_output_dir)
+        output_path = _materialize_markdown(path, source_output_dir, response, config)
         if output_path is None:
             raise ExternalServiceError(
                 "MinerU completed but no Markdown output was found. Configure "
                 "response_markdown_field/response_path_field or ensure the service writes <stem>.md."
             )
-        attachments = _discover_output_attachments(path, output_path, output_dir, response)
+        attachments = _discover_output_attachments(path, output_path, source_output_dir, response)
         write_attachment_sidecar(output_path, attachments, source=self.name)
         return DocumentProcessingItem(
             adapter=self.name,
@@ -123,21 +113,35 @@ class MinerUDocumentProcessor:
         body = _multipart_body(boundary, fields, file_field=config.file_field, path=path)
         headers = {
             "Content-Type": f"multipart/form-data; boundary={boundary}",
-            "Accept": "application/json,text/markdown,text/plain,*/*",
+            "Accept": "application/json,application/zip,text/markdown,text/plain,*/*",
             **config.headers,
         }
         req = request.Request(config.endpoint, data=body, headers=headers, method="POST")
         try:
-            with request.urlopen(req, timeout=config.timeout_seconds) as response:  # noqa: S310 - user-configured local service adapter
+            with _urlopen(req, timeout_seconds=config.timeout_seconds) as response:
                 return MinerUResponse(
                     status_code=response.status,
                     headers={key.lower(): value for key, value in response.headers.items()},
                     body=response.read(),
                 )
         except error.HTTPError as exc:
-            raise ExternalServiceError(f"MinerU service returned HTTP {exc.code}: {exc.reason}") from exc
-        except error.URLError as exc:
-            raise ExternalServiceError(f"MinerU service is unavailable: {exc.reason}") from exc
+            detail = exc.read().decode("utf-8", errors="replace").strip()
+            suffix = f": {detail[:500]}" if detail else f": {exc.reason}"
+            raise ExternalServiceError(f"MinerU service returned HTTP {exc.code}{suffix}") from exc
+        except (error.URLError, http.client.HTTPException, TimeoutError, socket.timeout, OSError) as exc:
+            reason = getattr(exc, "reason", exc)
+            raise ExternalServiceError(f"MinerU service is unavailable: {reason}") from exc
+
+
+def _source_output_dir(output_dir: Path, input_path: Path, input_root: Path | None) -> Path:
+    if input_root is None:
+        return output_dir
+    root = input_root.expanduser().resolve()
+    try:
+        relative_parent = input_path.relative_to(root).parent
+    except ValueError as exc:
+        raise SourceNotFound(f"Document input file is outside the selected input folder: {input_path}") from exc
+    return output_dir / relative_parent
 
 
 def _discover_input_files(input_dir: Path, patterns: list[str], recursive: bool) -> list[Path]:
@@ -155,24 +159,29 @@ def _validate_service_config(config: MinerUDocumentProcessingConfig) -> None:
         raise DocumentPreprocessorUnavailable("This file requires document preprocessing, but document_processing.mineru.enabled is false.")
     if not config.endpoint:
         raise DocumentPreprocessorUnavailable("document_processing.mineru.endpoint is required when document preprocessing is needed.")
+    parsed = urlsplit(config.endpoint)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise DocumentPreprocessorUnavailable("document_processing.mineru.endpoint must be an absolute HTTP(S) URL.")
 
 
 def _multipart_body(boundary: str, fields: dict[str, object], *, file_field: str, path: Path) -> bytes:
     chunks: list[bytes] = []
     for name, value in fields.items():
-        chunks.extend(
-            [
-                f"--{boundary}\r\n".encode("utf-8"),
-                f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode("utf-8"),
-                str(value).encode("utf-8"),
-                b"\r\n",
-            ]
-        )
+        for item in _multipart_field_values(value):
+            chunks.extend(
+                [
+                    f"--{boundary}\r\n".encode("utf-8"),
+                    f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode("utf-8"),
+                    item.encode("utf-8"),
+                    b"\r\n",
+                ]
+            )
+    content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     chunks.extend(
         [
             f"--{boundary}\r\n".encode("utf-8"),
             f'Content-Disposition: form-data; name="{file_field}"; filename="{path.name}"\r\n'.encode("utf-8"),
-            b"Content-Type: application/octet-stream\r\n\r\n",
+            f"Content-Type: {content_type}\r\n\r\n".encode("utf-8"),
             path.read_bytes(),
             b"\r\n",
             f"--{boundary}--\r\n".encode("utf-8"),
@@ -181,12 +190,45 @@ def _multipart_body(boundary: str, fields: dict[str, object], *, file_field: str
     return b"".join(chunks)
 
 
+def _urlopen(req: request.Request, *, timeout_seconds: float):
+    hostname = (urlsplit(req.full_url).hostname or "").lower()
+    bypass_proxy = hostname == "localhost" or hostname.endswith(".localhost")
+    if not bypass_proxy:
+        try:
+            address = ipaddress.ip_address(hostname)
+        except ValueError:
+            pass
+        else:
+            bypass_proxy = address.is_loopback or address.is_private or address.is_link_local
+    if bypass_proxy:
+        opener = request.build_opener(request.ProxyHandler({}))
+        return opener.open(req, timeout=timeout_seconds)
+    return request.urlopen(req, timeout=timeout_seconds)  # noqa: S310 - user-configured service adapter
+
+
+def _multipart_field_values(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return [_multipart_scalar(item) for item in value]
+    return [_multipart_scalar(value)]
+
+
+def _multipart_scalar(value: object) -> str:
+    if isinstance(value, bool):
+        return str(value).lower()
+    return str(value)
+
+
 def _materialize_markdown(
     input_path: Path,
     output_dir: Path,
     response: MinerUResponse,
     config: MinerUDocumentProcessingConfig,
 ) -> Path | None:
+    if _is_zip_response(response):
+        return _extract_zip_markdown(input_path, output_dir, response)
+
     payload = _json_payload(response)
     if payload is not None:
         markdown = _field_value(payload, config.response_markdown_field)
@@ -212,6 +254,45 @@ def _materialize_markdown(
         if candidate.exists() and candidate.is_file():
             return candidate.resolve()
     return None
+
+
+def _is_zip_response(response: MinerUResponse) -> bool:
+    content_type = response.headers.get("content-type", "").lower()
+    return "zip" in content_type or response.body.startswith(b"PK\x03\x04")
+
+
+def _extract_zip_markdown(input_path: Path, output_dir: Path, response: MinerUResponse) -> Path | None:
+    extracted: list[Path] = []
+    destinations: set[Path] = set()
+    total_size = 0
+    try:
+        with zipfile.ZipFile(io.BytesIO(response.body)) as archive:
+            for info in archive.infolist():
+                member = PurePosixPath(info.filename.replace("\\", "/"))
+                if member.is_absolute() or ".." in member.parts:
+                    raise ExternalServiceError(f"MinerU ZIP contains an unsafe path: {info.filename}")
+                if stat.S_ISLNK(info.external_attr >> 16):
+                    raise ExternalServiceError(f"MinerU ZIP contains an unsupported symbolic link: {info.filename}")
+                if info.is_dir():
+                    continue
+                total_size += info.file_size
+                if total_size > 1024 * 1024 * 1024:
+                    raise ExternalServiceError("MinerU ZIP exceeds the 1 GiB extracted-size limit.")
+                destination = (output_dir / Path(*member.parts)).resolve()
+                if destination in destinations or output_dir.resolve() not in destination.parents:
+                    raise ExternalServiceError(f"MinerU ZIP contains an invalid or duplicate path: {info.filename}")
+                destinations.add(destination)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                with archive.open(info) as source, destination.open("wb") as target:
+                    shutil.copyfileobj(source, target)
+                extracted.append(destination)
+    except zipfile.BadZipFile as exc:
+        raise ExternalServiceError("MinerU service returned an invalid ZIP response.") from exc
+
+    markdown = [path for path in extracted if path.suffix.lower() in {".md", ".markdown"}]
+    preferred = [path for path in markdown if path.stem == input_path.stem]
+    candidates = preferred or markdown
+    return min(candidates, key=lambda path: (len(path.parts), str(path))) if candidates else None
 
 
 def _json_payload(response: MinerUResponse) -> dict[str, object] | None:
@@ -305,6 +386,7 @@ def _output_directory_image_attachments(
         output_dir / input_path.stem / "images",
         output_dir / input_path.stem / "auto" / "images",
         output_dir / input_path.stem / "hybrid_auto" / "images",
+        output_dir / input_path.stem / "vlm" / "images",
         output_dir / input_path.stem / "hybrid-engine" / "images",
         output_dir / input_path.stem / "vlm-engine" / "images",
     ]
@@ -428,7 +510,7 @@ def _safe_asset_stem(value: str) -> str:
     cleaned = "".join(char.lower() if char.isalnum() else "-" for char in value.strip())
     while "--" in cleaned:
         cleaned = cleaned.replace("--", "-")
-    return cleaned.strip("-") or "asset"
+    return cleaned.strip("-")[:48].rstrip(" .-") or "asset"
 
 
 def _markdown_link_to_asset(markdown_path: Path, asset_path: Path) -> str:
@@ -454,10 +536,10 @@ def _payload_image_description(item: dict[str, object]) -> str:
                 return " ".join(parts)
     content = item.get("content")
     if isinstance(content, str) and content.strip():
-        return _compact_attachment_content(content)
+        return _clean_attachment_content(content)
     table_body = item.get("table_body")
     if isinstance(table_body, str) and table_body.strip():
-        return _compact_attachment_content(table_body)
+        return _clean_attachment_content(table_body)
     return ""
 
 
@@ -507,11 +589,16 @@ def _enrich_materialized_attachments(
     return attachments
 
 
-def _compact_attachment_content(value: str, *, limit: int = 220) -> str:
-    text = " ".join(value.split())
-    if len(text) <= limit:
-        return text
-    return text[: limit - 1].rstrip() + "..."
+def _clean_attachment_content(value: str) -> str:
+    normalized = value.replace("\r\n", "\n").replace("\r", "\n").strip()
+    if normalized.count("```") == 2:
+        fenced = re.fullmatch(r"```([A-Za-z0-9_+-]*)[ \t]*(?:\n|[ \t]+)(.*?)\s*```", normalized, flags=re.DOTALL)
+        if fenced:
+            language, body = fenced.groups()
+            return f"```{language}\n{body.strip()}\n```"
+    if "```" in normalized:
+        return normalized
+    return " ".join(normalized.split())
 
 
 def _iter_payload_image_items(value: object) -> list[dict[str, object]]:
@@ -549,3 +636,59 @@ def _payload_path_value(item: dict[str, object]) -> str | None:
             if suffix in {".apng", ".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"}:
                 return value.strip()
     return None
+
+
+def mineru_health_endpoint(endpoint: str) -> str:
+    parsed = urlsplit(endpoint)
+    return urlunsplit((parsed.scheme, parsed.netloc, "/health", "", ""))
+
+
+def probe_mineru_endpoint(endpoint: str, *, headers: dict[str, str] | None = None, timeout_seconds: float = 2.0) -> tuple[bool, str]:
+    payload, detail = _mineru_health_payload(endpoint, headers=headers, timeout_seconds=timeout_seconds)
+    if payload is None:
+        return False, detail
+    version = payload.get("protocol_version") or payload.get("version")
+    return True, f"health ready{f' ({version})' if version else ''}"
+
+
+def mineru_max_concurrent_requests(
+    endpoint: str,
+    *,
+    headers: dict[str, str] | None = None,
+    timeout_seconds: float = 2.0,
+) -> int:
+    """Return the service-advertised request capacity or the safe fallback."""
+
+    payload, _ = _mineru_health_payload(endpoint, headers=headers, timeout_seconds=timeout_seconds)
+    value = payload.get("max_concurrent_requests") if payload is not None else None
+    if isinstance(value, bool):
+        return 1
+    try:
+        return max(1, int(value))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _mineru_health_payload(
+    endpoint: str,
+    *,
+    headers: dict[str, str] | None,
+    timeout_seconds: float,
+) -> tuple[dict[str, object] | None, str]:
+    health_endpoint = mineru_health_endpoint(endpoint)
+    req = request.Request(health_endpoint, headers={"Accept": "application/json", **(headers or {})}, method="GET")
+    try:
+        with _urlopen(req, timeout_seconds=timeout_seconds) as response:
+            body = response.read()
+            if response.status < 200 or response.status >= 300:
+                return None, f"health HTTP {response.status}"
+            try:
+                payload = json.loads(body.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return None, "health response is not valid JSON"
+            if not isinstance(payload, dict):
+                return None, "health response is not a JSON object"
+            return payload, "health ready"
+    except (error.HTTPError, error.URLError, TimeoutError, socket.timeout, ValueError, OSError) as exc:
+        reason = getattr(exc, "reason", exc)
+        return None, f"health unavailable: {reason}"

@@ -69,6 +69,17 @@ class RunReporter:
         )
         self.raise_if_cancelled()
 
+    def model_admission_waiting(self, *, contract_name: str, reason: str, wait_seconds: float, provider_key: str) -> None:
+        self.event(
+            "provider_admission_waiting",
+            status="waiting_model",
+            stage="waiting_model",
+            current_item=contract_name,
+            message=f"Waiting for model admission: {reason}.",
+            payload={"reason": reason, "wait_seconds": round(wait_seconds, 3), "provider_key": provider_key},
+        )
+        self.raise_if_cancelled()
+
     def model_call_finished(
         self,
         *,

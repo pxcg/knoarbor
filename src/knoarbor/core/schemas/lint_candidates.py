@@ -9,9 +9,7 @@ MaintenanceCandidateSource = Literal["structural", "provenance", "quality", "fre
 MaintenanceCandidateSeverity = Literal["high", "medium", "low"]
 MaintenanceRiskHint = Literal["safe", "low", "medium", "high"]
 MaintenanceExecutorHint = Literal[
-    "deterministic_wiki_operation",
-    "draft_write",
-    "refresh_request",
+    "governance_request",
     "report_only",
     "unsupported",
 ]

@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 from knoarbor.core.schemas.chat import ChatCitation, ChatToolTraceItem
+from knoarbor.services.chat_evidence import canonical_raw_evidence
 
 
 @dataclass(frozen=True)
@@ -33,7 +34,8 @@ def resolve_answer_presentation(
 
     evidence_pool = _answer_evidence_citations(trace)
     observed_pool = _observed_citations(trace)
-    reference_pool = evidence_pool or observed_pool
+    selected = _validated_decision_citations(decision_citations, evidence_pool or observed_pool)
+    reference_pool = selected or evidence_pool or observed_pool
     references = _referenced_indexes(answer, reference_pool)
     if references.valid:
         citations = _unique_citations([reference_pool[index - 1] for index in references.valid])
@@ -44,12 +46,11 @@ def resolve_answer_presentation(
             warnings=references.warnings,
         )
 
-    selected = _validated_decision_citations(decision_citations, evidence_pool or observed_pool)
     if selected:
         return ChatAnswerPresentation(
             answer=answer,
             citations=selected,
-            hidden_evidence_count=_hidden_count(reference_pool, selected),
+            hidden_evidence_count=_hidden_count(evidence_pool or observed_pool, selected),
             warnings=references.warnings,
         )
 
@@ -92,9 +93,14 @@ class _ReferenceIndexes:
 
 
 def _referenced_indexes(answer: str, citations: list[ChatCitation]) -> _ReferenceIndexes:
+    indexes, invalid = _collect_reference_indexes(answer, citations, r"[\[［](\d+)[\]］]")
+    return _ReferenceIndexes(valid=indexes, warnings=_reference_warnings(invalid))
+
+
+def _collect_reference_indexes(answer: str, citations: list[ChatCitation], pattern: str) -> tuple[list[int], list[int]]:
     indexes: list[int] = []
     invalid: list[int] = []
-    for match in re.finditer(r"[\[［](\d{1,2})[\]］]", answer):
+    for match in re.finditer(pattern, answer):
         number = int(match.group(1))
         if number < 1 or number > len(citations):
             if number not in invalid:
@@ -102,10 +108,14 @@ def _referenced_indexes(answer: str, citations: list[ChatCitation]) -> _Referenc
             continue
         if number not in indexes:
             indexes.append(number)
-    warnings = []
+    return indexes, invalid
+
+
+def _reference_warnings(invalid: list[int]) -> list[str]:
+    warnings: list[str] = []
     if invalid:
         warnings.append(f"Ignored citation reference(s) outside the evidence range: {', '.join(str(item) for item in invalid)}.")
-    return _ReferenceIndexes(valid=indexes, warnings=warnings)
+    return warnings
 
 
 def _renumber_answer_citations(answer: str, referenced_indexes: list[int]) -> str:
@@ -118,7 +128,7 @@ def _renumber_answer_citations(answer: str, referenced_indexes: list[int]) -> st
             return match.group(0)
         return f"[{replacement}]"
 
-    return re.sub(r"[\[［](\d{1,2})[\]］]", replace, answer)
+    return re.sub(r"[\[［](\d+)[\]］]", replace, answer)
 
 
 def _validated_decision_citations(decision_citations: list[ChatCitation], observed: list[ChatCitation]) -> list[ChatCitation]:
@@ -130,34 +140,39 @@ def _validated_decision_citations(decision_citations: list[ChatCitation], observ
     for citation in decision_citations:
         matched = _match_observed(citation, observed)
         if matched:
-            output.append(
-                matched.model_copy(
-                    update={
-                        "title": citation.title or matched.title,
-                        "reason": citation.reason or matched.reason,
-                    }
-                )
-            )
+            output.append(citation.model_copy(update={
+                "path": citation.path or matched.path,
+                "title": citation.title or matched.title,
+                "vault_id": citation.vault_id or matched.vault_id,
+                "vault_name": citation.vault_name or matched.vault_name,
+                "vault_path": citation.vault_path or matched.vault_path,
+                "evidence_id": citation.evidence_id or matched.evidence_id,
+                "raw_revision_id": citation.raw_revision_id or matched.raw_revision_id,
+                "source_unit_id": citation.source_unit_id or matched.source_unit_id,
+                "reason": citation.reason or matched.reason,
+            }))
     return _unique_citations(output)
 
 
 def _match_observed(citation: ChatCitation, observed: list[ChatCitation]) -> ChatCitation | None:
-    target = citation.path or citation.run_id or ""
+    target = _citation_target(citation)
     for item in observed:
-        if item.kind == citation.kind and (item.path or item.run_id or "") == target:
+        same_vault = not citation.vault_id or not item.vault_id or citation.vault_id == item.vault_id
+        if item.kind == citation.kind and _citation_target(item) == target and same_vault:
             return item
     return None
 
 
 def _answer_evidence_citations(trace: list[ChatToolTraceItem]) -> list[ChatCitation]:
+    raw_evidence = canonical_raw_evidence(trace)
+    if raw_evidence:
+        return [_source_unit_payload_citation(item) for item in raw_evidence]
     citations: list[ChatCitation] = []
     for item in trace:
         pack = item.result.get("evidence_pack")
         if isinstance(pack, dict):
             citations.extend(_pack_citations(pack))
             continue
-        if item.tool == "read_wiki_page" and item.citations:
-            citations.extend(item.citations)
     return _unique_citations(citations)
 
 
@@ -172,18 +187,31 @@ def _observed_citations(trace: list[ChatToolTraceItem]) -> list[ChatCitation]:
 
 
 def _pack_citations(pack: dict[str, Any]) -> list[ChatCitation]:
+    citation_evidence = pack.get("citation_evidence")
+    if isinstance(citation_evidence, list) and citation_evidence:
+        return [_source_unit_payload_citation(item) for item in citation_evidence if isinstance(item, dict) and item.get("source_unit_id")]
     citation_pages = pack.get("citation_pages")
     if isinstance(citation_pages, list) and citation_pages:
         return [_page_payload_citation(page) for page in citation_pages if isinstance(page, dict) and page.get("path")]
-    pages: list[tuple[str, dict[str, Any]]] = []
-    for role, key in (("primary", "primary_pages"), ("supporting", "supporting_pages"), ("source", "source_pages")):
-        value = pack.get(key)
-        if isinstance(value, list):
-            pages.extend((role, page) for page in value if isinstance(page, dict) and page.get("path"))
-    primary_page = pack.get("primary_page")
-    if isinstance(primary_page, dict) and primary_page.get("path"):
-        pages.insert(0, ("primary", primary_page))
-    return [_page_payload_citation(page, role=role) for role, page in pages]
+    return []
+
+
+def _source_unit_payload_citation(item: dict[str, Any]) -> ChatCitation:
+    return ChatCitation(
+        kind="raw_evidence",
+        role="source",
+        path=str(item.get("source_path")) if item.get("source_path") else None,
+        title=str(item.get("title") or item.get("source_unit_id") or ""),
+        vault_id=str(item.get("vault_id")) if item.get("vault_id") else None,
+        vault_name=str(item.get("vault_name")) if item.get("vault_name") else None,
+        vault_path=str(item.get("vault_path")) if item.get("vault_path") else None,
+        evidence_id=str(item.get("evidence_id")) if item.get("evidence_id") else None,
+        raw_revision_id=str(item.get("raw_revision_id")) if item.get("raw_revision_id") else None,
+        source_unit_id=str(item.get("source_unit_id")),
+        char_start=int(item["char_start"]) if item.get("char_start") is not None else None,
+        char_end=int(item["char_end"]) if item.get("char_end") is not None else None,
+        reason=str(item.get("reason") or "Raw source unit used as answer evidence."),
+    )
 
 
 def _page_payload_citation(page: dict[str, Any], *, role: str | None = None) -> ChatCitation:
@@ -204,17 +232,17 @@ def _citation_role(role: str) -> str:
 
 
 def _hidden_count(reference_pool: list[ChatCitation], public_citations: list[ChatCitation]) -> int:
-    public_keys = {_citation_key(citation) for citation in public_citations}
-    return len([citation for citation in reference_pool if _citation_key(citation) not in public_keys])
+    public_keys = {_citation_source_key(citation) for citation in public_citations}
+    return len([citation for citation in reference_pool if _citation_source_key(citation) not in public_keys])
 
 
 def _unique_citations(citations: list[ChatCitation] | Any) -> list[ChatCitation]:
-    seen: set[tuple[str, str, str]] = set()
+    seen: set[tuple[str, str, str, int | None, int | None]] = set()
     unique: list[ChatCitation] = []
     for citation in citations:
-        target = citation.path or citation.run_id or ""
+        target = _citation_target(citation)
         vault_identity = citation.vault_id or citation.vault_path or ""
-        if not vault_identity and any(existing.kind == citation.kind and (existing.path or existing.run_id or "") == target and (existing.vault_id or existing.vault_path) for existing in unique):
+        if not vault_identity and any(existing.kind == citation.kind and _citation_target(existing) == target and (existing.vault_id or existing.vault_path) for existing in unique):
             continue
         if vault_identity:
             unique = [
@@ -222,7 +250,7 @@ def _unique_citations(citations: list[ChatCitation] | Any) -> list[ChatCitation]
                 for existing in unique
                 if not (
                     existing.kind == citation.kind
-                    and (existing.path or existing.run_id or "") == target
+                    and _citation_target(existing) == target
                     and not (existing.vault_id or existing.vault_path)
                 )
             ]
@@ -235,8 +263,22 @@ def _unique_citations(citations: list[ChatCitation] | Any) -> list[ChatCitation]
     return unique
 
 
-def _citation_key(citation: ChatCitation) -> tuple[str, str, str]:
-    return (citation.kind, citation.path or citation.run_id or "", citation.vault_id or citation.vault_path or "")
+def _citation_key(citation: ChatCitation) -> tuple[str, str, str, int | None, int | None]:
+    return (
+        citation.kind,
+        _citation_target(citation),
+        citation.vault_id or citation.vault_path or "",
+        citation.char_start,
+        citation.char_end,
+    )
+
+
+def _citation_source_key(citation: ChatCitation) -> tuple[str, str, str]:
+    return (citation.kind, _citation_target(citation), citation.vault_id or citation.vault_path or "")
+
+
+def _citation_target(citation: ChatCitation) -> str:
+    return citation.evidence_id or citation.source_unit_id or citation.path or citation.run_id or ""
 
 
 def _answer_allows_file_paths(latest_user_text: str) -> bool:

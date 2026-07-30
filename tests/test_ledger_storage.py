@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from knoarbor.storage import append_jsonl_ledger
+from knoarbor.storage.ledger import append_jsonl_ledger
 
 
 class LedgerStorageTests(unittest.TestCase):

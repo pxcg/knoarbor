@@ -15,7 +15,7 @@ from knoarbor.core.schemas.knowledge_atoms import (
     KnowledgeRelation,
 )
 from knoarbor.maintenance.wiki_lint import lint_vault
-from knoarbor.storage.knowledge_atom_index import KnowledgeAtomPageRef, upsert_knowledge_atom_batch
+from tests.transactional_ingest_helpers import publish_batch
 
 
 def _write_page(vault: Path) -> None:
@@ -29,10 +29,9 @@ created: 2026-01-01 00:00:00
 updated: 2026-01-01 00:00:00
 role: knowledge_page
 content_hash: test
-confidence: 0.80
 model_provider: test
 model_name: unit
-source_digest_ids: ["sd_agent"]
+source_record_ids: ["sr_agent"]
 atom_ids: ["claim_missing_support", "rel_supports", "rel_contradicts"]
 ---
 
@@ -56,7 +55,7 @@ Agent loop summary.
 
 | Claim | Source | Range | Basis |
 |---|---|---|---|
-| C1 | sd_agent | unit:0 | Agent loop evidence. |
+| C1 | sr_agent | unit:0 | Agent loop evidence. |
 
 ## Synthesis
 
@@ -67,7 +66,7 @@ Agent loop answer.
 
 
 def _evidence() -> KnowledgeEvidenceSpan:
-    return KnowledgeEvidenceSpan(source_digest_id="sd_agent", excerpt="Agent loop evidence.")
+    return KnowledgeEvidenceSpan(source_record_id="sr_agent", excerpt="Agent loop evidence.")
 
 
 class KnowledgeAtomLintTests(unittest.TestCase):
@@ -77,15 +76,14 @@ class KnowledgeAtomLintTests(unittest.TestCase):
             _write_page(vault)
             subject = KnowledgeAtomObject(object_type="knowledge_object", name="Agent Loop")
             target = KnowledgeAtomObject(object_type="knowledge_object", name="Workflow")
-            upsert_knowledge_atom_batch(
+            publish_batch(
                 vault,
                 KnowledgeAtomBatch(
-                    source_digest_id="sd_agent",
+                    source_record_id="sr_agent",
                     claims=[
                         KnowledgeClaim(
                             id="claim_missing_support",
                             claim="Agent loop depends on missing support.",
-                            claim_type="assessment",
                             evidence=[_evidence()],
                         )
                     ],
@@ -106,13 +104,7 @@ class KnowledgeAtomLintTests(unittest.TestCase):
                         ),
                     ],
                 ),
-                [
-                    KnowledgeAtomPageRef(
-                        path="Agent-Loop.md",
-                        source_digest_ids=["sd_agent"],
-                        atom_ids=["claim_missing_support", "rel_supports", "rel_contradicts"],
-                    )
-                ],
+                raw_record_id="raw:agent", raw_revision_id="rawrev:agent", page_paths=["Agent-Loop.md"],
             )
 
             issues, stats = lint_vault(vault)
@@ -122,6 +114,9 @@ class KnowledgeAtomLintTests(unittest.TestCase):
         self.assertIn("atom_conflicting_relation", codes)
         self.assertEqual(stats["knowledge_atom_index"]["record_count"], 3)
         self.assertEqual(stats["knowledge_atom_index"]["issue_count"], 2)
+        self.assertEqual(stats["canonical_chain"]["source_records"], 1)
+        self.assertEqual(stats["canonical_chain"]["raw_evidence"], 1)
+        self.assertEqual(stats["canonical_chain"]["atoms"], 3)
 
 
 if __name__ == "__main__":

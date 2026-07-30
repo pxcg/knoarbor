@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 import os
 import tomllib
@@ -12,9 +13,16 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.entrypoints.api import create_app
-from knoarbor.entrypoints.api_contract import stable_route_set, ui_route_set
+from knoarbor.entrypoints.api_contract import stable_route_set, stable_route_specs, ui_route_set
 from knoarbor.core.errors import ERROR_HINTS
 from knoarbor import __version__
+from knoarbor.runtime.endpoint import write_runtime_endpoint
+from knoarbor.runtime.transactional_ingest import TransactionalIngestStore
+from knoarbor.storage.materialization import VaultMaterializer
+from knoarbor.storage.wiki_index import read_wiki_page_records
+from knoarbor.storage.wiki_paths import content_path
+from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch, KnowledgeClaim, KnowledgeEvidenceSpan
+from tests.transactional_ingest_helpers import publish_batch
 
 
 @contextmanager
@@ -52,6 +60,28 @@ def _write_run_record(vault: Path, run_id: str, updated_at: str) -> None:
 }}""",
         encoding="utf-8",
     )
+
+
+def _publish_query_fixture(vault: Path, *, title: str, page_path: str) -> None:
+    slug = title.lower().replace(" ", "-")
+    publish_batch(
+        vault,
+        KnowledgeAtomBatch(
+            source_record_id=f"source:{slug}",
+            claims=[
+                KnowledgeClaim(
+                    id=f"claim:{slug}",
+                    claim=f"{title} coordinates reasoning and tool use.",
+                    evidence=[KnowledgeEvidenceSpan(source_record_id=f"source:{slug}", excerpt=f"{title} source evidence.")],
+                )
+            ],
+        ),
+        raw_record_id=f"raw:{slug}",
+        raw_revision_id=f"rawrev:{slug}",
+        source_path=f"raw/{slug}.md",
+        page_paths=[page_path],
+    )
+    VaultMaterializer().reconcile(vault)
 
 
 REMOVED_PROTOTYPE_ROUTES = {
@@ -96,6 +126,22 @@ class ApiSurfaceTests(unittest.TestCase):
 
         self.assertEqual(payload["info"]["version"], __version__)
 
+    def test_desktop_renderer_can_preflight_direct_chat_stream(self) -> None:
+        client = TestClient(create_app())
+
+        response = client.options(
+            "/chat/stream",
+            headers={
+                "Origin": "knoarbor://renderer",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["access-control-allow-origin"], "knoarbor://renderer")
+        self.assertIn("POST", response.headers["access-control-allow-methods"])
+
     def test_api_errors_use_public_error_catalog(self) -> None:
         client = TestClient(create_app())
 
@@ -111,11 +157,13 @@ class ApiSurfaceTests(unittest.TestCase):
     def test_openapi_exposes_only_public_long_term_routes(self) -> None:
         client = TestClient(create_app())
 
-        paths = set(client.get("/openapi.json").json()["paths"])
+        paths = client.get("/openapi.json").json()["paths"]
 
-        self.assertTrue(stable_route_set().issubset(paths))
-        self.assertTrue(ui_route_set().issubset(paths))
-        self.assertFalse(REMOVED_PROTOTYPE_ROUTES & paths)
+        self.assertTrue(stable_route_set().issubset(set(paths)))
+        self.assertTrue(ui_route_set().issubset(set(paths)))
+        self.assertFalse(REMOVED_PROTOTYPE_ROUTES & set(paths))
+        for route in stable_route_specs():
+            self.assertIn(route.method.lower(), paths[route.path], f"{route.method} {route.path}")
 
     def test_runtime_endpoint_returns_integration_context(self) -> None:
         client = TestClient(create_app())
@@ -130,8 +178,25 @@ class ApiSurfaceTests(unittest.TestCase):
         self.assertIn("config_path", payload)
         self.assertIn("vault_path", payload)
         self.assertIn("endpoint_path", payload)
-        self.assertIn("user_endpoint_path", payload)
+        self.assertTrue(payload["endpoint_path"].endswith("/state/endpoint.json"))
+        self.assertNotIn("user_endpoint_path", payload)
         self.assertIn("errors", payload)
+
+    def test_runtime_endpoint_has_one_private_state_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config = Path(tmp_dir) / "config.yaml"
+            endpoint = write_runtime_endpoint(
+                config,
+                host="127.0.0.1",
+                port=8000,
+                base_url="http://127.0.0.1:8000",
+            )
+
+            self.assertEqual(endpoint, Path(tmp_dir).resolve() / "state" / "endpoint.json")
+            self.assertTrue(endpoint.is_file())
+            self.assertFalse((Path(tmp_dir) / ".knoarbor" / "endpoint.json").exists())
+            if os.name != "nt":
+                self.assertEqual(endpoint.stat().st_mode & 0o777, 0o600)
 
     def test_vaults_endpoint_lists_configured_profiles(self) -> None:
         import tempfile
@@ -279,6 +344,11 @@ connectors:
         self.assertIn("hint", payload["error"])
         self.assertNotIn("Traceback", payload["detail"])
 
+    def test_api_uses_knoarbor_service_title(self) -> None:
+        app = create_app()
+
+        self.assertEqual(app.title, "KnoArbor Processing Service")
+
     def test_query_search_endpoint_returns_context_pack(self) -> None:
         import tempfile
 
@@ -289,6 +359,8 @@ connectors:
                 "# Agent Loop\n\n## Summary\n\nAgent loop coordinates reasoning and tool use.\n",
                 encoding="utf-8",
             )
+            VaultMaterializer().reconcile(vault, force=True)
+            _publish_query_fixture(vault, title="Agent Loop", page_path="Agent-Loop.md")
             client = TestClient(create_app())
 
             response = client.post(
@@ -296,20 +368,23 @@ connectors:
                 json={
                     "vault_path": str(vault),
                     "query": "agent loop",
-                    "max_results": 3,
                 },
             )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["results"][0]["path"], "Agent-Loop.md")
-        self.assertEqual(payload["results"][0]["excerpts"][0]["path"], "Agent-Loop.md")
-        self.assertTrue(payload["response_guidance"])
-        self.assertIn("Match origin: direct", payload["context_pack"])
-        self.assertIn("Why matched", payload["context_pack"])
-        self.assertEqual(payload["stats"]["index_provider"], "machine")
+        self.assertEqual(payload["results"][0]["atom_traces"][0]["atom_id"], "claim:agent-loop")
+        self.assertEqual(payload["schema_version"], "wiki_query.v4")
+        self.assertEqual(payload["status"], "candidates")
+        self.assertTrue(payload["evidence_handles"])
+        self.assertIn("Raw evidence", payload["context_pack"])
+        self.assertIn("Test source evidence", payload["context_pack"])
+        self.assertEqual(payload["retrieval_mode"], "unified_active_raw_lexical")
         self.assertIn("query_ledger_path", payload["stats"])
-        self.assertIn("initial_scope_dirs", payload["trace"])
+        self.assertEqual(payload["trace"]["schema_version"], "query_trace.v2")
+        self.assertEqual(payload["trace"]["raw_evidence_count"], 1)
+        self.assertNotIn("answer_scope", payload["trace"])
         self.assertGreater(payload["stats"]["context_pack_chars"], 0)
 
     def test_query_endpoint_accepts_vault_id(self) -> None:
@@ -340,11 +415,13 @@ connectors: {{}}
 """,
                 encoding="utf-8",
             )
+            VaultMaterializer().reconcile(team_vault, force=True)
+            _publish_query_fixture(team_vault, title="Team Agent", page_path="Team-Agent.md")
             with _chdir(root):
                 client = TestClient(create_app())
                 response = client.post(
                     "/query",
-                    json={"config_path": str(root / "config.yaml"), "vault_id": "team", "query": "team agent", "max_results": 3},
+                    json={"config_path": str(root / "config.yaml"), "vault_id": "team", "query": "team agent"},
                 )
 
         self.assertEqual(response.status_code, 200)
@@ -396,11 +473,15 @@ connectors: {{}}
 """,
                 encoding="utf-8",
             )
+            VaultMaterializer().reconcile(personal_vault, force=True)
+            VaultMaterializer().reconcile(team_vault, force=True)
+            _publish_query_fixture(personal_vault, title="Personal Agent", page_path="Personal-Agent.md")
+            _publish_query_fixture(team_vault, title="Team Agent", page_path="Team-Agent.md")
             with _chdir(root):
                 client = TestClient(create_app())
                 response = client.post(
                     "/query",
-                    json={"config_path": str(root / "config.yaml"), "all_vaults": True, "query": "agent", "max_results": 5},
+                    json={"config_path": str(root / "config.yaml"), "all_vaults": True, "query": "agent"},
                 )
 
         self.assertEqual(response.status_code, 200)
@@ -408,6 +489,8 @@ connectors: {{}}
         self.assertTrue(payload["stats"]["multi_vault"])
         self.assertEqual(payload["stats"]["vault_ids"], ["personal", "team"])
         self.assertEqual({result["vault_id"] for result in payload["results"]}, {"personal", "team"})
+        self.assertEqual(len(payload["raw_evidence"]), 2)
+        self.assertEqual(len(payload["evidence_handles"]), 2)
         self.assertIn("# Personal", payload["context_pack"])
         self.assertIn("# Team", payload["context_pack"])
         self.assertNotIn("Unconfigured All", payload["context_pack"])
@@ -446,11 +529,15 @@ connectors: {{}}
 """,
                 encoding="utf-8",
             )
+            VaultMaterializer().reconcile(personal_vault, force=True)
+            VaultMaterializer().reconcile(team_vault, force=True)
+            _publish_query_fixture(personal_vault, title="Personal Agent", page_path="Personal-Agent.md")
+            _publish_query_fixture(team_vault, title="Team Agent", page_path="Team-Agent.md")
             with _chdir(root):
                 client = TestClient(create_app())
                 response = client.post(
                     "/query",
-                    json={"config_path": str(root / "config.yaml"), "vault_id": "all", "query": "agent", "max_results": 5},
+                    json={"config_path": str(root / "config.yaml"), "vault_id": "all", "query": "agent"},
                 )
 
         self.assertEqual(response.status_code, 200)
@@ -464,6 +551,7 @@ connectors: {{}}
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
+            VaultMaterializer().reconcile(vault, force=True)
             client = TestClient(create_app())
             for _ in range(2):
                 response = client.post(
@@ -471,7 +559,6 @@ connectors: {{}}
                     json={
                         "vault_path": str(vault),
                         "query": "missing topic",
-                        "max_results": 3,
                     },
                 )
                 self.assertEqual(response.status_code, 200)
@@ -667,11 +754,10 @@ connectors: {{}}
 
     def test_queued_ingest_uses_selected_vault_for_run_record(self) -> None:
         import tempfile
-        import time
 
-        from knoarbor.core.schemas.ingest_run import IngestRunRequest
-        from knoarbor.runtime.run_monitor import read_run
-        from knoarbor.services.run_manager import RunManager
+        from unittest.mock import patch
+        from knoarbor.core.schemas.ingest_run import UnifiedIngestRequest
+        from knoarbor.services.ingest_coordinator import IngestCoordinator
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -692,28 +778,31 @@ vaults:
       name: Team
       path: {team}
 models:
-  providers: {{}}
+  default_provider: test
+  providers:
+    test:
+      model: test
+      base_url: http://localhost
 connectors: {{}}
 """,
                 encoding="utf-8",
             )
 
-            started = RunManager().start_ingest(
-                IngestRunRequest(config_path=str(config_path), vault_id="team", write=False),
-                lambda request: {"ok": True, "vault_id": request.vault_id},
-            )
+            coordinator = IngestCoordinator()
+            with patch.object(coordinator.scheduler, "submit"):
+                started = coordinator.start(
+                    UnifiedIngestRequest(
+                        kind="excerpt", execution="queued", excerpt_text="team input",
+                        config_path=str(config_path), vault_id="team", write=False,
+                    )
+                )
 
             self.assertEqual(started.run.vault_id, "team")
             self.assertEqual(started.run.vault_name, "Team")
             self.assertEqual(started.run.vault_path, str(team.resolve()))
-            self.assertTrue((team / ".knoarbor" / "runs" / f"{started.run_id}.json").exists())
+            self.assertEqual(started.run.status, "queued")
+            self.assertFalse((team / ".knoarbor" / "runs" / f"{started.run_id}.json").exists())
             self.assertFalse((personal / ".knoarbor" / "runs" / f"{started.run_id}.json").exists())
-            for _ in range(20):
-                record = read_run(team, started.run_id)
-                if record.status == "completed":
-                    break
-                time.sleep(0.05)
-            self.assertEqual(record.status, "completed")
 
     def test_queued_lint_response_includes_selected_vault_metadata(self) -> None:
         import tempfile
@@ -782,6 +871,8 @@ connectors: {{}}
                 "# Agent Loop\n\n## Summary\n\nAgent loop coordinates reasoning and tool use.\n",
                 encoding="utf-8",
             )
+            VaultMaterializer().reconcile(vault, force=True)
+            _publish_query_fixture(vault, title="Agent Loop", page_path="Agent-Loop.md")
             client = TestClient(create_app())
 
             response = client.post(
@@ -795,12 +886,11 @@ connectors: {{}}
             self.assertEqual(response.status_code, 200)
             payload = response.json()
 
-        self.assertEqual(payload["schema_version"], "wiki_query.v1")
+        self.assertEqual(payload["schema_version"], "wiki_query.v4")
         self.assertEqual(payload["results"][0]["path"], "Agent-Loop.md")
 
     def test_run_ingest_file_records_preprocessor_error_for_pdf(self) -> None:
         import tempfile
-        import time
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -822,20 +912,11 @@ connectors: {{}}
                     "write": False,
                 },
             )
-            self.assertEqual(response.status_code, 200)
-            run_id = response.json()["run_id"]
-            run_payload = {}
-            for _ in range(20):
-                run_response = client.get(f"/runs/{run_id}", params={"vault_path": str(vault)})
-                self.assertEqual(run_response.status_code, 200)
-                run_payload = run_response.json()
-                if run_payload["status"] == "failed":
-                    break
-                time.sleep(0.05)
+            self.assertEqual(response.status_code, 400)
+            run_payload = response.json()
 
-        self.assertEqual(run_payload["status"], "failed")
-        self.assertEqual(run_payload["error_info"]["code"], "KA-DOC-001")
-        self.assertIn("document_processing.mineru.enabled", run_payload["error"])
+        self.assertEqual(run_payload["error"]["code"], "KA-DOC-001")
+        self.assertIn("document_processing.mineru.enabled", run_payload["error"]["message"])
 
     def test_run_lint_records_missing_config_error(self) -> None:
         import tempfile
@@ -905,6 +986,7 @@ connectors: {{}}
 """,
                 encoding="utf-8",
             )
+            VaultMaterializer().reconcile(archive_vault, force=True)
             with _chdir(root):
                 client = TestClient(create_app())
                 response = client.get("/wiki/pages", params={"config_path": str(root / "config.yaml"), "vault_id": "archive"})
@@ -951,6 +1033,24 @@ connectors: {{}}
         self.assertEqual(response.json()["error"]["code"], "KA-INPUT-002")
         self.assertEqual(response.json()["error"]["category"], "user_input_error")
         self.assertIn("Vault file not found", response.json()["error"]["message"])
+
+    def test_missing_page_is_materialization_pending_until_the_view_is_clean(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            _publish_query_fixture(vault, title="Pending View", page_path="Pending-View.md")
+            page_path = str(next(page["path"] for page in read_wiki_page_records(vault) if page.get("role") == "knowledge_page"))
+            content_path(vault, page_path).unlink()
+            TransactionalIngestStore(vault).request_materialization()
+            client = TestClient(create_app())
+
+            response = client.get(
+                "/wiki/pages/content",
+                params={"vault_path": str(vault), "path": page_path},
+            )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["error"]["code"], "KA-STORAGE-001")
+        self.assertIn("materialization is pending", response.json()["error"]["message"])
 
 
 if __name__ == "__main__":

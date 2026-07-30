@@ -7,6 +7,7 @@ import socket
 import sys
 import tempfile
 import unittest
+from argparse import Namespace
 from argparse import _SubParsersAction
 from contextlib import contextmanager
 from contextlib import redirect_stderr, redirect_stdout
@@ -16,6 +17,11 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.cli import build_parser, main
+from knoarbor.cli_commands import handlers
+from knoarbor.storage.materialization import VaultMaterializer
+from knoarbor.storage.wiki_index import machine_index_dir
+from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch, KnowledgeClaim, KnowledgeEvidenceSpan
+from tests.transactional_ingest_helpers import publish_batch
 
 
 @contextmanager
@@ -35,7 +41,73 @@ def _subcommand_names(parser) -> set[str]:
     return set()
 
 
+def _publish_query_fixture(vault: Path, *, title: str, page_path: str) -> None:
+    slug = title.lower().replace(" ", "-")
+    publish_batch(
+        vault,
+        KnowledgeAtomBatch(
+            source_record_id=f"source:{slug}",
+            claims=[
+                KnowledgeClaim(
+                    id=f"claim:{slug}",
+                    claim=f"{title} coordinates reasoning and tool use.",
+                    evidence=[KnowledgeEvidenceSpan(source_record_id=f"source:{slug}", excerpt=f"{title} source evidence.")],
+                )
+            ],
+        ),
+        raw_record_id=f"raw:{slug}",
+        raw_revision_id=f"rawrev:{slug}",
+        source_path=f"raw/{slug}.md",
+        page_paths=[page_path],
+    )
+    VaultMaterializer().reconcile(vault)
+
+
 class CliTests(unittest.TestCase):
+    def test_cli_ingest_recovery_passes_document_runner(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir) / "vault"
+            vault.mkdir()
+            config_path = Path(tmp_dir) / "config.yaml"
+            config_path.write_text(f"vault:\n  path: {vault}\nmodels:\n  providers: {{}}\nconnectors: {{}}\n", encoding="utf-8")
+            args = Namespace(
+                config=str(config_path),
+                vault=None,
+                vault_id=None,
+                provider=None,
+                max_tokens=None,
+                write=False,
+                write_report=True,
+                append_ledger=True,
+            )
+
+            with (
+                patch.object(handlers.IngestCoordinator, "start", return_value=type("Started", (), {"run_id": "attempt-1"})()) as start_ingest,
+                patch.object(handlers, "_run_admitted_ingest", return_value=0),
+            ):
+                exit_code = handlers._run_ingest_recovery_from_args(args, handlers.resolve_config(args), "attempt-1")
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(start_ingest.call_args.args[0].kind, "recovery")
+
+    def test_cli_ingest_rebuilds_materialization_without_starting_ingest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir) / "vault"
+            vault.mkdir()
+            args = Namespace(json=False)
+            response = type(
+                "RebuildResponse",
+                (),
+                {"phase": "clean", "published_epoch": 2, "requested_epoch": 2, "fact_generation": "sha256:test", "index_generation": "index-1"},
+            )()
+
+            with patch.object(handlers.IngestCoordinator, "rebuild_materialization", return_value=response) as rebuild, redirect_stdout(io.StringIO()) as output:
+                exit_code = handlers._run_materialization_rebuild_from_args(args, vault)
+
+            self.assertEqual(exit_code, 0)
+            self.assertIn("phase: clean", output.getvalue())
+            self.assertEqual(rebuild.call_args.args, (vault,))
+
     def test_cli_command_contract_is_stable_and_documented(self) -> None:
         parser = build_parser()
         commands = _subcommand_names(parser)
@@ -43,6 +115,7 @@ class CliTests(unittest.TestCase):
 
         expected_commands = {
             "contracts",
+            "desktop-config",
             "doctor",
             "first-run",
             "ingest",
@@ -97,6 +170,8 @@ class CliTests(unittest.TestCase):
                 "# Agent Loop\n\n## Summary\n\nAgent loop uses observe, decide, act, and feedback.\n",
                 encoding="utf-8",
             )
+            VaultMaterializer().reconcile(vault, force=True)
+            _publish_query_fixture(vault, title="Agent Loop", page_path="Agent-Loop.md")
             output = io.StringIO()
 
             with redirect_stdout(output):
@@ -134,6 +209,9 @@ connectors: {{}}
 """,
                 encoding="utf-8",
             )
+            VaultMaterializer().reconcile(personal, force=True)
+            VaultMaterializer().reconcile(team, force=True)
+            _publish_query_fixture(team, title="Team Agent", page_path="Team-Agent.md")
             output = io.StringIO()
 
             with redirect_stdout(output):
@@ -352,7 +430,7 @@ connectors:
             config = root / "config.yaml"
             self.assertEqual(exit_code, 0)
             self.assertTrue(config.exists())
-            self.assertTrue((vault / ".knoarbor" / "index" / "manifest.json").exists())
+            self.assertTrue((machine_index_dir(vault) / "manifest.json").exists())
             self.assertIn("config:", output.getvalue())
             self.assertIn("created", output.getvalue())
 
@@ -367,8 +445,8 @@ connectors:
 
             self.assertIn(exit_code, {0, 1})
             self.assertTrue((root / "config.yaml").exists())
-            self.assertTrue((vault / ".knoarbor" / "index" / "manifest.json").exists())
-            self.assertTrue((vault / ".knoarbor" / "index" / "graph_index.json").exists())
+            self.assertTrue((machine_index_dir(vault) / "manifest.json").exists())
+            self.assertTrue((machine_index_dir(vault) / "graph_index.json").exists())
             self.assertTrue((vault / "raw" / "inbox" / "notes" / "agent-loop.md").exists())
             self.assertIn("Next steps:", output.getvalue())
             self.assertIn("example:", output.getvalue())
@@ -395,7 +473,8 @@ connectors:
             exit_code = main(["contracts"])
 
         self.assertEqual(exit_code, 0)
-        self.assertIn("source_normalize", output.getvalue())
+        self.assertIn("index_metadata_extract", output.getvalue())
+        self.assertNotIn("source_normalize", output.getvalue())
         self.assertIn("lint_maintenance_review", output.getvalue())
 
     def test_cli_errors_use_public_error_code(self) -> None:
@@ -449,8 +528,7 @@ connectors:
                 with patch.dict(os.environ, {"KNOARBOR_RUNTIME_DIR": str(runtime_dir)}), patch("uvicorn.run") as uvicorn_run, redirect_stdout(output):
                     exit_code = main(["--config", str(config), "serve", "--host", "127.0.0.1", "--port", str(occupied_port)])
 
-            endpoint = json.loads((root / ".knoarbor" / "endpoint.json").read_text(encoding="utf-8"))
-            user_endpoint = json.loads((runtime_dir / "endpoint.json").read_text(encoding="utf-8"))
+            endpoint = json.loads((runtime_dir / "endpoint.json").read_text(encoding="utf-8"))
 
         self.assertEqual(exit_code, 0)
         self.assertIn(f"Configured port {occupied_port} is in use; using", output.getvalue())
@@ -458,7 +536,7 @@ connectors:
         self.assertEqual(endpoint["base_url"], f"http://127.0.0.1:{endpoint['port']}")
         self.assertEqual(endpoint["config_path"], str(config.resolve()))
         self.assertEqual(endpoint["vault_path"], str((root / "vaults" / "all").resolve()))
-        self.assertEqual(user_endpoint, endpoint)
+        self.assertFalse((root / "state" / "endpoint.json").exists())
         uvicorn_run.assert_called_once()
         self.assertEqual(uvicorn_run.call_args.kwargs["port"], endpoint["port"])
 
@@ -532,6 +610,7 @@ connectors:
                 "# Tool Use\n\n## Summary\n\nTool use note.\n\nBack to [[Agent-Loop|Agent Loop]].\n",
                 encoding="utf-8",
             )
+            VaultMaterializer().reconcile(vault, force=True)
 
             list_output = io.StringIO()
             with redirect_stdout(list_output):

@@ -5,16 +5,15 @@ Use query as candidate discovery, not as the final answer shape.
 ## Progressive Flow
 
 1. Rewrite the user request into a short standalone search query.
-2. Start with `scripts/knoarbor.py query ...` using default `--auto` unless the
-   user requested exact settings.
-3. Inspect `results`, `excerpts`, `context_pack`, `response_guidance`,
-   `gap_suggestions`, and `gaps`.
-4. If one or a few results clearly answer the question, answer from summaries,
-   claims, and excerpts. Cite concise page paths.
-5. If evidence is relevant but thin, run a deeper compact query or read only the
-   1-2 strongest pages with `page read`.
-6. If the user asks for a broad summary, overview, or comparison, aggregate the
-   strongest relevant results instead of forcing a single page.
+2. Run `scripts/knoarbor.py query ...` with a compact standalone question.
+3. Inspect `raw_evidence`, `context_pack`, `evidence_coverage`,
+   `response_guidance`, `gap_suggestions`, and `gaps`.
+4. Answer factual questions only from complete raw source units in
+   `raw_evidence` or the raw-evidence section of `context_pack`.
+5. Use `results` only to navigate to a maintained projection when the user asks
+   to browse, inspect, or edit a page.
+6. For broad summaries or comparisons, combine the selected raw units and mark
+   cross-unit conclusions as inference.
 7. If several candidates are plausible and the user's intent is ambiguous, list
    2-5 candidates with title, path, and reason, then ask the user to choose.
 8. If matches are weak, try a shorter or alternate query once. If still weak,
@@ -27,8 +26,8 @@ relevance. Do not present it as a user-facing answer by itself.
 ## Query Versus Chat
 
 `query` is the default retrieval operation for this skill. It is model-free,
-fast, and returns pages, excerpts, source pointers, and a context pack for the
-host AI to evaluate.
+fast, and returns optional projection locators, claim-backed raw evidence,
+coverage signals, and a context pack for the host AI to evaluate.
 
 KnoArbor also exposes `/chat` for the local web console. That endpoint runs a
 bounded Wiki Chat Agent and synthesizes an answer itself. Host AI skills should
@@ -43,8 +42,7 @@ Use `page read` when:
 - the user gives a page path or selects a previous result;
 - the user asks for a full page, original text, detailed page analysis, or
   section-by-section review;
-- query returns a clear direct match, but excerpts are not enough for the
-  requested depth;
+- the user wants to inspect a projection associated with a query locator;
 - the task needs page structure, exact wording, frontmatter, tables, or long
   lists.
 
@@ -63,16 +61,13 @@ This keeps follow-up reads in the same knowledge base as the selected result.
 
 ## Query Fields
 
-- `results[].path`: stable page path for citation or `page read`.
+- `results[].path`: optional projection path for navigation or `page read`.
 - `results[].vault_id`, `vault_name`, `vault_path`: selected result provenance
   for multi-vault follow-up reads.
-- `results[].summary`, `claims`, `excerpts`, `source`: local evidence.
-- `results[].match_kind`: retrieval origin only; judge relevance yourself.
-- `context_pack`: compact evidence bundle for synthesis.
+- `results[].reason` and `atom_traces`: non-factual retrieval explanation.
+- `raw_evidence`: complete active source units and stable evidence identities.
+- `context_pack`: raw-evidence bundle plus non-factual locator trace.
 - `gaps` and `gap_suggestions`: weak or missing local context signals.
-
-If `page_dirs` is used, it limits only the first search scope; related expansion
-may still return connected pages from other directories.
 
 ## Multi-Vault Follow-Up
 
@@ -95,7 +90,8 @@ python3 scripts/knoarbor.py --vault-id work page read iOS-Audio-Detection.md
 
 ## Evidence Synthesis
 
-- Cite concise page paths near important claims.
+- Cite stable evidence identities or source paths near important claims; use
+  projection page paths only for navigation.
 - Treat KnoArbor as local memory. For unstable current facts, newer external
   sources can override older wiki pages.
 - If wiki evidence conflicts with current sources or with another wiki page,

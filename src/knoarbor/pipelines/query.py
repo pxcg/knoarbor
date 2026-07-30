@@ -1,11 +1,22 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from knoarbor.core.errors import UserInputError
-from knoarbor.retrieval import GraphLedRetrievalRequest, GraphLedRetriever, IndexProvider, MachineIndexProvider
-from knoarbor.retrieval.markdown import FIELD_WEIGHTS, ScoredPage, query_terms
+from knoarbor.retrieval.query_text import query_terms
+from knoarbor.retrieval.unified import (
+    AtomCandidate,
+    ChannelStatus,
+    ClaimCandidate,
+    EvidenceHandle,
+    EvidenceRead,
+    QueryStatus,
+    UnifiedActiveRawRetriever,
+    QueryPlan,
+)
+from knoarbor.storage.lexical_snapshot import RetrievalSafety
+from knoarbor.storage.index_snapshot import IndexSnapshot
 from knoarbor.runtime import current_run_monitor
 
 
@@ -13,83 +24,88 @@ from knoarbor.runtime import current_run_monitor
 class QueryPipelineRequest:
     vault_path: Path
     query: str
-    mode: str = "balanced"
-    limit: int = 8
-    page_dirs: list[str] = field(default_factory=list)
-    page_roles: list[str] = field(default_factory=list)
-    include_related: bool = True
+    safety: RetrievalSafety | None = None
+    continuation_cursor: str | None = None
+    resolve_evidence: bool = True
+    source_record_ids: frozenset[str] | None = None
+    source_unit_ids: frozenset[str] | None = None
+    snapshot: IndexSnapshot | None = None
 
 
 @dataclass
 class QueryPipelineResult:
     query: str
     retrieval_mode: str
-    matches: list[ScoredPage]
+    status: QueryStatus
+    handles: list[EvidenceHandle]
+    matches: list[EvidenceRead]
+    atom_candidates: list[AtomCandidate]
+    claim_candidates: list[ClaimCandidate]
+    channel_statuses: list[ChannelStatus]
     gaps: list[str]
     warnings: list[str]
     stats: dict[str, object]
+    exhausted: bool
+    continuation_cursor: str | None
+    query_fingerprint: str
+    snapshot_generation: str
 
 
 class QueryPipeline:
-    """Runs deterministic wiki retrieval for API, CLI, UI, or skill callers."""
+    """Runs unified lexical recall and active Raw evidence resolution."""
 
-    def __init__(self, index_provider: IndexProvider | None = None) -> None:
-        self.index_provider = index_provider or MachineIndexProvider()
-        self.retriever = GraphLedRetriever(self.index_provider)
+    def __init__(self) -> None:
+        self.retriever = UnifiedActiveRawRetriever()
 
     def run(self, request: QueryPipelineRequest) -> QueryPipelineResult:
         monitor = current_run_monitor()
-        if monitor:
-            monitor.event("query_started", stage="query", message="Starting wiki context retrieval.", current_item=request.query)
         vault_path = request.vault_path.expanduser().resolve()
         if not vault_path.exists() or not vault_path.is_dir():
             raise UserInputError(f"vault_path does not exist or is not a directory: {vault_path}")
-
-        terms = query_terms(request.query)
-        if not terms:
+        if not query_terms(request.query):
             raise UserInputError("query does not contain searchable terms")
+        if monitor:
+            monitor.event("query_started", stage="query", message="Searching the verified active lexical snapshot.", current_item=request.query)
 
         retrieval = self.retriever.retrieve(
-            GraphLedRetrievalRequest(
+            QueryPlan(
                 vault_path=vault_path,
                 query=request.query,
-                limit=request.limit,
-                page_dirs=request.page_dirs,
-                page_roles=request.page_roles,
-                include_related=request.include_related,
+                safety=request.safety or RetrievalSafety.with_timeout(),
+                continuation_cursor=request.continuation_cursor,
+                resolve_evidence=request.resolve_evidence,
+                source_record_ids=request.source_record_ids,
+                source_unit_ids=request.source_unit_ids,
+                snapshot=request.snapshot,
             )
         )
-        matches = retrieval.matches
-        if monitor:
-            monitor.event(
-                "query_index_loaded",
-                stage="query",
-                message=f"Loaded {retrieval.stats.get('page_count', 0)} scoped page(s).",
-                payload={"page_count": retrieval.stats.get("page_count", 0)},
-            )
+
         if monitor:
             monitor.event(
                 "query_finished",
                 stage="query",
-                message=f"Query returned {len(matches)} result(s).",
-                progress={"total": retrieval.stats.get("candidate_count", 0), "completed": len(matches), "current": request.query},
-                payload={"candidate_count": retrieval.stats.get("candidate_count", 0), "returned_count": len(matches)},
+                message=(
+                    f"Resolved {len(retrieval.evidence_reads)} active raw evidence unit(s)."
+                    if request.resolve_evidence
+                    else f"Recalled {len(retrieval.handles)} active raw evidence handle(s)."
+                ),
+                progress={"total": len(retrieval.handles), "completed": len(retrieval.evidence_reads), "current": request.query},
+                payload={"status": retrieval.status, "claim_count": len(retrieval.claim_candidates), "evidence_count": len(retrieval.evidence_reads)},
             )
-        gaps: list[str] = []
-        if not matches:
-            gaps.append("No relevant wiki pages were found for this query.")
-        elif matches[0].score < 2.5:
-            gaps.append("Top wiki match is weak; caller should consider other tools or a follow-up question.")
-
         return QueryPipelineResult(
             query=request.query,
-            retrieval_mode=f"{self.index_provider.name}_graph_led_bm25_{request.mode}",
-            matches=matches,
-            gaps=gaps,
-            warnings=retrieval.warnings,
-            stats={
-                **retrieval.stats,
-                "field_weights": FIELD_WEIGHTS,
-                "returned_count": len(matches),
-            },
+            retrieval_mode="unified_active_raw_lexical",
+            status=retrieval.status,
+            handles=list(retrieval.handles),
+            matches=list(retrieval.evidence_reads),
+            atom_candidates=list(retrieval.atom_candidates),
+            claim_candidates=list(retrieval.claim_candidates),
+            channel_statuses=list(retrieval.channel_statuses),
+            gaps=list(retrieval.gaps),
+            warnings=list(retrieval.warnings),
+            stats={**retrieval.stats, "returned_count": len(retrieval.evidence_reads)},
+            exhausted=retrieval.exhausted,
+            continuation_cursor=retrieval.continuation_cursor,
+            query_fingerprint=retrieval.query_fingerprint,
+            snapshot_generation=retrieval.snapshot_generation,
         )

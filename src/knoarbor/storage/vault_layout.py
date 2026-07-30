@@ -12,6 +12,7 @@ WIKI_ROOT_DIR = "wiki"
 WIKI_PAGES_DIR = "pages"
 WIKI_SOURCES_DIR = "sources"
 MAINTENANCE_ROOT_DIR = "maintenance"
+ARTIFACTS_ROOT_DIR = "artifacts"
 RUNTIME_ROOT_DIR = ".knoarbor"
 
 
@@ -67,6 +68,30 @@ def raw_derived_asset_images_root(vault_path: Path) -> Path:
     return raw_derived_assets_root(vault_path) / "images"
 
 
+def artifacts_root(vault_path: Path) -> Path:
+    return vault_root(vault_path) / ARTIFACTS_ROOT_DIR
+
+
+def chat_artifacts_root(vault_path: Path) -> Path:
+    return artifacts_root(vault_path) / "chat"
+
+
+def chat_session_artifacts_root(vault_path: Path, session_id: str) -> Path:
+    return chat_artifacts_root(vault_path) / _safe_name(session_id or "ad-hoc")
+
+
+def chat_session_image_artifacts_root(vault_path: Path, session_id: str) -> Path:
+    return chat_session_artifacts_root(vault_path, session_id) / "images"
+
+
+def chat_session_file_artifacts_root(vault_path: Path, session_id: str) -> Path:
+    return chat_session_artifacts_root(vault_path, session_id) / "files"
+
+
+def chat_session_artifact_manifest_path(vault_path: Path, session_id: str) -> Path:
+    return chat_session_artifacts_root(vault_path, session_id) / "manifest.json"
+
+
 def wiki_root(vault_path: Path) -> Path:
     return vault_root(vault_path) / WIKI_ROOT_DIR
 
@@ -115,10 +140,6 @@ def runtime_ledger_path(vault_path: Path, ledger_name: str) -> Path:
     return runtime_root(vault_path) / "ledgers" / f"{_safe_name(ledger_name)}.jsonl"
 
 
-def runtime_checkpoint_path(vault_path: Path, checkpoint_name: str) -> Path:
-    return runtime_root(vault_path) / "checkpoints" / checkpoint_name
-
-
 def runtime_relative_path(*parts: str) -> str:
     return str(Path(RUNTIME_ROOT_DIR, *parts).as_posix())
 
@@ -127,8 +148,8 @@ def ledger_relative_path(ledger_name: str) -> str:
     return runtime_relative_path("ledgers", f"{_safe_name(ledger_name)}.jsonl")
 
 
-def checkpoint_relative_path(checkpoint_name: str) -> str:
-    return runtime_relative_path("checkpoints", checkpoint_name)
+def app_state_ledger_relative_path(ledger_name: str) -> str:
+    return str(Path("ledgers", f"{_safe_name(ledger_name)}.jsonl").as_posix())
 
 
 def _safe_name(value: str) -> str:

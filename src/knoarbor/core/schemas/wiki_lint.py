@@ -17,8 +17,6 @@ class WikiLintRequest(BaseModel):
     vault_path: str = Field(..., min_length=1)
     write_report: bool = True
     report_path: str | None = None
-    apply_safe_fixes: bool = False
-    safe_fix_ledger_path: str = ".knoarbor/ledgers/lint_safe_fixes.jsonl"
     scope_pages: list[str] = Field(default_factory=list)
     include_related: bool = True
 
@@ -63,18 +61,14 @@ class LintRunRequest(BaseModel):
     provider: str | None = None
     scope: MaintenanceScope
     mode: LintRunMode = "deterministic"
-    apply_safe_fixes: bool = True
     include_related: bool = True
     write_report: bool = True
     report_path: str | None = None
     append_ledger: bool = True
     ledger_path: str = ".knoarbor/ledgers/lint_run.jsonl"
-    max_candidates: int = Field(default=8, ge=1, le=30)
-    max_chars_per_page: int = Field(default=2500, ge=0, le=30000)
+    max_candidates: int = Field(default=0, ge=0)
+    max_chars_per_page: int = Field(default=0, ge=0)
     max_tokens: int | None = Field(default=None, ge=1)
-    auto_apply_reviewed_changes: bool = True
-    auto_retry_deferred_actions: bool = True
-    max_deferred_retry_rounds: int = Field(default=1, ge=0, le=3)
 
 
 class LintRunResult(BaseModel):
@@ -85,14 +79,9 @@ class LintRunResult(BaseModel):
     policy_decision: LintPolicyDecision
     semantic_candidates: dict[str, Any] | None = None
     maintenance_review: dict[str, Any] | None = None
-    draft_batch: dict[str, Any] | None = None
-    queued_actions: list[dict[str, Any]] = Field(default_factory=list)
-    deferred_retries: list[dict[str, Any]] = Field(default_factory=list)
-    written_pages: list[str] = Field(default_factory=list)
-    written_page_details: list[dict[str, Any]] = Field(default_factory=list)
-    applied_operations: list[dict[str, Any]] = Field(default_factory=list)
-    verifications: list[dict[str, Any]] = Field(default_factory=list)
-    rescan: WikiLintResponse | None = None
+    repair_plan: list[dict[str, Any]] = Field(default_factory=list)
+    repair_results: list[dict[str, Any]] = Field(default_factory=list)
+    post_repair_lint: WikiLintResponse | None = None
     report_path: str | None = None
     ledger_path: str | None = None
     warnings: list[str] = Field(default_factory=list)
@@ -101,7 +90,7 @@ class LintRunResult(BaseModel):
 
 class WikiScanRequest(BaseModel):
     vault_path: str = Field(..., min_length=1)
-    max_chars_per_page: int = Field(default=2500, ge=0, le=30000)
+    max_chars_per_page: int = Field(default=0, ge=0)
     scope_pages: list[str] = Field(default_factory=list)
     include_related: bool = True
 
@@ -132,8 +121,8 @@ class WikiScanResponse(BaseModel):
 class WikiLintCandidateSelectRequest(BaseModel):
     vault_path: str = Field(..., min_length=1)
     mode: Literal["semantic"] = "semantic"
-    max_candidates: int = Field(default=8, ge=1, le=30)
-    max_chars_per_page: int = Field(default=3000, ge=500, le=30000)
+    max_candidates: int = Field(default=0, ge=0)
+    max_chars_per_page: int = Field(default=0, ge=0)
     scope_pages: list[str] = Field(default_factory=list)
     include_related: bool = True
 

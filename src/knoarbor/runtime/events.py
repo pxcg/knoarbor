@@ -33,10 +33,13 @@ RunEventType = Literal[
     "ingest_step_started",
     "ingest_step_finished",
     "ingest_step_skipped",
+    "index_metadata_extract_started",
+    "index_metadata_extract_finished",
+    "auto_indexes_written",
     "pages_write_started",
     "pages_written",
-    "source_digest_write_started",
-    "source_digest_written",
+    "source_record_write_started",
+    "source_record_written",
     "scoped_lint_started",
     "scoped_lint_finished",
     "lint_step_started",
@@ -55,6 +58,7 @@ RunEventType = Literal[
     "model_call_failed",
     "model_call_retrying",
     "model_output_invalid",
+    "provider_admission_waiting",
 ]
 
 

@@ -29,7 +29,7 @@
       "question": "这里面的 Memory 系统应该怎么设计？短期对话记忆、长期记忆、候选记忆和工具输出摘要应该如何分层？",
       "expected_pages": [
         "Conversational-Memory-Strategies-and-Storage-for.md",
-        "sources/Memory-Source-Digest.md",
+        "sources/Memory-Source-Record.md",
         "Agent-Infrastructure-Harness,-Context-Engineerin.md"
       ]
     },
@@ -38,7 +38,7 @@
       "question": "如果用户的问题类型很多，比如查资料、执行工具、分析表格、调外部系统，这时意图识别和多路由调度应该放在 Agent Loop 的哪个位置？",
       "expected_pages": [
         "意图识别与多路由调度.md",
-        "sources/意图识别与多路由调度-Source-Digest.md",
+        "sources/意图识别与多路由调度-Source-Record.md",
         "Multi-Agent-Orchestration-and-Planning.md"
       ]
     },

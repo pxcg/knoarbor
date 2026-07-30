@@ -9,8 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.connectors import ClaudeCodeConnector, ConnectorConfig, ConnectorRegistry
-from knoarbor.core.checkpoints import CheckpointStore
-from knoarbor.pipelines import SourcePipeline
+from knoarbor.pipelines.source import SourcePipeline
 
 
 class ClaudeCodeConnectorTests(unittest.TestCase):
@@ -95,26 +94,6 @@ class ClaudeCodeConnectorTests(unittest.TestCase):
 
         self.assertIn("claude_code", registry.names())
         self.assertEqual(result.items[0].document.source_type, "claude_code_chat")
-
-    def test_checkpoint_payload_uses_claude_code_turn_raw_indexes(self) -> None:
-        payload = {
-            "session_id": "demo",
-            "turns": [
-                {"raw_index": 4, "role": "user", "content": "q1"},
-                {"raw_index": 9, "role": "assistant", "content": "a1"},
-            ],
-        }
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            vault = Path(tmp_dir)
-            source_path = vault / "raw" / "chats" / "demo.jsonl"
-            source_path.parent.mkdir(parents=True)
-            source_path.write_text("{}", encoding="utf-8")
-            store = CheckpointStore()
-            state = {"sessions": {}, "sources": {}}
-            plan = store.prepare_session_payload(vault, state, source_path, payload)
-
-        self.assertEqual(plan.mode, "new_session")
-        self.assertEqual(plan.to_raw_index, 9)
 
 
 def _write_jsonl(path: Path, records: list[dict[str, object]]) -> None:

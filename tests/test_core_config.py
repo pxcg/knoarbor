@@ -15,16 +15,25 @@ from knoarbor.core.config import (
     ConfigMigrationError,
     IngestSegmentationConfig,
     KnoArborConfig,
+    ModelProviderConfig,
     default_config_path,
     load_config,
     migrate_config_data,
     prepare_config_data,
 )
-from knoarbor.services.ui_config import config_to_form, render_config_from_form
-from knoarbor.services.ui_config_models import UiConfigFormUpdateRequest
+from knoarbor.services.ui_config import UiConfigService, config_to_form, render_config_from_form
+from knoarbor.services.ui_config_models import UiConfigFormUpdateRequest, UiConfigUpdateRequest
 
 
 class ConfigTests(unittest.TestCase):
+    def test_repository_and_packaged_config_examples_match(self) -> None:
+        root = Path(__file__).parents[1]
+
+        self.assertEqual(
+            (root / "config.example.yaml").read_text(encoding="utf-8"),
+            (root / "src" / "knoarbor" / "config.example.yaml").read_text(encoding="utf-8"),
+        )
+
     def test_ingest_segmentation_budget_requires_soft_under_max(self) -> None:
         with self.assertRaises(ValueError):
             IngestSegmentationConfig(soft_chars_per_segment=5000, max_chars_per_segment=3000)
@@ -45,55 +54,185 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.vault.path, Path("vaults/all"))
         self.assertEqual(config.document_processing.mineru.output_dir, Path("mineru-md"))
         self.assertEqual(config.enabled_connectors(), ["markdown"])
-        self.assertEqual(config.config_version, 1)
-        self.assertTrue(config.query.include_related)
+        self.assertEqual(config.config_version, 3)
         self.assertEqual(config.models.default_max_tokens, 30000)
         self.assertEqual(config.models.request_timeout_seconds, 600.0)
-        self.assertEqual(config.chat.response_style, "balanced")
         self.assertEqual(config.active_vault_id(), "default")
         self.assertEqual(config.vault_profiles_summary()[0]["path"], "vaults/all")
 
-    def test_chat_response_style_accepts_known_values(self) -> None:
+    def test_mineru_backend_accepts_only_published_values(self) -> None:
+        for backend in ("pipeline", "vlm-auto-engine", "hybrid-auto-engine"):
+            with self.subTest(backend=backend):
+                config = KnoArborConfig.model_validate(
+                    {
+                        "vault": {"path": "./vaults/all"},
+                        "document_processing": {"mineru": {"extra_fields": {"backend": backend}}},
+                    }
+                )
+                self.assertEqual(config.document_processing.mineru.extra_fields["backend"], backend)
+
+    def test_mineru_backend_rejects_unsupported_values(self) -> None:
+        for backend in ("vlm-engine", "hybrid-engine", "vlm-http-client"):
+            with self.subTest(backend=backend):
+                with self.assertRaisesRegex(ValueError, f"Unsupported MinerU backend '{backend}'"):
+                    KnoArborConfig.model_validate(
+                        {
+                            "vault": {"path": "./vaults/all"},
+                            "document_processing": {"mineru": {"extra_fields": {"backend": backend}}},
+                        }
+                    )
+
+    def test_openai_chat_image_provider_uses_chat_completions_default_endpoint(self) -> None:
         config = KnoArborConfig.model_validate(
             {
                 "vault": {"path": "./vaults/all"},
-                "chat": {"response_style": "deep"},
+                "image_generation": {
+                    "providers": {
+                        "local-chat-image": {
+                            "adapter": "openai_chat_image",
+                            "base_url": "https://text2image.local/v1",
+                            "api_key": "test-key",
+                            "model": "SenseNova-U1-8B",
+                        }
+                    }
+                },
             }
         )
 
-        self.assertEqual(config.chat.response_style, "deep")
+        self.assertEqual(config.image_generation.providers["local-chat-image"].endpoint_path, "/chat/completions")
 
-    def test_chat_response_style_rejects_unknown_values(self) -> None:
-        with self.assertRaises(ValueError):
-            KnoArborConfig.model_validate(
-                {
-                    "vault": {"path": "./vaults/all"},
-                    "chat": {"response_style": "playful"},
-                }
+    def test_provider_base_url_normalizes_exact_completion_endpoint(self) -> None:
+        provider = ModelProviderConfig(
+            base_url="https://models.example.test/compatible-mode/v1/chat/completions/",
+            model="chat-model",
+        )
+
+        self.assertEqual(provider.base_url, "https://models.example.test/compatible-mode/v1")
+
+    def test_ui_form_persists_canonical_provider_base_url(self) -> None:
+        form = UiConfigFormUpdateRequest.model_validate(
+            {
+                "project_name": "Default",
+                "vault_path": "./vaults/default",
+                "default_provider": "chat",
+                "providers": [
+                    {
+                        "name": "chat",
+                        "base_url": "https://models.example.test/v1/chat/completions/",
+                        "model": "chat-model",
+                    }
+                ],
+            }
+        )
+
+        rendered = yaml.safe_load(
+            render_config_from_form(form, {"config_version": 3}, base_dir=Path.cwd())
+        )
+
+        self.assertEqual(rendered["models"]["providers"]["chat"]["base_url"], "https://models.example.test/v1")
+
+    def test_provider_base_url_rejects_ambiguous_or_credential_bearing_urls(self) -> None:
+        invalid_urls = (
+            "https://models.example.test/v1/chat/com",
+            "https://models.example.test/v1/chat/completions/extra",
+            "https://user:secret@models.example.test/v1",
+            "https://models.example.test/v1?token=secret",
+            "models.example.test/v1",
+        )
+        for base_url in invalid_urls:
+            with self.subTest(base_url=base_url):
+                with self.assertRaises(ValueError):
+                    ModelProviderConfig(base_url=base_url, model="chat-model")
+
+    def test_image_provider_full_endpoint_is_split_from_base_url(self) -> None:
+        config = KnoArborConfig.model_validate(
+            {
+                "vault": {"path": "./vaults/all"},
+                "image_generation": {
+                    "providers": {
+                        "image": {
+                            "adapter": "sensenova_image",
+                            "base_url": "https://images.example.test/v1/images/generations",
+                            "model": "image-model",
+                        }
+                    }
+                },
+            }
+        )
+
+        provider = config.image_generation.providers["image"]
+        self.assertEqual(provider.base_url, "https://images.example.test/v1")
+        self.assertEqual(provider.endpoint_path, "/images/generations")
+
+    def test_invalid_config_write_does_not_replace_active_private_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "config.yaml"
+            original = "config_version: 3\nvault:\n  path: ./vaults/default\n"
+            path.write_text(original, encoding="utf-8")
+
+            with self.assertRaises(Exception):
+                UiConfigService().write_raw(
+                    UiConfigUpdateRequest(config_path=str(path), content="config_version: [")
+                )
+
+            self.assertEqual(path.read_text(encoding="utf-8"), original)
+
+    @unittest.skipIf(os.name == "nt", "POSIX permission bits are not available on Windows")
+    def test_valid_config_write_is_private(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "config.yaml"
+            UiConfigService().write_raw(
+                UiConfigUpdateRequest(
+                    config_path=str(path),
+                    content="config_version: 3\nvault:\n  path: ./vaults/default\n",
+                )
             )
 
-    def test_ui_config_form_round_trips_chat_response_style(self) -> None:
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_ui_config_form_preserves_chat_auto_ingest(self) -> None:
         config = KnoArborConfig.model_validate(
             {
                 "vault": {"path": "./vaults/all"},
                 "chat": {
-                    "response_style": "deep",
                     "auto_ingest": {"enabled": True, "min_user_turns": 3},
                 },
             }
         )
         form = config_to_form(config)
-
-        self.assertEqual(form.chat_response_style, "deep")
-
         payload = form.model_dump()
-        payload["chat_response_style"] = "concise"
         rendered = render_config_from_form(UiConfigFormUpdateRequest.model_validate(payload), {"chat": {"auto_ingest": {"enabled": True, "min_user_turns": 3}}}, base_dir=Path.cwd())
         data = yaml.safe_load(rendered)
 
-        self.assertEqual(data["chat"]["response_style"], "concise")
         self.assertEqual(data["chat"]["auto_ingest"]["enabled"], True)
         self.assertEqual(data["chat"]["auto_ingest"]["min_user_turns"], 3)
+
+    def test_ui_config_form_repairs_dangling_default_provider(self) -> None:
+        form = UiConfigFormUpdateRequest.model_validate(
+            {
+                "project_name": "Default",
+                "vault_path": "./vaults/default",
+                "default_provider": "custom",
+                "providers": [
+                    {
+                        "name": "deepseek",
+                        "base_url": "https://api.deepseek.com/v1",
+                        "model": "deepseek-chat",
+                    }
+                ],
+            }
+        )
+
+        data = yaml.safe_load(
+            render_config_from_form(
+                form,
+                {"config_version": 3},
+                base_dir=Path.cwd(),
+            )
+        )
+
+        self.assertEqual(data["config_version"], 3)
+        self.assertEqual(data["models"]["default_provider"], "deepseek")
 
     def test_vault_profiles_select_active_vault(self) -> None:
         config = KnoArborConfig.model_validate(
@@ -168,7 +307,7 @@ class ConfigTests(unittest.TestCase):
                 base_dir,
             )
 
-        self.assertEqual(prepared["config_version"], 1)
+        self.assertEqual(prepared["config_version"], 3)
         self.assertEqual(prepared["vault"]["path"], (Path(tmp_dir) / "vaults" / "all").resolve())
         self.assertEqual(prepared["connectors"]["markdown"]["settings"]["roots"], [(Path(tmp_dir) / "notes").resolve()])
         self.assertEqual(
@@ -177,8 +316,14 @@ class ConfigTests(unittest.TestCase):
         )
 
     def test_migrate_config_data_rejects_newer_versions(self) -> None:
-        with self.assertRaisesRegex(ConfigMigrationError, "newer than this KnoArbor build"):
+        with self.assertRaisesRegex(ConfigMigrationError, "requires version 3"):
             migrate_config_data({"config_version": 999, "vault": {"path": "./vaults/all"}})
+
+    def test_migrate_config_data_rejects_unpublished_legacy_versions(self) -> None:
+        for version in (1, 2):
+            with self.subTest(version=version):
+                with self.assertRaisesRegex(ConfigMigrationError, "requires version 3"):
+                    migrate_config_data({"config_version": version, "vault": {"path": "./vaults/all"}})
 
     def test_migrate_config_data_rejects_invalid_versions(self) -> None:
         with self.assertRaisesRegex(ConfigMigrationError, "Invalid config_version"):
@@ -196,7 +341,7 @@ class ConfigTests(unittest.TestCase):
 
         self.assertEqual(path, (root / "config.yaml").resolve())
 
-    def test_default_config_path_prefers_explicit_environment_path(self) -> None:
+    def test_default_config_path_prefers_knoarbor_environment_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             configured = root / "desktop-config.yaml"

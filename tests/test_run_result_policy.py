@@ -20,12 +20,12 @@ class RunResultPolicyTests(unittest.TestCase):
 
         self.assertEqual(status, "partially_failed")
 
-    def test_lint_failed_verification_marks_partial_completion(self) -> None:
+    def test_lint_failed_repair_marks_partial_completion(self) -> None:
         status = completion_status_for_result(
             "lint",
             {
-                "verifications": [
-                    {"status": "verified"},
+                "repair_results": [
+                    {"status": "completed"},
                     {"status": "failed"},
                 ]
             },

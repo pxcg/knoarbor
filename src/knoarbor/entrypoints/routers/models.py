@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query
 
-from knoarbor.core.schemas.image_generation import ImageProvidersResponse
+from knoarbor.core.schemas.image_generation import (
+    ImageProviderProbeRequest,
+    ImageProviderProbeResponse,
+    ImageProvidersResponse,
+)
 from knoarbor.core.schemas.model_probe import (
     ModelApplyCapabilitiesRequest,
     ModelApplyCapabilitiesResponse,
@@ -31,6 +35,10 @@ def create_models_router(services: ApplicationServices) -> APIRouter:
     @router.post("/discover", response_model=ModelDiscoveryResponse)
     async def discover_model_provider(request: ModelDiscoveryRequest) -> ModelDiscoveryResponse:
         return services.model_probe.discover(request)
+
+    @router.post("/image-probe", response_model=ImageProviderProbeResponse)
+    async def probe_image_model_provider(request: ImageProviderProbeRequest) -> ImageProviderProbeResponse:
+        return services.image_generation.probe(request)
 
     @router.post("/apply-capabilities", response_model=ModelApplyCapabilitiesResponse)
     async def apply_model_capabilities(

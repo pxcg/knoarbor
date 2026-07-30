@@ -3,23 +3,26 @@ from __future__ import annotations
 import json
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import Any, Literal
+from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from knoarbor.core.errors import ConfigNotFound, InvalidConfig, VaultPathError
 from knoarbor.product import PRODUCT, product_env
 
-SUPPORTED_CONFIG_VERSION = 1
-MIN_CONFIG_VERSION = 1
+SUPPORTED_CONFIG_VERSION = 3
+MIN_CONFIG_VERSION = SUPPORTED_CONFIG_VERSION
 DEFAULT_VAULT_PATH = Path("./vaults/default")
-RAW_LAYOUT_PATH_REPLACEMENTS = (
-    ("raw/normalized/chats", "raw/inbox/chats"),
-    ("raw/normalized/markdown", "raw/derived/markdown"),
-    ("raw/normalized/excerpts", "raw/derived/excerpts"),
-    ("raw/assets", "raw/derived/assets"),
-    ("raw/sidecars", "raw/derived/metadata"),
-)
+MINERU_BACKENDS = frozenset({"pipeline", "vlm-auto-engine", "hybrid-auto-engine"})
+
+
+def normalize_mineru_backend(value: object) -> str:
+    backend = str(value or "pipeline").strip()
+    if backend not in MINERU_BACKENDS:
+        supported = ", ".join(sorted(MINERU_BACKENDS))
+        raise ValueError(f"Unsupported MinerU backend '{backend}'. Supported values: {supported}.")
+    return backend
 
 
 class ConfigMigrationError(ValueError):
@@ -87,12 +90,19 @@ class ModelProviderConfig(BaseModel):
     def expand_tls_ca_file(cls, value: Path | None) -> Path | None:
         return value.expanduser() if value is not None else None
 
+    @model_validator(mode="after")
+    def normalize_endpoint(self) -> "ModelProviderConfig":
+        if self.base_url:
+            suffixes = ("/chat/completions",) if self.adapter == "openai_compatible" else ()
+            self.base_url, _ = normalize_provider_url(self.base_url, endpoint_suffixes=suffixes)
+        return self
+
     def resolved_api_key(self) -> str | None:
         return self.api_key
 
 
 class ImageGenerationProviderConfig(BaseModel):
-    adapter: Literal["sensenova_image"] = "sensenova_image"
+    adapter: Literal["sensenova_image", "openai_chat_image"] = "sensenova_image"
     base_url: str | None = None
     endpoint_path: str = "/images/generations"
     api_key: str | None = None
@@ -116,6 +126,21 @@ class ImageGenerationProviderConfig(BaseModel):
             return None
         return str(value)
 
+    @model_validator(mode="after")
+    def apply_adapter_defaults(self) -> "ImageGenerationProviderConfig":
+        if self.adapter == "openai_chat_image" and self.endpoint_path in {"", "/images/generations"}:
+            self.endpoint_path = "/chat/completions"
+        if self.base_url:
+            self.base_url, detected_endpoint = normalize_provider_url(
+                self.base_url,
+                endpoint_suffixes=("/images/generations", "/chat/completions"),
+            )
+            if detected_endpoint:
+                self.endpoint_path = detected_endpoint
+        if self.endpoint_path not in {"/images/generations", "/chat/completions"}:
+            raise ValueError("Image endpoint_path must be /images/generations or /chat/completions")
+        return self
+
     def resolved_api_key(self) -> str | None:
         return self.api_key
 
@@ -125,9 +150,7 @@ class ModelRetryConfig(BaseModel):
     max_attempts: int = Field(default=3, ge=1, le=5)
     backoff_seconds: float = Field(default=2.0, ge=0, le=120)
     retry_on_invalid_output: bool = True
-    retryable_error_codes: list[str] = Field(
-        default_factory=lambda: ["KA-EXT-001", "KA-MODEL-001", "KA-SEM-001", "KA-STORAGE-001"]
-    )
+    retryable_error_codes: list[str] = Field(default_factory=lambda: ["KA-EXT-001", "KA-MODEL-001", "KA-SEM-001", "KA-STORAGE-001"])
 
 
 class ModelsConfig(BaseModel):
@@ -192,6 +215,18 @@ class MinerUDocumentProcessingConfig(BaseModel):
         }
     )
 
+    @field_validator("extra_fields", mode="before")
+    @classmethod
+    def validate_extra_fields(cls, value: object) -> dict[str, object]:
+        if value is None:
+            fields: dict[str, object] = {}
+        elif isinstance(value, dict):
+            fields = dict(value)
+        else:
+            raise ValueError("document_processing.mineru.extra_fields must be an object")
+        fields["backend"] = normalize_mineru_backend(fields.get("backend"))
+        return fields
+
     @field_validator("input_dir", "output_dir")
     @classmethod
     def expand_path(cls, value: Path | None) -> Path | None:
@@ -200,17 +235,6 @@ class MinerUDocumentProcessingConfig(BaseModel):
 
 class DocumentProcessingConfig(BaseModel):
     mineru: MinerUDocumentProcessingConfig = Field(default_factory=MinerUDocumentProcessingConfig)
-
-
-class QueryConfig(BaseModel):
-    mode: Literal["quick", "balanced", "deep"] = "balanced"
-    max_results: int = Field(default=6, ge=1, le=20)
-    max_pages_to_read: int = Field(default=10, ge=1, le=30)
-    max_excerpts_per_page: int = Field(default=3, ge=0, le=8)
-    max_chars_per_excerpt: int = Field(default=800, ge=120, le=3000)
-    max_context_chars: int = Field(default=8000, ge=1000, le=30000)
-    page_dirs: list[str] = Field(default_factory=list)
-    include_related: bool = True
 
 
 class MemoryConfig(BaseModel):
@@ -230,7 +254,6 @@ class ChatAutoIngestConfig(BaseModel):
 
 class ChatConfig(BaseModel):
     auto_ingest: ChatAutoIngestConfig = Field(default_factory=ChatAutoIngestConfig)
-    response_style: Literal["concise", "balanced", "deep"] = "balanced"
 
 
 class IngestSegmentationConfig(BaseModel):
@@ -249,24 +272,9 @@ class IngestSegmentationConfig(BaseModel):
         return self
 
 
-class IngestRecoveryConfig(BaseModel):
-    enabled: bool = True
-    execution_ledger_path: str = ".knoarbor/ledgers/ingest_execution.jsonl"
-
-
-class IngestConcurrencyConfig(BaseModel):
-    max_concurrent_sources: int = Field(default=1, ge=1, le=8)
-
-
 class IngestConfig(BaseModel):
-    candidate_limit: int = Field(default=8, ge=1, le=50)
-    materialized_page_limit: int = Field(default=8, ge=1, le=50)
-    max_chars_per_materialized_page: int = Field(default=6000, ge=500, le=100000)
     auto_scoped_lint: bool = True
-    auto_apply_safe_lint_fixes: bool = True
     segmentation: IngestSegmentationConfig = Field(default_factory=IngestSegmentationConfig)
-    recovery: IngestRecoveryConfig = Field(default_factory=IngestRecoveryConfig)
-    concurrency: IngestConcurrencyConfig = Field(default_factory=IngestConcurrencyConfig)
 
 
 class LintConfig(BaseModel):
@@ -290,7 +298,7 @@ class PrivacyConfig(BaseModel):
 
 
 class KnoArborConfig(BaseModel):
-    config_version: Literal[1] = SUPPORTED_CONFIG_VERSION
+    config_version: Literal[3] = SUPPORTED_CONFIG_VERSION
     project: ProjectConfig = Field(default_factory=ProjectConfig)
     vault: VaultConfig
     vaults: VaultsConfig = Field(default_factory=VaultsConfig)
@@ -300,7 +308,6 @@ class KnoArborConfig(BaseModel):
     document_processing: DocumentProcessingConfig = Field(default_factory=DocumentProcessingConfig)
     connectors: dict[str, ConnectorConfig] = Field(default_factory=dict)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
-    query: QueryConfig = Field(default_factory=QueryConfig)
     chat: ChatConfig = Field(default_factory=ChatConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     lint: LintConfig = Field(default_factory=LintConfig)
@@ -335,8 +342,7 @@ class KnoArborConfig(BaseModel):
 
     def vault_profiles_summary(self) -> list[dict[str, str]]:
         return [
-            {"id": vault_id, "name": profile.name, "path": str(profile.path)}
-            for vault_id, profile in sorted(self.vaults.profiles.items())
+            {"id": vault_id, "name": profile.name, "path": str(profile.path)} for vault_id, profile in sorted(self.vaults.profiles.items())
         ]
 
     def validate_runtime_paths(self) -> None:
@@ -360,6 +366,14 @@ def default_config_path(start: str | Path | None = None) -> Path:
     return Path(files("knoarbor").joinpath("config.example.yaml"))
 
 
+def default_config_template_path(start: str | Path | None = None) -> Path:
+    root = _find_project_root(Path(start or Path.cwd()).resolve())
+    example_config = root / "config.example.yaml"
+    if example_config.exists():
+        return example_config
+    return Path(files("knoarbor").joinpath("config.example.yaml"))
+
+
 def load_config(path: str | Path) -> KnoArborConfig:
     config_path = Path(path).expanduser()
     base_dir = _config_base_dir(config_path)
@@ -375,31 +389,17 @@ def prepare_config_data(data: dict[str, Any], base_dir: Path) -> dict[str, Any]:
 
 
 def migrate_config_data(data: dict[str, Any]) -> dict[str, Any]:
-    """Migrate raw config data to the currently supported schema version.
-
-    Migration is intentionally structural only: it may move or rename fields in
-    future versions, but it must not infer user intent, repair secrets, or guess
-    local paths.
-    """
+    """Validate the first supported configuration baseline."""
     if not isinstance(data, dict):
         raise ConfigMigrationError("Config root must be an object")
     version = _parse_config_version(data.get("config_version", MIN_CONFIG_VERSION))
-    if version < MIN_CONFIG_VERSION:
-        raise ConfigMigrationError(f"Unsupported config_version: {version}")
-    if version > SUPPORTED_CONFIG_VERSION:
+    if version != SUPPORTED_CONFIG_VERSION:
         raise ConfigMigrationError(
-            f"Config version {version} is newer than this KnoArbor build supports ({SUPPORTED_CONFIG_VERSION})."
+            f"Config version {version} is unsupported; {PRODUCT.name} requires version {SUPPORTED_CONFIG_VERSION}."
         )
     migrated = dict(data)
-    while version < SUPPORTED_CONFIG_VERSION:
-        migration = _CONFIG_MIGRATIONS.get(version)
-        if migration is None:
-            raise ConfigMigrationError(f"No migration path from config_version {version} to {SUPPORTED_CONFIG_VERSION}.")
-        migrated = migration(migrated)
-        version = _parse_config_version(migrated.get("config_version"))
     migrated["config_version"] = SUPPORTED_CONFIG_VERSION
-    migrated = _ensure_vault_contract(migrated)
-    return _migrate_raw_layout_paths(migrated)
+    return _ensure_vault_contract(migrated)
 
 
 def _parse_config_version(value: object) -> int:
@@ -410,24 +410,32 @@ def _parse_config_version(value: object) -> int:
     return version
 
 
-_CONFIG_MIGRATIONS: dict[int, Callable[[dict[str, Any]], dict[str, Any]]] = {}
-
-
-def modernize_raw_layout_path(value: str) -> str:
-    modernized = value
-    for old, new in RAW_LAYOUT_PATH_REPLACEMENTS:
-        modernized = modernized.replace(old, new)
-    return modernized
-
-
-def _migrate_raw_layout_paths(value: Any) -> Any:
-    if isinstance(value, str):
-        return modernize_raw_layout_path(value)
-    if isinstance(value, list):
-        return [_migrate_raw_layout_paths(item) for item in value]
-    if isinstance(value, dict):
-        return {key: _migrate_raw_layout_paths(item) for key, item in value.items()}
-    return value
+def normalize_provider_url(
+    value: str,
+    *,
+    endpoint_suffixes: tuple[str, ...] = (),
+) -> tuple[str, str | None]:
+    raw = value.strip()
+    parsed = urlsplit(raw)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.hostname is None:
+        raise ValueError("base_url must be an absolute HTTP(S) URL")
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ValueError("base_url must not contain credentials, query parameters, or fragments")
+    path = parsed.path.rstrip("/")
+    detected_endpoint: str | None = None
+    for suffix in endpoint_suffixes:
+        if path.endswith(suffix):
+            path = path[: -len(suffix)].rstrip("/")
+            detected_endpoint = suffix
+            break
+        if f"{suffix}/" in path:
+            raise ValueError(f"base_url contains an unsupported path after {suffix}")
+    if detected_endpoint is None and any(
+        path.endswith(suffix) for suffix in ("/chat", "/chat/com", "/chat/completion")
+    ):
+        raise ValueError("base_url contains an incomplete chat completion path")
+    canonical = urlunsplit((parsed.scheme, parsed.netloc, path, "", "")).rstrip("/")
+    return canonical, detected_endpoint
 
 
 def _load_config_data(path: Path) -> dict[str, Any]:

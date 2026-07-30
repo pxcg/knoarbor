@@ -35,6 +35,7 @@ from knoarbor.maintenance.lint_rules import (
 )
 from knoarbor.storage.wiki_paths import content_root
 from knoarbor.storage.knowledge_atom_index import KnowledgeAtomRecord, read_knowledge_atom_records
+from knoarbor.storage.source_records import read_raw_evidence_records, read_source_processing_records
 from knoarbor.storage.wiki_index import is_machine_index_stale, machine_index_dir
 
 
@@ -53,11 +54,12 @@ def lint_collected_pages(
     issues.extend(_lint_index_coverage(vault_path, pages))
     issues.extend(_lint_duplicate_identity(pages))
     issues.extend(_lint_links(pages))
-    issues.extend(_lint_graph_shape(pages))
     issues.extend(_lint_repeated_list_sections(pages))
     issues.extend(_lint_source_pages(vault_path, pages))
     atom_issues, atom_stats = _lint_knowledge_atom_index(vault_path, pages)
     issues.extend(atom_issues)
+    chain_issues, chain_stats = _lint_canonical_chain(vault_path)
+    issues.extend(chain_issues)
     issues.extend(_lint_sensitive_content(pages, privacy_config or PrivacyConfig()))
 
     severity_counts = Counter(issue.severity for issue in issues)
@@ -72,6 +74,7 @@ def lint_collected_pages(
         "roles": dict(Counter(page.role for page in pages)),
         "graph_health": graph_health,
         "knowledge_atom_index": atom_stats,
+        "canonical_chain": chain_stats,
     }
     return issues, stats
 
@@ -112,8 +115,8 @@ def _lint_page_structure(pages: list[LintPage]) -> list[WikiLintIssue]:
 
 
 def _required_sections_for_page(page: LintPage) -> tuple[str, ...]:
-    if page.is_source_digest:
-        return REQUIRED_SECTIONS_BY_ROLE.get("source_digest", ())
+    if page.is_source_record:
+        return REQUIRED_SECTIONS_BY_ROLE.get("source_record", ())
     return KNOWLEDGE_PAGE_SECTIONS
 
 
@@ -180,9 +183,7 @@ def _lint_duplicate_identity(pages: list[LintPage]) -> list[WikiLintIssue]:
 
 def _lint_links(pages: list[LintPage]) -> list[WikiLintIssue]:
     pages_by_relative, pages_by_stem, pages_by_title = page_lookup_maps(pages)
-    incoming_links: dict[str, set[str]] = defaultdict(set)
     issues: list[WikiLintIssue] = []
-    adjacency = semantic_adjacency(pages, pages_by_relative, pages_by_stem, pages_by_title)
 
     for page in pages:
         for raw_link in page.links:
@@ -194,14 +195,6 @@ def _lint_links(pages: list[LintPage]) -> list[WikiLintIssue]:
                 issues.append(_issue("broken_wikilink", "error", page.relative_path, "Wiki link target does not exist.", {"target": raw_link}))
             elif len(resolved) > 1:
                 issues.append(_issue("ambiguous_wikilink", "warning", page.relative_path, "Wiki link matches multiple pages by title/stem.", {"target": raw_link, "matches": [item.relative_path for item in resolved]}))
-            else:
-                incoming_links[resolved[0].relative_path].add(page.relative_path)
-
-    for page in pages:
-        if page.directory == "maintenance":
-            continue
-        if page.relative_path not in incoming_links and not adjacency.get(page.relative_path):
-            issues.append(_issue("orphan_page", "info", page.relative_path, "No other wiki page links to this page."))
 
     return issues
 
@@ -225,13 +218,13 @@ def _lint_graph_shape(pages: list[LintPage]) -> list[WikiLintIssue]:
 def _lint_source_pages(vault_path: Path, pages: list[LintPage]) -> list[WikiLintIssue]:
     issues: list[WikiLintIssue] = []
     pages_by_relative, pages_by_stem, pages_by_title = page_lookup_maps(pages)
-    source_digest_by_source: dict[str, LintPage] = {}
+    source_record_by_source: dict[str, LintPage] = {}
     knowledge_page_paths = {page.relative_path for page in pages if page.is_knowledge_page}
     for page in pages:
-        if not page.is_source_digest:
+        if not page.is_source_record:
             continue
         for source in page.sources:
-            source_digest_by_source[source] = page
+            source_record_by_source[source] = page
     knowledge_pages_by_source: dict[str, list[LintPage]] = defaultdict(list)
     for page in pages:
         for source in page.sources:
@@ -243,29 +236,29 @@ def _lint_source_pages(vault_path: Path, pages: list[LintPage]) -> list[WikiLint
         raw_sources = [source for source in sources if source.startswith("raw/")]
         provenance_sources = [source for source in sources if _is_provenance_source_key(source)]
 
-        if page.is_source_digest:
+        if page.is_source_record:
             for source in raw_sources:
                 if not (vault_path / source).exists():
-                    issues.append(_issue("missing_raw_source", "warning", page.relative_path, "Source digest points to a missing raw file.", {"source": source}))
+                    issues.append(_issue("missing_raw_source", "warning", page.relative_path, "Source record points to a missing raw file.", {"source": source}))
             expected_knowledge_pages = [item for source in provenance_sources for item in knowledge_pages_by_source.get(source, [])]
             if not expected_knowledge_pages:
                 related_paths = resolved_paths_from_links(page.links, pages_by_relative, pages_by_stem, pages_by_title)
                 if not related_paths.intersection(knowledge_page_paths):
-                    issues.append(_issue("source_without_knowledge_links", "info", page.relative_path, "Source digest does not link to any generated knowledge page."))
+                    issues.append(_issue("source_without_knowledge_links", "info", page.relative_path, "Source record does not link to any generated knowledge page."))
             continue
 
         for source in provenance_sources:
             if not page.is_knowledge_page:
                 continue
-            source_digest = source_digest_by_source.get(source)
-            if not source_digest:
-                issues.append(_issue("knowledge_without_source_digest", "info", page.relative_path, "Generated knowledge page points to a raw source without a matching source digest page.", {"source": source}))
+            source_record = source_record_by_source.get(source)
+            if not source_record:
+                issues.append(_issue("knowledge_without_source_record", "info", page.relative_path, "Generated knowledge page points to a raw source without a matching source record page.", {"source": source}))
                 continue
     return issues
 
 
 def _is_provenance_source_key(source: str) -> bool:
-    return source.startswith(("raw/", "sd_")) or source.startswith("/")
+    return source.startswith(("raw/", "sr_")) or source.startswith("/")
 
 
 def _lint_sensitive_content(pages: list[LintPage], config: PrivacyConfig) -> list[WikiLintIssue]:
@@ -343,6 +336,52 @@ def _lint_knowledge_atom_index(vault_path: Path, pages: list[LintPage]) -> tuple
     return issues, {"record_count": len(records), "issue_count": len(issues)}
 
 
+def _lint_canonical_chain(vault_path: Path) -> tuple[list[WikiLintIssue], dict[str, Any]]:
+    records = read_source_processing_records(vault_path)
+    atoms = read_knowledge_atom_records(vault_path)
+    evidence = read_raw_evidence_records(vault_path)
+    if not records and not atoms and not evidence:
+        return [], {"source_records": 0, "source_units": 0, "raw_evidence": 0, "atoms": 0}
+
+    issues: list[WikiLintIssue] = []
+    records_by_source = {record.source_record_id: record for record in records}
+    units_by_id = {unit.source_unit_id: unit for record in records for unit in record.source_units}
+    evidence_by_unit = {item.source_unit_id: item for item in evidence}
+    pages_root = content_root(vault_path)
+
+    for record in records:
+        path = record.page_paths[0] if record.page_paths else record.source_record_id
+        if record.source.raw_record_id != record.raw_record_id or record.source.raw_revision_id != record.raw_revision_id:
+            issues.append(_issue("canonical_source_identity_mismatch", "error", path, "Processing and original source identities disagree."))
+        for unit in record.source_units:
+            if unit.raw_record_id != record.raw_record_id or unit.raw_revision_id != record.raw_revision_id:
+                issues.append(_issue("canonical_unit_identity_mismatch", "error", path, "Source unit identity disagrees with its processing record.", {"source_unit_id": unit.source_unit_id}))
+            if unit.source_unit_id not in evidence_by_unit:
+                issues.append(_issue("evidence_missing_for_source_unit", "error", path, "Published source unit has no resolvable raw evidence record.", {"source_unit_id": unit.source_unit_id}))
+        for page_path in record.page_paths:
+            if not (pages_root / page_path).is_file():
+                issues.append(_issue("projection_missing_for_source", "warning", page_path, "Active source processing record points to a missing generated projection.", {"source_record_id": record.source_record_id}))
+
+    for atom in atoms:
+        record = records_by_source.get(atom.source_record_id)
+        path = atom.page_paths[0] if atom.page_paths else atom.source_record_id
+        if record is None:
+            issues.append(_issue("canonical_atom_missing_source", "error", path, "Knowledge atom has no active source processing record.", {"atom_id": atom.atom_id, "source_record_id": atom.source_record_id}))
+            continue
+        if atom.processing_record_id and atom.processing_record_id != record.processing_record_id:
+            issues.append(_issue("canonical_atom_processing_mismatch", "error", path, "Knowledge atom points to a different processing record.", {"atom_id": atom.atom_id}))
+        for source_unit_id in atom.source_unit_ids:
+            if source_unit_id not in units_by_id:
+                issues.append(_issue("canonical_atom_missing_unit", "error", path, "Knowledge atom points to a missing source unit.", {"atom_id": atom.atom_id, "source_unit_id": source_unit_id}))
+
+    return issues, {
+        "source_records": len(records),
+        "source_units": len(units_by_id),
+        "raw_evidence": len(evidence),
+        "atoms": len(atoms),
+    }
+
+
 def _lint_conflicting_atom_relations(records: list[KnowledgeAtomRecord]) -> list[WikiLintIssue]:
     relation_states: dict[tuple[str, str], dict[str, list[KnowledgeAtomRecord]]] = defaultdict(lambda: {"supports": [], "contradicts": []})
     for record in records:
@@ -388,14 +427,14 @@ def _atom_issue(
         {
             "atom_id": record.atom_id,
             "atom_type": record.atom_type,
-            "source_digest_id": record.source_digest_id,
+            "source_record_id": record.source_record_id,
             **(details or {}),
         },
     )
 
 
 def _atom_issue_path(record: KnowledgeAtomRecord) -> str:
-    return record.page_paths[0] if record.page_paths else ".knoarbor/index/knowledge_atoms.jsonl"
+    return record.page_paths[0] if record.page_paths else ".knoarbor/facts"
 
 
 def _string_list(value: object) -> list[str]:

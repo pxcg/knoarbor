@@ -29,6 +29,8 @@ def _result_data(result: Any) -> dict[str, Any]:
 
 
 def _ingest_partially_failed(data: dict[str, Any]) -> bool:
+    if data.get("status") == "partial":
+        return True
     stats = data.get("stats")
     if not isinstance(stats, dict):
         return False
@@ -36,14 +38,16 @@ def _ingest_partially_failed(data: dict[str, Any]) -> bool:
         "failed_count",
         "failed_segment_count",
         "document_processing_failed_count",
+        "partial_count",
     )
     return any(_positive_int(stats.get(key)) for key in failure_keys)
 
 
 def _lint_partially_failed(data: dict[str, Any]) -> bool:
-    verifications = data.get("verifications")
-    if isinstance(verifications, list):
-        return any(isinstance(item, dict) and item.get("status") == "failed" for item in verifications)
+    repair_results = data.get("repair_results")
+    if isinstance(repair_results, list):
+        incomplete = {"failed", "ineffective", "unresolved"}
+        return any(isinstance(item, dict) and item.get("status") in incomplete for item in repair_results)
     return False
 
 

@@ -72,7 +72,13 @@ class MarkdownConnector:
         path = Path(raw.raw_path).expanduser().resolve()
         text = path.read_text(encoding="utf-8")
         uri = str(raw.metadata.get("uri") or path.as_uri())
-        attachments = dedupe_attachments([*read_attachment_sidecar(path), *discover_markdown_image_attachments(path, text)])
+        source_root = _source_root(raw, config, path)
+        attachments = dedupe_attachments(
+            [
+                *read_attachment_sidecar(path),
+                *discover_markdown_image_attachments(path, text, source_root=source_root),
+            ]
+        )
         return SourceDocument(
             source_id=raw.source_id,
             source_type="markdown",
@@ -106,6 +112,12 @@ def _as_list(value: object) -> list[object]:
     if isinstance(value, list):
         return value
     return [value]
+
+
+def _source_root(raw: RawSource, config: ConnectorConfig, path: Path) -> Path:
+    configured = config.settings.get("source_root") or raw.metadata.get("root")
+    root = Path(str(configured)).expanduser().resolve() if configured else path.parent
+    return root.parent if root.is_file() else root
 
 
 def _source_id(uri: str) -> str:

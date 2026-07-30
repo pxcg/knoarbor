@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from knoarbor.product import PRODUCT
+
 DEFAULT_CHAT_RAW_OUTPUT_DIR = "./vaults/default/raw/inbox/chats"
 DEFAULT_MARKDOWN_RAW_OUTPUT_DIR = "./vaults/default/raw/inbox/notes"
 DEFAULT_MINERU_MARKDOWN_OUTPUT_DIR = "./vaults/default/raw/derived/markdown"
@@ -63,7 +65,7 @@ class UiModelProviderForm(BaseModel):
 
 class UiImageGenerationProviderForm(BaseModel):
     name: str
-    adapter: str = "sensenova_image"
+    adapter: Literal["sensenova_image", "openai_chat_image"] = "sensenova_image"
     base_url: str = ""
     endpoint_path: str = "/images/generations"
     api_key: str = ""
@@ -136,7 +138,6 @@ class UiConfigFormResponse(BaseModel):
     generic_chat_enabled: bool = False
     generic_chat_roots: list[str] = Field(default_factory=list)
     generic_chat_raw_output_dir: str = ""
-    chat_response_style: Literal["concise", "balanced", "deep"] = "balanced"
     markdown_enabled: bool = True
     markdown_roots: list[str] = Field(default_factory=list)
     markdown_raw_output_dir: str = ""
@@ -167,7 +168,7 @@ class UiConfigFormResponse(BaseModel):
 
 class UiConfigFormUpdateRequest(BaseModel):
     config_path: str | None = None
-    project_name: str = Field(default="My Knowledge Base", min_length=1)
+    project_name: str = Field(default=PRODUCT.default_vault_name, min_length=1)
     vault_path: str = Field(..., min_length=1)
     vault_id: str = "default"
     vaults: list[UiVaultProfileForm] = Field(default_factory=list)
@@ -195,7 +196,6 @@ class UiConfigFormUpdateRequest(BaseModel):
     generic_chat_enabled: bool = False
     generic_chat_roots: list[str] = Field(default_factory=list)
     generic_chat_raw_output_dir: str = ""
-    chat_response_style: Literal["concise", "balanced", "deep"] = "balanced"
     markdown_enabled: bool = True
     markdown_roots: list[str] = Field(default_factory=list)
     markdown_raw_output_dir: str = ""

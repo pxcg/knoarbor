@@ -2,18 +2,31 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from hashlib import sha256
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
-from knoarbor.core.markdown import compact_inline_text, extract_heading, extract_section, inline_text, parse_frontmatter
+from knoarbor.core.markdown import compact_inline_text, extract_heading, extract_section, inline_text, parse_frontmatter, wikilink_display_text
 from knoarbor.core.schemas.page_identity import PageIdentity
-from knoarbor.core.schemas.wiki_write import VaultWriteResult, WikiDraft
 from knoarbor.core.wiki_schema import UNIFIED_KNOWLEDGE_PAGE_DIR, is_index_excluded_file
 from knoarbor.runtime import vault_write_lock
+from knoarbor.storage.index_snapshot import (
+    IndexSnapshot,
+    canonical_index_json,
+    index_generation_id,
+    open_index_generation,
+    open_index_snapshot,
+)
+from knoarbor.storage.entity_registry import read_entity_registry
+from knoarbor.storage.knowledge_atom_index import read_knowledge_atom_records
+from knoarbor.storage.lexical_snapshot import build_lexical_snapshot
+from knoarbor.storage.source_records import read_raw_evidence_records
+from knoarbor.storage.vault_identity import ensure_vault_identity
 from knoarbor.storage.vault_layout import runtime_index_root, wiki_root
-from knoarbor.storage.wiki_paths import SOURCE_DIGEST_ROOT_DIR, content_relative_path, content_root, source_digest_root, vault_relative_path
+from knoarbor.storage.wiki_paths import SOURCE_RECORD_ROOT_DIR, content_relative_path, content_root, source_record_root, vault_relative_path
 
 
 def relative_wiki_path(vault_path: Path, path: Path) -> str:
@@ -52,32 +65,26 @@ def index_entry(vault_path: Path, md_path: Path) -> str:
 
 
 def machine_index_dir(vault_path: Path) -> Path:
-    return runtime_index_root(vault_path)
+    snapshot = open_index_snapshot(vault_path)
+    return snapshot.path if snapshot else runtime_index_root(vault_path) / "generations" / "missing"
 
 
 def is_machine_index_stale(vault_path: Path) -> bool:
-    index_dir = machine_index_dir(vault_path)
-    index_files = [
-        index_dir / "manifest.json",
-        index_dir / "graph_index.json",
-        index_dir / "pages.json",
-        index_dir / "links.json",
-        index_dir / "sources.json",
-        index_dir / "search.json",
-    ]
-    if any(not path.exists() for path in index_files):
+    snapshot = open_index_snapshot(vault_path)
+    if snapshot is None:
         return True
-    index_mtime = min(path.stat().st_mtime for path in index_files)
-    root = content_root(vault_path)
-    for md_path in _iter_indexable_page_paths(root):
-        if md_path.stat().st_mtime > index_mtime:
-            return True
-    return False
+    return str(snapshot.manifest.get("wiki_hash") or "") != wiki_tree_fingerprint(vault_path)
 
 
-def ensure_machine_index(vault_path: Path) -> None:
-    if is_machine_index_stale(vault_path):
-        update_machine_index(vault_path)
+def ensure_machine_index(vault_path: Path) -> bool:
+    """Report index freshness without mutating a read path.
+
+    Readers may use an existing stale index as a locator, while raw-grounded
+    retrieval reads committed revisions directly. Reconciliation is owned by
+    the operation or the bounded startup scan, never by this read path.
+    """
+
+    return not is_machine_index_stale(vault_path.expanduser().resolve())
 
 
 def page_record(vault_path: Path, md_path: Path) -> dict[str, Any]:
@@ -106,7 +113,7 @@ def page_record(vault_path: Path, md_path: Path) -> dict[str, Any]:
         "role": identity.role,
         "atom_ids": identity.atom_ids,
         "relation_ids": identity.relation_ids,
-        "source_digest_ids": identity.source_digest_ids,
+        "source_record_ids": identity.source_record_ids,
         "title": title,
         "created": _string_or_none(metadata.get("created")),
         "updated": _string_or_none(metadata.get("updated") or metadata.get("created")),
@@ -119,19 +126,20 @@ def page_record(vault_path: Path, md_path: Path) -> dict[str, Any]:
         "outbound_links": _extract_wikilinks(content),
         "source": source,
         "search_text": inline_text(" ".join([title, summary, " ".join(entities), claims, relations, " ".join(headings)])),
+        "body": _markdown_body(content),
     }
 
 
 def build_machine_index(vault_path: Path) -> dict[str, Any]:
-    pages: list[dict[str, Any]] = []
-    root = content_root(vault_path)
-    for md_path in _iter_indexable_page_paths(root):
-        try:
-            pages.append(page_record(vault_path, md_path))
-        except UnicodeDecodeError:
-            continue
+    pages = read_wiki_page_records(vault_path)
 
     page_paths = {page["path"] for page in pages}
+    page_targets: dict[str, set[str]] = {}
+    for page in pages:
+        for value in (page.get("path"), page.get("canonical_path"), page.get("title"), Path(str(page.get("path") or "")).stem):
+            key = _link_key(str(value or ""))
+            if key:
+                page_targets.setdefault(key, set()).add(str(page["path"]))
     links: list[dict[str, object]] = []
     sources: dict[str, list[str]] = {}
     search: list[dict[str, object]] = []
@@ -140,7 +148,7 @@ def build_machine_index(vault_path: Path) -> dict[str, Any]:
         if isinstance(source, str) and source:
             sources.setdefault(source, []).append(page["path"])
         for target in page["outbound_links"]:
-            target_path = _link_target_to_path(target, page_paths)
+            target_path = _link_target_to_path(target, page_paths, page_targets)
             links.append({"source": page["path"], "target": target, "target_path": target_path, "resolved": target_path is not None})
         search.append(
             {
@@ -155,12 +163,23 @@ def build_machine_index(vault_path: Path) -> dict[str, Any]:
 
     return {
         "schema_version": "machine_index.v1",
-        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "pages": pages,
         "links": links,
         "sources": [{"source": key, "pages": value} for key, value in sorted(sources.items())],
         "search": search,
     }
+
+
+def read_wiki_page_records(vault_path: Path) -> list[dict[str, Any]]:
+    """Read current page identities from authoritative local Markdown files."""
+
+    pages: list[dict[str, Any]] = []
+    for md_path in _iter_indexable_page_paths(content_root(vault_path)):
+        try:
+            pages.append(page_record(vault_path, md_path))
+        except UnicodeDecodeError:
+            continue
+    return pages
 
 
 def build_graph_index(vault_path: Path, pages: list[dict[str, Any]] | None = None) -> dict[str, Any]:
@@ -169,6 +188,8 @@ def build_graph_index(vault_path: Path, pages: list[dict[str, Any]] | None = Non
     edges: list[dict[str, str]] = []
     source_map: dict[str, dict[str, Any]] = {}
 
+    indexed_paths = _add_atom_graph(vault_path, node_map, edges)
+
     for page in records:
         path = str(page.get("path") or "")
         title = str(page.get("title") or Path(path).stem)
@@ -176,25 +197,27 @@ def build_graph_index(vault_path: Path, pages: list[dict[str, Any]] | None = Non
         role = str(page.get("role") or "")
         entities = [str(item).strip() for item in page.get("entities", []) if str(item).strip()] if isinstance(page.get("entities"), list) else []
 
-        for entity in entities:
-            _upsert_node(node_map, entity, path, summary)
+        if path not in indexed_paths:
+            for entity in entities:
+                _upsert_node(node_map, entity, entity, path, summary)
 
         relations = page.get("relations") if isinstance(page.get("relations"), list) else []
-        for relation in relations:
-            if not isinstance(relation, dict):
-                continue
-            source = str(relation.get("subject") or "").strip()
-            predicate = str(relation.get("predicate") or "").strip()
-            target = str(relation.get("object") or "").strip()
-            claim = str(relation.get("claim") or "").strip()
-            if not source or not predicate or not target:
-                continue
-            _upsert_node(node_map, source, path, summary)
-            _upsert_node(node_map, target, path, "")
-            edges.append({"source": source, "predicate": predicate, "target": target, "page": path, "claim": claim})
+        if path not in indexed_paths:
+            for relation in relations:
+                if not isinstance(relation, dict):
+                    continue
+                source = str(relation.get("subject") or "").strip()
+                predicate = str(relation.get("predicate") or "").strip()
+                target = str(relation.get("object") or "").strip()
+                claim = str(relation.get("claim") or "").strip()
+                if not source or not predicate or not target:
+                    continue
+                _upsert_node(node_map, source, source, path, summary)
+                _upsert_node(node_map, target, target, path, "")
+                edges.append({"source": source, "predicate": predicate, "target": target, "page": path, "claim": claim})
 
         evidence = page.get("evidence") if isinstance(page.get("evidence"), list) else []
-        if role == "source_digest":
+        if role == "source_record":
             raw = _first_evidence_source(evidence) or _string_or_none(page.get("source")) or ""
             source_entry = source_map.setdefault(path, {"source": path, "raw": raw, "pages": []})
             if raw and not source_entry.get("raw"):
@@ -211,12 +234,11 @@ def build_graph_index(vault_path: Path, pages: list[dict[str, Any]] | None = Non
             if path and path not in entry["pages"]:
                 entry["pages"].append(path)
 
-        if not entities and title:
-            _upsert_node(node_map, title, path, summary)
+        if path not in indexed_paths and not entities and title:
+            _upsert_node(node_map, title, title, path, summary)
 
     return {
         "schema_version": "knoarbor_graph_index.v1",
-        "generated_at": datetime.now().isoformat(timespec="seconds"),
         "nodes": sorted(node_map.values(), key=lambda item: str(item["id"]).lower()),
         "edges": sorted(edges, key=lambda item: (item["source"].lower(), item["predicate"].lower(), item["target"].lower(), item["page"])),
         "sources": sorted(source_map.values(), key=lambda item: str(item["source"]).lower()),
@@ -224,12 +246,12 @@ def build_graph_index(vault_path: Path, pages: list[dict[str, Any]] | None = Non
 
 
 def build_index_manifest(vault_path: Path, graph_index: dict[str, Any], pages: list[dict[str, Any]]) -> dict[str, Any]:
-    graph_bytes = _json_bytes(graph_index)
+    graph_bytes = canonical_index_json(graph_index)
     return {
         "schema_version": "knoarbor_index.v1",
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "vault_path": str(vault_path.expanduser().resolve()),
-        "wiki_hash": _wiki_content_hash(vault_path),
+        "wiki_hash": wiki_tree_fingerprint(vault_path),
         "graph_index_hash": sha256(graph_bytes).hexdigest(),
         "page_count": len([page for page in pages if page.get("role") == "knowledge_page"]),
         "source_count": len(graph_index.get("sources", [])) if isinstance(graph_index.get("sources"), list) else 0,
@@ -238,29 +260,127 @@ def build_index_manifest(vault_path: Path, graph_index: dict[str, Any], pages: l
     }
 
 
-def update_machine_index(vault_path: Path) -> None:
+def prepare_machine_index(vault_path: Path, *, target_generation: str | None = None) -> IndexSnapshot:
+    ensure_vault_identity(vault_path)
+    root = runtime_index_root(vault_path)
     payload = build_machine_index(vault_path)
     graph_index = build_graph_index(vault_path, payload["pages"])
     manifest = build_index_manifest(vault_path, graph_index, payload["pages"])
-    index_dir = machine_index_dir(vault_path)
-    with vault_write_lock(vault_path):
-        index_dir.mkdir(parents=True, exist_ok=True)
-        _write_json(index_dir / "manifest.json", manifest)
-        _write_json(index_dir / "graph_index.json", graph_index)
-        _write_json(index_dir / "pages.json", {"schema_version": "machine_pages.v2", "pages": payload["pages"]})
-        _write_json(index_dir / "links.json", {"schema_version": "machine_links.v1", "links": payload["links"]})
-        _write_json(index_dir / "sources.json", {"schema_version": "machine_sources.v1", "sources": payload["sources"]})
-        _write_json(index_dir / "search.json", {"schema_version": "machine_search.v1", "entries": payload["search"]})
+    staging = root / ".staging" / uuid4().hex
+    staging.mkdir(parents=True, exist_ok=False)
+    try:
+        active_fact_generation = target_generation or "sha256:empty"
+        artifacts = {
+            "graph_index.json": graph_index,
+            "pages.json": {"schema_version": "machine_pages.v2", "pages": payload["pages"]},
+            "links.json": {"schema_version": "machine_links.v1", "links": payload["links"]},
+            "sources.json": {"schema_version": "machine_sources.v1", "sources": payload["sources"]},
+            "search.json": {"schema_version": "machine_search.v1", "entries": payload["search"]},
+        }
+        for name, artifact in artifacts.items():
+            _write_json(staging / name, artifact)
+        retrieval_metadata = build_lexical_snapshot(
+            vault_path,
+            staging / "retrieval.sqlite",
+            fact_generation=active_fact_generation,
+            atom_records=read_knowledge_atom_records(vault_path),
+            raw_records=read_raw_evidence_records(vault_path),
+        )
+        files = {
+            name: sha256((staging / name).read_bytes()).hexdigest()
+            for name in sorted([*artifacts, "retrieval.sqlite"])
+        }
+        navigation_generation_id = sha256(
+            canonical_index_json({name: files[name] for name in sorted(artifacts)})
+        ).hexdigest()
+        retrieval_generation_id = sha256(
+            canonical_index_json(
+                {
+                    "artifact_hash": files["retrieval.sqlite"],
+                    "active_fact_generation": active_fact_generation,
+                    "schema_version": retrieval_metadata["schema_version"],
+                }
+            )
+        ).hexdigest()
+        identity_manifest = {
+            **manifest,
+            "identity_schema": "index_generation_identity.v4",
+            "navigation_generation_id": navigation_generation_id,
+            "retrieval_generation_id": retrieval_generation_id,
+            "active_fact_generation": active_fact_generation,
+            "files": files,
+        }
+        generation_id = index_generation_id(identity_manifest)
+        complete_manifest = {**identity_manifest, "generation_id": generation_id}
+        _write_json(staging / "manifest.json", complete_manifest)
+        target = root / "generations" / generation_id
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            try:
+                open_index_generation(vault_path, generation_id)
+            except RuntimeError:
+                shutil.rmtree(target)
+                staging.replace(target)
+            else:
+                shutil.rmtree(staging, ignore_errors=True)
+        else:
+            staging.replace(target)
+        return IndexSnapshot(generation_id=generation_id, path=target, manifest=complete_manifest)
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
 
 
-def update_index(vault_path: Path) -> None:
-    root = content_root(vault_path)
-    root.mkdir(parents=True, exist_ok=True)
-    update_machine_index(vault_path)
+def _publish_machine_index(vault_path: Path, snapshot: IndexSnapshot) -> None:
+    root = runtime_index_root(vault_path)
+    if snapshot.path.parent != root / "generations":
+        raise RuntimeError("Machine index snapshot belongs to a different vault.")
+    verified = open_index_generation(vault_path, snapshot.generation_id)
+    if verified.path != snapshot.path:
+        raise RuntimeError("Machine index snapshot path does not match its verified generation.")
+    _write_current(root, snapshot.generation_id)
+
+
+def _discard_machine_index(vault_path: Path, snapshot: IndexSnapshot) -> None:
+    root = runtime_index_root(vault_path)
+    if snapshot.path.parent != root / "generations":
+        raise RuntimeError("Machine index snapshot belongs to a different vault.")
+    current = open_index_snapshot(vault_path)
+    if current is None or current.generation_id != snapshot.generation_id:
+        shutil.rmtree(snapshot.path, ignore_errors=True)
+
+
+def _prune_index_generations(vault_path: Path, *, protected: set[str]) -> list[str]:
+    generations = runtime_index_root(vault_path) / "generations"
+    if not generations.is_dir():
+        return []
+    removed: list[str] = []
+    for path in sorted(generations.iterdir(), key=lambda item: item.name):
+        if path.name in protected or not path.is_dir() or path.is_symlink():
+            continue
+        shutil.rmtree(path)
+        removed.append(path.name)
+    return removed
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(path)
+
+
+def _write_current(root: Path, generation_id: str) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    temporary = root / f".CURRENT.{uuid4().hex}.tmp"
+    temporary.write_text(generation_id + "\n", encoding="utf-8")
+    temporary.replace(root / "CURRENT")
+
+
+def _markdown_body(content: str) -> str:
+    if not content.startswith("---\n"):
+        return content
+    boundary = content.find("\n---\n", 4)
+    return content[boundary + 5 :] if boundary >= 0 else content
 
 
 def _extract_entities(content: str) -> list[str]:
@@ -271,12 +391,10 @@ def _extract_entities(content: str) -> list[str]:
         text = line[2:].strip()
         if not text or text.startswith("暂无"):
             continue
-        text = text.removeprefix("[[").removesuffix("]]")
-        if "|" in text:
-            text = text.split("|", 1)[-1]
+        text = wikilink_display_text(text)
         if text and text not in entities:
             entities.append(text)
-    return entities[:24]
+    return entities
 
 
 def _extract_claim_ids(section: str) -> list[str]:
@@ -343,19 +461,77 @@ def _markdown_table_rows(section: str) -> list[list[str]]:
 
 
 def _clean_graph_object(value: str) -> str:
-    text = value.strip()
-    if text.startswith("[[") and text.endswith("]]"):
-        text = text[2:-2]
-    if "|" in text:
-        text = text.split("|", 1)[-1]
-    return text.strip()
+    return wikilink_display_text(value)
 
 
-def _upsert_node(node_map: dict[str, dict[str, Any]], node_id: str, page: str, summary: str) -> None:
+def _add_atom_graph(vault_path: Path, node_map: dict[str, dict[str, Any]], edges: list[dict[str, str]]) -> set[str]:
+    """Populate ingest-backed graph records from resolved entity ids."""
+
+    registry = {entry.entity_id: entry for entry in read_entity_registry(vault_path).entries}
+    records = read_knowledge_atom_records(vault_path)
+    indexed_paths: set[str] = set()
+    labels: dict[str, str] = {}
+    for record in records:
+        if record.atom_type != "entity" or not record.atom_id.startswith("ent:"):
+            continue
+        entry = registry.get(record.atom_id)
+        label = entry.canonical_name if entry else record.text
+        aliases = entry.aliases if entry else []
+        labels[record.atom_id] = label
+        for path in record.page_paths:
+            indexed_paths.add(path)
+            _upsert_node(node_map, record.atom_id, label, path, "", aliases=aliases)
+    for record in records:
+        if record.atom_type != "relation":
+            continue
+        payload = record.payload
+        subject = payload.get("subject") if isinstance(payload, dict) else None
+        obj = payload.get("object") if isinstance(payload, dict) else None
+        if not isinstance(subject, dict) or not isinstance(obj, dict):
+            continue
+        source = str(subject.get("atom_id") or "").strip()
+        target = str(obj.get("atom_id") or "").strip()
+        predicate = str(payload.get("predicate") or "").strip()
+        if not source.startswith("ent:") or not target.startswith("ent:") or not predicate:
+            continue
+        source_label = labels.get(source, str(subject.get("name") or source))
+        target_label = labels.get(target, str(obj.get("name") or target))
+        for path in record.page_paths:
+            indexed_paths.add(path)
+            _upsert_node(node_map, source, source_label, path, "")
+            _upsert_node(node_map, target, target_label, path, "")
+            edges.append(
+                {
+                    "source": source,
+                    "predicate": predicate,
+                    "target": target,
+                    "page": path,
+                    "claim": str(payload.get("source_claim_ids", [""])[0] if isinstance(payload.get("source_claim_ids"), list) else ""),
+                    "source_label": source_label,
+                    "target_label": target_label,
+                }
+            )
+    return indexed_paths
+
+
+def _upsert_node(
+    node_map: dict[str, dict[str, Any]],
+    node_id: str,
+    label: str,
+    page: str,
+    summary: str,
+    *,
+    aliases: list[str] | None = None,
+) -> None:
     clean_id = _clean_graph_object(node_id)
     if not clean_id:
         return
-    node = node_map.setdefault(clean_id, {"id": clean_id, "pages": [], "aliases": [], "summary": ""})
+    node = node_map.setdefault(clean_id, {"id": clean_id, "label": label, "pages": [], "aliases": [], "summary": ""})
+    if label and not node.get("label"):
+        node["label"] = label
+    for alias in aliases or []:
+        if alias and alias not in node["aliases"]:
+            node["aliases"].append(alias)
     if page and page not in node["pages"]:
         node["pages"].append(page)
     if summary and not node["summary"]:
@@ -371,7 +547,7 @@ def _first_evidence_source(evidence: object) -> str:
     return ""
 
 
-def _wiki_content_hash(vault_path: Path) -> str:
+def wiki_tree_fingerprint(vault_path: Path) -> str:
     root = content_root(vault_path)
     digest = sha256()
     for md_path in _iter_indexable_page_paths(root):
@@ -381,10 +557,6 @@ def _wiki_content_hash(vault_path: Path) -> str:
         digest.update(md_path.read_bytes())
         digest.update(b"\0")
     return digest.hexdigest()
-
-
-def _json_bytes(payload: dict[str, Any]) -> bytes:
-    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
 def _extract_wikilinks(content: str) -> list[str]:
@@ -430,7 +602,7 @@ def _iter_indexable_page_paths(root: Path) -> list[Path]:
         vault = root.parent
     else:
         vault = root
-    source_root = source_digest_root(vault)
+    source_root = source_record_root(vault)
     def add_path(md_path: Path) -> None:
         if not is_index_excluded_file(md_path.name):
             resolved = md_path.resolve()
@@ -450,8 +622,8 @@ def _iter_indexable_page_paths(root: Path) -> list[Path]:
 def _page_directory(vault_path: Path, md_path: Path) -> str:
     root = content_root(vault_path)
     try:
-        md_path.resolve().relative_to(source_digest_root(vault_path).resolve())
-        return SOURCE_DIGEST_ROOT_DIR
+        md_path.resolve().relative_to(source_record_root(vault_path).resolve())
+        return SOURCE_RECORD_ROOT_DIR
     except ValueError:
         pass
     if md_path.parent.resolve() == root.resolve():
@@ -477,13 +649,13 @@ def _page_identity(
         role=role,
         atom_ids=_metadata_list(metadata.get("atom_ids")) + _metadata_list(metadata.get("claim_ids")),
         relation_ids=_metadata_list(metadata.get("relation_ids")),
-        source_digest_ids=_metadata_list(metadata.get("source_digest_ids")),
+        source_record_ids=_metadata_list(metadata.get("source_record_ids")),
     )
 
 
 def _infer_page_role(directory: str) -> str:
     if directory == "sources":
-        return "source_digest"
+        return "source_record"
     return "knowledge_page"
 
 
@@ -502,7 +674,7 @@ def _metadata_list(value: object) -> list[str]:
     return [str(value).strip()]
 
 
-def _link_target_to_path(target: str, page_paths: set[str]) -> str | None:
+def _link_target_to_path(target: str, page_paths: set[str], page_targets: dict[str, set[str]]) -> str | None:
     normalized = target.strip().removesuffix(".md")
     candidates = {normalized, f"{normalized}.md"}
     if "/" not in normalized:
@@ -510,7 +682,14 @@ def _link_target_to_path(target: str, page_paths: set[str]) -> str | None:
     for candidate in candidates:
         if candidate in page_paths:
             return candidate
+    matches = page_targets.get(_link_key(normalized), set())
+    if len(matches) == 1:
+        return next(iter(matches))
     return None
+
+
+def _link_key(value: str) -> str:
+    return re.sub(r"[\W_]+", "", value.casefold().removesuffix(".md"), flags=re.UNICODE)
 
 
 def _string_or_none(value: object) -> str | None:
@@ -527,37 +706,3 @@ def ensure_log(vault_path: Path) -> None:
     with vault_write_lock(vault_path):
         if not log_path.exists():
             log_path.write_text("# Log\n\nAppend-only operation log for ingest, query, and lint passes.\n", encoding="utf-8")
-
-
-def append_ingest_log(
-    vault_path: Path,
-    draft: WikiDraft,
-    result: VaultWriteResult,
-    source_file: str | None,
-    action: str = "create",
-) -> None:
-    ensure_log(vault_path)
-    log_path = wiki_root(vault_path) / "log.md"
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    source = source_file if source_file else "null"
-    entry = (
-        f"\n## {now}\n\n"
-        f"- operation: ingest_source\n"
-        f"- action: {action}\n"
-        f"- source: {source}\n"
-        f"- output: {wiki_link_for_path(vault_path, result.path, draft.title)}\n"
-        f"- directory: {draft.page_dir}\n"
-        f"- created: {str(result.created).lower()}\n"
-        f"- content_hash: {result.content_hash}\n"
-    )
-    with vault_write_lock(vault_path):
-        with log_path.open("a", encoding="utf-8") as file:
-            file.write(entry)
-
-
-def append_operation_log(vault_path: Path, message: str) -> None:
-    ensure_log(vault_path)
-    log_path = wiki_root(vault_path) / "log.md"
-    with vault_write_lock(vault_path):
-        with log_path.open("a", encoding="utf-8") as file:
-            file.write(message.rstrip() + "\n")

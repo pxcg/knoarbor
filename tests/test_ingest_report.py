@@ -6,7 +6,7 @@ from knoarbor.audit.ingest_report import render_ingest_report
 
 
 class IngestReportTests(unittest.TestCase):
-    def test_renders_write_gate_and_semantic_review_separately(self) -> None:
+    def test_renders_raw_grounded_indexing_without_removed_gate_state(self) -> None:
         report = render_ingest_report(
             {
                 "run_id": "run-1",
@@ -22,10 +22,21 @@ class IngestReportTests(unittest.TestCase):
                     "failed_segment_count": 0,
                     "max_segment_chars": 128,
                     "recovery_candidate_count": 0,
-                    "effective_max_concurrent_sources": 1,
-                    "configured_max_concurrent_sources": 1,
+                    "effective_max_concurrent_segments": 1,
+                    "configured_max_concurrent_segments": 1,
                 },
-                "metrics": {"elapsed_seconds": 1.0, "semantic": {"semantic_call_count": 0, "total_tokens": 0}},
+                "metrics": {
+                    "elapsed_seconds": 1.0,
+                    "semantic": {"semantic_call_count": 1, "total_tokens": 30},
+                    "semantic_attempts": {
+                        "attempted_call_count": 2,
+                        "response_call_count": 2,
+                        "failed_call_count": 0,
+                        "invalid_output_count": 1,
+                        "retry_count": 1,
+                        "observed_peak_in_flight": 2,
+                    },
+                },
                 "document_processing": {"stats": {}},
                 "quality_trend": {},
                 "sources": [
@@ -46,25 +57,28 @@ class IngestReportTests(unittest.TestCase):
                                 "reasons": ["operation 1 updates Agent.md."],
                             }
                         },
-                        "write_gate": {
-                            "passed": False,
-                            "approved_operation_indexes": [],
-                            "issues": [
-                                {
-                                    "operation_index": 1,
-                                    "code": "missing_evidence",
-                                    "message": "Non-source drafts must include explicit evidence rows.",
-                                }
-                            ],
-                        },
                         "checkpoint": {},
                         "touched_pages": [],
                         "scoped_lint_result": {},
-                        "approved_operation_indexes": [],
                         "generated_pages": ["Agent.md"],
                         "metrics": {"elapsed_seconds": 1.0, "semantic": {"semantic_call_count": 0, "total_tokens": 0}},
                         "segmentation": {"mode": "none", "segment_count": 1},
-                        "segments": [],
+                        "segments": [
+                            {
+                                "index": 0,
+                                "title": "Fast Note",
+                                "chars": 128,
+                                "status": "processed",
+                                "metrics": {
+                                    "elapsed_seconds": 0.5,
+                                    "semantic": {
+                                        "semantic_call_count": 1,
+                                        "total_tokens": 30,
+                                        "prompt_cached_tokens": 5,
+                                    },
+                                },
+                            }
+                        ],
                         "page_plan_operations": [],
                         "draft_atom_traces": [],
                         "review_decisions": [
@@ -84,10 +98,15 @@ class IngestReportTests(unittest.TestCase):
             }
         )
 
-        self.assertIn("Write gate:", report)
-        self.assertIn("`missing_evidence`", report)
+        self.assertNotIn("Quality gate:", report)
+        self.assertNotIn("approved_segments", report)
         self.assertIn("Semantic review:", report)
         self.assertIn("triggers: update", report)
+        self.assertIn("- semantic_usage_records: 1", report)
+        self.assertIn("- model_call_attempts: 2", report)
+        self.assertIn("- model_call_retries: 1", report)
+        self.assertIn("- observed_peak_model_calls_in_flight: 2", report)
+        self.assertIn("semantic_usage_records: 1 / tokens: 30", report)
         self.assertIn("reject / reject / risk=high", report)
 
 

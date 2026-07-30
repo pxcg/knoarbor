@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -111,6 +112,8 @@ class ModelProbeApiTests(unittest.TestCase):
         self.assertEqual(payload["status"], "ok")
         self.assertEqual(payload["model"], "")
         self.assertEqual(payload["model_ids"], ["qwen3:14b", "qwen3.6:27b-q4_K_M"])
+        self.assertIsNone(payload["configured_model_found"])
+        self.assertNotIn("Configured model was not found", payload["message"])
 
     def test_discover_endpoint_warns_when_configured_model_is_missing(self) -> None:
         discovery = ProviderModelDiscovery(
@@ -171,6 +174,7 @@ class ModelProbeApiTests(unittest.TestCase):
                 },
             )
             data = yaml.safe_load(config.read_text(encoding="utf-8"))
+            config_mode = config.stat().st_mode & 0o777
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
@@ -180,6 +184,8 @@ class ModelProbeApiTests(unittest.TestCase):
         self.assertEqual(provider["context_window"], 32768)
         self.assertEqual(provider["max_output_tokens"], 8000)
         self.assertTrue(provider["json_mode"])
+        if os.name != "nt":
+            self.assertEqual(config_mode, 0o600)
 
 
 if __name__ == "__main__":

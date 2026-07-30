@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.connectors import ConnectorConfig, ConnectorRegistry, HermesConnector
-from knoarbor.pipelines import SourcePipeline
+from knoarbor.pipelines.source import SourcePipeline
 
 
 class HermesConnectorTests(unittest.TestCase):

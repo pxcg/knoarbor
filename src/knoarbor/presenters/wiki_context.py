@@ -1,37 +1,23 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from knoarbor.core.errors import UserInputError
-from knoarbor.core.markdown import compact_inline_text
 from knoarbor.core.schemas.wiki_query import (
-    WikiAnswerScope,
-    WikiAnswerSet,
     WikiAtomTrace,
-    WikiEvidenceCoverage,
-    WikiQueryGapSuggestion,
-    WikiContextMatch,
-    WikiContextRequest,
-    WikiContextResponse,
-    WikiSearchExcerpt,
+    WikiChannelStatus,
+    WikiEvidenceHandle,
+    WikiRecallSignal,
+    WikiRawEvidence,
     WikiSearchRequest,
     WikiSearchResponse,
     WikiSearchResult,
 )
+from knoarbor.product import PRODUCT
 from knoarbor.pipelines.query import QueryPipeline, QueryPipelineRequest
-from knoarbor.retrieval.answer_selection import AnswerSetSelector, query_prefers_source_page, result_dimensions
-from knoarbor.retrieval.markdown import (
-    ScoredPage,
-    SearchPage,
-    normalize_text,
-    query_terms,
-    relevance_label,
-)
-from knoarbor.storage.knowledge_atom_index import KnowledgeAtomRecord, read_knowledge_atom_records
-
-
-MAX_ATOM_TRACES_PER_PAGE = 8
+from knoarbor.retrieval.query_text import query_terms
+from knoarbor.retrieval.unified import ClaimCandidate, EvidenceHandle, EvidenceRead
+from knoarbor.storage.source_records import RawEvidenceRecord
 
 
 def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
@@ -47,587 +33,298 @@ def search_query(request: WikiSearchRequest) -> WikiSearchResponse:
         QueryPipelineRequest(
             vault_path=vault_path,
             query=request.query,
-            mode=request.mode,
-            limit=max(request.max_pages_to_read, request.max_results),
-            page_dirs=request.page_dirs,
-            page_roles=request.page_roles,
-            include_related=request.include_related,
+            continuation_cursor=request.continuation_cursor,
         )
     )
-    results = [
-        build_result(item, terms, request)
-        for item in pipeline_result.matches[: request.max_results]
-        if item.score > 0
-    ]
-    results = attach_atom_traces(results, vault_path)
-    answer_scope = build_answer_scope(request, pipeline_result.stats, results)
-    selection = AnswerSetSelector().select(request.query, results, answer_scope)
-    answer_set = selection.answer_set
-    results = assign_result_roles(request.query, results, answer_set=answer_set)
-    results = apply_answer_content_strategy(results, pipeline_result.matches, include_content=request.include_content)
-    primary_pages = [result for result in results if result.role == "primary"]
-    supporting_pages = [result for result in results if result.role == "supporting"]
-    source_pages = [result for result in results if result.role == "source"]
-
-    gap_suggestions = build_gap_suggestions(request.query, results, pipeline_result.gaps)
-    evidence_coverage = build_evidence_coverage(terms, answer_scope, primary_pages, supporting_pages, source_pages, pipeline_result.gaps)
-    response_guidance = build_response_guidance(results, gap_suggestions, primary_pages=primary_pages)
+    results = _locator_results(pipeline_result.claim_candidates)
+    raw_evidence = [_candidate_evidence(item) for item in pipeline_result.matches]
+    effective_gaps = pipeline_result.gaps
     context_pack = build_context_pack(
         request.query,
-        order_results_for_context(results),
-        request.max_context_chars,
-        response_guidance,
-        gap_suggestions,
+        results,
+        raw_evidence,
     )
     stats = {
         **pipeline_result.stats,
         "returned_count": len(results),
-        "max_pages_to_read": request.max_pages_to_read,
-        "include_content": request.include_content,
-        "context_strategy": "page_first_primary_full" if request.include_content else "page_first_summary_excerpt",
+        "context_strategy": "semantic_indexed_raw_grounded",
         "context_pack_chars": len(context_pack),
-        "context_pack_truncated": context_pack.endswith("... [truncated]"),
+        "context_pack_truncated": False,
+        "raw_evidence_count": len(raw_evidence),
         "atom_trace_count": sum(len(result.atom_traces) for result in results),
-        "gap_count": len(pipeline_result.gaps),
-        "gap_suggestion_count": len(gap_suggestions),
+        "gap_count": len(effective_gaps),
+        "query_status": pipeline_result.status,
     }
     return WikiSearchResponse(
         query=request.query,
+        status=pipeline_result.status,
         retrieval_mode=pipeline_result.retrieval_mode,
         results=results,
-        primary_pages=primary_pages,
-        supporting_pages=supporting_pages,
-        source_pages=source_pages,
-        answer_scope=answer_scope,
-        answer_set=answer_set,
-        evidence_coverage=evidence_coverage,
-        rejected_candidates=selection.rejected_candidates,
+        evidence_handles=[_wiki_handle(item) for item in pipeline_result.handles],
+        raw_evidence=raw_evidence,
         context_pack=context_pack,
-        response_guidance=response_guidance,
-        gap_suggestions=gap_suggestions,
-        gaps=pipeline_result.gaps,
+        gaps=effective_gaps,
         warnings=pipeline_result.warnings,
+        channel_statuses=[WikiChannelStatus(**item.__dict__) for item in pipeline_result.channel_statuses],
         stats=stats,
-        trace=build_query_trace(stats, results, answer_scope=answer_scope, answer_set=answer_set),
-    )
-
-
-def build_wiki_context(request: WikiContextRequest) -> WikiContextResponse:
-    vault_path = Path(request.vault_path).expanduser().resolve()
-    if not vault_path.exists() or not vault_path.is_dir():
-        raise UserInputError(f"vault_path does not exist or is not a directory: {vault_path}")
-
-    terms = query_terms(request.query)
-    if not terms:
-        raise UserInputError("query does not contain searchable terms")
-
-    pipeline_result = QueryPipeline().run(
-        QueryPipelineRequest(
-            vault_path=vault_path,
-            query=request.query,
-            mode="balanced",
-            limit=request.limit,
-            page_dirs=request.page_dirs,
-            page_roles=request.page_roles,
-            include_related=request.include_related,
-        )
-    )
-    matches = [build_context_match(item, terms, request) for item in pipeline_result.matches]
-    warnings = list(pipeline_result.warnings)
-    if not matches:
-        warnings.append("No relevant wiki context matches were found.")
-
-    return WikiContextResponse(
-        query=request.query,
-        purpose=request.purpose,
-        matches=matches,
-        context_pack=build_context_summary(request.query, matches),
-        warnings=warnings,
-        stats={
-            **pipeline_result.stats,
-            "returned_count": len(matches),
-            "include_content": request.include_content,
+        trace={
+            **build_query_trace(stats, results, raw_evidence=raw_evidence),
+            "atom_candidates": [
+                {"atom_id": item.atom.atom_id, "atom_type": item.atom.atom_type, "score": round(item.score, 4)}
+                for item in pipeline_result.atom_candidates
+            ],
+            "claim_candidates": [
+                {
+                    "claim_ref": item.claim_ref,
+                    "local_claim_id": item.claim.atom_id,
+                    "score": round(item.score, 4),
+                    "supporting_atom_refs": item.supporting_atom_ids,
+                    "reasons": list(item.reasons),
+                }
+                for item in pipeline_result.claim_candidates
+            ],
         },
+        exhausted=pipeline_result.exhausted,
+        continuation_cursor=pipeline_result.continuation_cursor,
+        query_fingerprint=pipeline_result.query_fingerprint,
+        snapshot_generation=pipeline_result.snapshot_generation,
     )
 
 
-def build_result(item: ScoredPage, terms: list[str], request: WikiSearchRequest) -> WikiSearchResult:
-    page = item.page
-    max_excerpts = 0 if request.mode == "quick" else request.max_excerpts_per_page
-    if request.mode == "deep":
-        max_excerpts = max(max_excerpts, min(6, request.max_excerpts_per_page + 2))
-    excerpts = select_excerpts(page, terms, max_excerpts, request.max_chars_per_excerpt)
-    score = round(item.score, 3)
-    return WikiSearchResult(
-        path=page.relative_path,
-        canonical_path=page.canonical_path or page.relative_path,
-        title=page.title,
-        page_role=page.role,
-        score=score,
-        relevance=relevance_label(score),
-        match_kind="related" if {"related_graph", "graph_related"}.intersection(item.matched_fields) else "direct",
-        matched_fields=sorted(item.matched_fields),
-        matched_terms={key: sorted(set(value)) for key, value in sorted(item.matched_terms.items())},
-        reason=match_reason(item),
-        summary=compact_inline_text(page.summary, 500),
-        claims=[compact_inline_text(point, 240) for point in page.claim_points[:6]],
-        excerpts=excerpts,
-        content=None,
-        entities=page.entities,
-        outbound_links=page.outbound_links[:10],
-        content_truncated=False,
-    )
+def _locator_results(claims: list[ClaimCandidate]) -> list[WikiSearchResult]:
+    by_path: dict[str, WikiSearchResult] = {}
+    for candidate in claims:
+        trace = _claim_trace(candidate)
+        for path in candidate.claim.page_paths:
+            result = by_path.get(path)
+            if result is None:
+                result = WikiSearchResult(
+                    path=path,
+                    title=_locator_title(path),
+                    score=round(candidate.score, 3),
+                    relevance=_score_relevance(candidate.score),
+                    matched_fields=["knowledge_atom"],
+                    reason="Projection locator derived from a selected claim.",
+                    atom_traces=[trace],
+                )
+                by_path[path] = result
+            else:
+                result.score = round(result.score + candidate.score, 3)
+                if all(item.atom_id != trace.atom_id for item in result.atom_traces):
+                    result.atom_traces.append(trace)
+    return sorted(by_path.values(), key=lambda item: (-item.score, item.path))
 
 
-def attach_atom_traces(results: list[WikiSearchResult], vault_path: Path) -> list[WikiSearchResult]:
-    if not results:
-        return []
-    atoms_by_page = _atom_traces_by_page(vault_path)
-    if not atoms_by_page:
-        return results
-    output: list[WikiSearchResult] = []
-    for result in results:
-        traces = atoms_by_page.get(result.path, [])
-        if not traces:
-            output.append(result)
-            continue
-        output.append(result.model_copy(update={"atom_traces": traces[:MAX_ATOM_TRACES_PER_PAGE]}))
-    return output
+def _locator_title(path: str) -> str:
+    return Path(path).stem.replace("-", " ").replace("_", " ").strip()
 
 
-def _atom_traces_by_page(vault_path: Path) -> dict[str, list[WikiAtomTrace]]:
-    records = read_knowledge_atom_records(vault_path)
-    traces_by_page: dict[str, list[WikiAtomTrace]] = {}
-    for record in records:
-        trace = _atom_trace(record)
-        for page_path in record.page_paths:
-            traces_by_page.setdefault(page_path, [])
-            if trace.atom_id not in {item.atom_id for item in traces_by_page[page_path]}:
-                traces_by_page[page_path].append(trace)
-    return traces_by_page
-
-
-def _atom_trace(record: KnowledgeAtomRecord) -> WikiAtomTrace:
+def _claim_trace(candidate: ClaimCandidate) -> WikiAtomTrace:
+    claim = candidate.claim
     return WikiAtomTrace(
-        atom_id=record.atom_id,
-        atom_type=record.atom_type,
-        text=compact_inline_text(record.text, 260),
-        source_digest_id=record.source_digest_id,
+        atom_id=claim.atom_id,
+        atom_type="claim",
+        text=claim.text,
+        source_record_id=claim.source_record_id,
+        raw_record_id=claim.raw_record_id,
+        raw_revision_id=claim.raw_revision_id,
+        source_unit_ids=claim.source_unit_ids,
+        processing_record_id=claim.processing_record_id,
     )
 
 
-def apply_answer_content_strategy(
-    results: list[WikiSearchResult],
-    matches: list[ScoredPage],
-    *,
-    include_content: bool = True,
-) -> list[WikiSearchResult]:
-    """Attach model-facing page bodies after answer roles are known.
-
-    KnoArbor retrieves maintained wiki pages, not interchangeable chunks. The
-    answer context should therefore preserve answer-bearing wiki pages as whole
-    maintained pages. Source pages remain provenance by default unless they are
-    selected as answer-bearing pages for a source-oriented query.
-    """
-
-    page_by_path = {item.page.relative_path: item.page for item in matches}
-    output: list[WikiSearchResult] = []
-    for result in results:
-        page = page_by_path.get(result.path)
-        if not page or not include_content:
-            output.append(result)
-            continue
-        if result.role in {"primary", "supporting"}:
-            output.append(result.model_copy(update={"content": page.body, "content_truncated": False}))
-            continue
-        output.append(result.model_copy(update={"content": None, "content_truncated": False}))
-    return output
-
-
-def build_context_match(item: ScoredPage, terms: list[str], request: WikiContextRequest) -> WikiContextMatch:
-    page = item.page
-    content = compact_inline_text(page.body, request.max_chars_per_page) if request.include_content else None
-    return WikiContextMatch(
-        path=page.relative_path,
-        canonical_path=page.canonical_path or page.relative_path,
-        title=page.title,
-        page_dir=page.directory,
-        page_role=page.role,
-        summary=compact_inline_text(page.summary, 500),
-        entities=page.entities,
-        claims=[compact_inline_text(point, 240) for point in page.claim_points[:6]],
-        outbound_links=page.outbound_links[:10],
-        score=round(item.score, 3),
-        relevance=relevance_label(item.score),
-        matched_fields=sorted(item.matched_fields),
-        reason=match_reason(item),
-        content=content,
-        content_truncated=bool(content and len(page.body) > request.max_chars_per_page),
+def _candidate_evidence(candidate: EvidenceRead) -> WikiRawEvidence:
+    return _wiki_raw_evidence(
+        candidate.raw_evidence,
+        handle=candidate.handle,
     )
 
 
-def match_reason(item: ScoredPage) -> str:
-    fields = ", ".join(sorted(item.matched_fields)) or "content"
-    if item.graph_boost:
-        reasons = ", ".join(sorted(set(item.graph_reasons)))
-        suffix = f" via {reasons}" if reasons else ""
-        return f"Matched {fields}; graph relevance boost {round(item.graph_boost, 3)}{suffix}."
-    return f"Matched {fields}."
+def _score_relevance(score: float) -> str:
+    if score >= 8:
+        return "high"
+    if score >= 2:
+        return "medium"
+    return "low"
 
 
-def select_excerpts(page: SearchPage, terms: list[str], max_excerpts: int, max_chars: int, *, full: bool = False) -> list[WikiSearchExcerpt]:
-    if max_excerpts == 0:
-        return []
+def _wiki_raw_evidence(record: RawEvidenceRecord, *, handle: EvidenceHandle) -> WikiRawEvidence:
+    score = handle.fused_score
+    relevance = "high" if score >= 0.08 else "medium" if score >= 0.03 else "low"
+    locator_atom_ids = _dedupe([
+        *(atom_ref for signal in handle.signals for atom_ref in signal.locator_atom_refs),
+        *record.locator_atom_ids,
+    ])
+    locator_page_paths = _dedupe([*handle.locator_page_paths, *record.locator_page_paths])
+    return WikiRawEvidence(
+        evidence_id=handle.evidence_id,
+        vault_id=handle.raw_identity.vault_id,
+        raw_record_id=record.raw_record_id,
+        raw_revision_id=record.raw_revision_id,
+        revision_id=handle.revision_id,
+        source_unit_id=record.source_unit_id,
+        source_record_id=record.source_record_id,
+        processing_record_id=record.processing_record_id,
+        source_path=record.source_path,
+        unit_index=record.unit_index,
+        unit_type=record.unit_type,
+        title=record.title,
+        excerpt=record.excerpt,
+        content=record.content or record.excerpt,
+        excerpt_hash=record.excerpt_hash,
+        char_start=record.char_start,
+        char_end=record.char_end,
+        structural_path=list(record.structural_path),
+        locator_atom_ids=locator_atom_ids,
+        locator_page_paths=locator_page_paths,
+        relevance=relevance,
+        reason="Resolved from unified active Raw locator signals.",
+    )
 
-    candidates: list[WikiSearchExcerpt] = []
-    for heading, body in extract_sections(page.body):
-        if heading in {"Source"}:
-            continue
-        score = section_score(f"{heading}\n{body}", terms)
-        if score <= 0:
-            continue
-        candidates.append(
-            WikiSearchExcerpt(
-                path=page.relative_path,
-                page_title=page.title,
-                heading=heading,
-                section=heading,
-                content=body if full else compact_inline_text(body, max_chars),
-                score=round(score, 3),
+
+def _wiki_handle(handle: EvidenceHandle) -> WikiEvidenceHandle:
+    return WikiEvidenceHandle(
+        evidence_id=handle.evidence_id,
+        vault_id=handle.raw_identity.vault_id,
+        raw_record_id=handle.raw_record_id,
+        raw_revision_id=handle.raw_identity.raw_revision_id,
+        revision_id=handle.revision_id,
+        source_unit_id=handle.raw_identity.source_unit_id,
+        source_record_id=handle.source_record_id,
+        processing_record_id=handle.processing_record_id,
+        source_path=handle.source_path,
+        title=handle.title,
+        retrieval_generation_id=handle.retrieval_generation_id,
+        active_fact_generation=handle.active_fact_generation,
+        fused_score=handle.fused_score,
+        fused_rank=handle.fused_rank,
+        signals=[
+            WikiRecallSignal(
+                channel=signal.channel,
+                channel_rank=signal.channel_rank,
+                channel_score=signal.channel_score,
+                matched_terms=list(signal.matched_terms),
+                claim_refs=list(signal.claim_refs),
+                locator_atom_refs=list(signal.locator_atom_refs),
+                matched_spans=list(signal.matched_spans),
             )
-        )
-
-    if not candidates and page.summary:
-        candidates.append(
-            WikiSearchExcerpt(
-                path=page.relative_path,
-                page_title=page.title,
-                heading="Summary",
-                section="Summary",
-                content=page.summary if full else compact_inline_text(page.summary, max_chars),
-                score=1.0,
-            )
-        )
-
-    return sorted(candidates, key=lambda item: item.score, reverse=True)[:max_excerpts]
-
-
-def section_score(value: str, terms: list[str]) -> float:
-    text = normalize_text(value)
-    return float(sum(1 for term in terms if term in text))
-
-
-def extract_sections(content: str) -> list[tuple[str, str]]:
-    sections: list[tuple[str, str]] = []
-    matches = list(re.finditer(r"^##+\s+(.+?)\s*$", content, flags=re.MULTILINE))
-    for index, match in enumerate(matches):
-        start = match.end()
-        end = matches[index + 1].start() if index + 1 < len(matches) else len(content)
-        sections.append((match.group(1).strip(), content[start:end].strip()))
-    return sections
-
-
-def build_answer_scope(request: WikiSearchRequest, stats: dict[str, object], results: list[WikiSearchResult]) -> WikiAnswerScope:
-    kind, reason = classify_answer_scope(request.query, results)
-    return WikiAnswerScope(
-        kind=kind,
-        vault_ids=_request_vault_ids(request, results),
-        initial_page_dirs=[str(item) for item in stats.get("initial_scope_dirs", request.page_dirs) or []],
-        expanded_page_dirs=[str(item) for item in stats.get("expanded_scope_dirs", request.page_dirs) or []],
-        include_related=request.include_related,
-        reason=reason,
+            for signal in handle.signals
+        ],
     )
 
 
-def _request_vault_ids(request: WikiSearchRequest, results: list[WikiSearchResult]) -> list[str]:
-    ids: list[str] = []
-    if request.all_vaults:
-        ids.append("all")
-    if request.vault_id:
-        ids.append(request.vault_id)
-    ids.extend(request.vault_ids)
-    ids.extend(result.vault_id or "" for result in results)
-    seen: set[str] = set()
+def _dedupe(items: list[str]) -> list[str]:
     output: list[str] = []
-    for item in ids:
-        text = item.strip()
-        if not text or text in seen:
-            continue
-        seen.add(text)
-        output.append(text)
+    for item in items:
+        text = str(item or "").strip()
+        if text and text not in output:
+            output.append(text)
     return output
-
-
-def classify_answer_scope(query: str, results: list[WikiSearchResult]) -> tuple[str, str]:
-    if not results:
-        return "narrow", "No candidate pages were found."
-    text = normalize_text(query)
-    broad_terms = {
-        "architecture",
-        "compare",
-        "comparison",
-        "design",
-        "overview",
-        "pattern",
-        "patterns",
-        "strategy",
-        "summary",
-        "system",
-        "体系",
-        "全部",
-        "区别",
-        "如何",
-        "对比",
-        "怎么",
-        "总结",
-        "整体",
-        "方案",
-        "有哪些",
-        "机制",
-        "架构",
-        "模式",
-        "设计",
-        "风险",
-    }
-    exploratory_terms = {"guide", "learn", "roadmap", "了解", "介绍", "入门", "学习", "导览"}
-    non_source = [result for result in results if not _is_source_result(result)]
-    directories = {result.path.split("/", 1)[0] for result in non_source if "/" in result.path}
-    top_scores = [result.score for result in non_source[:3]]
-    close_top_scores = len(top_scores) >= 2 and top_scores[1] >= top_scores[0] * 0.72
-    if any(term in text or term in query for term in exploratory_terms):
-        return "exploratory", "Query asks for a guided overview or learning path."
-    if any(term in text or term in query for term in broad_terms):
-        return "broad", "Query asks for a broad explanation or system-level synthesis."
-    if len(directories) >= 2 and len(non_source) >= 3 and close_top_scores:
-        return "broad", "Multiple strong pages across directories can jointly answer the query."
-    return "narrow", "Top result appears sufficient as the main answer unit."
-
-
-def build_evidence_coverage(
-    terms: list[str],
-    scope: WikiAnswerScope,
-    primary_pages: list[WikiSearchResult],
-    supporting_pages: list[WikiSearchResult],
-    source_pages: list[WikiSearchResult],
-    gaps: list[str],
-) -> WikiEvidenceCoverage:
-    selected_pages = [*primary_pages, *supporting_pages]
-    covered_terms = sorted(
-        {
-            term
-            for page in selected_pages
-            for values in page.matched_terms.values()
-            for term in values
-            if term in terms
-        }
-    )
-    missing_terms = [term for term in terms if term not in set(covered_terms)]
-    if gaps or not primary_pages:
-        status = "weak"
-    elif scope.kind in {"broad", "exploratory"} and len(supporting_pages) >= 2:
-        status = "strong" if len(covered_terms) >= max(1, len(terms) // 2) else "adequate"
-    else:
-        status = "adequate"
-    return WikiEvidenceCoverage(
-        status=status,
-        primary_count=len(primary_pages),
-        supporting_count=len(supporting_pages),
-        source_count=len(source_pages),
-        gap_count=len(gaps),
-        covered_terms=covered_terms[:12],
-        covered_dimensions=sorted({dimension for page in selected_pages for dimension in result_dimensions(page)})[:12],
-        missing_dimensions=missing_terms[:8],
-    )
-
-
-def assign_result_roles(query: str, results: list[WikiSearchResult], *, answer_set: WikiAnswerSet | None = None) -> list[WikiSearchResult]:
-    if not results:
-        return []
-
-    primary_paths = set(answer_set.primary_paths if answer_set else [])
-    supporting_paths = set(answer_set.supporting_paths if answer_set else [])
-    source_paths = set(answer_set.source_paths if answer_set else [])
-    primary_path = next(iter(primary_paths), "") or _primary_result_path(query, results)
-    output: list[WikiSearchResult] = []
-    for result in results:
-        if result.path == primary_path or result.path in primary_paths:
-            output.append(result.model_copy(update={"role": "primary"}))
-        elif result.path in supporting_paths:
-            output.append(result.model_copy(update={"role": "supporting"}))
-        elif result.path in source_paths or _is_source_result(result):
-            output.append(result.model_copy(update={"role": "source"}))
-        else:
-            output.append(result.model_copy(update={"role": "supporting"}))
-    return output
-
-
-def _primary_result_path(query: str, results: list[WikiSearchResult]) -> str:
-    if query_prefers_source_page(query):
-        return results[0].path
-    for result in results:
-        if not _is_source_result(result):
-            return result.path
-    return results[0].path
-
-
-def _is_source_result(result: WikiSearchResult) -> bool:
-    return result.page_role == "source_digest" or result.path.startswith("sources/")
-
-def build_response_guidance(
-    results: list[WikiSearchResult],
-    gaps: list[WikiQueryGapSuggestion],
-    *,
-    primary_pages: list[WikiSearchResult] | None = None,
-) -> list[str]:
-    if not results:
-        return [
-            "No maintained wiki page matched strongly enough; tell the user the local KnoArbor vault has no reliable answer yet.",
-            "Use other tools or ask a follow-up question before making factual claims.",
-        ]
-    primary_pages = primary_pages or [results[0]]
-    guidance = [
-        "Use primary_pages as the maintained wiki answer unit when they answer the question directly.",
-        "Use supporting_pages and source_pages for context, provenance, and follow-up suggestions.",
-        "Use the returned wiki pages as local evidence, not as the only possible source of truth.",
-        "Cite page paths when making claims, especially for specific facts or recommendations.",
-        f"Primary page candidate: {primary_pages[0].path}.",
-    ]
-    if gaps:
-        guidance.append("Mention the local knowledge gap if the answer depends on missing or weak wiki coverage.")
-    return guidance
-
-
-def build_gap_suggestions(query: str, results: list[WikiSearchResult], gaps: list[str]) -> list[WikiQueryGapSuggestion]:
-    if not results:
-        return [
-            WikiQueryGapSuggestion(
-                kind="no_result",
-                query=query,
-                reason="No maintained wiki pages matched the query.",
-                recommended_action="ingest_more_sources",
-            )
-        ]
-    top = results[0]
-    if top.relevance == "low" or any("weak" in gap.lower() for gap in gaps):
-        return [
-            WikiQueryGapSuggestion(
-                kind="low_confidence",
-                query=query,
-                reason=f"Top match {top.path} has low confidence for this query.",
-                recommended_action="review_query_terms",
-            )
-        ]
-    return []
 
 
 def build_context_pack(
     query: str,
     results: list[WikiSearchResult],
-    max_chars: int,
-    response_guidance: list[str],
-    gap_suggestions: list[WikiQueryGapSuggestion],
+    raw_evidence: list[WikiRawEvidence],
 ) -> str:
     lines = [
-        "Relevant KnoArbor context for the host AI.",
+        f"Relevant {PRODUCT.name} context for the host AI.",
         f"Query: {query}",
         "",
     ]
-    if response_guidance:
-        lines.append("Response guidance:")
-        lines.extend(f"- {item}" for item in response_guidance)
-        lines.append("")
-    if gap_suggestions:
-        lines.append("Query gap signals:")
-        lines.extend(f"- {item.kind}: {item.reason} ({item.recommended_action})" for item in gap_suggestions)
-        lines.append("")
-    if not results:
-        lines.append("No relevant wiki pages found.")
+    lines.extend(
+        [
+            "Fact context contract:",
+            "- Allowed factual material: raw_evidence excerpts/source units only.",
+            "- Disallowed factual material: wiki page body, wiki synthesis, atom claim text, entity summaries, relation summaries.",
+            "- Locator pages explain retrieval only; do not cite them as factual evidence.",
+            "",
+        ]
+    )
+    if not results and not raw_evidence:
+        lines.append("No relevant locator pages found.")
         return "\n".join(lines)
 
-    ordered_results = order_results_for_context(results)
-    omitted = 0
-    for index, result in enumerate(ordered_results, start=1):
-        include_full_body = result.role in {"primary", "supporting"} and bool(result.content)
-        block = build_result_context_block(index, result, full=include_full_body)
-        if include_full_body:
+    if raw_evidence:
+        lines.append("Raw evidence:")
+        for index, evidence in enumerate(raw_evidence, start=1):
+            block = build_raw_evidence_context_block(index, evidence)
             lines.extend(block)
-            continue
-        candidate = "\n".join([*lines, *block])
-        if len(candidate) > max_chars:
-            omitted = len(ordered_results) - index + 1
-            break
-        lines.extend(block)
+        lines.append("")
+    else:
+        lines.extend(
+            [
+                "Raw evidence:",
+                "- No raw/source-unit evidence was available for the selected locator metadata.",
+                "- The answer should report insufficient raw evidence instead of using wiki prose as fact material.",
+                "",
+            ]
+        )
 
-    if omitted:
-        omission = f"... [{omitted} result(s) omitted due to context budget]"
-        candidate = "\n".join([*lines, omission])
-        if len(candidate) <= max_chars:
-            lines.append(omission)
-        else:
-            return ("\n".join(lines))[: max_chars - 20].rstrip() + "\n... [truncated]"
+    lines.append("Locator trace:")
+    if not results:
+        lines.append("- No locator pages found; raw evidence was selected directly from atom/evidence indexes.")
+        return "\n".join(lines).strip()
+    for index, result in enumerate(results, start=1):
+        block = build_result_context_block(index, result)
+        lines.extend(block)
     return "\n".join(lines).strip()
 
 
-def order_results_for_context(results: list[WikiSearchResult]) -> list[WikiSearchResult]:
-    role_order = {"primary": 0, "supporting": 1, "source": 2}
-    return [result for _, result in sorted(
-        enumerate(results),
-        key=lambda pair: (
-            role_order.get(pair[1].role, 1),
-            1 if _is_source_result(pair[1]) and pair[1].role != "source" else 0,
-            -pair[1].score,
-            pair[0],
-        ),
-    )]
+def build_raw_evidence_context_block(index: int, evidence: WikiRawEvidence) -> list[str]:
+    title = evidence.title or f"Source unit {evidence.unit_index}"
+    content = evidence.content or evidence.excerpt
+    locator_pages = ", ".join(evidence.locator_page_paths[:5]) if evidence.locator_page_paths else "none"
+    locator_atoms = ", ".join(evidence.locator_atom_ids[:8]) if evidence.locator_atom_ids else "none"
+    return [
+        f"### Raw Evidence {index}: {title}",
+        f"- Evidence id: {evidence.evidence_id}",
+        f"- Source path: {evidence.source_path or evidence.source_record_id}",
+        f"- Source unit: {evidence.source_unit_id} (index {evidence.unit_index})",
+        f"- Range: {evidence.char_start if evidence.char_start is not None else 'n/a'}-{evidence.char_end if evidence.char_end is not None else 'n/a'}",
+        f"- Locator pages: {locator_pages}",
+        f"- Locator atoms: {locator_atoms}",
+        "",
+        content,
+        "",
+    ]
 
 
 def build_query_trace(
     stats: dict[str, object],
     results: list[WikiSearchResult],
     *,
-    answer_scope: WikiAnswerScope,
-    answer_set: WikiAnswerSet,
+    raw_evidence: list[WikiRawEvidence],
 ) -> dict[str, object]:
-    origin_counts = {
-        "direct": sum(1 for result in results if result.match_kind == "direct"),
-        "related": sum(1 for result in results if result.match_kind == "related"),
-    }
-    role_counts = {
-        "primary": sum(1 for result in results if result.role == "primary"),
-        "supporting": sum(1 for result in results if result.role == "supporting"),
-        "source": sum(1 for result in results if result.role == "source"),
-    }
     return {
-        "schema_version": "query_trace.v1",
+        "schema_version": "query_trace.v2",
         "scoring_model": stats.get("scoring_model", "unknown"),
         "query_terms": stats.get("query_terms", []),
-        "page_count": stats.get("page_count", 0),
-        "direct_page_count": stats.get("direct_page_count", 0),
-        "graph_page_count": stats.get("graph_page_count", 0),
-        "initial_scope_dirs": stats.get("initial_scope_dirs", []),
-        "expanded_scope_dirs": stats.get("expanded_scope_dirs", []),
-        "direct_match_count": stats.get("direct_match_count", 0),
-        "related_expansion_count": stats.get("related_expansion_count", 0),
-        "related_seed_pages": stats.get("related_seed_pages", []),
-        "related_result_paths": stats.get("related_result_paths", []),
         "candidate_count": stats.get("candidate_count", 0),
         "returned_count": stats.get("returned_count", 0),
         "context_pack_chars": stats.get("context_pack_chars", 0),
         "context_pack_truncated": stats.get("context_pack_truncated", False),
         "atom_trace_count": stats.get("atom_trace_count", 0),
+        "raw_evidence_count": len(raw_evidence),
         "gap_count": stats.get("gap_count", 0),
         "gap_suggestion_count": stats.get("gap_suggestion_count", 0),
-        "origin_counts": origin_counts,
-        "role_counts": role_counts,
-        "answer_scope": answer_scope.model_dump(),
-        "answer_set": answer_set.model_dump(),
-        "rejected_candidates": [item.model_dump() for item in answer_set.rejected_candidates],
         "returned_paths": [result.path for result in results],
         "atom_trace_counts": {
             result.path: len(result.atom_traces)
             for result in results
             if result.atom_traces
         },
+        "raw_evidence": [
+            {
+                "evidence_id": item.evidence_id,
+                "source_unit_id": item.source_unit_id,
+                "source_record_id": item.source_record_id,
+                "source_path": item.source_path,
+                "locator_page_paths": item.locator_page_paths,
+                "locator_atom_ids": item.locator_atom_ids,
+            }
+            for item in raw_evidence
+        ],
         "top_matches": [
             {
                 "path": result.path,
@@ -642,41 +339,11 @@ def build_query_trace(
     }
 
 
-def build_result_context_block(index: int, result: WikiSearchResult, *, full: bool = False) -> list[str]:
+def build_result_context_block(index: int, result: WikiSearchResult) -> list[str]:
     lines = [
         f"{index}. {result.title} ({result.path}, relevance: {result.relevance}, score: {result.score})",
-        f"Answer role: {result.role}",
-        f"Match origin: {result.match_kind}",
-        f"Summary: {result.summary or 'No summary.'}",
+        f"Matched fields: {', '.join(result.matched_fields) or 'none'}",
+        f"Why matched: {result.reason}",
     ]
-    if result.claims:
-        lines.append("Claims:")
-        lines.extend(f"- {point}" for point in result.claims[:4])
-    if result.excerpts:
-        lines.append("Relevant excerpts:")
-        for excerpt in result.excerpts if full else result.excerpts[:2]:
-            lines.append(f"- {excerpt.path}#{excerpt.section}: {excerpt.content}")
-    if full and result.content:
-        lines.append("Full page body:")
-        lines.append(result.content)
-    if result.source:
-        lines.append(f"Source: {result.source}")
-    lines.append(f"Why matched: {result.reason}")
     lines.append("")
     return lines
-
-
-def build_context_summary(query: str, matches: list[WikiContextMatch]) -> str:
-    lines = ["Relevant KnoArbor pages for workflow context.", f"Query: {query}", ""]
-    if not matches:
-        lines.append("No relevant pages found.")
-        return "\n".join(lines)
-
-    for index, match in enumerate(matches, start=1):
-        lines.append(f"{index}. {match.title} ({match.path}, {match.relevance}, score {match.score})")
-        if match.summary:
-            lines.append(f"   Summary: {match.summary}")
-        if match.entities:
-            lines.append(f"   Entities: {', '.join(match.entities[:8])}")
-        lines.append(f"   Reason: {match.reason}")
-    return "\n".join(lines).strip()

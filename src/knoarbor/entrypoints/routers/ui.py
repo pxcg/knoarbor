@@ -21,7 +21,7 @@ from knoarbor.services.ui_config_models import (
     UiConfigUpdateResponse,
 )
 from knoarbor.services.wiki_graph import WikiGraph, build_wiki_graph
-from knoarbor.storage.vault_layout import maintenance_reports_root, raw_derived_assets_root
+from knoarbor.storage.vault_layout import artifacts_root, maintenance_reports_root, raw_derived_assets_root
 from knoarbor.storage.wiki_index import ensure_machine_index, machine_index_dir
 from knoarbor.storage.wiki_paths import content_root
 
@@ -43,8 +43,8 @@ def create_ui_router(*, include_static: bool = True) -> APIRouter:
     router = APIRouter()
     config_service = UiConfigService()
 
-    # Transition-only developer console routes. Desktop production uses the
-    # Electron bridge for local configuration and native capabilities.
+    # Transition-only developer renderer routes. Desktop production loads the
+    # renderer from Electron resources and uses IPC for local configuration.
     if include_static:
 
         @router.get("/", include_in_schema=False)
@@ -110,7 +110,7 @@ def create_ui_router(*, include_static: bool = True) -> APIRouter:
         )
 
     @router.get("/wiki/graph", response_model=WikiGraph, tags=["wiki"])
-    async def read_ui_graph(vault_path: str | None = Query(default=None), view: str = Query(default="page")) -> WikiGraph:
+    async def read_ui_graph(vault_path: str | None = Query(default=None)) -> WikiGraph:
         path = Path(vault_path or _summary_from_default_config().get("vault_path") or DEFAULT_VAULT_PATH).expanduser().resolve()
         return build_wiki_graph(path)
 
@@ -181,13 +181,20 @@ def _resolve_vault_asset(vault_path: str, asset_path: str) -> Path:
         raise HTTPException(status_code=404, detail="Vault directory not found")
     cleaned = asset_path.replace("\\", "/").lstrip("/")
     if cleaned.startswith("raw/derived/assets/"):
-        cleaned = cleaned.removeprefix("raw/derived/assets/")
+        return _resolve_file_under_root(raw_derived_assets_root(vault), cleaned.removeprefix("raw/derived/assets/"))
     elif cleaned.startswith("assets/"):
-        cleaned = cleaned.removeprefix("assets/")
+        return _resolve_file_under_root(raw_derived_assets_root(vault), cleaned.removeprefix("assets/"))
+    elif cleaned.startswith("artifacts/"):
+        return _resolve_file_under_root(artifacts_root(vault), cleaned.removeprefix("artifacts/"))
+    return _resolve_file_under_root(raw_derived_assets_root(vault), cleaned)
+
+
+def _resolve_file_under_root(root: Path, relative_path: str) -> Path:
+    cleaned = relative_path.replace("\\", "/").lstrip("/")
     if not cleaned or ".." in cleaned.split("/"):
         raise HTTPException(status_code=400, detail="Invalid asset path")
 
-    asset_root = raw_derived_assets_root(vault).resolve()
+    asset_root = root.resolve()
     candidate = (asset_root / cleaned).resolve()
     try:
         candidate.relative_to(asset_root)

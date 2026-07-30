@@ -58,6 +58,7 @@ def build_ingest_run_record(result: Any, *, run_id: str, started_at: str, finish
         "finished_at": finished_at,
         "stats": dict(result.stats),
         "metrics": dict(getattr(result, "metrics", {}) or {}),
+        "ingest_profile": getattr(result, "ingest_profile", "structured"),
         "document_processing": getattr(result, "document_processing", {}).model_dump()
         if hasattr(getattr(result, "document_processing", None), "model_dump")
         else dict(getattr(result, "document_processing", {}) or {}),
@@ -70,6 +71,7 @@ def render_ingest_report(record: dict[str, object]) -> str:
     stats = as_dict(record.get("stats"))
     metrics = as_dict(record.get("metrics"))
     semantic_metrics = as_dict(metrics.get("semantic"))
+    semantic_attempts = as_dict(metrics.get("semantic_attempts"))
     sources = as_list(record.get("sources"))
     document_processing = as_dict(record.get("document_processing"))
     document_processing_stats = as_dict(document_processing.get("stats"))
@@ -83,6 +85,7 @@ def render_ingest_report(record: dict[str, object]) -> str:
         f"- started_at: {record.get('started_at')}",
         f"- finished_at: {record.get('finished_at')}",
         f"- sources: {stats.get('source_count', 0)}",
+        f"- ingest_profile: {record.get('ingest_profile', metrics.get('ingest_profile', 'structured'))}",
         f"- processed: {stats.get('processed_count', 0)}",
         f"- skipped: {stats.get('skipped_count', 0)}",
         f"- failed: {stats.get('failed_count', 0)}",
@@ -90,14 +93,19 @@ def render_ingest_report(record: dict[str, object]) -> str:
         f"- segments: {stats.get('segment_count', 0)} total, {stats.get('failed_segment_count', 0)} failed, max {stats.get('max_segment_chars', 0)} chars",
         f"- document_processing: {document_processing_stats.get('processed_count', 0)} processed, {document_processing_stats.get('failed_count', 0)} failed",
         f"- elapsed_seconds: {fmt_number(metrics.get('elapsed_seconds'))}",
-        f"- semantic_calls: {semantic_metrics.get('semantic_call_count', 0)}",
+        f"- semantic_usage_records: {semantic_metrics.get('semantic_call_count', 0)}",
+        f"- model_call_attempts: {semantic_attempts.get('attempted_call_count', 'n/a')}",
+        f"- model_call_responses: {semantic_attempts.get('response_call_count', 'n/a')}",
+        f"- model_call_failures: {semantic_attempts.get('failed_call_count', 'n/a')}",
+        f"- model_call_retries: {semantic_attempts.get('retry_count', 'n/a')}",
+        f"- invalid_model_outputs: {semantic_attempts.get('invalid_output_count', 'n/a')}",
         f"- total_tokens: {semantic_metrics.get('total_tokens', 0)}",
         *cache_metric_lines(semantic_metrics),
         f"- tokens_per_second: {fmt_number(semantic_metrics.get('tokens_per_second'))}",
         f"- lifecycle_candidates: {len(lifecycle_candidates)}",
         f"- recovery_candidates: {stats.get('recovery_candidate_count', 0)}",
-        f"- source_concurrency: {stats.get('effective_max_concurrent_sources', 1)} effective / {stats.get('configured_max_concurrent_sources', 1)} configured",
-        f"- execution_ledger: {metrics.get('execution_ledger_path', 'n/a')}",
+        f"- segment_concurrency_ceiling: {stats.get('configured_max_concurrent_segments', 'n/a')}",
+        f"- observed_peak_model_calls_in_flight: {semantic_attempts.get('observed_peak_in_flight', 'n/a')}",
         f"- repeated_failed_sources: {quality_trend.get('repeated_failed_sources', 0)}",
         f"- repeated_skipped_sources: {quality_trend.get('repeated_skipped_sources', 0)}",
         "",
@@ -131,7 +139,8 @@ def render_ingest_report(record: dict[str, object]) -> str:
         page_plan_operations = as_list(source.get("page_plan_operations"))
         redaction = as_dict(source.get("redaction"))
         context = as_dict(source.get("context"))
-        write_gate = as_dict(source.get("write_gate"))
+        materialization = as_dict(context.get("materialization"))
+        raw_grounded = as_dict(context.get("raw_grounded"))
         checkpoint = as_dict(source.get("checkpoint"))
         source_metrics = as_dict(source.get("metrics"))
         source_semantic = as_dict(source_metrics.get("semantic"))
@@ -151,6 +160,7 @@ def render_ingest_report(record: dict[str, object]) -> str:
                 f"- connector: {source.get('connector')}",
                 f"- source_id: {source.get('source_id')}",
                 f"- mode: {source.get('mode')}",
+                f"- ingest_profile: {source.get('ingest_profile', record.get('ingest_profile', 'auto'))}",
                 f"- status: {source.get('status')}",
                 f"- checkpoint_type: {checkpoint.get('checkpoint_type', 'source')}",
                 f"- should_process: {source.get('should_process')}",
@@ -159,17 +169,20 @@ def render_ingest_report(record: dict[str, object]) -> str:
                 f"- semantic_skip_reason: {source.get('semantic_skip_reason') or 'n/a'}",
                 f"- redacted_count: {redaction.get('redacted_count', 0)}",
                 f"- candidate_count: {retrieval.get('candidate_count', 0)}",
-                f"- write_gate_passed: {write_gate.get('passed')}",
                 f"- touched_pages: {len(touched_pages)}",
                 f"- scoped_lint_issues: {scoped_lint_stats.get('issue_count', 'not_run')}",
                 f"- maintenance_policy: {policy_decision.get('recommended_mode', 'not_run')}",
                 f"- maintenance_policy_triggered: {policy_decision.get('triggered', False)}",
+                f"- source_processing_record: {raw_grounded.get('processing_record_id') or context.get('source_processing_record_path') or 'n/a'}",
+                f"- raw_record_id: {raw_grounded.get('raw_record_id', 'n/a')}",
+                f"- raw_evidence_units: {raw_grounded.get('raw_evidence_units', 0)}",
+                f"- source_revision: {context.get('source_revision', 'n/a')}",
+                f"- materialization: {materialization.get('state', 'not_requested')}",
                 f"- elapsed_seconds: {fmt_number(source_metrics.get('elapsed_seconds'))}",
                 f"- semantic_calls: {source_semantic.get('semantic_call_count', 0)}",
                 f"- total_tokens: {source_semantic.get('total_tokens', 0)}",
                 *[f"- {line[2:]}" for line in cache_metric_lines(source_semantic)],
                 f"- tokens_per_second: {fmt_number(source_semantic.get('tokens_per_second'))}",
-                f"- approved_operations: {source.get('approved_operation_indexes', [])}",
                 f"- segmentation: {segmentation.get('mode', 'none')} / {segmentation.get('segment_count', 0)} segment(s)",
                 f"- segment_status: {_status_summary(segments, 'status') if segments else 'n/a'}",
                 *context_strategy_lines,
@@ -198,22 +211,6 @@ def render_ingest_report(record: dict[str, object]) -> str:
                 )
         else:
             lines.append("- None.")
-        gate_issues = as_list(write_gate.get("issues"))
-        if write_gate:
-            lines.extend(["", "Write gate:"])
-            lines.append(f"- passed: {write_gate.get('passed')}")
-            approved_gate_operations = as_list(write_gate.get("approved_operation_indexes"))
-            lines.append(f"- approved_operation_indexes: {format_list(approved_gate_operations) if approved_gate_operations else 'none'}")
-            if gate_issues:
-                lines.append("- issues:")
-                for issue in gate_issues:
-                    issue = as_dict(issue)
-                    lines.append(
-                        f"  - operation {issue.get('operation_index')}: "
-                        f"`{issue.get('code')}` {issue.get('message')}"
-                    )
-            else:
-                lines.append("- issues: none")
         review_policy = as_dict(context.get("review_policy"))
         review_decisions = as_list(source.get("review_decisions"))
         if review_policy or review_decisions:
@@ -244,10 +241,10 @@ def render_ingest_report(record: dict[str, object]) -> str:
             for trace in draft_atom_traces:
                 trace = as_dict(trace)
                 atom_ids = format_list(as_list(trace.get("atom_ids")))
-                source_digest_ids = format_list(as_list(trace.get("source_digest_ids")))
+                source_record_ids = format_list(as_list(trace.get("source_record_ids")))
                 lines.append(
                     f"- operation {trace.get('operation_index')}: `{trace.get('page_dir')}` "
-                    f"{trace.get('title')} / atoms={atom_ids} / source_digests={source_digest_ids}"
+                    f"{trace.get('title')} / atoms={atom_ids} / source_records={source_record_ids}"
                 )
         if segments:
             lines.extend(["", "Segments:"])
@@ -257,7 +254,7 @@ def render_ingest_report(record: dict[str, object]) -> str:
                 lines.append(
                     f"- [{segment.get('index')}] {segment.get('title')} / "
                     f"{segment.get('chars')} chars / status: {segment.get('status')} / "
-                    f"semantic_calls: {segment_metrics.get('semantic_call_count', 0)} / "
+                    f"semantic_usage_records: {segment_metrics.get('semantic_call_count', 'n/a')} / "
                     f"tokens: {segment_metrics.get('total_tokens', 0)} / "
                     f"cached: {segment_metrics.get('prompt_cached_tokens', 0)} / "
                     f"elapsed: {fmt_number(as_dict(segment.get('metrics')).get('elapsed_seconds'))}s"
@@ -284,8 +281,7 @@ def render_ingest_report(record: dict[str, object]) -> str:
                         write_details = as_dict(item_dict.get("write_details"))
                         sections = format_list(as_list(write_details.get("patched_sections")))
                         lines.append(
-                            f"  - page_change: `{item_dict.get('path')}` action={item_dict.get('write_action')} "
-                            f"sections={sections}"
+                            f"  - page_change: `{item_dict.get('path')}` action={item_dict.get('write_action')} " f"sections={sections}"
                         )
                         diff = str(write_details.get("diff") or "")
                         if diff:
@@ -381,7 +377,6 @@ def build_source_quality_trend(record: dict[str, object], previous_records: list
                 "previous_failed_count": previous_failed,
                 "previous_skipped_count": previous_skipped,
                 "current_status": source.get("status"),
-                "current_write_gate_passed": as_dict(source.get("write_gate")).get("passed"),
                 "current_semantic_skip_reason": source.get("semantic_skip_reason"),
             }
         )
@@ -417,11 +412,7 @@ def _status_summary(items: list[object], key: str) -> str:
 
 
 def _segment_status_summary(sources: list[object]) -> str:
-    segments = [
-        segment
-        for source in sources
-        for segment in as_list(as_dict(source).get("segments"))
-    ]
+    segments = [segment for source in sources for segment in as_list(as_dict(source).get("segments"))]
     return _status_summary(segments, "status") if segments else "none"
 
 
@@ -434,7 +425,9 @@ def _failure_summary(sources: list[object]) -> str:
     for source in sources:
         source_dict = as_dict(source)
         if source_dict.get("status") == "failed":
-            failures.append(f"{source_dict.get('source_file')}: {source_dict.get('error_code') or source_dict.get('error_type') or 'Error'}")
+            failures.append(
+                f"{source_dict.get('source_file')}: {source_dict.get('error_code') or source_dict.get('error_type') or 'Error'}"
+            )
         for segment in as_list(source_dict.get("segments")):
             segment_dict = as_dict(segment)
             if segment_dict.get("status") == "failed":
@@ -470,6 +463,7 @@ def _source_record(source_result: Any) -> dict[str, object]:
         "should_process": source_result.should_process,
         "mode": source_result.mode,
         "reason": source_result.reason,
+        "ingest_profile": getattr(source_result, "ingest_profile", "structured"),
         "status": source_result.status,
         "error_stage": source_result.error_stage,
         "error_code": source_result.error_code,
@@ -480,12 +474,10 @@ def _source_record(source_result: Any) -> dict[str, object]:
         "error_message": source_result.error_message,
         "redaction": dict(source_result.redaction),
         "context": dict(source_result.context),
-        "write_gate": dict(source_result.write_gate),
         "checkpoint": dict(source_result.checkpoint),
         "touched_pages": list(source_result.touched_pages),
         "scoped_lint": dict(source_result.scoped_lint),
         "scoped_lint_result": dict(source_result.scoped_lint_result),
-        "approved_operation_indexes": list(source_result.approved_operation_indexes),
         "generated_pages": list(source_result.generated_pages),
         "wrote": source_result.wrote,
         "semantic_skip_reason": source_result.semantic_skip_reason,
@@ -503,40 +495,30 @@ def _source_record(source_result: Any) -> dict[str, object]:
 def _context_strategy_lines(context: dict[str, Any]) -> list[str]:
     retrieval = as_dict(context.get("retrieval"))
     retrieval_stats = as_dict(retrieval.get("stats"))
-    source_digest = as_dict(context.get("source_digest"))
-    source_digest_summary = as_dict(source_digest.get("summary"))
-    knowledge_atoms = as_dict(context.get("knowledge_atoms"))
-    knowledge_atom_index_path = context.get("knowledge_atom_index_path")
-    knowledge_atom_quality = as_dict(context.get("knowledge_atom_quality"))
+    source_record = as_dict(context.get("source_record"))
+    source_record_summary = as_dict(source_record.get("summary"))
+    raw_grounded = as_dict(context.get("raw_grounded"))
     materialized = as_dict(context.get("materialized_pages"))
     compile_context = as_dict(context.get("compile_context"))
     lines: list[str] = []
-    if retrieval_stats or source_digest_summary or knowledge_atoms or materialized or compile_context:
+    if retrieval_stats or source_record_summary or materialized or compile_context:
         lines.append(f"- page_plan_context_policy: {retrieval_stats.get('page_plan_context_policy', 'n/a')}")
         lines.append(f"- page_plan_profile_chars: {retrieval_stats.get('page_plan_profile_chars', 'n/a')}")
-        if source_digest_summary:
+        if source_record_summary:
             lines.append(
-                "- source_digest: "
-                f"id={source_digest.get('digest_id', 'n/a')}, "
-                f"units={source_digest_summary.get('units', 0)}, "
-                f"evidence_spans={source_digest_summary.get('evidence_spans', 0)}"
+                "- source_record: "
+                f"id={source_record.get('record_id', 'n/a')}, "
+                f"units={source_record_summary.get('units', 0)}, "
+                f"evidence_spans={source_record_summary.get('evidence_spans', 0)}"
             )
-        if knowledge_atoms:
+        if raw_grounded or context.get("source_revision"):
             lines.append(
-                "- knowledge_atoms: "
-                f"entities={knowledge_atoms.get('entities', 0)}, "
-                f"claims={knowledge_atoms.get('claims', 0)}, "
-                f"relations={knowledge_atoms.get('relations', 0)}, "
-                f"evidence_spans={knowledge_atoms.get('evidence_spans', 0)}, "
-                f"unsupported={knowledge_atoms.get('unsupported', 0)}, "
-                f"conflicting={knowledge_atoms.get('conflicting', 0)}, "
-                f"rejected={knowledge_atoms.get('rejected', 0)}"
+                "- raw_grounded: "
+                f"processing_record={raw_grounded.get('processing_record_id') or context.get('source_processing_record_path', 'n/a')}, "
+                f"raw_record={raw_grounded.get('raw_record_id', 'n/a')}, "
+                f"source_units={raw_grounded.get('source_unit_count', 'n/a')}, "
+                f"raw_evidence={raw_grounded.get('raw_evidence_units', 'n/a')}"
             )
-        if knowledge_atom_index_path:
-            lines.append(f"- knowledge_atom_index: {knowledge_atom_index_path}")
-        quality_issues = knowledge_atom_quality.get("issues")
-        if isinstance(quality_issues, list) and quality_issues:
-            lines.append(f"- knowledge_atom_quality_issues: {len(quality_issues)}")
         lines.append(f"- materialized_context_policy: {materialized.get('context_policy', 'n/a')}")
         lines.append(f"- materialized_context_chars: {materialized.get('materialized_context_chars', 'n/a')}")
         lines.append(
@@ -549,83 +531,23 @@ def _context_strategy_lines(context: dict[str, Any]) -> list[str]:
 
 
 def _page_plan_operations(semantic_result: Any | None) -> list[dict[str, object]]:
-    if semantic_result is None:
-        return []
-    operations = []
-    for index, operation in enumerate(semantic_result.wiki_page_plan.operations):
-        operations.append(
-            {
-                "operation_index": index,
-                "action": operation.action,
-                "target_page": operation.target_page,
-                "page_dir": operation.page_dir,
-                "canonical_path": operation.canonical_path,
-                "title": operation.title,
-                "knowledge_object": operation.knowledge_object,
-                "selected_claim_ids": list(operation.selected_claim_ids),
-                "selected_relation_ids": list(operation.selected_relation_ids),
-                "source_digest_ids": list(operation.source_digest_ids),
-                "decision_reason": operation.decision_reason,
-            }
-        )
-    return operations
+    return []
 
 
 def _draft_atom_traces(semantic_result: Any | None) -> list[dict[str, object]]:
-    if semantic_result is None:
-        return []
-    return [
-        {
-            "operation_index": draft.operation_index,
-            "page_dir": draft.page_dir,
-            "title": draft.title,
-            "atom_ids": list(draft.atom_ids),
-            "source_digest_ids": list(draft.source_digest_ids),
-        }
-        for draft in semantic_result.wiki_draft_batch.drafts
-        if draft.atom_ids or draft.source_digest_ids
-    ]
+    return []
 
 
 def _review_decisions(semantic_result: Any | None) -> list[dict[str, object]]:
-    if semantic_result is None:
-        return []
-    return [
-        {
-            "operation_index": decision.operation_index,
-            "decision": decision.decision,
-            "quality_score": decision.quality_score,
-            "risk_level": decision.risk_level,
-            "write_safety": decision.write_safety,
-            "reason": decision.reason,
-        }
-        for decision in semantic_result.ingest_draft_review.decisions
-    ]
+    return []
 
 
 def _semantic_stage_warnings(semantic_result: Any | None) -> dict[str, list[str]]:
-    if semantic_result is None:
-        return {}
-    return {
-        "normalize": list(semantic_result.knowledge_extract.warnings),
-        "page_plan": list(semantic_result.wiki_page_plan.warnings),
-        "draft": list(semantic_result.wiki_draft_batch.warnings),
-        "review": list(semantic_result.ingest_draft_review.warnings),
-    }
+    return {}
 
 
 def _final_warnings(source_result: Any, semantic_result: Any | None) -> list[str]:
-    if semantic_result is None:
-        return []
-    stage_warnings = _semantic_stage_warnings(semantic_result)
-    warnings = [
-        *stage_warnings.get("normalize", []),
-        *stage_warnings.get("page_plan", []),
-    ]
-    if not getattr(source_result, "wrote", False):
-        warnings.extend(stage_warnings.get("draft", []))
-        warnings.extend(stage_warnings.get("review", []))
-    return _dedupe_strings(warnings)
+    return []
 
 
 def _dedupe_strings(values: list[str]) -> list[str]:

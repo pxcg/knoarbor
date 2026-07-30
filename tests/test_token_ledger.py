@@ -23,7 +23,7 @@ def test_build_ingest_token_records_from_segment_metrics():
                             "semantic": {
                                 "calls": [
                                     {
-                                        "contract_name": "wiki_page_plan",
+                                        "contract_name": "index_metadata_extract",
                                         "provider": "deepseek",
                                         "model": "deepseek-v4-flash",
                                         "prompt_tokens": 100,
@@ -31,10 +31,10 @@ def test_build_ingest_token_records_from_segment_metrics():
                                         "prompt_stable_chars": 1000,
                                         "prompt_dynamic_chars": 2500,
                                         "payload_char_total": 1800,
-                                        "payload_top_field": "knowledge_extract",
+                                        "payload_top_field": "source_document",
                                         "payload_char_breakdown": {
-                                            "knowledge_extract": 1200,
-                                            "wiki_context": 600,
+                                            "source_document": 1200,
+                                            "source_record": 600,
                                         },
                                         "completion_tokens": 20,
                                         "total_tokens": 120,
@@ -53,7 +53,7 @@ def test_build_ingest_token_records_from_segment_metrics():
 
     assert len(rows) == 1
     assert rows[0]["flow"] == "ingest"
-    assert rows[0]["agent"] == "wiki_page_plan"
+    assert rows[0]["agent"] == "index_metadata_extract"
     assert rows[0]["source_file"] == "raw/inbox/chats/example.jsonl"
     assert rows[0]["page_paths"] == ["Agent-Loop.md"]
     assert rows[0]["prompt_cache_rate"] == 0.4
@@ -61,15 +61,15 @@ def test_build_ingest_token_records_from_segment_metrics():
     assert rows[0]["prompt_dynamic_chars"] == 2500
     assert rows[0]["dynamic_to_stable_ratio"] == 2.5
     assert rows[0]["payload_char_total"] == 1800
-    assert rows[0]["payload_top_field"] == "knowledge_extract"
-    assert rows[0]["payload_char_breakdown"]["knowledge_extract"] == 1200
+    assert rows[0]["payload_top_field"] == "source_document"
+    assert rows[0]["payload_char_breakdown"]["source_document"] == 1200
 
 
 def test_build_token_analysis_groups_by_flow_agent_source_and_page():
     records = [
         {
             "flow": "ingest",
-            "agent": "wiki_page_plan",
+            "agent": "index_metadata_extract",
             "source_file": "raw/a.md",
             "connector": "markdown",
             "model": "m",
@@ -80,7 +80,7 @@ def test_build_token_analysis_groups_by_flow_agent_source_and_page():
             "prompt_dynamic_chars": 4500,
             "payload_char_total": 4000,
             "payload_top_field": "wiki_context",
-            "payload_char_breakdown": {"wiki_context": 3000, "knowledge_extract": 1000},
+            "payload_char_breakdown": {"source_record": 3000, "source_document": 1000},
             "completion_tokens": 20,
             "total_tokens": 120,
             "elapsed_seconds": 2.0,
@@ -112,9 +112,9 @@ def test_build_token_analysis_groups_by_flow_agent_source_and_page():
     assert analysis["totals"]["prompt_dynamic_chars"] == 5500
     assert analysis["totals"]["dynamic_to_stable_ratio"] == 2.75
     assert analysis["by_flow"][0]["name"] == "ingest"
-    assert analysis["by_agent"][0]["name"] == "wiki_page_plan"
+    assert analysis["by_agent"][0]["name"] == "index_metadata_extract"
     assert analysis["by_page"][0]["name"] == "A.md"
-    assert analysis["by_payload_field"][0]["name"] == "wiki_context"
+    assert analysis["by_payload_field"][0]["name"] == "source_record"
     assert analysis["by_payload_field"][0]["payload_chars"] == 3000
     assert len(analysis["cache_diagnostics"]["low_cache_calls"]) == 1
     assert len(analysis["cache_diagnostics"]["high_dynamic_calls"]) == 1

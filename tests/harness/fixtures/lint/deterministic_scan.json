@@ -1,14 +1,49 @@
 {
   "fixes": [
     {
-      "action": "add_missing_section",
+      "action": "projection_rebuild_request",
+      "description": "Repair page identity metadata before rerunning lint.",
+      "issue_code": "missing_frontmatter_keys",
+      "mode": "manual",
+      "path": "Agent-Loop.md"
+    },
+    {
+      "action": "projection_rebuild_request",
+      "description": "Add the missing standard section through reviewed deterministic wiki operation.",
+      "issue_code": "missing_required_section",
+      "mode": "manual",
+      "path": "Agent-Loop.md"
+    },
+    {
+      "action": "projection_rebuild_request",
+      "description": "Repair page identity metadata before rerunning lint.",
+      "issue_code": "missing_frontmatter_keys",
+      "mode": "manual",
+      "path": "OpenClaw.md"
+    },
+    {
+      "action": "projection_rebuild_request",
+      "description": "Add the missing standard section through reviewed deterministic wiki operation.",
+      "issue_code": "missing_required_section",
+      "mode": "manual",
+      "path": "OpenClaw.md"
+    },
+    {
+      "action": "projection_rebuild_request",
+      "description": "Repair page identity metadata before rerunning lint.",
+      "issue_code": "missing_frontmatter_keys",
+      "mode": "manual",
+      "path": "sources/Agent-Loop-Source.md"
+    },
+    {
+      "action": "projection_rebuild_request",
       "description": "Add the missing standard section through reviewed deterministic wiki operation.",
       "issue_code": "missing_required_section",
       "mode": "manual",
       "path": "sources/Agent-Loop-Source.md"
     },
     {
-      "action": "add_missing_section",
+      "action": "projection_rebuild_request",
       "description": "Add the missing standard section through reviewed deterministic wiki operation.",
       "issue_code": "missing_required_section",
       "mode": "manual",
@@ -16,7 +51,7 @@
     },
     {
       "action": "rebuild_index",
-      "description": "Rebuild machine graph index from current wiki pages.",
+      "description": "Rebuild the derived machine index through the publication lifecycle.",
       "issue_code": "missing_machine_index",
       "mode": "safe_auto",
       "path": ".knoarbor/index"
@@ -29,19 +64,92 @@
       "path": "Agent-Loop.md"
     },
     {
-      "action": "repair_source_provenance",
-      "description": "Review source provenance and connect the source digest to generated knowledge pages.",
-      "issue_code": "knowledge_without_source_digest",
+      "action": "reingest_request",
+      "description": "Review source provenance and connect the source record to generated knowledge pages.",
+      "issue_code": "knowledge_without_source_record",
       "mode": "manual",
       "path": "OpenClaw.md"
     }
   ],
   "issues": [
     {
+      "code": "missing_frontmatter_keys",
+      "details": {
+        "missing": [
+          "schema_version",
+          "role",
+          "projection_kind",
+          "raw_record_id",
+          "raw_revision_id",
+          "source_record_id",
+          "processing_record_id"
+        ]
+      },
+      "message": "Page frontmatter is missing expected generated-page keys.",
+      "path": "Agent-Loop.md",
+      "severity": "warning"
+    },
+    {
+      "code": "missing_required_section",
+      "details": {
+        "directory": "pages",
+        "role": "knowledge_page",
+        "section": "Attachments"
+      },
+      "message": "Page is missing required section: Attachments.",
+      "path": "Agent-Loop.md",
+      "severity": "info"
+    },
+    {
+      "code": "missing_frontmatter_keys",
+      "details": {
+        "missing": [
+          "schema_version",
+          "role",
+          "projection_kind",
+          "raw_record_id",
+          "raw_revision_id",
+          "source_record_id",
+          "processing_record_id"
+        ]
+      },
+      "message": "Page frontmatter is missing expected generated-page keys.",
+      "path": "OpenClaw.md",
+      "severity": "warning"
+    },
+    {
+      "code": "missing_required_section",
+      "details": {
+        "directory": "pages",
+        "role": "knowledge_page",
+        "section": "Attachments"
+      },
+      "message": "Page is missing required section: Attachments.",
+      "path": "OpenClaw.md",
+      "severity": "info"
+    },
+    {
+      "code": "missing_frontmatter_keys",
+      "details": {
+        "missing": [
+          "schema_version",
+          "role",
+          "projection_kind",
+          "raw_record_id",
+          "raw_revision_id",
+          "source_record_id",
+          "processing_record_id"
+        ]
+      },
+      "message": "Page frontmatter is missing expected generated-page keys.",
+      "path": "sources/Agent-Loop-Source.md",
+      "severity": "warning"
+    },
+    {
       "code": "missing_required_section",
       "details": {
         "directory": "sources",
-        "role": "source_digest",
+        "role": "source_record",
         "section": "Source Identity"
       },
       "message": "Page is missing required section: Source Identity.",
@@ -52,7 +160,7 @@
       "code": "missing_required_section",
       "details": {
         "directory": "sources",
-        "role": "source_digest",
+        "role": "source_record",
         "section": "Unresolved / Rejected"
       },
       "message": "Page is missing required section: Unresolved / Rejected.",
@@ -76,11 +184,11 @@
       "severity": "error"
     },
     {
-      "code": "knowledge_without_source_digest",
+      "code": "knowledge_without_source_record",
       "details": {
         "source": "raw/inbox/notes/openclaw.md"
       },
-      "message": "Generated knowledge page points to a raw source without a matching source digest page.",
+      "message": "Generated knowledge page points to a raw source without a matching source record page.",
       "path": "OpenClaw.md",
       "severity": "info"
     }
@@ -138,11 +246,17 @@
       ],
       "outgoing_links": [],
       "path": "sources/Agent-Loop-Source.md",
-      "role": "source_digest",
+      "role": "source_record",
       "title": "Agent Loop Source"
     }
   ],
   "stats": {
+    "canonical_chain": {
+      "atoms": 0,
+      "raw_evidence": 0,
+      "source_records": 0,
+      "source_units": 0
+    },
     "directories": {
       "pages": 2,
       "sources": 1
@@ -169,8 +283,8 @@
       "node_count": 3,
       "small_component_count": 1
     },
-    "info_count": 3,
-    "issue_count": 5,
+    "info_count": 5,
+    "issue_count": 10,
     "knowledge_atom_index": {
       "issue_count": 0,
       "record_count": 0
@@ -178,11 +292,11 @@
     "page_count": 3,
     "roles": {
       "knowledge_page": 2,
-      "source_digest": 1
+      "source_record": 1
     },
-    "scan_max_chars_per_page": 2500,
+    "scan_max_chars_per_page": 0,
     "scope": "global",
     "scoped": false,
-    "warning_count": 0
+    "warning_count": 3
   }
 }

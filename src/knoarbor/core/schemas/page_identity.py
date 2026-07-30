@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
-PageRole = Literal["knowledge_page", "source_digest", "report"]
+PageRole = Literal["knowledge_page", "source_record", "report"]
 
 
 class PageIdentity(BaseModel):
@@ -19,7 +19,7 @@ class PageIdentity(BaseModel):
     role: PageRole = "knowledge_page"
     atom_ids: list[str] = Field(default_factory=list)
     relation_ids: list[str] = Field(default_factory=list)
-    source_digest_ids: list[str] = Field(default_factory=list)
+    source_record_ids: list[str] = Field(default_factory=list)
 
     @field_validator("canonical_path")
     @classmethod
@@ -39,7 +39,7 @@ class PageIdentity(BaseModel):
     def normalize_subject_kind(cls, value: str) -> str:
         return normalize_identity_label(value)
 
-    @field_validator("atom_ids", "relation_ids", "source_digest_ids", mode="before")
+    @field_validator("atom_ids", "relation_ids", "source_record_ids", mode="before")
     @classmethod
     def normalize_id_list(cls, value: object) -> list[str]:
         return _normalize_string_list(value, normalizer=lambda item: str(item).strip())
@@ -47,7 +47,7 @@ class PageIdentity(BaseModel):
     @model_validator(mode="after")
     def validate_identity_consistency(self) -> "PageIdentity":
         if self.canonical_path.startswith("sources/"):
-            self.role = "source_digest"
+            self.role = "source_record"
         return self
 
 

@@ -1,7 +1,9 @@
 from knoarbor.core.schemas.chat import (
+    ChatAnswerDecision,
     ChatCitation,
     ChatMessageItem,
     ChatRequest,
+    ChatResponseComposerDraft,
     ChatResponse,
     ChatRunLink,
     ChatSessionListResponse,
@@ -13,7 +15,6 @@ from knoarbor.core.schemas.chat import (
     ChatTurnRecord,
 )
 from knoarbor.core.schemas.connectors import ConnectorDiscoverResponse, ConnectorRunRequest
-from knoarbor.core.schemas.events import KnowledgeEvent
 from knoarbor.core.schemas.execution import WorkflowExecutionMode, WorkflowFlow, WorkflowResponse
 from knoarbor.core.schemas.image_generation import (
     GeneratedImage,
@@ -22,13 +23,7 @@ from knoarbor.core.schemas.image_generation import (
     ImageProviderSummary,
     ImageProvidersResponse,
 )
-from knoarbor.core.schemas.knowledge_extract import (
-    CompileContext,
-    ContentUnit,
-    KnowledgeExtract,
-    KnowledgeSource,
-    SupportingEvidence,
-)
+from knoarbor.core.schemas.source_metadata import KnowledgeSource
 from knoarbor.core.schemas.knowledge_atoms import (
     KnowledgeAtomBatch,
     KnowledgeAtomObject,
@@ -36,7 +31,7 @@ from knoarbor.core.schemas.knowledge_atoms import (
     KnowledgeEvidenceSpan,
     KnowledgeRelation,
 )
-from knoarbor.core.schemas.source_digest import SourceDigest, SourceDigestAttachment, SourceDigestUnit
+from knoarbor.core.schemas.source_record import SourceRecord, SourceRecordAttachment, SourceRecordUnit
 from knoarbor.core.schemas.lint_candidates import (
     MaintenanceCandidate,
     MaintenanceCandidates,
@@ -47,12 +42,6 @@ from knoarbor.core.schemas.lint_candidates import (
     QualityDimension,
 )
 from knoarbor.core.schemas.lint_review import LintMaintenanceReview, LintMaintenanceReviewDecision
-from knoarbor.core.schemas.ingest_review import (
-    IngestDraftReview,
-    IngestDraftReviewDecision,
-    IngestReviewChecks,
-    IngestReviewDimensionScores,
-)
 from knoarbor.core.schemas.ingest_run import (
     IngestDocumentRunRequest,
     IngestExcerptContext,
@@ -70,6 +59,8 @@ from knoarbor.core.schemas.page_identity import (
     PageRole,
     normalize_identity_path,
 )
+from knoarbor.core.schemas.index_metadata_extract import IndexMetadataExtractResult
+from knoarbor.core.schemas.raw_evidence import OriginalSourceRecord, RawEvidenceRecord, SourceProcessingRecord, SourceUnitRecord
 from knoarbor.core.schemas.sources import RawSource, SourceDocument, SourceRef
 from knoarbor.core.schemas.wiki_lint import (
     LintPolicyDecision,
@@ -90,53 +81,18 @@ from knoarbor.core.schemas.wiki_lint import (
     WikiScanRequest,
     WikiScanResponse,
 )
-from knoarbor.core.schemas.wiki_write import (
-    VaultWriteResult,
-    WikiDraft,
-    WikiDraftBatchWriteItem,
-    WikiDraftBatchWriteRequest,
-    WikiDraftBatchWriteResponse,
-    WikiDraftInput,
-    WikiDraftWriteResponse,
-    WikiPatchInput,
-    WikiPatchOperation,
-    WikiWriteAction,
-)
-from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch, WikiDraftBatchItem
-from knoarbor.core.schemas.wiki_page_plan import (
-    WikiCandidatePage,
-    WikiCrossPageRelation,
-    WikiEntityMapping,
-    WikiPageDir,
-    WikiPagePlanAction,
-    WikiPageOperation,
-    WikiPagePlan,
-    WikiRelationMapping,
-)
-from knoarbor.core.schemas.wiki_operation import (
-    WikiOperationAction,
-    WikiOperationApplyRequest,
-    WikiOperationApplyResponse,
-    WikiOperationApplyResult,
-    WikiOperationInput,
-)
 from knoarbor.core.schemas.wiki_query import (
-    WikiContextMatch,
-    WikiContextRequest,
-    WikiContextResponse,
     WikiAtomTrace,
-    WikiPageReadItem,
-    WikiPageReadRequest,
-    WikiPageReadResponse,
-    WikiRejectedCandidate,
-    WikiSearchExcerpt,
+    WikiChannelStatus,
+    WikiEvidenceHandle,
+    WikiRecallSignal,
+    WikiRawEvidence,
     WikiSearchRequest,
     WikiSearchResponse,
     WikiSearchResult,
 )
 
 __all__ = [
-    "KnowledgeEvent",
     "WorkflowExecutionMode",
     "WorkflowFlow",
     "WorkflowResponse",
@@ -146,8 +102,10 @@ __all__ = [
     "ImageProviderSummary",
     "ImageProvidersResponse",
     "ChatCitation",
+    "ChatAnswerDecision",
     "ChatMessageItem",
     "ChatRequest",
+    "ChatResponseComposerDraft",
     "ChatResponse",
     "ChatRunLink",
     "ChatSessionListResponse",
@@ -157,19 +115,15 @@ __all__ = [
     "ChatToolPlan",
     "ChatToolTraceItem",
     "ChatTurnRecord",
-    "KnowledgeExtract",
     "KnowledgeSource",
     "KnowledgeAtomBatch",
     "KnowledgeAtomObject",
     "KnowledgeClaim",
     "KnowledgeEvidenceSpan",
     "KnowledgeRelation",
-    "SourceDigest",
-    "SourceDigestAttachment",
-    "SourceDigestUnit",
-    "ContentUnit",
-    "CompileContext",
-    "SupportingEvidence",
+    "SourceRecord",
+    "SourceRecordAttachment",
+    "SourceRecordUnit",
     "MaintenanceCandidate",
     "MaintenanceCandidates",
     "MaintenanceEvidence",
@@ -179,10 +133,6 @@ __all__ = [
     "QualityDimension",
     "LintMaintenanceReview",
     "LintMaintenanceReviewDecision",
-    "IngestDraftReview",
-    "IngestDraftReviewDecision",
-    "IngestReviewChecks",
-    "IngestReviewDimensionScores",
     "IngestDocumentRunRequest",
     "IngestExcerptContext",
     "IngestExcerptRunRequest",
@@ -200,6 +150,11 @@ __all__ = [
     "PageIdentity",
     "PageRole",
     "normalize_identity_path",
+    "IndexMetadataExtractResult",
+    "OriginalSourceRecord",
+    "RawEvidenceRecord",
+    "SourceProcessingRecord",
+    "SourceUnitRecord",
     "LintPolicyDecision",
     "LintRunMode",
     "LintRunRequest",
@@ -209,32 +164,6 @@ __all__ = [
     "RawSource",
     "SourceDocument",
     "SourceRef",
-    "VaultWriteResult",
-    "WikiDraft",
-    "WikiDraftBatch",
-    "WikiDraftBatchItem",
-    "WikiDraftBatchWriteItem",
-    "WikiDraftBatchWriteRequest",
-    "WikiDraftBatchWriteResponse",
-    "WikiDraftInput",
-    "WikiDraftWriteResponse",
-    "WikiPatchInput",
-    "WikiPatchOperation",
-    "WikiWriteAction",
-    "WikiCandidatePage",
-    "WikiCrossPageRelation",
-    "WikiEntityMapping",
-    "WikiPageDir",
-    "WikiRelatedPage",
-    "WikiPagePlanAction",
-    "WikiPageOperation",
-    "WikiPagePlan",
-    "WikiRelationMapping",
-    "WikiOperationAction",
-    "WikiOperationApplyRequest",
-    "WikiOperationApplyResponse",
-    "WikiOperationApplyResult",
-    "WikiOperationInput",
     "WikiLintCandidatePage",
     "WikiLintCandidateReason",
     "WikiLintCandidateSelectRequest",
@@ -248,15 +177,11 @@ __all__ = [
     "WikiScanPage",
     "WikiScanRequest",
     "WikiScanResponse",
-    "WikiContextMatch",
-    "WikiContextRequest",
-    "WikiContextResponse",
     "WikiAtomTrace",
-    "WikiPageReadItem",
-    "WikiPageReadRequest",
-    "WikiPageReadResponse",
-    "WikiRejectedCandidate",
-    "WikiSearchExcerpt",
+    "WikiChannelStatus",
+    "WikiEvidenceHandle",
+    "WikiRecallSignal",
+    "WikiRawEvidence",
     "WikiSearchRequest",
     "WikiSearchResponse",
     "WikiSearchResult",

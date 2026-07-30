@@ -8,17 +8,17 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from knoarbor.core.schemas.ingest_run import IngestFileRunRequest
+from knoarbor.core.schemas.ingest_run import UnifiedIngestRequest
 from knoarbor.core.schemas.maintenance import MaintenanceScope, MaintenanceScopeSource
 from knoarbor.core.schemas.wiki_lint import LintRunRequest
 from knoarbor.core.schemas.wiki_query import WikiSearchRequest
-from knoarbor.services.ingest import IngestService
+from knoarbor.services.ingest_coordinator import IngestCoordinator
 from knoarbor.services.wiki_search import WikiSearchService
 from knoarbor.services.wiki_linter import WikiLinterService
 
 
 class RunFailureAuditTests(unittest.TestCase):
-    def test_ingest_file_failure_writes_failure_report_and_ledger(self) -> None:
+    def test_input_resolution_failure_does_not_create_an_attempt_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             vault = root / "vaults" / "all"
@@ -28,23 +28,21 @@ class RunFailureAuditTests(unittest.TestCase):
             pdf_path = root / "sample.pdf"
             pdf_path.write_bytes(b"%PDF-1.4\n% test")
 
-            request = IngestFileRunRequest(
+            request = UnifiedIngestRequest(
+                kind="file",
+                execution="queued",
                 input_path=str(pdf_path),
                 config_path=str(config_path),
                 write_report=True,
                 append_ledger=True,
             )
             with self.assertRaises(Exception):
-                IngestService().run_file(request)
+                IngestCoordinator().start(request)
 
             reports = sorted((vault / "maintenance" / "reports" / "ingest").glob("ingest_run_report_*.md"))
             ledgers = sorted((vault / ".knoarbor" / "ledgers").glob("ingest.jsonl"))
-            self.assertEqual(len(reports), 1)
-            self.assertEqual(len(ledgers), 1)
-            report = reports[0].read_text(encoding="utf-8")
-            self.assertIn("- flow: ingest", report)
-            self.assertIn("- status: failed", report)
-            self.assertIn("- error_code: KA-DOC-001", report)
+            self.assertEqual(reports, [])
+            self.assertEqual(ledgers, [])
 
     def test_lint_failure_writes_failure_report_and_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

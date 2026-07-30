@@ -87,7 +87,8 @@ When `page read` or `page relations` fails because a page path cannot be found:
 
 - Try a shorter query.
 - Use the original terms from the wiki page title when possible.
-- Use `--mode deep` for broader evidence.
+- Query returns the complete matched evidence set; refine the semantic scope
+  when the question itself is too broad.
 - Check that the target source has already been ingested.
 
 For multi-vault installations, retry with:
@@ -137,5 +138,5 @@ returned `results[].path`.
 Limit the number of returned pages:
 
 ```bash
-python3 scripts/knoarbor.py query "agent loop" --max-results 4
+python3 scripts/knoarbor.py query "agent loop"
 ```

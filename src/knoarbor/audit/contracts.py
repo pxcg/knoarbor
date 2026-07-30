@@ -17,7 +17,7 @@ REPORT_DIRECTORIES = {
 LEDGER_SCHEMA_VERSIONS = {
     "ingest": "ingest_run.v1",
     "lint": "lint_run_record.v1",
-    "query": "query_record.v1",
+    "query": "query_record.v2",
     "query_feedback": "query_feedback.v1",
     "token": "token_ledger.v1",
     "token_analysis": "token_analysis.v1",

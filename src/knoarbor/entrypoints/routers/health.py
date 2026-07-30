@@ -37,9 +37,7 @@ def create_health_router() -> APIRouter:
                 "query": ["CLI: knoar query", "/query"],
                 "runs": ["GET /runs", "GET /runs/{run_id}", "POST /runs/{run_id}/cancel"],
                 "diagnostics": ["CLI: knoar doctor", "/doctor"],
-                "config": ["/config", "/config/form", "/config/diagnostics"],
-                "desktop_renderer": ["/", "/ui"],
-                "vault_status": ["/vaults/status", "/wiki/graph", "/tokens"],
+                "ui": ["/", "/ui", "/config", "/vaults/status"],
             },
         }
 

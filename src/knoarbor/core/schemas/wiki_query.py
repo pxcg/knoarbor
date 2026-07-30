@@ -2,67 +2,47 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
-WIKI_QUERY_SCHEMA_VERSION = "wiki_query.v1"
+WIKI_QUERY_SCHEMA_VERSION = "wiki_query.v4"
 
 WIKI_QUERY_RESPONSE_FIELDS = (
+    "schema_version",
     "query",
+    "status",
     "retrieval_mode",
     "results",
-    "primary_pages",
-    "supporting_pages",
-    "source_pages",
-    "answer_scope",
-    "answer_set",
-    "evidence_coverage",
+    "evidence_handles",
+    "raw_evidence",
     "context_pack",
+    "gaps",
+    "warnings",
+    "channel_statuses",
+    "stats",
+    "trace",
+    "exhausted",
+    "continuation_cursor",
+    "continuation_cursors",
+    "query_fingerprint",
+    "snapshot_generation",
 )
-
-WIKI_ANSWER_PAGE_ROLES = ("primary", "supporting", "source")
-
-
-class WikiPageReadRequest(BaseModel):
-    vault_path: str = Field(..., min_length=1)
-    page_paths: list[str] = Field(default_factory=list)
-    max_pages: int = Field(default=5, ge=0, le=20)
-    max_chars_per_page: int = Field(default=6000, ge=500, le=50000)
-
-
-class WikiPageReadItem(BaseModel):
-    path: str
-    exists: bool
-    content: str = ""
-    truncated: bool = False
-    original_content_length: int = 0
-    error: str | None = None
-
-
-class WikiPageReadResponse(BaseModel):
-    pages: list[WikiPageReadItem]
 
 
 class WikiSearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     vault_path: str | None = Field(default=None, min_length=1)
     vault_id: str | None = None
     vault_ids: list[str] = Field(default_factory=list)
     all_vaults: bool = False
     config_path: str | None = None
     query: str = Field(..., min_length=1)
-    mode: Literal["quick", "balanced", "deep"] = "balanced"
-    page_dirs: list[str] = Field(default_factory=list)
-    page_roles: list[str] = Field(default_factory=list)
-    max_results: int = Field(default=6, ge=1, le=20)
-    max_pages_to_read: int = Field(default=10, ge=1, le=30)
-    max_excerpts_per_page: int = Field(default=3, ge=0, le=8)
-    max_chars_per_excerpt: int = Field(default=800, ge=120, le=3000)
-    max_context_chars: int = Field(default=200000, ge=1000, le=500000)
-    include_related: bool = True
-    include_content: bool = True
     record_query: bool = True
     write_report: bool = False
     caller: str | None = None
+    continuation_cursor: str | None = None
+    continuation_cursors: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def require_vault_selector(self) -> "WikiSearchRequest":
@@ -79,27 +59,79 @@ class WikiSearchRequest(BaseModel):
         return text
 
 
-class WikiSearchExcerpt(BaseModel):
-    path: str
-    page_title: str
-    heading: str
-    section: str
-    content: str
-    score: float
-
-
 class WikiAtomTrace(BaseModel):
     atom_id: str
     atom_type: Literal["claim", "relation", "entity", "evidence"]
     text: str
-    source_digest_id: str
+    source_record_id: str
+    raw_record_id: str | None = None
+    raw_revision_id: str | None = None
+    source_unit_ids: list[str] = Field(default_factory=list)
+    processing_record_id: str | None = None
 
 
-class WikiQueryGapSuggestion(BaseModel):
-    kind: Literal["no_result", "low_confidence"]
-    query: str
-    reason: str
-    recommended_action: Literal["ingest_more_sources", "review_query_terms", "ask_followup"]
+class WikiRawEvidence(BaseModel):
+    evidence_id: str
+    vault_id: str
+    raw_record_id: str
+    raw_revision_id: str
+    revision_id: str
+    source_unit_id: str
+    source_record_id: str
+    processing_record_id: str = ""
+    source_path: str = ""
+    unit_index: int = 0
+    unit_type: str = ""
+    title: str = ""
+    excerpt: str
+    content: str = ""
+    excerpt_hash: str = ""
+    char_start: int | None = None
+    char_end: int | None = None
+    structural_path: list[str] = Field(default_factory=list)
+    locator_atom_ids: list[str] = Field(default_factory=list)
+    locator_page_paths: list[str] = Field(default_factory=list)
+    relevance: Literal["high", "medium", "low"] = "medium"
+    reason: str = ""
+
+
+class WikiRecallSignal(BaseModel):
+    channel: Literal["atom_claim", "raw_lexical"]
+    channel_rank: int
+    channel_score: float
+    matched_terms: list[str] = Field(default_factory=list)
+    claim_refs: list[str] = Field(default_factory=list)
+    locator_atom_refs: list[str] = Field(default_factory=list)
+    matched_spans: list[tuple[int, int]] = Field(default_factory=list)
+
+
+class WikiEvidenceHandle(BaseModel):
+    evidence_id: str
+    vault_id: str
+    raw_record_id: str
+    raw_revision_id: str
+    revision_id: str
+    source_unit_id: str
+    source_record_id: str
+    processing_record_id: str
+    source_path: str = ""
+    title: str = ""
+    retrieval_generation_id: str
+    active_fact_generation: str
+    fused_score: float
+    fused_rank: int
+    signals: list[WikiRecallSignal] = Field(default_factory=list)
+
+
+class WikiChannelStatus(BaseModel):
+    channel: Literal["atom_claim", "raw_lexical"]
+    status: Literal["completed", "no_candidates", "unavailable", "error", "cancelled", "resource_exhausted"]
+    match_count: int = 0
+    exhausted: bool = False
+    fts_hit_count: int = 0
+    ineligible_hit_count: int = 0
+    continuation_offset: int | None = None
+    detail: str | None = None
 
 
 class WikiQueryFeedbackRequest(BaseModel):
@@ -142,132 +174,43 @@ class WikiQueryTrendResponse(BaseModel):
 
 class WikiSearchResult(BaseModel):
     path: str
-    canonical_path: str | None = None
     vault_id: str | None = None
     vault_name: str | None = None
     vault_path: str | None = None
     title: str
-    page_role: str | None = None
     score: float
     relevance: Literal["high", "medium", "low"]
-    match_kind: Literal["direct", "related"]
-    role: Literal["primary", "supporting", "source"] = "supporting"
     matched_fields: list[str] = Field(default_factory=list)
     matched_terms: dict[str, list[str]] = Field(default_factory=dict)
     reason: str = ""
-    summary: str = ""
-    claims: list[str] = Field(default_factory=list)
-    excerpts: list[WikiSearchExcerpt] = Field(default_factory=list)
-    content: str | None = None
-    source: str | None = None
-    entities: list[str] = Field(default_factory=list)
-    outbound_links: list[str] = Field(default_factory=list)
-    content_truncated: bool = False
     atom_traces: list[WikiAtomTrace] = Field(default_factory=list)
 
 
-class WikiAnswerScope(BaseModel):
-    kind: Literal["narrow", "broad", "exploratory"] = "narrow"
-    vault_ids: list[str] = Field(default_factory=list)
-    initial_page_dirs: list[str] = Field(default_factory=list)
-    expanded_page_dirs: list[str] = Field(default_factory=list)
-    include_related: bool = True
-    reason: str = ""
-
-
-class WikiRejectedCandidate(BaseModel):
-    path: str
-    title: str = ""
-    reason: str
-    score: float | None = None
-    role_hint: Literal["primary", "supporting", "source", "further_reading"] | None = None
-
-
-class WikiAnswerSet(BaseModel):
-    kind: Literal["single_page", "multi_page"] = "single_page"
-    primary_paths: list[str] = Field(default_factory=list)
-    supporting_paths: list[str] = Field(default_factory=list)
-    source_paths: list[str] = Field(default_factory=list)
-    further_reading_paths: list[str] = Field(default_factory=list)
-    rejected_candidates: list[WikiRejectedCandidate] = Field(default_factory=list)
-    reason: str = ""
-    stop_reason: str = ""
-
-
-class WikiEvidenceCoverage(BaseModel):
-    status: Literal["strong", "adequate", "weak"] = "weak"
-    primary_count: int = 0
-    supporting_count: int = 0
-    source_count: int = 0
-    gap_count: int = 0
-    covered_terms: list[str] = Field(default_factory=list)
-    covered_dimensions: list[str] = Field(default_factory=list)
-    missing_dimensions: list[str] = Field(default_factory=list)
-
-
 class WikiSearchResponse(BaseModel):
-    schema_version: Literal["wiki_query.v1"] = WIKI_QUERY_SCHEMA_VERSION
+    schema_version: Literal["wiki_query.v4"] = WIKI_QUERY_SCHEMA_VERSION
     query: str
+    status: Literal[
+        "candidates",
+        "no_match",
+        "index_unavailable",
+        "integrity_error",
+        "invalid_query",
+        "invalid_scope",
+        "resource_exhausted",
+        "cancelled",
+    ]
     retrieval_mode: str
     results: list[WikiSearchResult]
-    primary_pages: list[WikiSearchResult] = Field(default_factory=list)
-    supporting_pages: list[WikiSearchResult] = Field(default_factory=list)
-    source_pages: list[WikiSearchResult] = Field(default_factory=list)
-    answer_scope: WikiAnswerScope = Field(default_factory=WikiAnswerScope)
-    answer_set: WikiAnswerSet = Field(default_factory=WikiAnswerSet)
-    evidence_coverage: WikiEvidenceCoverage = Field(default_factory=WikiEvidenceCoverage)
-    rejected_candidates: list[WikiRejectedCandidate] = Field(default_factory=list)
+    evidence_handles: list[WikiEvidenceHandle] = Field(default_factory=list)
+    raw_evidence: list[WikiRawEvidence] = Field(default_factory=list)
     context_pack: str
-    response_guidance: list[str] = Field(default_factory=list)
-    gap_suggestions: list[WikiQueryGapSuggestion] = Field(default_factory=list)
     gaps: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    channel_statuses: list[WikiChannelStatus] = Field(default_factory=list)
     stats: dict[str, object] = Field(default_factory=dict)
     trace: dict[str, object] = Field(default_factory=dict)
-
-
-class WikiContextRequest(BaseModel):
-    vault_path: str = Field(..., min_length=1)
-    query: str = Field(..., min_length=1)
-    purpose: Literal["ingest_relation", "lint_quality", "lint_freshness", "query", "manual"] = "manual"
-    page_dirs: list[str] = Field(default_factory=list)
-    page_roles: list[str] = Field(default_factory=list)
-    limit: int = Field(default=8, ge=1, le=30)
-    include_content: bool = False
-    max_chars_per_page: int = Field(default=2500, ge=500, le=12000)
-    include_related: bool = True
-
-    @field_validator("query")
-    @classmethod
-    def strip_context_query(cls, value: str) -> str:
-        text = value.strip()
-        if not text:
-            raise ValueError("query cannot be empty")
-        return text
-
-
-class WikiContextMatch(BaseModel):
-    path: str
-    canonical_path: str | None = None
-    title: str
-    page_dir: str
-    page_role: str | None = None
-    summary: str = ""
-    entities: list[str] = Field(default_factory=list)
-    claims: list[str] = Field(default_factory=list)
-    outbound_links: list[str] = Field(default_factory=list)
-    score: float
-    relevance: Literal["high", "medium", "low"]
-    matched_fields: list[str] = Field(default_factory=list)
-    reason: str = ""
-    content: str | None = None
-    content_truncated: bool = False
-
-
-class WikiContextResponse(BaseModel):
-    query: str
-    purpose: str
-    matches: list[WikiContextMatch]
-    context_pack: str
-    warnings: list[str] = Field(default_factory=list)
-    stats: dict[str, object] = Field(default_factory=dict)
+    exhausted: bool = True
+    continuation_cursor: str | None = None
+    continuation_cursors: dict[str, str] = Field(default_factory=dict)
+    query_fingerprint: str = ""
+    snapshot_generation: str = ""

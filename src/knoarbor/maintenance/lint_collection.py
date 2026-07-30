@@ -10,13 +10,14 @@ from knoarbor.core.schemas.page_identity import PageIdentity
 from knoarbor.core.schemas.wiki_lint import WikiLintIssue
 from knoarbor.core.wiki_schema import UNIFIED_KNOWLEDGE_PAGE_DIR, is_index_excluded_file
 from knoarbor.maintenance.lint_models import LintPage
-from knoarbor.storage.wiki_paths import SOURCE_DIGEST_ROOT_DIR, content_relative_path, content_root, source_digest_root
+from knoarbor.maintenance.lint_rules import IGNORED_LINK_PREFIXES
+from knoarbor.storage.wiki_paths import SOURCE_RECORD_ROOT_DIR, content_relative_path, content_root, source_record_root
 
 
 def collect_pages(vault_path: Path) -> list[LintPage]:
     pages: list[LintPage] = []
     root = content_root(vault_path)
-    source_root = source_digest_root(vault_path)
+    source_root = source_record_root(vault_path)
     seen_relative_paths: set[str] = set()
     for md_path in _iter_lint_page_paths(root, source_root):
         try:
@@ -67,14 +68,14 @@ def _iter_lint_page_paths(root: Path, source_root: Path) -> list[Path]:
 def _page_directory(root: Path, source_root: Path, md_path: Path) -> str:
     try:
         md_path.resolve().relative_to(source_root.resolve())
-        return SOURCE_DIGEST_ROOT_DIR
+        return SOURCE_RECORD_ROOT_DIR
     except ValueError:
         pass
     return UNIFIED_KNOWLEDGE_PAGE_DIR
 
 
 def _page_identity(relative_path: str, directory: str, metadata: dict[str, str], title: str, content: str) -> PageIdentity:
-    role = "source_digest" if directory == "sources" else "knowledge_page"
+    role = "source_record" if directory == "sources" else "knowledge_page"
     return PageIdentity(
         canonical_path=relative_path,
         title=title,
@@ -82,7 +83,7 @@ def _page_identity(relative_path: str, directory: str, metadata: dict[str, str],
         role=role,
         atom_ids=_metadata_list(metadata.get("atom_ids")) + _metadata_list(metadata.get("claim_ids")),
         relation_ids=_metadata_list(metadata.get("relation_ids")),
-        source_digest_ids=_metadata_list(metadata.get("source_digest_ids")),
+        source_record_ids=_metadata_list(metadata.get("source_record_ids")),
     )
 
 
@@ -182,10 +183,8 @@ def expand_related_scope(
 
 
 def extract_wiki_links(content: str) -> list[str]:
-    from knoarbor.maintenance.lint_rules import IGNORED_LINK_PREFIXES
-
     links: list[str] = []
-    for match in re.finditer(r"\[\[([^\]]+)\]\]", content):
+    for match in re.finditer(r"(?<!!)\[\[([^\]]+)\]\]", content):
         target = match.group(1).split("|", 1)[0].strip()
         if not target or target.startswith(IGNORED_LINK_PREFIXES):
             continue
@@ -331,7 +330,7 @@ def _page_adjacency(
     *,
     include_shared_semantic_nodes: bool,
 ) -> dict[str, set[str]]:
-    adjacency: dict[str, set[str]] = {page.relative_path: set() for page in pages if page.is_knowledge_page or page.is_source_digest}
+    adjacency: dict[str, set[str]] = {page.relative_path: set() for page in pages if page.is_knowledge_page or page.is_source_record}
     for page in pages:
         if page.relative_path not in adjacency:
             continue
@@ -344,7 +343,7 @@ def _page_adjacency(
         if page.relative_path not in adjacency:
             continue
         for source in page.sources:
-            if source.startswith(("raw/", "sd_")) or source.startswith("/"):
+            if source.startswith(("raw/", "sr_")) or source.startswith("/"):
                 source_groups[source].append(page.relative_path)
         if include_shared_semantic_nodes:
             for node in [*page.entities, *page.relation_nodes]:
@@ -364,7 +363,7 @@ def _page_adjacency(
 
 def graph_health_stats(pages: list[LintPage]) -> dict[str, object]:
     pages_by_relative, pages_by_stem, pages_by_title = page_lookup_maps(pages)
-    knowledge_paths = {page.relative_path for page in pages if page.is_knowledge_page or page.is_source_digest}
+    knowledge_paths = {page.relative_path for page in pages if page.is_knowledge_page or page.is_source_record}
     adjacency = semantic_adjacency(pages, pages_by_relative, pages_by_stem, pages_by_title)
     degrees: Counter[str] = Counter()
     for source_path, targets in adjacency.items():
@@ -444,7 +443,7 @@ def _source_identity_values(content: str) -> list[str]:
         lowered = text.lower().replace("_", " ")
         if lowered.startswith("raw source:"):
             values.append(text.split(":", 1)[1].strip().strip("`"))
-        elif lowered.startswith("source digest ids:"):
+        elif lowered.startswith("source record ids:"):
             raw_values = text.split(":", 1)[1]
             values.extend(part.strip().strip("`") for part in re.split(r"[,，]", raw_values) if part.strip())
     return values
@@ -455,7 +454,7 @@ def _normalize_source_value(value: str) -> str:
     lowered = text.lower().replace("_", " ")
     if lowered.startswith("raw source:"):
         return text.split(":", 1)[1].strip().strip("`")
-    if lowered.startswith(("content hash:", "atom ids:", "source digest ids:")):
+    if lowered.startswith(("content hash:", "atom ids:", "source record ids:")):
         return ""
     return text
 

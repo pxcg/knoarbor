@@ -1,15 +1,27 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from knoarbor.core.config import KnoArborConfig, default_config_path, modernize_raw_layout_path, prepare_config_data
+from knoarbor.core.config import (
+    SUPPORTED_CONFIG_VERSION,
+    KnoArborConfig,
+    default_config_path,
+    default_config_template_path,
+    migrate_config_data,
+    normalize_mineru_backend,
+    normalize_provider_url,
+    prepare_config_data,
+)
 from knoarbor.core.errors import UserInputError
 from knoarbor.core.schemas.connectors import SourceConnectorCatalogItem
+from knoarbor.document_processing.mineru import probe_mineru_endpoint
 from knoarbor.semantic.llm import is_local_or_private_model_endpoint
 from knoarbor.services.source_catalog import SourceCatalogService
 from knoarbor.services.ui_config_models import (
@@ -32,17 +44,13 @@ from knoarbor.services.ui_config_models import (
 from knoarbor.storage.source_metrics import connector_source_metric_identity, load_source_counts, source_metric_key, update_source_counts
 from knoarbor.storage.wiki_init import init_wiki_vault
 
-MINERU_BACKENDS = {"hybrid-auto-engine", "pipeline", "vlm-auto-engine"}
-DEFAULT_MINERU_BACKEND = "pipeline"
-
-
 class UiConfigService:
     """Owns UI-facing config read, validation, diagnostics, and writes."""
 
     def read_raw(self, config_path: str | None = None) -> UiConfigResponse:
-        path = resolve_ui_config_path(config_path, for_write=False)
+        path = resolve_ui_config_path(config_path)
         exists = path.exists()
-        content = path.read_text(encoding="utf-8") if exists else default_config_path().read_text(encoding="utf-8")
+        content = path.read_text(encoding="utf-8") if exists else default_config_template_path().read_text(encoding="utf-8")
         return UiConfigResponse(
             config_path=str(path),
             exists=exists,
@@ -51,35 +59,35 @@ class UiConfigService:
         )
 
     def write_raw(self, request: UiConfigUpdateRequest) -> UiConfigUpdateResponse:
-        path = resolve_ui_config_path(request.config_path, for_write=True)
+        path = resolve_ui_config_path(request.config_path)
         summary = summarize_config_content(request.content, base_dir=path.parent)
-        path.write_text(request.content, encoding="utf-8")
+        write_private_text_atomic(path, request.content)
         return UiConfigUpdateResponse(config_path=str(path), saved=True, summary=summary)
 
     def read_form(self, config_path: str | None = None) -> UiConfigFormResponse:
-        path = resolve_ui_config_path(config_path, for_write=False)
-        content = path.read_text(encoding="utf-8") if path.exists() else default_config_path().read_text(encoding="utf-8")
+        path = resolve_ui_config_path(config_path)
+        content = path.read_text(encoding="utf-8") if path.exists() else default_config_template_path().read_text(encoding="utf-8")
         return config_to_form(config_from_content(content, base_dir=path.parent))
 
     def read_diagnostics(self, config_path: str | None = None, *, refresh_source_counts: bool = False) -> UiConfigDiagnostics:
-        path = resolve_ui_config_path(config_path, for_write=False)
-        content = path.read_text(encoding="utf-8") if path.exists() else default_config_path().read_text(encoding="utf-8")
+        path = resolve_ui_config_path(config_path)
+        content = path.read_text(encoding="utf-8") if path.exists() else default_config_template_path().read_text(encoding="utf-8")
         return config_diagnostics(config_from_content(content, base_dir=path.parent), refresh_source_counts=refresh_source_counts)
 
     def write_form(self, request: UiConfigFormUpdateRequest) -> UiConfigUpdateResponse:
-        path = resolve_ui_config_path(request.config_path, for_write=True)
-        source_path = path if path.exists() else default_config_path()
+        path = resolve_ui_config_path(request.config_path)
+        source_path = path if path.exists() else default_config_template_path()
         base_data = yaml.safe_load(source_path.read_text(encoding="utf-8")) or {}
         if not isinstance(base_data, dict):
             raise UserInputError("Config root must be a YAML object")
         content = render_config_from_form(request, base_data, base_dir=path.parent)
         summary = summarize_config_content(content, base_dir=path.parent)
         _initialize_configured_vaults(summary)
-        path.write_text(content, encoding="utf-8")
+        write_private_text_atomic(path, content)
         return UiConfigUpdateResponse(config_path=str(path), saved=True, summary=summary)
 
 
-def resolve_ui_config_path(config_path: str | None, *, for_write: bool) -> Path:
+def resolve_ui_config_path(config_path: str | None) -> Path:
     if config_path:
         path = Path(config_path).expanduser().resolve()
     else:
@@ -90,11 +98,46 @@ def resolve_ui_config_path(config_path: str | None, *, for_write: bool) -> Path:
     return path
 
 
+def write_private_text_atomic(path: Path, content: str) -> None:
+    path = path.expanduser().resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary_path = Path(handle.name)
+            os.chmod(temporary_path, 0o600)
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, path)
+        os.chmod(path, 0o600)
+        temporary_path = None
+        try:
+            directory_fd = os.open(path.parent, os.O_RDONLY)
+        except OSError:
+            directory_fd = None
+        if directory_fd is not None:
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+
+
 def summarize_default_config() -> dict[str, object]:
-    path = resolve_ui_config_path(None, for_write=False)
+    path = resolve_ui_config_path(None)
     if path.exists():
         return summarize_config_content(path.read_text(encoding="utf-8"), base_dir=path.parent)
-    example_path = default_config_path()
+    example_path = default_config_template_path()
     return summarize_config_content(example_path.read_text(encoding="utf-8"), base_dir=example_path.parent)
 
 
@@ -115,7 +158,6 @@ def summarize_config_content(content: str, *, base_dir: Path) -> dict[str, objec
         "enabled_document_processors": enabled_document_processors(config),
         "default_max_tokens": config.models.default_max_tokens,
         "request_timeout_seconds": config.models.request_timeout_seconds,
-        "chat_response_style": config.chat.response_style,
     }
 
 
@@ -227,7 +269,6 @@ def config_to_form(config: KnoArborConfig) -> UiConfigFormResponse:
         generic_chat_enabled=bool(generic_chat.enabled) if generic_chat else False,
         generic_chat_roots=[str(item) for item in generic_chat_settings.get("roots", []) if item],
         generic_chat_raw_output_dir=str(generic_chat_settings.get("raw_output_dir") or ""),
-        chat_response_style=config.chat.response_style,
         markdown_enabled=False,
         markdown_roots=[],
         markdown_raw_output_dir=DEFAULT_MARKDOWN_RAW_OUTPUT_DIR,
@@ -421,19 +462,27 @@ def config_diagnostics(config: KnoArborConfig, *, refresh_source_counts: bool = 
 
     mineru = config.document_processing.mineru
     if mineru.enabled and not mineru.endpoint:
-        processor_items.append(UiConfigDiagnosticItem(name="mineru", category="processor", enabled=True, ok=False, code="endpoint_missing", path=str(mineru.input_dir) if mineru.input_dir else None))
+        processor_items.append(UiConfigDiagnosticItem(name="mineru", category="processor", enabled=True, ok=False, code="endpoint_missing"))
+    elif mineru.enabled and mineru.endpoint:
+        ok, detail = probe_mineru_endpoint(mineru.endpoint, headers=mineru.headers)
+        processor_items.append(
+            UiConfigDiagnosticItem(
+                name="mineru",
+                category="processor",
+                enabled=True,
+                ok=ok,
+                code="ready" if ok else "endpoint_unreachable",
+                detail=f"{mineru.endpoint} · {detail}",
+            )
+        )
     else:
         processor_items.append(
-            _path_diagnostic(
-                "mineru",
-                "processor",
-                Path(mineru.input_dir).expanduser() if mineru.input_dir else None,
-                enabled=mineru.enabled,
-                pattern="*",
-                detail=mineru.endpoint or "",
-                cached_counts=cached_counts,
-                refreshed_counts=refreshed_counts,
-                refresh_count=refresh_source_counts,
+            UiConfigDiagnosticItem(
+                name="mineru",
+                category="processor",
+                enabled=False,
+                ok=True,
+                code="disabled",
             )
         )
 
@@ -488,9 +537,13 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
         name = provider.name.strip()
         if not name:
             continue
+        base_url = provider.base_url.strip()
+        if base_url:
+            suffixes = ("/chat/completions",) if provider.adapter == "openai_compatible" else ()
+            base_url, _ = normalize_provider_url(base_url, endpoint_suffixes=suffixes)
         providers[name] = {
             "adapter": provider.adapter,
-            "base_url": provider.base_url.strip(),
+            "base_url": base_url,
             "api_key": provider.api_key.strip() or None,
             "model": provider.model.strip(),
             "json_mode": provider.json_mode,
@@ -504,10 +557,20 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
         name = provider.name.strip()
         if not name:
             continue
+        base_url = provider.base_url.strip()
+        endpoint_path = provider.endpoint_path.strip() or _default_image_endpoint_path(provider.adapter)
+        if base_url:
+            base_url, detected_endpoint = normalize_provider_url(
+                base_url,
+                endpoint_suffixes=("/images/generations", "/chat/completions"),
+            )
+            endpoint_path = detected_endpoint or endpoint_path
+        if endpoint_path not in {"/images/generations", "/chat/completions"}:
+            raise UserInputError("Image endpoint path must be /images/generations or /chat/completions")
         image_providers[name] = {
             "adapter": provider.adapter,
-            "base_url": provider.base_url.strip() or None,
-            "endpoint_path": provider.endpoint_path.strip() or "/images/generations",
+            "base_url": base_url or None,
+            "endpoint_path": endpoint_path,
             "api_key": provider.api_key.strip() or None,
             "model": provider.model.strip() or None,
             "tls_ca_file": provider.tls_ca_file.strip() or None,
@@ -516,8 +579,14 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
             "guidance": provider.guidance,
             "extra_body": provider.extra_body,
         }
-    data = dict(base_data)
-    data["config_version"] = 1
+    data = migrate_config_data(base_data)
+    default_provider = form.default_provider.strip()
+    if default_provider not in providers:
+        default_provider = next(iter(providers), "")
+    image_default_provider = form.image_default_provider.strip()
+    if image_default_provider not in image_providers:
+        image_default_provider = next(iter(image_providers), "")
+    data["config_version"] = SUPPORTED_CONFIG_VERSION
     vault_profiles, active_vault_id = _vault_profiles_from_form(form, base_dir)
     active_vault = vault_profiles[active_vault_id]
     data["project"] = {**dict(data.get("project") or {}), "name": active_vault["name"]}
@@ -527,20 +596,16 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
     data["server"] = {**dict(data.get("server") or {}), "host": form.server_host.strip(), "port": form.server_port}
     data["models"] = {
         **dict(data.get("models") or {}),
-        "default_provider": form.default_provider.strip() or None,
+        "default_provider": default_provider or None,
         "default_max_tokens": form.default_max_tokens,
         "request_timeout_seconds": form.request_timeout_seconds,
         "providers": providers,
     }
     data["image_generation"] = {
         **dict(data.get("image_generation") or {}),
-        "default_provider": form.image_default_provider.strip() or None,
+        "default_provider": image_default_provider or None,
         "request_timeout_seconds": form.image_request_timeout_seconds,
         "providers": image_providers,
-    }
-    data["chat"] = {
-        **dict(data.get("chat") or {}),
-        "response_style": form.chat_response_style,
     }
     connectors = dict(data.get("connectors") or {})
     _upsert_chat_connector(
@@ -602,10 +667,10 @@ def render_config_from_form(form: UiConfigFormUpdateRequest, base_data: dict[str
     mineru["endpoint"] = mineru_endpoint or None
     mineru["input_dir"] = None
     mineru["output_dir"] = _portable_config_path(form.mineru_output_dir or DEFAULT_MINERU_MARKDOWN_OUTPUT_DIR, base_dir)
-    mineru["mode"] = "auto"
+    mineru["mode"] = form.mineru_parse_method if form.mineru_parse_method in {"auto", "txt", "ocr"} else "auto"
     mineru["timeout_seconds"] = form.mineru_timeout_seconds
-    mineru["patterns"] = ["*.pdf", "*.docx", "*.pptx", "*.ppt", "*.xlsx", "*.xls", "*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"]
-    mineru["recursive"] = True
+    mineru["patterns"] = form.mineru_patterns or ["*.pdf", "*.docx", "*.pptx", "*.ppt", "*.xlsx", "*.xls", "*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"]
+    mineru["recursive"] = form.mineru_recursive
     mineru["extra_fields"] = _mineru_extra_fields_from_form(form)
     document_processing["mineru"] = mineru
     data["document_processing"] = document_processing
@@ -636,6 +701,10 @@ def _vault_profiles_from_form(form: UiConfigFormUpdateRequest, base_dir: Path) -
     return profiles, requested_active
 
 
+def _default_image_endpoint_path(adapter: str) -> str:
+    return "/chat/completions" if adapter == "openai_chat_image" else "/images/generations"
+
+
 def _normalize_vault_id(value: str) -> str:
     normalized = re.sub(r"[^a-zA-Z0-9_-]+", "-", value.strip()).strip("-").lower()
     return normalized
@@ -657,24 +726,26 @@ def _mineru_extra_fields_from_form(form: UiConfigFormUpdateRequest) -> dict[str,
         **custom,
         "backend": _normalize_mineru_backend(form.mineru_backend),
         "return_md": True,
-        "return_middle_json": False,
-        "return_model_output": False,
-        "return_content_list": False,
-        "return_images": True,
-        "response_format_zip": False,
-        "lang_list": form.mineru_lang_list.strip() or "ch",
+        "return_middle_json": form.mineru_return_middle_json,
+        "return_model_output": form.mineru_return_model_output,
+        "return_content_list": form.mineru_return_content_list,
+        "return_images": form.mineru_return_images,
+        "response_format_zip": form.mineru_response_format_zip,
+        "lang_list": [part.strip() for part in form.mineru_lang_list.split(",") if part.strip()] or ["ch"],
         "formula_enable": form.mineru_formula_enable,
         "table_enable": form.mineru_table_enable,
-        "server_url": None,
-        "start_page_id": 0,
-        "end_page_id": 99999,
+        "server_url": form.mineru_server_url.strip() or None,
+        "start_page_id": form.mineru_start_page_id,
+        "end_page_id": form.mineru_end_page_id,
     }
     return {key: value for key, value in fields.items() if value is not None}
 
 
 def _normalize_mineru_backend(value: object) -> str:
-    backend = str(value or "").strip()
-    return backend if backend in MINERU_BACKENDS else DEFAULT_MINERU_BACKEND
+    try:
+        return normalize_mineru_backend(value)
+    except ValueError as exc:
+        raise UserInputError(str(exc)) from exc
 
 
 def _mineru_lang_list_value(value: object) -> str:
@@ -738,7 +809,7 @@ def _portable_config_path_or_none(value: str, base_dir: Path) -> str | None:
 
 
 def _portable_config_path(value: str, base_dir: Path) -> str:
-    text = modernize_raw_layout_path(value.strip())
+    text = value.strip()
     if not text:
         return ""
     path = Path(text).expanduser()

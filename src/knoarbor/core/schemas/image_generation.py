@@ -54,3 +54,25 @@ class ImageProvidersResponse(BaseModel):
     schema_version: Literal["image_providers.v1"] = "image_providers.v1"
     default_provider: str | None = None
     providers: list[ImageProviderSummary] = Field(default_factory=list)
+
+
+class ImageProviderProbeRequest(BaseModel):
+    schema_version: Literal["image_provider_probe_request.v1"] = "image_provider_probe_request.v1"
+    config_path: str | None = None
+    provider: str | None = None
+    prompt: str = Field(default="A simple green leaf icon on a plain white background.", min_length=1, max_length=500)
+
+
+class ImageProviderProbeResponse(BaseModel):
+    schema_version: Literal["image_provider_probe.v1"] = "image_provider_probe.v1"
+    provider: str
+    model: str
+    adapter: str
+    status: Literal["ok", "error"]
+    available: bool
+    message: str
+    elapsed_ms: int = Field(ge=0)
+    image_count: int = Field(ge=0)
+    mime_types: list[str] = Field(default_factory=list)
+    error_code: str | None = None
+    retryable: bool = False

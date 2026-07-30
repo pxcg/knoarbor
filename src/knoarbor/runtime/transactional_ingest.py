@@ -12,6 +12,10 @@ from uuid import uuid4
 from knoarbor.core.errors import StorageConflict, UserInputError
 from knoarbor.core.schemas.ingest_execution import IngestExecutionCommand
 from knoarbor.runtime.locks import FileLock
+from knoarbor.storage.index_snapshot import open_index_snapshot
+from knoarbor.storage.ingest_inputs import read_input_generation
+from knoarbor.storage.revision_integrity import verify_revision_generation
+from knoarbor.storage.vault_layout import runtime_index_root
 
 
 FORMAT_VERSION = "transactional_ingest.v5"
@@ -896,11 +900,24 @@ def _id(prefix: str) -> str:
 
 
 def _preflight_v4_tasks(connection: sqlite3.Connection, vault_path: Path) -> None:
-    del connection, vault_path
-    raise StorageConflict(
-        "transactional_ingest.v4 requires the explicit KnoArbor 2.3.1 migration path, "
-        "which is not enabled until its historical fixtures pass."
-    )
+    rows = connection.execute(
+        """
+        select task_id, command, input_generation_id from tasks
+        where state not in ('completed','cancelled')
+        """
+    ).fetchall()
+    for row in rows:
+        try:
+            command = IngestExecutionCommand.model_validate_json(str(row["command"] or ""))
+        except Exception as exc:
+            raise StorageConflict(f"Cannot migrate v4 ingest task without a valid immutable command: {row['task_id']}") from exc
+        if command.generation_id != str(row["input_generation_id"] or ""):
+            raise StorageConflict(f"Cannot migrate v4 ingest task with a mismatched input generation: {row['task_id']}")
+        read_input_generation(vault_path, command.generation_id)
+    for revision in connection.execute("select * from source_revisions").fetchall():
+        verify_revision_generation(vault_path, dict(revision))
+    if (runtime_index_root(vault_path) / "CURRENT").exists():
+        open_index_snapshot(vault_path)
 
 
 def _reap_expired_attempts(connection: sqlite3.Connection) -> int:

@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 
-ENDPOINT_DIR_NAME = ".knoarbor"
 ENDPOINT_FILE_NAME = "endpoint.json"
 RUNTIME_DIR_ENV = "KNOARBOR_RUNTIME_DIR"
 
@@ -60,24 +59,29 @@ def write_runtime_endpoint(
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     _write_endpoint_file(endpoint_path, payload)
-    _write_endpoint_file(user_runtime_endpoint_path(), payload)
     return endpoint_path
 
 
 def runtime_endpoint_path(config_path: str | Path) -> Path:
-    return Path(config_path).expanduser().resolve().parent / ENDPOINT_DIR_NAME / ENDPOINT_FILE_NAME
-
-
-def user_runtime_endpoint_path() -> Path:
     runtime_dir = os.environ.get(RUNTIME_DIR_ENV)
     if runtime_dir:
         return Path(runtime_dir).expanduser().resolve() / ENDPOINT_FILE_NAME
-    return Path.home() / ENDPOINT_DIR_NAME / ENDPOINT_FILE_NAME
+    return Path(config_path).expanduser().resolve().parent / "state" / ENDPOINT_FILE_NAME
 
 
 def _write_endpoint_file(endpoint_path: Path, payload: dict[str, Any]) -> None:
     endpoint_path.parent.mkdir(parents=True, exist_ok=True)
-    endpoint_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary = endpoint_path.with_name(f".{endpoint_path.name}.{os.getpid()}.tmp")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        temporary.replace(endpoint_path)
+        endpoint_path.chmod(0o600)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _bind_host(host: str) -> str:

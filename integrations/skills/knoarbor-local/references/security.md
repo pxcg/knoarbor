@@ -9,7 +9,7 @@ to compile, maintain, retry, or cancel a run.
 - Call the local KnoArbor `/query` endpoint.
 - Read maintained wiki pages through `/wiki/pages/content`.
 - Inspect runs, reports, diagnostics, and wiki links.
-- Return page paths, summaries, excerpts, sources, gap signals, and context
+- Return projection paths, claim-backed raw evidence, gap signals, and context
   packs to the host AI.
 - Run `scripts/knoarbor.py check` to verify service connectivity.
 - Trigger `/ingest` or `/lint` only when requested by the user.

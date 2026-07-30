@@ -113,7 +113,7 @@ def create_lint_fixture_vault(vault: Path) -> None:
                 "",
                 "## Audit Summary",
                 "",
-                "Source digest for agent loop notes.",
+                "Source record for agent loop notes.",
                 "",
                 "## Raw Source",
                 "",
@@ -144,32 +144,32 @@ class LintStructuralFixtureWorkflow:
                 "schema_version": "maintenance_candidates.v1",
                 "candidates": [
                     {
-                        "candidate_id": "provenance:Agent-Loop.md:knowledge_missing_source_digest_link:0",
+                        "candidate_id": "provenance:Agent-Loop.md:knowledge_missing_source_record_link:0",
                         "source": "provenance",
                         "target_page": "Agent-Loop.md",
-                        "issue_type": "knowledge_missing_source_digest_link",
+                        "issue_type": "knowledge_missing_source_record_link",
                         "severity": "medium",
                         "confidence": 0.95,
                         "risk_hint": "low",
-                        "executor_hint": "deterministic_wiki_operation",
+                        "executor_hint": "governance_request",
                         "evidence": [
                             {
                                 "kind": "scan_issue",
                                 "ref": "Agent-Loop.md",
-                                "quote": "Generated knowledge page does not link back to its matching source digest.",
+                                "quote": "Generated knowledge page does not link back to its matching source record.",
                             }
                         ],
                         "recommended_action": {
-                            "action": "record_source_digest",
+                            "action": "record_source_record",
                             "params": {
-                                "source_digest": "sources/Agent-Loop-Source.md",
+                                "source_record": "sources/Agent-Loop-Source.md",
                             },
                         },
-                        "expected_effect": "Connect the concept page back to its source digest.",
-                        "review_notes": "The source digest exists in the fixture vault.",
+                        "expected_effect": "Connect the concept page back to its source record.",
+                        "review_notes": "The source record exists in the fixture vault.",
                     }
                 ],
-                "summary": "Attach one missing source digest link.",
+                "summary": "Attach one missing source record link.",
                 "warnings": [],
             }
         )
@@ -188,10 +188,10 @@ class LintStructuralFixtureWorkflow:
                         "necessity": "necessary",
                         "correctness": "correct",
                         "completeness": "complete",
-                        "executor_fit": "supported_by_wiki_operation",
+                        "executor_fit": "supported_by_governance_request",
                         "risk_level": "low",
                         "confidence": 0.95,
-                        "reason": "The source digest target is explicit and exists.",
+                        "reason": "The source record target is explicit and exists.",
                         "constraints": ["Do not create a new page."],
                         "required_followups": [],
                     }

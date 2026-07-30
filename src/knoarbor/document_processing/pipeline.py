@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 from fnmatch import fnmatch
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from knoarbor.core.config import KnoArborConfig
 from knoarbor.core.errors import DocumentPreprocessorUnavailable, SourceNotFound
-from knoarbor.document_processing.mineru import MinerUDocumentProcessor
+from knoarbor.document_processing.mineru import MinerUDocumentProcessor, mineru_max_concurrent_requests
 from knoarbor.document_processing.schemas import DocumentProcessingItem, DocumentProcessingResult
 
 
@@ -74,13 +75,23 @@ class DocumentProcessingPipeline:
                 f"Folder contains {len(rich_files)} non-Markdown file(s), but MinerU preprocessing is not enabled."
             )
 
-        items: list[DocumentProcessingItem] = []
-        for path in rich_files:
-            try:
-                item = self.mineru.process_file(config.document_processing.mineru, path)
-            except Exception as exc:
-                items.append(
-                    DocumentProcessingItem(
+        mineru_config = config.document_processing.mineru
+        capacity = min(
+            len(rich_files),
+            mineru_max_concurrent_requests(str(mineru_config.endpoint), headers=mineru_config.headers),
+        )
+        items_by_path: dict[Path, DocumentProcessingItem] = {}
+        with ThreadPoolExecutor(max_workers=capacity) as executor:
+            futures = {
+                executor.submit(self.mineru.process_file, mineru_config, path, input_root=root): path
+                for path in rich_files
+            }
+            for future in as_completed(futures):
+                path = futures[future]
+                try:
+                    items_by_path[path] = future.result()
+                except Exception as exc:
+                    items_by_path[path] = DocumentProcessingItem(
                         adapter=self.mineru.name,
                         input_path=str(path),
                         status="failed",
@@ -88,9 +99,8 @@ class DocumentProcessingPipeline:
                         error_type=type(exc).__name__,
                         error_message=str(exc),
                     )
-                )
-                continue
-            items.append(item)
+        items = [items_by_path[path] for path in rich_files]
+        for item in items:
             if item.status == "processed" and item.output_path:
                 markdown_paths.append(Path(item.output_path).expanduser().resolve())
 

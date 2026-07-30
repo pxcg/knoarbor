@@ -5,8 +5,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from knoarbor.maintenance.lint_collection import collect_pages, page_lookup_maps, semantic_adjacency
-from knoarbor.storage import ensure_machine_index, machine_index_dir
+from knoarbor.storage.wiki_index import ensure_machine_index, machine_index_dir
 
 
 class WikiGraphNode(BaseModel):
@@ -55,10 +54,10 @@ def build_page_graph(vault_path: Path) -> WikiGraph:
     """Build a deterministic page-link graph from the machine index."""
 
     vault_path = vault_path.expanduser().resolve()
+    ensure_machine_index(vault_path)
     index_dir = machine_index_dir(vault_path)
     pages_path = index_dir / "pages.json"
     links_path = index_dir / "links.json"
-    ensure_machine_index(vault_path)
 
     pages_payload = _read_json(pages_path)
     links_payload = _read_json(links_path)
@@ -110,12 +109,12 @@ def build_page_graph(vault_path: Path) -> WikiGraph:
         edges.append(WikiGraphEdge(source=source, target=target))
 
     semantic_edges = _semantic_page_edges(vault_path, page_ids)
-    for source, target in semantic_edges:
+    for source, target, label in semantic_edges:
         edge_key = _edge_key(source, target)
         if any(item[0] == edge_key[0] and item[1] == edge_key[1] for item in seen_edges):
             continue
         seen_edges.add((*edge_key, "semantic"))
-        edges.append(WikiGraphEdge(source=source, target=target, kind="semantic", label="semantic"))
+        edges.append(WikiGraphEdge(source=source, target=target, kind="semantic", label=label))
 
     connected = {edge.source for edge in edges} | {edge.target for edge in edges}
     stats = WikiGraphStats(
@@ -142,16 +141,18 @@ def _edge_key(source: str, target: str) -> tuple[str, str]:
 def _is_visible_wiki_page(page: dict[str, object]) -> bool:
     page_id = str(page.get("path") or "")
     role = str(page.get("role") or "")
-    return bool(page_id) and not page_id.startswith("sources/") and role != "source_digest"
+    return bool(page_id) and not page_id.startswith("sources/") and role != "source_record"
 
 
-def _semantic_page_edges(vault_path: Path, page_ids: set[str]) -> list[tuple[str, str]]:
-    pages = [page for page in collect_pages(vault_path) if page.relative_path in page_ids]
-    pages_by_relative, pages_by_stem, pages_by_title = page_lookup_maps(pages)
-    adjacency = semantic_adjacency(pages, pages_by_relative, pages_by_stem, pages_by_title)
-    edges: list[tuple[str, str]] = []
-    for source, targets in adjacency.items():
-        for target in targets:
-            if source < target:
-                edges.append((source, target))
+def _semantic_page_edges(vault_path: Path, page_ids: set[str]) -> list[tuple[str, str, str]]:
+    graph = _read_json(machine_index_dir(vault_path) / "graph_index.json")
+    edges: list[tuple[str, str, str]] = []
+    for node in graph.get("nodes", []):
+        if not isinstance(node, dict):
+            continue
+        label = str(node.get("label") or node.get("id") or "semantic").strip() or "semantic"
+        paths = sorted({str(path) for path in node.get("pages", []) if str(path) in page_ids}) if isinstance(node.get("pages"), list) else []
+        for index, source in enumerate(paths):
+            for target in paths[index + 1 :]:
+                edges.append((source, target, label))
     return edges

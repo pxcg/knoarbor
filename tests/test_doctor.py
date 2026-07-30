@@ -81,7 +81,7 @@ class DoctorServiceTests(unittest.TestCase):
             notes = root / "notes"
             vault.mkdir(parents=True)
             notes.mkdir()
-            for name in ["SCHEMA.md", "index.md", "log.md", ".knoarborignore"]:
+            for name in ["SCHEMA.md", "index.md", "log.md"]:
                 (vault / name).write_text("", encoding="utf-8")
             (notes / "note.md").write_text("# Note\n\nBody.", encoding="utf-8")
             config = root / "config.yaml"
@@ -123,7 +123,7 @@ class DoctorServiceTests(unittest.TestCase):
             vault = root / "vaults" / "all"
             missing_notes = root / "missing-notes"
             vault.mkdir(parents=True)
-            for name in ["SCHEMA.md", "index.md", "log.md", ".knoarborignore"]:
+            for name in ["SCHEMA.md", "index.md", "log.md"]:
                 (vault / name).write_text("", encoding="utf-8")
             config = root / "config.yaml"
             config.write_text(
@@ -154,7 +154,7 @@ class DoctorServiceTests(unittest.TestCase):
             root = Path(tmp_dir)
             vault = root / "vaults" / "all"
             vault.mkdir(parents=True)
-            for name in ["SCHEMA.md", "index.md", "log.md", ".knoarborignore"]:
+            for name in ["SCHEMA.md", "index.md", "log.md"]:
                 (vault / name).write_text("", encoding="utf-8")
             config = root / "config.yaml"
             config.write_text(
@@ -192,7 +192,7 @@ class DoctorServiceTests(unittest.TestCase):
             personal = root / "personal-wiki"
             missing_team = root / "missing-team-wiki"
             personal.mkdir()
-            for name in ["SCHEMA.md", "index.md", "log.md", ".knoarborignore"]:
+            for name in ["SCHEMA.md", "index.md", "log.md"]:
                 (personal / name).write_text("", encoding="utf-8")
             config = root / "config.yaml"
             config.write_text(

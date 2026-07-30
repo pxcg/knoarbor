@@ -155,9 +155,10 @@ the portable skill bundle.
 
 ## Progressive Retrieval Policy
 
-Use query as candidate discovery, not as the final answer shape. Start with a
-compact query, answer from summaries/excerpts when sufficient, and read full
-pages only when the user asks for depth or selects a specific result.
+Use query as claim-backed evidence discovery, not as the final answer shape.
+Answer factual questions only from `raw_evidence` or the raw-evidence section of
+`context_pack`. `results` are projection locators for navigation. Read a page
+only when the user asks to browse or inspect that projection.
 
 When a query result includes `vault_id`, reuse it for follow-up reads:
 
@@ -189,7 +190,7 @@ Load only what is needed:
 - Do not present weak matches as authoritative.
 - Do not fabricate wiki results.
 - Do not read full wiki pages unless the user asks to inspect a page, asks to
-  continue from a specific result, or a deep query lacks enough context.
+  continue from a specific result, or retrieved evidence lacks enough context.
 - Do not write or modify wiki pages during ordinary query answering.
 - For current facts, news, prices, laws, schedules, or other unstable topics,
   treat KnoArbor as local memory and combine it with current sources.

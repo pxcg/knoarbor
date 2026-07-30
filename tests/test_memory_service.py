@@ -49,6 +49,20 @@ class MemoryServiceTest(unittest.TestCase):
         self.assertEqual(writes, [])
         self.assertFalse(records_path.exists())
 
+    def test_explicit_memory_preserves_the_complete_instruction(self) -> None:
+        service = MemoryService()
+        detail = "完整约束" * 180
+        with tempfile.TemporaryDirectory() as tmp:
+            _, writes = service.capture_explicit_memory(
+                vault_path=Path(tmp),
+                vault_id="default",
+                messages=[ChatMessageItem(role="user", content=f"请记住：{detail}")],
+                config=MemoryConfig(enabled=True, auto_write_explicit_low_risk=True),
+                chat_id="chat_long_memory",
+            )
+
+        self.assertEqual(writes[0].content, detail)
+
     def test_recall_returns_fenced_context(self) -> None:
         service = MemoryService()
         with tempfile.TemporaryDirectory() as tmp:

@@ -9,6 +9,21 @@ from knoarbor.core.config import PrivacyConfig
 from knoarbor.core.schemas.sources import SourceDocument
 
 
+_ATTACHMENT_MACHINE_FIELDS = {
+    "attachment_id",
+    "attachment_type",
+    "content_hash",
+    "markdown_target",
+    "mime_type",
+    "obsidian_target",
+    "path",
+    "relative_path",
+    "source",
+    "thumbnail_hash",
+    "thumbnail_path",
+}
+
+
 class SourceRedactionResult(BaseModel):
     document: SourceDocument
     enabled: bool = True
@@ -31,7 +46,10 @@ def redact_source_document(document: SourceDocument, config: PrivacyConfig) -> S
     redacted = document.model_copy(deep=True)
     redacted.content.text = _redact_text(redacted.content.text, config, counts)
     redacted.content.sections = _redact_value(redacted.content.sections, config, counts)
-    redacted.content.attachments = _redact_value(redacted.content.attachments, config, counts)
+    redacted.content.attachments = [
+        _redact_attachment(attachment, config, counts)
+        for attachment in redacted.content.attachments
+    ]
     redacted.origin.uri = _redact_text(redacted.origin.uri, config, counts)
     redacted.origin.raw_path = _redact_text(redacted.origin.raw_path, config, counts)
     if redacted.origin.original_path:
@@ -82,6 +100,19 @@ def _redact_value(value: Any, config: PrivacyConfig, counts: dict[str, int]) -> 
     if isinstance(value, dict):
         return {key: _redact_value(item, config, counts) for key, item in value.items()}
     return value
+
+
+def _redact_attachment(
+    value: dict[str, Any],
+    config: PrivacyConfig,
+    counts: dict[str, int],
+) -> dict[str, Any]:
+    """Redact descriptive attachment text without changing locator identity."""
+
+    return {
+        key: item if key in _ATTACHMENT_MACHINE_FIELDS else _redact_value(item, config, counts)
+        for key, item in value.items()
+    }
 
 
 def _redact_text(text: str, config: PrivacyConfig, counts: dict[str, int]) -> str:
@@ -150,14 +181,14 @@ def _redact_text(text: str, config: PrivacyConfig, counts: dict[str, int]) -> st
     if config.redact_phone_numbers:
         redacted = _sub_counted(
             "phone_numbers",
-            r"(?<!\d)(?:\+?86[-.\s]?)?1[3-9]\d{9}(?!\d)",
+            r"(?<![A-Fa-f0-9])(?:\+?86[-.\s]?)?1[3-9]\d{9}(?![A-Fa-f0-9])",
             "[REDACTED_PHONE]",
             redacted,
             counts,
         )
         redacted = _sub_counted(
             "phone_numbers",
-            r"(?<!\d)(?:\+1[-.\s]?|\(\d{3}\)[-.\s]?|\d{3}[-.\s])\d{3}[-.\s]?\d{4}(?!\d)",
+            r"(?<![A-Fa-f0-9])(?:\+1[-.\s]?|\(\d{3}\)[-.\s]?|\d{3}[-.\s])\d{3}[-.\s]?\d{4}(?![A-Fa-f0-9])",
             "[REDACTED_PHONE]",
             redacted,
             counts,

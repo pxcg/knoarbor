@@ -4,13 +4,12 @@ import json
 from dataclasses import dataclass, field
 from hashlib import sha256
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Protocol
+from typing import Literal, Protocol
 
 from pydantic import BaseModel, Field
 
-if TYPE_CHECKING:
-    from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch
-    from knoarbor.core.schemas.raw_evidence import SourceProcessingRecord
+from knoarbor.core.schemas.knowledge_atoms import KnowledgeAtomBatch
+from knoarbor.core.schemas.raw_evidence import SourceProcessingRecord
 
 
 @dataclass(frozen=True)

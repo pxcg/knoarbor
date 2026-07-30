@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -119,18 +118,6 @@ class TransactionalIngestStoreTests(unittest.TestCase):
             (legacy_queue / "task.json").write_text("{}", encoding="utf-8")
 
             with self.assertRaisesRegex(StorageConflict, "removed JSON ingest queue format with retained data"):
-                TransactionalIngestStore(vault)
-
-    def test_v4_store_is_rejected_until_historical_migration_fixtures_pass(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            vault = Path(tmp_dir)
-            database = vault / ".knoarbor" / "ingest.sqlite"
-            database.parent.mkdir(parents=True)
-            with sqlite3.connect(database) as connection:
-                connection.execute("create table ingest_format(version text primary key)")
-                connection.execute("insert into ingest_format(version) values('transactional_ingest.v4')")
-
-            with self.assertRaisesRegex(StorageConflict, "historical fixtures"):
                 TransactionalIngestStore(vault)
 
 if __name__ == "__main__":

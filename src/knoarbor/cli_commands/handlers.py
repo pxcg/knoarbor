@@ -3,21 +3,21 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from importlib.resources import files
 from pathlib import Path
 
 from knoarbor.core.schemas.maintenance import MaintenanceScope, MaintenanceScopeSource
 from knoarbor.core.schemas.wiki_lint import LintRunRequest, WikiLintCandidateSelectRequest, WikiLintRequest, WikiScanRequest
 from knoarbor.core.schemas.wiki_query import WikiQueryFeedbackRequest, WikiSearchRequest
-from knoarbor.core.schemas.ingest_run import IngestFileRunRequest, IngestFolderRunRequest, IngestRecoveryRunRequest, IngestRunRequest
+from knoarbor.core.schemas.ingest_run import UnifiedIngestRequest
 from knoarbor.core.schemas.sources import SourceDocument
 from knoarbor.core.vaults import select_config_vault
 from knoarbor.pipelines.source import SourcePipeline
-from knoarbor.pipelines.ingest import IngestPipeline
-from knoarbor.pipelines.ingest_context import IngestContextProvider
+from knoarbor.product import PRODUCT
 from knoarbor.services.doctor import DoctorService
 from knoarbor.services.wiki_search import WikiSearchService
-from knoarbor.services.ingest import IngestService
+from knoarbor.services.ingest_coordinator import IngestCoordinator
 from knoarbor.services.run_manager import RunManager
 from knoarbor.services.source_catalog import SourceCatalogService
 from knoarbor.services.ui_config import UiConfigService
@@ -29,10 +29,9 @@ from knoarbor.services.wiki_reports import WikiReportService
 from knoarbor.storage.wiki_index import machine_index_dir
 from knoarbor.pipelines.lint import WikiLintPipeline, _maintenance_review_payload
 from knoarbor.runtime import configure_runtime_logging, runtime_logger
-from knoarbor.runtime.run_monitor import list_runs, read_run, read_run_events, request_cancel
+from knoarbor.runtime.run_monitor import read_run, read_run_events
 from knoarbor.runtime.endpoint import find_available_port, write_runtime_endpoint
 from knoarbor.semantic import (
-    IngestSemanticWorkflow,
     LintSemanticWorkflow,
     SemanticRunner,
     build_semantic_runner as build_configured_semantic_runner,
@@ -83,7 +82,7 @@ def run_serve(args: argparse.Namespace) -> int:
     )
     if switched_port:
         _print_startup_line(f"Configured port {preferred_port} is in use; using {port} instead.")
-    _print_startup_line(f"KnoArbor UI: {base_url}")
+    _print_startup_line(f"{PRODUCT.name} UI: {base_url}")
     _print_startup_line(f"UI alias: {base_url}/ui")
     _print_startup_line(f"API docs: {base_url}/docs")
     _print_startup_line(f"Runtime endpoint: {endpoint_path}")
@@ -106,7 +105,7 @@ def run_serve(args: argparse.Namespace) -> int:
         log_path,
         endpoint_path,
     )
-    uvicorn.run(create_app(ApplicationServices()), host=host, port=port)
+    uvicorn.run(create_app(ApplicationServices(), config_path=config_path), host=host, port=port)
     return 0
 
 
@@ -147,7 +146,7 @@ def run_first_run(args: argparse.Namespace) -> int:
     config_created = ensure_local_config(config_path, vault_path=args.vault)
     config = resolve_config(args)
     vault_path = Path(args.vault).expanduser().resolve() if args.vault else config.vault.path
-    init_result = init_wiki_vault(vault_path, force=False)
+    init_result = init_wiki_vault(vault_path)
     example_path = install_first_run_example(vault_path) if args.with_example else None
     doctor_report = DoctorService().run(config_path=str(config_path))
 
@@ -182,7 +181,7 @@ def run_init(args: argparse.Namespace) -> int:
     config_created = ensure_local_config(config_path, vault_path=args.vault)
     config = resolve_config(args)
     vault_path = Path(args.vault).expanduser().resolve() if args.vault else config.vault.path
-    result = init_wiki_vault(vault_path, force=args.force)
+    result = init_wiki_vault(vault_path)
     if args.json:
         payload = result.model_dump()
         payload["config_path"] = str(config_path)
@@ -208,7 +207,7 @@ def ensure_local_config(config_path: Path, *, vault_path: str | None = None) -> 
     data = _load_bundled_example_config()
     if vault_path:
         project = dict(data.get("project") or {})
-        vault_name = str(project.get("name") or "KnoArbor")
+        vault_name = str(project.get("name") or PRODUCT.default_vault_name)
         vaults = dict(data.get("vaults") or {})
         profiles = dict(vaults.get("profiles") or {})
         default_id = str(vaults.get("default") or "default")
@@ -267,7 +266,7 @@ def _write_yaml_config(path: Path, data: dict[str, object]) -> None:
     import yaml  # type: ignore[import-untyped]
 
     path.write_text(
-        "# Local KnoArbor configuration.\n"
+        f"# Local {PRODUCT.name} configuration.\n"
         + yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
@@ -312,7 +311,6 @@ def run_status(args: argparse.Namespace) -> int:
         "raw_sources": count_raw_sources(vault_path),
         "has_index": (machine_index_dir(vault_path) / "manifest.json").exists() and (machine_index_dir(vault_path) / "graph_index.json").exists(),
         "has_log": (content_root(vault_path) / "log.md").exists(),
-        "has_ignore": (vault_path / ".knoarborignore").exists(),
     }
     if args.json:
         print_json(status)
@@ -323,7 +321,7 @@ def run_status(args: argparse.Namespace) -> int:
     print(f"pages: {status['pages']}")
     print(f"raw_sources: {status['raw_sources']}")
     print(f"issues: {status['issues']} ({status['errors']} errors, {status['warnings']} warnings, {status['info']} info)")
-    print(f"index/log/ignore: {status['has_index']}/{status['has_log']}/{status['has_ignore']}")
+    print(f"index/log: {status['has_index']}/{status['has_log']}")
     return 0
 
 
@@ -351,13 +349,13 @@ def run_desktop_config(args: argparse.Namespace) -> int:
         response = service.read_raw(config_path)
     elif args.action == "write-raw":
         request_payload = dict(payload)
-        request_payload["config_path"] = _payload_config_path(payload) or args.config
+        request_payload["config_path"] = config_path
         response = service.write_raw(UiConfigUpdateRequest.model_validate(request_payload))
     elif args.action == "read-form":
         response = service.read_form(config_path)
     elif args.action == "write-form":
         request_payload = dict(payload)
-        request_payload["config_path"] = _payload_config_path(payload) or args.config
+        request_payload["config_path"] = config_path
         response = service.write_form(UiConfigFormUpdateRequest.model_validate(request_payload))
     elif args.action == "diagnostics":
         refresh = bool(payload.get("refresh_source_counts", args.refresh_source_counts))
@@ -393,7 +391,7 @@ def run_doctor(args: argparse.Namespace) -> int:
 def run_runs(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
-    response = list_runs(vault_path, active_only=args.active, limit=args.limit)
+    response = RunManager().list(str(vault_path), active_only=args.active, limit=args.limit)
     if args.json:
         print_json(response.model_dump())
         return 0
@@ -409,9 +407,15 @@ def run_runs(args: argparse.Namespace) -> int:
 def run_run_events(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
+    manager = RunManager()
     if args.follow and not args.json:
-        return follow_run_events(vault_path, args.run_id, after=args.after)
-    record = read_run(vault_path, args.run_id)
+        return follow_run_events(
+            vault_path,
+            args.run_id,
+            after=args.after,
+            record_reader=lambda: manager.read(str(vault_path), args.run_id),
+        )
+    record = manager.read(str(vault_path), args.run_id)
     events = read_run_events(vault_path, args.run_id, after=args.after)
     if args.json:
         print_json({"run": record.model_dump(), "events": [event.model_dump() for event in events]})
@@ -425,7 +429,7 @@ def run_run_events(args: argparse.Namespace) -> int:
 def run_run_cancel(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
-    record = request_cancel(vault_path, args.run_id)
+    record = RunManager().cancel(str(vault_path), args.run_id)
     if args.json:
         print_json(record.model_dump())
         return 0
@@ -515,19 +519,10 @@ def run_reports(args: argparse.Namespace) -> int:
 def run_query(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
-    query_config = config.query
     response = WikiSearchService().search(
         WikiSearchRequest(
             vault_path=str(vault_path),
             query=args.query,
-            mode=args.mode or query_config.mode,
-            page_dirs=args.page_dirs if args.page_dirs is not None else query_config.page_dirs,
-            max_results=args.max_results if args.max_results is not None else query_config.max_results,
-            max_pages_to_read=args.max_pages_to_read if args.max_pages_to_read is not None else query_config.max_pages_to_read,
-            max_excerpts_per_page=args.max_excerpts_per_page if args.max_excerpts_per_page is not None else query_config.max_excerpts_per_page,
-            max_chars_per_excerpt=args.max_chars_per_excerpt if args.max_chars_per_excerpt is not None else query_config.max_chars_per_excerpt,
-            max_context_chars=args.max_context_chars if args.max_context_chars is not None else query_config.max_context_chars,
-            include_related=args.include_related if args.include_related is not None else query_config.include_related,
             record_query=args.record_query,
             write_report=args.write_report,
             caller="cli",
@@ -599,7 +594,6 @@ def run_lint(args: argparse.Namespace) -> int:
             vault_path=str(vault_path),
             write_report=args.write_report,
             report_path=args.report_path,
-            apply_safe_fixes=args.apply_safe_fixes,
         )
     )
     if args.json:
@@ -619,8 +613,8 @@ def run_lint_run(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
     max_tokens = args.max_tokens or config.models.default_max_tokens
-    max_candidates = args.max_candidates if args.max_candidates is not None else 8
-    max_chars_per_page = args.max_chars_per_page if args.max_chars_per_page is not None else 2500
+    max_candidates = args.max_candidates if args.max_candidates is not None else 0
+    max_chars_per_page = args.max_chars_per_page if args.max_chars_per_page is not None else 0
     scope = MaintenanceScope(
         scope_id="manual:cli",
         trigger="manual",
@@ -634,12 +628,10 @@ def run_lint_run(args: argparse.Namespace) -> int:
         vault_id=args.vault_id,
         scope=scope,
         mode=args.mode,
-        apply_safe_fixes=args.apply_safe_fixes,
         include_related=args.include_related,
         max_candidates=max_candidates,
         max_chars_per_page=max_chars_per_page,
         max_tokens=max_tokens,
-        auto_apply_reviewed_changes=args.apply_reviewed,
         write_report=args.write_report,
         append_ledger=args.append_ledger,
         provider=args.provider,
@@ -671,13 +663,12 @@ def run_lint_run(args: argparse.Namespace) -> int:
         print(f"semantic_candidates: {len(response.semantic_candidates.get('candidates', []))}")
     if response.maintenance_review:
         print(f"reviewed: {len(response.maintenance_review.get('decisions', []))}")
-    if response.applied_operations:
-        print(f"applied_operations: {len(response.applied_operations)}")
-    if response.written_pages:
-        print(f"written_pages: {len(response.written_pages)}")
+    if response.repair_plan:
+        print(f"repair_plan: {len(response.repair_plan)}")
+    if response.repair_results:
+        completed = sum(item.get("status") == "completed" for item in response.repair_results)
+        print(f"repairs: {completed}/{len(response.repair_results)} completed")
     print_run_metrics(response.metrics)
-    if response.rescan:
-        print(f"rescan_issues: {len(response.rescan.issues)}")
     if response.report_path:
         print(f"report: {response.report_path}")
     if response.ledger_path:
@@ -779,6 +770,8 @@ def run_ingest(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
     config = select_config_vault(config, vault_path=str(vault_path), vault_id=args.vault_id)
+    if getattr(args, "rebuild_materialization", False):
+        return _run_materialization_rebuild_from_args(args, vault_path)
     if getattr(args, "recover_run_id", None):
         return _run_ingest_recovery_from_args(args, config, args.recover_run_id)
     if getattr(args, "source_document", None):
@@ -786,122 +779,43 @@ def run_ingest(args: argparse.Namespace) -> int:
         return run_ingest_document(args)
     if getattr(args, "input", None):
         return run_ingest_path(args)
-    if _should_follow(args):
-        request = IngestRunRequest(
-            config_path=args.config,
-            vault_path=str(vault_path),
-            vault_id=args.vault_id,
-            connector_names=args.connectors,
-            provider=args.provider,
-            max_tokens=args.max_tokens or config.models.default_max_tokens,
-            write=args.write,
-            write_report=args.write_report,
-            append_ledger=args.append_ledger,
-            force_reprocess=args.force_reprocess,
-        )
-        started = RunManager().start_ingest(request, IngestService().run)
-        stream = sys.stderr if args.json else sys.stdout
-        print(f"run_id: {started.run_id}", file=stream, flush=True)
-        exit_code = follow_run_events(vault_path, started.run_id, stream=stream)
-        if args.json:
-            print_json(read_run(vault_path, started.run_id).model_dump())
-        return exit_code
-
-    result = build_ingest_pipeline(args, config).run(
-        config,
-        connector_names=args.connectors,
-        write=args.write,
-        max_tokens=args.max_tokens or config.models.default_max_tokens,
-        write_report=args.write_report,
-        append_ledger=args.append_ledger,
-        force_reprocess=args.force_reprocess,
+    request = UnifiedIngestRequest(
+        kind="connectors", execution="queued", config_path=args.config, vault_path=str(vault_path), vault_id=args.vault_id, connector_names=args.connectors,
+        provider=args.provider, max_tokens=args.max_tokens or config.models.default_max_tokens, write=args.write,
+        write_report=args.write_report, append_ledger=args.append_ledger, force_reprocess=args.force_reprocess,
     )
-    if args.json:
-        print_json(result.model_dump())
-        return 0
-
-    print(f"sources: {result.stats['source_count']}")
-    print(f"processed: {result.stats['processed_count']}")
-    print(f"skipped: {result.stats['skipped_count']}")
-    print(f"failed: {result.stats.get('failed_count', 0)}")
-    print(f"written: {result.stats['written_count']}")
-    print_run_metrics(result.metrics)
-    if result.report_path:
-        print(f"report: {result.report_path}")
-    if result.ledger_path:
-        print(f"ledger: {result.ledger_path}")
-    for item in result.results[:10]:
-        status = item.status
-        print(f"- [{status}] {item.connector}: {item.source_file} ({item.mode})")
-        if item.status == "failed":
-            print(f"  error: {item.error_stage} {item.error_type}: {item.error_message}")
-        for page in item.generated_pages:
-            print(f"  - {page}")
-    return 0
+    return _run_admitted_ingest(args, vault_path, IngestCoordinator().start(request, foreground=True))
 
 
 def _run_ingest_recovery_from_args(args: argparse.Namespace, config, run_id: str) -> int:
     vault_path = resolve_vault_path(args, config)
-    request = IngestRecoveryRunRequest(
+    request = UnifiedIngestRequest(
+        kind="recovery",
+        execution="queued",
         config_path=args.config,
+        vault_path=str(vault_path),
+        vault_id=args.vault_id,
+        recovery_vault_path=str(vault_path),
+        recovery_of_run_id=run_id,
         provider=args.provider,
         max_tokens=args.max_tokens,
         write=args.write,
         write_report=args.write_report,
         append_ledger=args.append_ledger,
-        force_reprocess=args.force_reprocess,
     )
-    started = RunManager().start_ingest_recovery(
-        str(vault_path),
-        run_id,
-        request,
-        IngestService().run,
-        IngestService().run_file,
-        IngestService().run_folder,
-    )
-    stream = sys.stderr if args.json else sys.stdout
-    print(f"run_id: {started.run_id}", file=stream, flush=True)
-    exit_code = follow_run_events(vault_path, started.run_id, stream=stream) if _should_follow(args) else 0
-    if args.json:
-        print_json(read_run(vault_path, started.run_id).model_dump())
-    return exit_code
+    return _run_admitted_ingest(args, vault_path, IngestCoordinator().start(request, foreground=True))
 
 
 def run_ingest_document(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
     document = SourceDocument.model_validate(read_json_object(args.input))
-    result = build_ingest_pipeline(args, config).run_document(
-        document,
-        vault_path=vault_path,
-        write=args.write,
-        max_tokens=args.max_tokens or config.models.default_max_tokens,
-        privacy_config=config.privacy,
-        write_report=args.write_report,
-        append_ledger=args.append_ledger,
-        auto_scoped_lint=config.ingest.auto_scoped_lint,
-        auto_apply_safe_lint_fixes=config.ingest.auto_apply_safe_lint_fixes,
-        scoped_lint_include_related=config.lint.scoped_include_related,
+    request = UnifiedIngestRequest(
+        kind="document", execution="queued", source_document=document, config_path=args.config, vault_path=str(vault_path), vault_id=args.vault_id,
+        provider=args.provider, max_tokens=args.max_tokens or config.models.default_max_tokens, write=args.write,
+        write_report=args.write_report, append_ledger=args.append_ledger, auto_scoped_lint=config.ingest.auto_scoped_lint,
     )
-    response: dict[str, object] = {"result": result.model_dump()}
-
-    if args.json:
-        print_json(response)
-        return 0
-
-    semantic_result = result.semantic_result
-    print(f"operations: {len(semantic_result.wiki_page_plan.operations) if semantic_result else 0}")
-    print(f"drafts: {len(semantic_result.wiki_draft_batch.drafts) if semantic_result else 0}")
-    print(f"approved: {len(result.approved_operation_indexes)}")
-    if result.status == "failed":
-        print(f"failed: {result.error_stage} {result.error_type}: {result.error_message}")
-    print(f"written: {len(result.generated_pages)}" if args.write else "write: disabled")
-    print_run_metrics(result.metrics)
-    if result.report_path:
-        print(f"report: {result.report_path}")
-    if result.ledger_path:
-        print(f"ledger: {result.ledger_path}")
-    return 0
+    return _run_admitted_ingest(args, vault_path, IngestCoordinator().start(request, foreground=True))
 
 
 def run_ingest_path(args: argparse.Namespace) -> int:
@@ -914,7 +828,9 @@ def run_ingest_path(args: argparse.Namespace) -> int:
 def run_ingest_file(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
-    request = IngestFileRunRequest(
+    request = UnifiedIngestRequest(
+        kind="file",
+        execution="queued",
         input_path=args.input,
         config_path=args.config,
         vault_path=str(vault_path),
@@ -926,47 +842,15 @@ def run_ingest_file(args: argparse.Namespace) -> int:
         append_ledger=args.append_ledger,
         force_reprocess=args.force_reprocess,
     )
-    if _should_follow(args):
-        started = RunManager().start_ingest_file(request, IngestService().run_file)
-        stream = sys.stderr if args.json else sys.stdout
-        print(f"run_id: {started.run_id}", file=stream, flush=True)
-        exit_code = follow_run_events(vault_path, started.run_id, stream=stream)
-        if args.json:
-            print_json(read_run(vault_path, started.run_id).model_dump())
-        return exit_code
-
-    result = IngestService().run_file(
-        request
-    )
-
-    if args.json:
-        print_json(result.model_dump())
-        return 0
-
-    print(f"sources: {result.stats['source_count']}")
-    print(f"processed: {result.stats['processed_count']}")
-    print(f"skipped: {result.stats['skipped_count']}")
-    print(f"failed: {result.stats.get('failed_count', 0)}")
-    print(f"written: {result.stats['written_count']}")
-    if result.document_processing.items:
-        item = result.document_processing.items[0]
-        print(f"preprocessed: {item.input_path} -> {item.output_path}")
-    print_run_metrics(result.metrics)
-    if result.report_path:
-        print(f"report: {result.report_path}")
-    if result.ledger_path:
-        print(f"ledger: {result.ledger_path}")
-    for item in result.results[:10]:
-        print(f"- [{item.status}] {item.connector}: {item.source_file} ({item.mode})")
-        for page in item.generated_pages:
-            print(f"  - {page}")
-    return 0
+    return _run_admitted_ingest(args, vault_path, IngestCoordinator().start(request, foreground=True))
 
 
 def run_ingest_folder(args: argparse.Namespace) -> int:
     config = resolve_config(args)
     vault_path = resolve_vault_path(args, config)
-    request = IngestFolderRunRequest(
+    request = UnifiedIngestRequest(
+        kind="folder",
+        execution="queued",
         input_path=args.input,
         connector_names=args.connectors,
         config_path=args.config,
@@ -979,56 +863,43 @@ def run_ingest_folder(args: argparse.Namespace) -> int:
         append_ledger=args.append_ledger,
         force_reprocess=args.force_reprocess,
     )
-    if _should_follow(args):
-        started = RunManager().start_ingest_folder(request, IngestService().run_folder)
-        stream = sys.stderr if args.json else sys.stdout
-        print(f"run_id: {started.run_id}", file=stream, flush=True)
-        exit_code = follow_run_events(vault_path, started.run_id, stream=stream)
-        if args.json:
-            print_json(read_run(vault_path, started.run_id).model_dump())
-        return exit_code
+    return _run_admitted_ingest(args, vault_path, IngestCoordinator().start(request, foreground=True))
 
-    result = IngestService().run_folder(request)
 
+def _run_materialization_rebuild_from_args(args: argparse.Namespace, vault_path: Path) -> int:
+    response = IngestCoordinator().rebuild_materialization(vault_path)
     if args.json:
-        print_json(result.model_dump())
+        print_json(response.model_dump())
         return 0
-
-    print(f"sources: {result.stats['source_count']}")
-    print(f"processed: {result.stats['processed_count']}")
-    print(f"skipped: {result.stats['skipped_count']}")
-    print(f"failed: {result.stats.get('failed_count', 0)}")
-    print(f"written: {result.stats['written_count']}")
-    if result.document_processing.items:
-        print(f"preprocessed: {result.document_processing.stats.get('processed_count', 0)}")
-    print_run_metrics(result.metrics)
-    if result.report_path:
-        print(f"report: {result.report_path}")
-    if result.ledger_path:
-        print(f"ledger: {result.ledger_path}")
-    for item in result.results[:10]:
-        print(f"- [{item.status}] {item.connector}: {item.source_file} ({item.mode})")
-        for page in item.generated_pages:
-            print(f"  - {page}")
+    print(f"phase: {response.phase}")
+    print(f"epoch: {response.published_epoch}/{response.requested_epoch}")
+    print(f"fact generation: {response.fact_generation}")
+    print(f"index generation: {response.index_generation or '-'}")
     return 0
+
+
+def _run_admitted_ingest(args: argparse.Namespace, vault_path: Path, started) -> int:
+    stream = sys.stderr if args.json else sys.stdout
+    print(f"run_id: {started.run_id}", file=stream, flush=True)
+    manager = RunManager()
+
+    def read_record():
+        return manager.read(str(vault_path), started.run_id)
+    if _should_follow(args):
+        exit_code = follow_run_events(vault_path, started.run_id, stream=stream, record_reader=read_record)
+    else:
+        while read_record().status not in {"completed", "failed", "partially_failed", "cancelled"}:
+            time.sleep(0.05)
+        exit_code = 0 if read_record().status == "completed" else 1
+    if args.json:
+        print_json(read_record().model_dump())
+    return exit_code
 
 
 def _should_follow(args: argparse.Namespace) -> bool:
     if args.follow is not None:
         return bool(args.follow)
     return not bool(getattr(args, "json", False))
-
-
-def build_ingest_pipeline(args: argparse.Namespace, config) -> IngestPipeline:
-    return IngestPipeline(
-        IngestSemanticWorkflow(build_semantic_runner(args, config)),
-        semantic_workflow_factory=lambda: IngestSemanticWorkflow(build_semantic_runner(args, config)),
-        context_provider=IngestContextProvider(
-            candidate_limit=config.ingest.candidate_limit,
-            materialized_page_limit=config.ingest.materialized_page_limit,
-            max_chars_per_page=config.ingest.max_chars_per_materialized_page,
-        ),
-    )
 
 
 def run_lint_plan(args: argparse.Namespace) -> int:
@@ -1101,14 +972,10 @@ def run_lint_plan(args: argparse.Namespace) -> int:
 
 def run_contracts(args: argparse.Namespace) -> int:
     names = [
-        "source_normalize",
-        "wiki_page_plan",
-        "wiki_draft_compile",
-        "ingest_draft_review",
+        "index_metadata_extract",
         "lint_diagnose",
         "lint_quality_diagnose",
         "lint_maintenance_review",
-        "lint_draft_compile",
     ]
     rows = []
     for name in names:

@@ -1,18 +1,26 @@
 from __future__ import annotations
 
 
-REQUIRED_FRONTMATTER_KEYS = ("created", "updated", "content_hash")
+REQUIRED_FRONTMATTER_KEYS = (
+    "schema_version",
+    "role",
+    "projection_kind",
+    "raw_record_id",
+    "raw_revision_id",
+    "source_record_id",
+    "processing_record_id",
+)
 IGNORED_LINK_PREFIXES = ("http://", "https://", "mailto:", "#")
 OVERDENSE_LINK_THRESHOLD = 30
 KNOWLEDGE_PAGE_SECTIONS = (
-    "Summary",
+    "Source",
+    "Synthesis",
     "Claims",
     "Entities",
     "Relations",
-    "Evidence",
-    "Synthesis",
+    "Attachments",
 )
-SOURCE_DIGEST_SECTIONS = (
+SOURCE_RECORD_SECTIONS = (
     "Source Identity",
     "Audit Summary",
     "Source Units",
@@ -21,7 +29,7 @@ SOURCE_DIGEST_SECTIONS = (
     "Raw Source",
 )
 REQUIRED_SECTIONS_BY_ROLE = {
-    "source_digest": SOURCE_DIGEST_SECTIONS,
+    "source_record": SOURCE_RECORD_SECTIONS,
 }
 
 
@@ -46,8 +54,8 @@ DETERMINISTIC_ONLY_ISSUE_CODES = frozenset(
 
 SEMANTIC_STRUCTURAL_ISSUE_CODES = frozenset(
     {
-        "knowledge_missing_source_digest_link",
-        "knowledge_without_source_digest",
+        "knowledge_missing_source_record_link",
+        "knowledge_without_source_record",
         "source_without_knowledge_links",
     }
 )

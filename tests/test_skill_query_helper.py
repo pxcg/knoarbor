@@ -344,23 +344,30 @@ class SkillQueryHelperTests(unittest.TestCase):
         text = helper._format_query(
             {
                 "query": "Agent Loop",
-                "retrieval_mode": "machine_graph_led_bm25_balanced",
+                "retrieval_mode": "semantic_atom_claim_raw",
                 "stats": {"vault_path": "/tmp/vaults/all"},
                 "results": [
                     {
                         "path": "Agent-Loop.md",
                         "title": "Agent Loop",
                         "relevance": "high",
-                        "match_kind": "direct",
-                        "summary": "Agent Loop summary.",
-                        "claims": ["Observe, think, act."],
+                        "reason": "Projection locator derived from a selected claim.",
+                    }
+                ],
+                "raw_evidence": [
+                    {
+                        "source_unit_id": "unit:1",
+                        "title": "Agent Loop source",
+                        "source_path": "raw/agent-loop.md",
+                        "relevance": "high",
                     }
                 ],
                 "context_pack": "context",
             }
         )
 
-        self.assertIn("Agent Loop (Agent-Loop.md) [high, direct]", text)
+        self.assertIn("Agent Loop (Agent-Loop.md) [high]", text)
+        self.assertIn("Agent Loop source (raw/agent-loop.md) [high]", text)
         self.assertIn("Vault: /tmp/vaults/all", text)
         self.assertIn("Context Pack:", text)
 
@@ -369,7 +376,7 @@ class SkillQueryHelperTests(unittest.TestCase):
         text = helper._format_query(
             {
                 "query": "Agent Loop",
-                "retrieval_mode": "machine_graph_led_bm25_balanced",
+                "retrieval_mode": "semantic_atom_claim_raw",
                 "stats": {"multi_vault": True, "vault_count": 2},
                 "results": [
                     {
@@ -378,7 +385,6 @@ class SkillQueryHelperTests(unittest.TestCase):
                         "path": "Agent-Loop.md",
                         "title": "Agent Loop",
                         "relevance": "high",
-                        "match_kind": "direct",
                     },
                     {
                         "vault_id": "team",
@@ -386,7 +392,6 @@ class SkillQueryHelperTests(unittest.TestCase):
                         "path": "OpenClaw.md",
                         "title": "OpenClaw",
                         "relevance": "medium",
-                        "match_kind": "related",
                     },
                 ],
             }
@@ -406,11 +411,6 @@ class SkillQueryHelperTests(unittest.TestCase):
         )
         args = argparse.Namespace(
             query="Agent Loop",
-            mode="balanced",
-            max_results=6,
-            page_dirs=[],
-            include_related=True,
-            auto=True,
             all_vaults=True,
             query_vault_ids=[],
         )
@@ -436,11 +436,6 @@ class SkillQueryHelperTests(unittest.TestCase):
         )
         args = argparse.Namespace(
             query="Agent Loop",
-            mode="balanced",
-            max_results=6,
-            page_dirs=[],
-            include_related=True,
-            auto=True,
             all_vaults=False,
             query_vault_ids=["personal", "team"],
         )
@@ -663,8 +658,6 @@ class SkillQueryHelperTests(unittest.TestCase):
             provider=None,
             max_tokens=None,
             mode="semantic",
-            apply_safe_fixes=True,
-            auto_apply_reviewed=True,
             scope_pages=[],
         )
 
@@ -676,47 +669,6 @@ class SkillQueryHelperTests(unittest.TestCase):
         self.assertEqual(payload["vault_id"], "team")
         self.assertEqual(payload["vault_path"], "/tmp/team-wiki")
         self.assertEqual(payload["config_path"], "/tmp/config.yaml")
-
-    def test_auto_query_settings_keep_balanced_by_default(self) -> None:
-        helper = load_query_helper()
-        settings = helper._query_settings(
-            argparse.Namespace(
-                auto=True,
-                query="Agent Loop 是什么",
-                mode="balanced",
-                max_results=6,
-            )
-        )
-
-        self.assertEqual(settings["mode"], "balanced")
-        self.assertEqual(settings["max_results"], 4)
-
-    def test_auto_query_settings_promote_detail_requests_to_deep_mode(self) -> None:
-        helper = load_query_helper()
-        settings = helper._query_settings(
-            argparse.Namespace(
-                auto=True,
-                query="逐段分析 Agent Loop 页面全文",
-                mode="balanced",
-                max_results=6,
-            )
-        )
-
-        self.assertEqual(settings["mode"], "deep")
-
-    def test_auto_query_settings_can_be_disabled(self) -> None:
-        helper = load_query_helper()
-        settings = helper._query_settings(
-            argparse.Namespace(
-                auto=False,
-                query="逐段分析 Agent Loop 页面全文",
-                mode="balanced",
-                max_results=6,
-            )
-        )
-
-        self.assertEqual(settings["mode"], "balanced")
-        self.assertEqual(settings["max_results"], 6)
 
     def test_check_mode_reports_service_and_vault(self) -> None:
         helper = load_query_helper()

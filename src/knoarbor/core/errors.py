@@ -49,7 +49,7 @@ ERROR_HINTS: dict[ErrorCode, str] = {
     "KA-CFG-002": "Fix config.yaml according to config.example.yaml and run `kno doctor` again.",
     "KA-VAULT-001": "Check the vault path and initialize it with `kno init` if needed.",
     "KA-SRC-001": "Check connector settings in config.yaml, including enabled flags and source paths.",
-    "KA-SRC-002": "Check that the configured source path exists and is not excluded by .knoarborignore.",
+    "KA-SRC-002": "Check that the configured source path exists and is readable.",
     "KA-DOC-001": "Configure a document preprocessor such as MinerU, or provide Markdown input directly.",
     "KA-EXT-001": "Check the external service endpoint, credentials, and network connectivity; this error is retryable.",
     "KA-MODEL-001": "Check model provider output, JSON mode support, max tokens, and retry with a smaller input if needed.",
@@ -63,7 +63,7 @@ ERROR_HINTS: dict[ErrorCode, str] = {
 
 
 class KnoArborError(ValueError):
-    """Base class for structured KnoArbor errors."""
+    """Base class for structured application errors."""
 
     code: ErrorCode = "KA-INTERNAL-001"
     category: ErrorCategory = "internal_error"
@@ -147,6 +147,10 @@ class StorageConflict(KnoArborError):
     category: ErrorCategory = "storage_conflict"
     http_status = 409
     retryable = True
+
+
+class MaterializationPending(StorageConflict):
+    """The requested knowledge view may appear after materialization completes."""
 
 
 class InternalKnoArborError(KnoArborError):

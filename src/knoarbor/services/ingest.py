@@ -1,194 +1,84 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-from knoarbor.connectors.base import ConnectorConfig
-from knoarbor.core.config import KnoArborConfig, default_config_path, load_config
-from knoarbor.core.errors import UserInputError
-from knoarbor.core.vaults import select_config_vault
-from knoarbor.core.schemas.ingest_run import (
-    IngestDocumentRunRequest,
-    IngestFileRunRequest,
-    IngestFolderRunRequest,
-    IngestRunRequest,
-    UnifiedIngestRequest,
-)
-from knoarbor.document_processing import DocumentProcessingPipeline
-from knoarbor.pipelines import IngestContextProvider, IngestPipeline, IngestPipelineResult, IngestSourceResult
-from knoarbor.runtime import configure_runtime_logging, runtime_logger
-from knoarbor.semantic import build_ingest_semantic_workflow
-from knoarbor.services.workflow_failures import write_workflow_failure_artifacts
-
-logger = runtime_logger(__name__)
+from knoarbor.core.config import KnoArborConfig
+from knoarbor.core.schemas.ingest_execution import IngestExecutionCommand, IngestExecutionPort
+from knoarbor.core.schemas.ingest_pipeline import IngestPipelineResult
+from knoarbor.pipelines.ingest_auto import AutoIngestPipeline, IndexMetadataExtractor
+from knoarbor.runtime import configure_runtime_logging
+from knoarbor.semantic import build_semantic_runner
+from knoarbor.services.ingest_execution import load_execution_config
+from knoarbor.storage.ingest_inputs import read_input_generation
 
 
 class IngestService:
-    """Runs the high-level ingest pipeline for API callers."""
+    """Pure executor for an already-admitted immutable ingest command."""
 
-    def run_unified(self, request: UnifiedIngestRequest) -> IngestPipelineResult | IngestSourceResult:
-        if request.kind == "document":
-            return self.run_document(request.to_document_request())
-        if request.kind == "excerpt":
-            return self.run_document(request.to_excerpt_request())
-        if request.kind == "file":
-            return self.run_file(request.to_file_request())
-        if request.kind == "folder":
-            return self.run_folder(request.to_folder_request())
-        return self.run(request.to_connectors_request())
+    def run_generation_command(
+        self,
+        command: IngestExecutionCommand,
+        *,
+        execution: IngestExecutionPort,
+    ) -> IngestPipelineResult:
+        config = _load_runtime_config(command)
+        generation = read_input_generation(config.vault.path, command.generation_id)
+        concurrency = _execution_concurrency(command)
+        pipeline = _build_auto_ingest_pipeline(
+            config,
+            command.provider,
+            max_provider_requests=concurrency["max_concurrent_provider_requests"],
+        )
+        return pipeline.run_generation(
+            generation.documents,
+            resolver_failures=generation.failures,
+            vault_path=config.vault.path,
+            write=command.write,
+            privacy_config=config.privacy,
+            segmentation_config=config.ingest.segmentation,
+            max_concurrent_segments=concurrency["max_concurrent_segments"],
+            initial_concurrent_segments=concurrency["initial_concurrent_requests"],
+            write_report=command.write_report,
+            append_ledger=command.append_ledger,
+            max_tokens=command.max_tokens,
+            execution=execution,
+        )
 
-    def run(self, request: IngestRunRequest) -> IngestPipelineResult:
-        config: KnoArborConfig | None = None
-        try:
-            config = _load_runtime_config(request.config_path, vault_path=request.vault_path, vault_id=request.vault_id)
-            pipeline = _build_ingest_pipeline(config, request.provider)
-            return pipeline.run(
-                config,
-                connector_names=request.connector_names,
-                write=request.write,
-                max_tokens=config.models.resolve_max_tokens(request.provider, request.max_tokens),
-                write_report=request.write_report,
-                append_ledger=request.append_ledger,
-                force_reprocess=request.force_reprocess,
-            )
-        except Exception as exc:
-            _write_failure_artifacts(request, exc, config=config)
-            raise
+    def validate_generation_command(self, command: IngestExecutionCommand) -> None:
+        """Validate the runtime contract before a durable attempt is claimed."""
 
-    def run_document(self, request: IngestDocumentRunRequest) -> IngestSourceResult:
-        config: KnoArborConfig | None = None
-        try:
-            config = _load_runtime_config(request.config_path, vault_path=request.vault_path, vault_id=request.vault_id)
-            vault_path = config.vault.path
-            pipeline = _build_ingest_pipeline(config, request.provider)
-            return pipeline.run_document(
-                request.source_document,
-                vault_path=vault_path,
-                write=request.write,
-                max_tokens=config.models.resolve_max_tokens(request.provider, request.max_tokens),
-                privacy_config=config.privacy,
-                write_report=request.write_report,
-                append_ledger=request.append_ledger,
-                auto_scoped_lint=request.auto_scoped_lint if request.auto_scoped_lint is not None else config.ingest.auto_scoped_lint,
-                auto_apply_safe_lint_fixes=(
-                    request.auto_apply_safe_lint_fixes
-                    if request.auto_apply_safe_lint_fixes is not None
-                    else config.ingest.auto_apply_safe_lint_fixes
-                ),
-                scoped_lint_include_related=(
-                    request.scoped_lint_include_related
-                    if request.scoped_lint_include_related is not None
-                    else config.lint.scoped_include_related
-                ),
-                segmentation_config=config.ingest.segmentation,
-            )
-        except Exception as exc:
-            _write_failure_artifacts(request, exc, config=config)
-            raise
-
-    def run_file(self, request: IngestFileRunRequest) -> IngestPipelineResult:
-        config: KnoArborConfig | None = None
-        try:
-            config = _load_runtime_config(request.config_path, vault_path=request.vault_path, vault_id=request.vault_id)
-            markdown_path, processing_result = DocumentProcessingPipeline().prepare_input_file(config, Path(request.input_path))
-            file_config = _markdown_files_config(config, [markdown_path])
-            pipeline = _build_ingest_pipeline(file_config, request.provider)
-            return pipeline.run(
-                file_config,
-                connector_names=["markdown"],
-                write=request.write,
-                max_tokens=config.models.resolve_max_tokens(request.provider, request.max_tokens),
-                write_report=request.write_report,
-                append_ledger=request.append_ledger,
-                document_processing_result=processing_result,
-                force_reprocess=request.force_reprocess,
-            )
-        except Exception as exc:
-            _write_failure_artifacts(request, exc, config=config)
-            raise
-
-    def run_folder(self, request: IngestFolderRunRequest) -> IngestPipelineResult:
-        config: KnoArborConfig | None = None
-        try:
-            config = _load_runtime_config(request.config_path, vault_path=request.vault_path, vault_id=request.vault_id)
-            markdown_paths, processing_result = DocumentProcessingPipeline().prepare_input_folder(
-                config,
-                Path(request.input_path),
-                recursive=request.recursive,
-                markdown_only=_is_markdown_only_folder_request(request),
-            )
-            folder_config = _markdown_files_config(config, markdown_paths)
-            pipeline = _build_ingest_pipeline(folder_config, request.provider)
-            return pipeline.run(
-                folder_config,
-                connector_names=["markdown"],
-                write=request.write,
-                max_tokens=config.models.resolve_max_tokens(request.provider, request.max_tokens),
-                write_report=request.write_report,
-                append_ledger=request.append_ledger,
-                document_processing_result=processing_result,
-                force_reprocess=request.force_reprocess,
-            )
-        except Exception as exc:
-            _write_failure_artifacts(request, exc, config=config)
-            raise
+        _load_runtime_config(command)
 
 
-def _load_runtime_config(config_path: str | None, *, vault_path: str | None = None, vault_id: str | None = None) -> KnoArborConfig:
-    config = load_config(config_path or default_config_path())
-    config = select_config_vault(config, vault_path=vault_path, vault_id=vault_id)
+def _load_runtime_config(command: IngestExecutionCommand) -> KnoArborConfig:
+    config = load_execution_config(command)
     configure_runtime_logging(config.vault.path)
     return config
 
 
-def _build_ingest_pipeline(config: KnoArborConfig, provider_name: str | None) -> IngestPipeline:
-    return IngestPipeline(
-        build_ingest_semantic_workflow(config, provider_name),
-        semantic_workflow_factory=lambda: build_ingest_semantic_workflow(config, provider_name),
-        context_provider=IngestContextProvider(
-            candidate_limit=config.ingest.candidate_limit,
-            materialized_page_limit=config.ingest.materialized_page_limit,
-            max_chars_per_page=config.ingest.max_chars_per_materialized_page,
-        ),
-    )
-
-
-def _write_failure_artifacts(
-    request: IngestRunRequest | IngestDocumentRunRequest | IngestFileRunRequest | IngestFolderRunRequest,
-    exc: BaseException,
+def _build_auto_ingest_pipeline(
+    config: KnoArborConfig,
+    provider_name: str | None,
     *,
-    config: KnoArborConfig | None = None,
-    vault_path: Path | None = None,
-) -> None:
-    write_workflow_failure_artifacts(
-        flow="ingest",
-        request=request,
-        exc=exc,
-        logger=logger,
-        config=config,
-        vault_path=vault_path,
-    )
-
-
-def _markdown_files_config(config: KnoArborConfig, markdown_paths: list[Path]) -> KnoArborConfig:
-    if not markdown_paths:
-        raise UserInputError("No Markdown files were found or produced for this ingest input.")
-    document_processing = config.document_processing.model_copy(
-        update={"mineru": config.document_processing.mineru.model_copy(update={"enabled": False})}
-    )
-    resolved_paths = [str(path.expanduser().resolve()) for path in markdown_paths]
-    connectors = {
-        "markdown": ConnectorConfig(
-            enabled=True,
-            settings={
-                "roots": resolved_paths,
-                "pattern": "*",
-                "recursive": False,
-            },
+    max_provider_requests: int,
+) -> AutoIngestPipeline:
+    return AutoIngestPipeline(
+        extractor=IndexMetadataExtractor(
+            build_semantic_runner(config, provider_name),
+            max_provider_requests=max_provider_requests,
+            vault_path=config.vault.path,
         )
+    )
+
+
+def _execution_concurrency(command: IngestExecutionCommand) -> dict[str, int]:
+    ingest = command.execution_contract.get("ingest")
+    ingest_payload = ingest if isinstance(ingest, dict) else {}
+    concurrency = ingest_payload.get("concurrency")
+    payload = concurrency if isinstance(concurrency, dict) else {}
+    ceiling = max(1, int(payload.get("max_concurrent_segments") or 1))
+    provider_ceiling = max(1, int(payload.get("max_concurrent_provider_requests") or ceiling))
+    initial = max(1, min(int(payload.get("initial_concurrent_requests") or 1), ceiling, provider_ceiling))
+    return {
+        "initial_concurrent_requests": initial,
+        "max_concurrent_segments": min(ceiling, provider_ceiling),
+        "max_concurrent_provider_requests": provider_ceiling,
     }
-    return config.model_copy(update={"connectors": connectors, "document_processing": document_processing})
-
-
-def _is_markdown_only_folder_request(request: IngestFolderRunRequest) -> bool:
-    requested = set(request.connector_names or [])
-    return requested == {"markdown"}

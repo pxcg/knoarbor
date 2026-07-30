@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from knoarbor.core.config import KnoArborConfig
 from knoarbor.core.errors import UserInputError
-from knoarbor.semantic.ingest_workflow import IngestSemanticWorkflow
 from knoarbor.semantic.lint_workflow import LintSemanticWorkflow
 from knoarbor.semantic.llm import ModelGateway
 from knoarbor.semantic.runner import SemanticRetryPolicy, SemanticRunner
@@ -29,10 +28,6 @@ def build_semantic_runner(config: KnoArborConfig, provider_name: str | None = No
             retryable_error_codes=frozenset(config.models.retry.retryable_error_codes),
         ),
     )
-
-
-def build_ingest_semantic_workflow(config: KnoArborConfig, provider_name: str | None = None) -> IngestSemanticWorkflow:
-    return IngestSemanticWorkflow(build_semantic_runner(config, provider_name))
 
 
 def build_lint_semantic_workflow(config: KnoArborConfig, provider_name: str | None = None) -> LintSemanticWorkflow:

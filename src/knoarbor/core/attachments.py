@@ -6,12 +6,14 @@ import mimetypes
 from pathlib import Path
 import re
 from typing import Any
+from urllib.parse import unquote
 
 
 ATTACHMENT_SIDECAR_SCHEMA = "knoarbor.attachments.v1"
 IMAGE_SUFFIXES = {".apng", ".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"}
 
 _MARKDOWN_IMAGE_RE = re.compile(r"!\[(?P<alt>[^\]]*)\]\((?P<target>[^)\s]+)(?:\s+\"[^\"]*\")?\)")
+_OBSIDIAN_IMAGE_RE = re.compile(r"!\[\[(?P<target>[^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]")
 _DETAILS_RE = re.compile(
     r"^\s*<details>\s*<summary>(?P<summary>[^<]*)</summary>\s*(?P<body>.*?)</details>",
     flags=re.DOTALL | re.IGNORECASE,
@@ -56,7 +58,13 @@ def write_attachment_sidecar(markdown_path: Path, attachments: list[dict[str, An
     )
 
 
-def discover_markdown_image_attachments(markdown_path: Path, markdown: str | None = None, *, base_dir: Path | None = None) -> list[dict[str, Any]]:
+def discover_markdown_image_attachments(
+    markdown_path: Path,
+    markdown: str | None = None,
+    *,
+    base_dir: Path | None = None,
+    source_root: Path | None = None,
+) -> list[dict[str, Any]]:
     text = markdown if markdown is not None else markdown_path.read_text(encoding="utf-8")
     attachments: list[dict[str, Any]] = []
     for match in _MARKDOWN_IMAGE_RE.finditer(text):
@@ -68,6 +76,7 @@ def discover_markdown_image_attachments(markdown_path: Path, markdown: str | Non
             continue
         context = _markdown_image_context(text, match.start(), match.end())
         metadata = {key: value for key, value in context.items() if value}
+        metadata["markdown_target"] = target
         alt = match.group("alt").strip()
         description = alt or str(metadata.get("mineru_description") or metadata.get("caption") or "")
         attachments.append(
@@ -77,6 +86,25 @@ def discover_markdown_image_attachments(markdown_path: Path, markdown: str | Non
                 name=target_path.name,
                 description=description,
                 source="markdown_image_link",
+                metadata=metadata,
+            )
+        )
+    for match in _OBSIDIAN_IMAGE_RE.finditer(text):
+        target = match.group("target").strip()
+        target_path = _resolve_obsidian_target(markdown_path, target, source_root=source_root)
+        if target_path is None:
+            continue
+        context = _markdown_image_context(text, match.start(), match.end())
+        metadata = {key: value for key, value in context.items() if value}
+        metadata["obsidian_target"] = target
+        description = str(metadata.get("mineru_description") or metadata.get("caption") or "")
+        attachments.append(
+            normalize_attachment(
+                target_path,
+                base_dir=base_dir or source_root or markdown_path.parent,
+                name=target_path.name,
+                description=description,
+                source="obsidian_image_embed",
                 metadata=metadata,
             )
         )
@@ -135,8 +163,8 @@ def _markdown_image_context(text: str, start: int, end: int) -> dict[str, str]:
     details_match = _DETAILS_RE.match(after)
     after_details = after
     if details_match:
-        summary = _compact_attachment_text(details_match.group("summary"), limit=80)
-        body = _compact_attachment_text(details_match.group("body"), limit=300)
+        summary = _clean_attachment_text(details_match.group("summary"))
+        body = _clean_attachment_text(details_match.group("body"))
         if summary:
             metadata["sub_type"] = summary
         if body:
@@ -154,7 +182,7 @@ def _markdown_image_context(text: str, start: int, end: int) -> dict[str, str]:
 
 def _first_caption_after(value: str) -> str:
     for line in value.splitlines()[:6]:
-        cleaned = _compact_attachment_text(line, limit=180)
+        cleaned = _clean_attachment_text(line)
         if not cleaned:
             continue
         if _CAPTION_RE.match(cleaned):
@@ -168,18 +196,15 @@ def _first_caption_after(value: str) -> str:
 def _nearest_caption_before(value: str) -> str:
     lines = value.splitlines()
     for line in reversed(lines[-6:]):
-        cleaned = _compact_attachment_text(line, limit=180)
+        cleaned = _clean_attachment_text(line)
         if cleaned and _CAPTION_RE.match(cleaned):
             return cleaned
     return ""
 
 
-def _compact_attachment_text(value: str, *, limit: int) -> str:
+def _clean_attachment_text(value: str) -> str:
     text = re.sub(r"<[^>]+>", " ", value or "")
-    text = re.sub(r"\s+", " ", text).strip()
-    if len(text) <= limit:
-        return text
-    return text[: limit - 1].rstrip() + "…"
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def _resolve_markdown_target(markdown_path: Path, target: str) -> Path | None:
@@ -190,6 +215,35 @@ def _resolve_markdown_target(markdown_path: Path, target: str) -> Path | None:
     if not path.is_absolute():
         path = markdown_path.parent / path
     return path.expanduser().resolve() if path.exists() and path.is_file() else None
+
+
+def _resolve_obsidian_target(markdown_path: Path, target: str, *, source_root: Path | None) -> Path | None:
+    cleaned = unquote(target).replace("\\", "/").strip().lstrip("/")
+    if not cleaned:
+        return None
+    root = (source_root or markdown_path.parent).expanduser().resolve()
+    if root.is_file():
+        root = root.parent
+    relative = Path(cleaned)
+    candidates: list[Path] = []
+    direct_candidates = [markdown_path.parent / relative, root / relative]
+    if len(relative.parts) == 1 and root.is_dir():
+        direct_candidates.extend(root.rglob(relative.name))
+    for candidate in direct_candidates:
+        resolved = candidate.expanduser().resolve()
+        if resolved in candidates or not _is_path_under_root(resolved, root):
+            continue
+        if resolved.is_file() and _is_image_path(resolved):
+            candidates.append(resolved)
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def _is_path_under_root(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
 
 
 def _is_remote_or_embedded(target: str) -> bool:

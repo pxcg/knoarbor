@@ -14,9 +14,8 @@ from knoarbor.semantic.llm import (
     ProviderHealthCheck,
     ProviderModelDiscovery,
 )
-from knoarbor.semantic.ingest_workflow import IngestSemanticWorkflow, IngestSemanticWorkflowResult
 from knoarbor.semantic.lint_workflow import LintSemanticWorkflow
-from knoarbor.semantic.factory import build_ingest_semantic_workflow, build_lint_semantic_workflow, build_semantic_runner
+from knoarbor.semantic.factory import build_lint_semantic_workflow, build_semantic_runner
 from knoarbor.semantic.runner import (
     SemanticPromptPackage,
     SemanticRetryPolicy,
@@ -25,7 +24,6 @@ from knoarbor.semantic.runner import (
     build_semantic_prompt_package,
     parse_contract_output,
 )
-from knoarbor.semantic.source_normalize import build_source_normalize_input
 
 __all__ = [
     "ChatClient",
@@ -33,8 +31,6 @@ __all__ = [
     "ChatCompletionResponse",
     "ChatCompletionStreamChunk",
     "ChatMessage",
-    "IngestSemanticWorkflow",
-    "IngestSemanticWorkflowResult",
     "LintSemanticWorkflow",
     "ModelGateway",
     "OllamaNativeChatClient",
@@ -47,11 +43,9 @@ __all__ = [
     "SemanticRetryPolicy",
     "SemanticRunResult",
     "SemanticRunner",
-    "build_ingest_semantic_workflow",
     "build_lint_semantic_workflow",
     "build_semantic_runner",
     "build_semantic_prompt_package",
-    "build_source_normalize_input",
     "load_prompt",
     "load_semantic_contract",
     "parse_contract_output",

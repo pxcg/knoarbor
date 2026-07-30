@@ -81,6 +81,44 @@ class MarkdownConnectorTests(unittest.TestCase):
             ["images/linked.png", "images/sidecar.png"],
         )
 
+    def test_to_document_resolves_unique_obsidian_image_from_source_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            note = root / "notes" / "paper.md"
+            image = root / "assets" / "image 15.png"
+            note.parent.mkdir()
+            image.parent.mkdir()
+            note.write_text("# Paper\n\n![[image 15.png]]\n\n[[Related Page]]", encoding="utf-8")
+            image.write_bytes(b"image")
+            connector = MarkdownConnector()
+            config = ConnectorConfig(settings={"roots": [str(root)], "recursive": True})
+            ref = next(ref for ref in connector.discover(config) if ref.display_name == "paper.md")
+
+            document = connector.to_document(connector.fetch(ref, config), config)
+
+        self.assertEqual(document.metadata["attachment_count"], 1)
+        attachment = document.content.attachments[0]
+        self.assertEqual(attachment["relative_path"], "assets/image 15.png")
+        self.assertEqual(attachment["source"], "obsidian_image_embed")
+        self.assertEqual(attachment["metadata"]["obsidian_target"], "image 15.png")
+
+    def test_to_document_rejects_ambiguous_obsidian_image_name(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            note = root / "paper.md"
+            note.write_text("![[diagram.png]]", encoding="utf-8")
+            for directory in (root / "a", root / "b"):
+                directory.mkdir()
+                (directory / "diagram.png").write_bytes(directory.name.encode())
+            connector = MarkdownConnector()
+            config = ConnectorConfig(settings={"roots": [str(root)], "recursive": True})
+            ref = next(ref for ref in connector.discover(config) if ref.display_name == "paper.md")
+
+            document = connector.to_document(connector.fetch(ref, config), config)
+
+        self.assertEqual(document.metadata["attachment_count"], 0)
+        self.assertEqual(document.content.attachments, [])
+
     def test_discovers_mineru_markdown_image_caption_and_details(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -108,6 +146,19 @@ class MarkdownConnectorTests(unittest.TestCase):
         self.assertEqual(attachment["metadata"]["topic"], "图2 AC1 激光雷达 FOV 分布图")
         self.assertEqual(attachment["metadata"]["caption"], "图2 AC1 激光雷达 FOV 分布图")
         self.assertEqual(attachment["metadata"]["sub_type"], "natural_image")
+
+    def test_attachment_description_is_not_character_truncated(self) -> None:
+        description = "完整图像描述" * 80
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            image = root / "figure.png"
+            image.write_bytes(b"image")
+            path = root / "paper.md"
+            markdown = f"![](figure.png)\n<details><summary>diagram</summary>{description}</details>\n"
+            path.write_text(markdown, encoding="utf-8")
+            attachments = discover_markdown_image_attachments(path, markdown, base_dir=root)
+
+        self.assertEqual(attachments[0]["description"], description)
 
     def test_derived_markdown_sidecar_uses_raw_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

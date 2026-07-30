@@ -76,7 +76,7 @@ local files and does not start ingest.
 ```bash
 curl -sS -X POST "$KNOARBOR_BASE_URL/query" \
   -H 'Content-Type: application/json' \
-  -d "{\"query\":\"agent loop\",\"vault_path\":\"$KNOARBOR_VAULT_PATH\",\"mode\":\"balanced\",\"max_results\":6,\"include_related\":true,\"caller\":\"generic-skill\"}"
+  -d "{\"query\":\"agent loop\",\"vault_path\":\"$KNOARBOR_VAULT_PATH\",\"caller\":\"generic-skill\"}"
 ```
 
 Query all configured vaults:
@@ -84,7 +84,7 @@ Query all configured vaults:
 ```bash
 curl -sS -X POST "$KNOARBOR_BASE_URL/query" \
   -H 'Content-Type: application/json' \
-  -d "{\"query\":\"agent loop\",\"config_path\":\"$KNOARBOR_CONFIG_PATH\",\"all_vaults\":true,\"mode\":\"balanced\",\"max_results\":6,\"include_related\":true,\"caller\":\"generic-skill\"}"
+  -d "{\"query\":\"agent loop\",\"config_path\":\"$KNOARBOR_CONFIG_PATH\",\"all_vaults\":true,\"caller\":\"generic-skill\"}"
 ```
 
 Query selected configured vaults:
@@ -92,7 +92,7 @@ Query selected configured vaults:
 ```bash
 curl -sS -X POST "$KNOARBOR_BASE_URL/query" \
   -H 'Content-Type: application/json' \
-  -d "{\"query\":\"agent loop\",\"config_path\":\"$KNOARBOR_CONFIG_PATH\",\"vault_ids\":[\"personal\",\"team\"],\"mode\":\"balanced\",\"max_results\":6,\"include_related\":true,\"caller\":\"generic-skill\"}"
+  -d "{\"query\":\"agent loop\",\"config_path\":\"$KNOARBOR_CONFIG_PATH\",\"vault_ids\":[\"personal\",\"team\"],\"caller\":\"generic-skill\"}"
 ```
 
 ## List Pages
@@ -176,7 +176,7 @@ Ingest is a write workflow and targets one vault per request. Use
 ```bash
 curl -sS -X POST "$KNOARBOR_BASE_URL/lint" \
   -H 'Content-Type: application/json' \
-  -d "{\"execution\":\"queued\",\"config_path\":\"$KNOARBOR_CONFIG_PATH\",\"vault_id\":\"personal\",\"mode\":\"semantic\",\"apply_safe_fixes\":true,\"auto_apply_reviewed_changes\":true,\"write_report\":true,\"scope\":{\"schema_version\":\"maintenance_scope.v1\",\"scope_id\":\"skill:http\",\"trigger\":\"manual\",\"source\":{\"kind\":\"skill\"},\"changed_pages\":[],\"recommended_lint_modes\":[\"semantic\"],\"reason\":\"Manual maintenance run from KnoArbor skill.\"}}"
+  -d "{\"execution\":\"queued\",\"config_path\":\"$KNOARBOR_CONFIG_PATH\",\"vault_id\":\"personal\",\"mode\":\"semantic\",\"write_report\":true,\"scope\":{\"schema_version\":\"maintenance_scope.v1\",\"scope_id\":\"skill:http\",\"trigger\":\"manual\",\"source\":{\"kind\":\"skill\"},\"changed_pages\":[],\"recommended_lint_modes\":[\"semantic\"],\"reason\":\"Manual maintenance run from KnoArbor skill.\"}}"
 ```
 
 Lint is also write-capable and targets one vault per request.
