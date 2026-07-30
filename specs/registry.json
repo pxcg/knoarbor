@@ -1,0 +1,28 @@
+{
+  "schema_version": "knoarbor_spec_registry.v1",
+  "lifecycles": ["Proposed", "Accepted", "Implemented", "Superseded", "Historical"],
+  "specs": [
+    {"id":"1.3","path":"1.3-source-ecosystem","title":"Source Ecosystem","lifecycle":"Accepted","owner":"source connectors, catalog, and preflight"},
+    {"id":"1.4","path":"1.4-machine-index-layer","title":"Machine Index Layer","lifecycle":"Accepted","owner":"machine index publication, retrieval, and rebuild contracts"},
+    {"id":"1.5","path":"1.5-knowledge-governance","title":"Knowledge Governance","lifecycle":"Accepted","owner":"lint and maintenance operations"},
+    {"id":"1.6","path":"1.6-productized-console","title":"Productized Console","lifecycle":"Accepted","owner":"console product interaction"},
+    {"id":"1.7","path":"1.7-cli-api-skill-closure","title":"CLI API Skill Closure","lifecycle":"Accepted","owner":"public CLI API and skill parity"},
+    {"id":"1.8","path":"1.8-model-capability-probe","title":"Model Capability Probe","lifecycle":"Accepted","owner":"model capability detection"},
+    {"id":"1.9","path":"1.9-vault-workspaces","title":"Vault Workspaces","lifecycle":"Accepted","owner":"vault identity and selection"},
+    {"id":"1.10","path":"1.10-wiki-chat-agent","title":"Wiki Chat Agent","lifecycle":"Accepted","owner":"chat workflow"},
+    {"id":"1.11","path":"1.11-chat-memory","title":"Chat Memory","lifecycle":"Accepted","owner":"chat memory"},
+    {"id":"1.12","path":"1.12-response-evidence-selection","title":"Response Evidence Selection","lifecycle":"Accepted","owner":"page-level chat evidence selection"},
+    {"id":"1.13","path":"1.13-knowledge-atom-ingest","title":"Knowledge Atom Ingest","lifecycle":"Accepted","owner":"evidence-backed knowledge atom ingest"},
+    {"id":"1.15","path":"1.15-desktop-app","title":"Desktop App","lifecycle":"Accepted","owner":"desktop shell, packaging, and local runtime integration"},
+    {"id":"1.17","path":"1.17-vault-layout-v2","title":"Vault Layout v2","lifecycle":"Accepted","owner":"physical vault layout"},
+    {"id":"1.18","path":"1.18-chat-response-style-prompt-governance","title":"Chat Response Style Prompt Governance","lifecycle":"Accepted","owner":"chat response prompt governance"},
+    {"id":"1.19","path":"1.19-desktop-config-ipc","title":"Desktop Config IPC","lifecycle":"Accepted","owner":"desktop configuration IPC"},
+    {"id":"1.20","path":"1.20-desktop-first-transition","title":"Desktop First Transition","lifecycle":"Implemented","owner":"desktop runtime transition"},
+    {"id":"1.42","path":"1.42-public-product-line-convergence","title":"Public Product Line Convergence","lifecycle":"Accepted","owner":"public-safe convergence, product identity authority, and upstream/downstream governance"}
+  ],
+  "reserved_ids": {
+    "1.14": "Superseded design line represented by 1.17.",
+    "1.16": "Unused; reserved to preserve historical numbering.",
+    "1.21-1.41": "Reserved for accepted SieArbor-era contract lines that may be ported only through public-safe owner review."
+  }
+}

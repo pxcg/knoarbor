@@ -1,6 +1,7 @@
 import type { ConfigSummary, VaultListResponse, VaultSelector } from "./api/client";
 import type { ReportSummary, UiStatusResponse } from "./api/client";
 import type { RunRecord } from "./types";
+import { productIdentity } from "./product";
 
 export type VaultOption = {
   id: string;
@@ -40,7 +41,7 @@ export function buildVaultOptions(summary: ConfigSummary, registry?: VaultListRe
   return [
     {
       id: summary.vault_id || "default",
-      name: summary.vault_name || summary.project_name || "KnoArbor",
+      name: summary.vault_name || summary.project_name || productIdentity.defaultVaultName,
       path: summary.vault_path || "./vaults/default",
     },
   ];
@@ -53,7 +54,7 @@ export function resolveActiveVault(options: VaultOption[], preferredId: string, 
     options.find((vault) => vault.id === summary.vault_id) ||
     options[0] || {
       id: summary.vault_id || "default",
-      name: summary.vault_name || summary.project_name || "KnoArbor",
+      name: summary.vault_name || summary.project_name || productIdentity.defaultVaultName,
       path: summary.vault_path || "./vaults/default",
     }
   );
@@ -86,7 +87,7 @@ export function concreteVaultOptions(options: VaultOption[]): VaultOption[] {
 export function readableVaultName(id: string, name?: string): string {
   if (name?.trim()) return name.trim();
   if (id === "all") return "All vaults";
-  return id || "KnoArbor";
+  return id || productIdentity.defaultVaultName;
 }
 
 export function resolveConcreteVault(options: VaultOption[], preferredId: string, summary: ConfigSummary): VaultOption {

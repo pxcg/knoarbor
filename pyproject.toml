@@ -53,7 +53,7 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-"knoarbor" = ["config.example.yaml"]
+"knoarbor" = ["config.example.yaml", "product_manifest.json"]
 "knoarbor.examples" = ["*.md"]
 "knoarbor.semantic.prompts" = ["*.md"]
 

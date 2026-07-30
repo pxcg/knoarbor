@@ -45,6 +45,7 @@ tests, and release notes.
 | 1.14.x | Superseded by [Vault Layout v2](1.17-vault-layout-v2/requirements.md) | Canonical `raw/`, `wiki/pages`, `wiki/sources`, `maintenance/`, and `.knoarbor/` layout with no typed physical page directories. |
 | 1.15.x | [Desktop App](1.15-desktop-app/requirements.md) | Electron desktop surface, managed Python service lifecycle, desktop renderer loading, intranet updates, and desktop app-data boundaries. |
 | 1.20.x | [Desktop-First Transition](1.20-desktop-first-transition/requirements.md) | Desktop as the official product entry, renderer/runtime ownership, IPC allowlist, and retirement of web-product surfaces. |
+| 1.42.x | [Public Product Line Convergence](1.42-public-product-line-convergence/requirements.md) | Public-safe capability convergence, canonical product identity, compatibility classification, and public-upstream/private-downstream governance. |
 
 Desktop App product shape:
 [Chat-first desktop product shape](1.15-desktop-app/product-shape.md).

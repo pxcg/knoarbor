@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 
@@ -31,11 +29,12 @@ from knoarbor.entrypoints.routers import (
     create_vaults_router,
     create_wiki_router,
 )
+from knoarbor.product import PRODUCT, product_env
 from knoarbor.services import ApplicationServices
 
 
 def create_app(services: ApplicationServices | None = None) -> FastAPI:
-    app = FastAPI(title="KnoArbor Processing Service", version=__version__)
+    app = FastAPI(title=PRODUCT.service_title, version=__version__)
     services = services or ApplicationServices()
     app.add_exception_handler(KnoArborError, knoarbor_error_handler)
     app.add_exception_handler(ValueError, value_error_handler)
@@ -56,5 +55,5 @@ def create_app(services: ApplicationServices | None = None) -> FastAPI:
     app.include_router(create_sources_router(services))
     app.include_router(create_vaults_router(services))
     app.include_router(create_wiki_router(services))
-    app.include_router(create_ui_router(include_static=os.environ.get("KNOARBOR_DESKTOP") != "1"))
+    app.include_router(create_ui_router(include_static=product_env("DESKTOP") != "1"))
     return app

@@ -4,6 +4,7 @@ import { createWriteStream, existsSync, mkdirSync, writeFileSync } from "node:fs
 import { createServer } from "node:net";
 import { dirname, isAbsolute, join } from "node:path";
 import type { DesktopAppServerConfig } from "./config.js";
+import { desktopProduct, productEnvName } from "./product.js";
 import type { DesktopServiceState } from "../preload/types.js";
 
 type StateListener = (state: DesktopServiceState) => void;
@@ -42,7 +43,7 @@ export class DesktopServiceManager {
         endpoint: config.url,
         lastError: healthy
           ? undefined
-          : `External KnoArbor service is not healthy: ${config.url}`,
+          : `External ${desktopProduct.name} service is not healthy: ${config.url}`,
         mode: "external",
         startedAt,
         status: healthy ? "healthy" : "failed",
@@ -102,10 +103,10 @@ export class DesktopServiceManager {
     ];
     const env = {
       ...process.env,
-      KNOARBOR_CONFIG_PATH: config.configPath,
-      KNOARBOR_DESKTOP: "1",
-      KNOARBOR_LOG_DIR: logDir,
-      KNOARBOR_STATE_DIR: stateDir,
+      [productEnvName("CONFIG_PATH")]: config.configPath,
+      [productEnvName("DESKTOP")]: "1",
+      [productEnvName("LOG_DIR")]: logDir,
+      [productEnvName("STATE_DIR")]: stateDir,
     };
 
     this.recentOutput = [];
@@ -122,7 +123,7 @@ export class DesktopServiceManager {
       stateDir,
       status: "starting",
     });
-    log.info("Starting KnoArbor managed service", {
+    log.info(`Starting ${desktopProduct.name} managed service`, {
       args,
       configPath: config.configPath,
       endpoint,

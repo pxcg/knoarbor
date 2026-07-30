@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 from importlib.resources import files
 from pathlib import Path
 from typing import Any, Callable, Literal
@@ -9,6 +8,7 @@ from typing import Any, Callable, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from knoarbor.core.errors import ConfigNotFound, InvalidConfig, VaultPathError
+from knoarbor.product import PRODUCT, product_env
 
 SUPPORTED_CONFIG_VERSION = 1
 MIN_CONFIG_VERSION = 1
@@ -27,7 +27,7 @@ class ConfigMigrationError(ValueError):
 
 
 class ProjectConfig(BaseModel):
-    name: str = "KnoArbor"
+    name: str = PRODUCT.default_vault_name
     host_project_root: Path = Path(".")
 
     @field_validator("host_project_root")
@@ -347,7 +347,7 @@ class KnoArborConfig(BaseModel):
 
 
 def default_config_path(start: str | Path | None = None) -> Path:
-    env_config = os.environ.get("KNOARBOR_CONFIG_PATH")
+    env_config = product_env("CONFIG_PATH")
     if env_config:
         return Path(env_config).expanduser().resolve()
     root = _find_project_root(Path(start or Path.cwd()).resolve())

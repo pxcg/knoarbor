@@ -13,6 +13,7 @@ multiple future releases.
 | --- | --- | --- |
 | [0001 Knowledge Atom Ingest](0001-knowledge-atom-ingest.md) | Accepted | Ingest produces evidence-backed knowledge atoms; Markdown wiki pages are readable projections of atoms, claims, relations, and evidence. |
 | [0002 Canonical Wiki Layout And Graph Index](0002-unified-page-namespace.md) | Accepted | Knowledge pages live under `wiki/pages/`, source digests live under `wiki/sources/`, and graph/index data lives under `.knoarbor/index/`. |
+| [0022 Public Upstream And Private Product Downstream](0022-public-upstream-private-downstream.md) | Accepted | Reusable behavior is owned by public KnoArbor and flows one way into private product overlays; private history never becomes public ancestry. |
 
 ## ADR Rules
 

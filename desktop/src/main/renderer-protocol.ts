@@ -2,9 +2,10 @@ import { net, protocol } from "electron";
 import { existsSync, statSync } from "node:fs";
 import { isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { desktopProduct } from "./product.js";
 
-const RENDERER_SCHEME = "knoarbor";
-const RENDERER_HOST = "renderer";
+const RENDERER_SCHEME = desktopProduct.rendererScheme;
+const RENDERER_HOST = desktopProduct.rendererHost;
 
 type RendererProtocolOptions = {
   assetsRoot: string;
@@ -39,7 +40,7 @@ async function handleRendererRequest(
 ): Promise<Response> {
   const url = new URL(request.url);
   if (url.host !== RENDERER_HOST) {
-    return new Response("Unknown KnoArbor desktop host.", { status: 404 });
+    return new Response(`Unknown ${desktopProduct.name} desktop host.`, { status: 404 });
   }
 
   const asset = resolveStaticAsset(options.assetsRoot, url.pathname);
@@ -49,7 +50,7 @@ async function handleRendererRequest(
 
   const endpoint = options.getServiceEndpoint();
   if (!endpoint) {
-    return new Response("KnoArbor local service is not available.", { status: 503 });
+    return new Response(`${desktopProduct.name} local service is not available.`, { status: 503 });
   }
   const target = new URL(`${url.pathname}${url.search}`, endpoint);
   return net.fetch(new Request(target.toString(), request as RequestInit), {

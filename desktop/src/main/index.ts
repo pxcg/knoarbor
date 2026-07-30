@@ -16,6 +16,7 @@ import {
 } from "./renderer-protocol.js";
 import { DesktopServiceManager } from "./service-manager.js";
 import { DesktopWindowManager } from "./window-manager.js";
+import { desktopProduct } from "./product.js";
 
 configureDesktopUserDataPath();
 registerRendererProtocolScheme();
@@ -49,7 +50,7 @@ async function startDesktopApp(): Promise<void> {
     app.dock.setIcon(appIcon);
   }
   ensureDesktopBootstrapConfig(config.appServer);
-  installDesktopMenu({ githubUrl: "https://github.com/pxcg/knoarbor" });
+  installDesktopMenu({ githubUrl: desktopProduct.helpUrl });
 
   app.on("browser-window-created", (_, window) => {
     optimizer.watchWindowShortcuts(window);

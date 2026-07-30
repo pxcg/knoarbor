@@ -8,9 +8,9 @@ import {
 } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { desktopProduct, productEnv } from "./product.js";
 
 const DEFAULT_HOST = "127.0.0.1";
-const PRODUCT_APP_DATA_DIR = "KnoArbor";
 const LEGACY_APP_DATA_PARTS = ["@knoarbor", "desktop"];
 
 export type DesktopAppServerConfig =
@@ -39,20 +39,20 @@ export type DesktopAppConfig = {
 export function resolveDesktopAppConfig(): DesktopAppConfig {
   return {
     appServer: resolveAppServerConfig(),
-    appUserModelId: "com.knoarbor.desktop",
+    appUserModelId: desktopProduct.appUserModelId,
     rendererAssetsRoot: resolveRendererAssetsRoot(),
   };
 }
 
 export function configureDesktopUserDataPath(): string {
-  const override = process.env.KNOARBOR_DESKTOP_APP_DATA_ROOT?.trim();
+  const override = productEnv("DESKTOP_APP_DATA_ROOT");
   if (override) {
     app.setPath("userData", override);
     return override;
   }
 
   const appDataRoot = app.getPath("appData");
-  const targetRoot = join(appDataRoot, PRODUCT_APP_DATA_DIR);
+  const targetRoot = join(appDataRoot, desktopProduct.appDataDir);
   const legacyRoot = join(appDataRoot, ...LEGACY_APP_DATA_PARTS);
   migrateLegacyUserData(legacyRoot, targetRoot);
   app.setPath("userData", targetRoot);
@@ -60,27 +60,27 @@ export function configureDesktopUserDataPath(): string {
 }
 
 function resolveAppServerConfig(): DesktopAppServerConfig {
-  const externalUrl = process.env.KNOARBOR_DESKTOP_APP_SERVER_URL?.trim();
+  const externalUrl = productEnv("DESKTOP_APP_SERVER_URL");
   if (externalUrl) {
     return { mode: "external", url: externalUrl };
   }
 
   const appDataRoot =
-    process.env.KNOARBOR_DESKTOP_APP_DATA_ROOT?.trim() || app.getPath("userData");
+    productEnv("DESKTOP_APP_DATA_ROOT") || app.getPath("userData");
   const configPath = resolveConfigPath(
-    process.env.KNOARBOR_CONFIG_PATH?.trim(),
+    productEnv("CONFIG_PATH"),
     appDataRoot,
   );
   return {
     appDataRoot,
     configPath,
-    host: process.env.KNOARBOR_DESKTOP_APP_SERVER_HOST ?? DEFAULT_HOST,
+    host: productEnv("DESKTOP_APP_SERVER_HOST") ?? DEFAULT_HOST,
     mode: "managed",
-    port: readPort(process.env.KNOARBOR_DESKTOP_APP_SERVER_PORT),
+    port: readPort(productEnv("DESKTOP_APP_SERVER_PORT")),
     serviceArgs: readServiceArgs(app.isPackaged),
     serviceCommand: resolveServiceCommand(app.isPackaged),
     serviceCwd:
-      process.env.KNOARBOR_DESKTOP_SERVICE_CWD?.trim() ||
+      productEnv("DESKTOP_SERVICE_CWD") ||
       (app.isPackaged ? appDataRoot : findRepoRootFromDesktopRoot()),
     rendererAssetsRoot: resolveRendererAssetsRoot(),
   };
@@ -152,11 +152,11 @@ function desktopDefaultConfigYaml(input: {
   const port = input.port > 0 ? input.port : 8000;
   const vaultPath = pathRelativeToConfigDir(input.vaultPath);
   const vaultRelative = (relativePath: string): string => `${vaultPath}/${relativePath}`;
-  return `# KnoArbor Desktop local configuration.
+  return `# ${desktopProduct.name} Desktop local configuration.
 # Model providers use direct API key fields in the settings page.
 
 project:
-  name: My Knowledge Base
+  name: ${desktopProduct.defaultVaultName}
   host_project_root: .
 
 config_version: 1
@@ -165,7 +165,7 @@ vaults:
   default: default
   profiles:
     default:
-      name: My Knowledge Base
+      name: ${desktopProduct.defaultVaultName}
       path: ${quoteYamlString(vaultPath)}
 
 vault:
@@ -380,7 +380,7 @@ function relativePathFromRootToAppData(path: string): string {
 }
 
 function resolveServiceCommand(isPackaged: boolean): string {
-  const explicit = process.env.KNOARBOR_DESKTOP_SERVICE_COMMAND?.trim();
+  const explicit = productEnv("DESKTOP_SERVICE_COMMAND");
   if (explicit) return explicit;
   if (!isPackaged) return "uv";
   const executable = process.platform === "win32" ? "knoar-service.exe" : "knoar-service";
@@ -388,7 +388,7 @@ function resolveServiceCommand(isPackaged: boolean): string {
 }
 
 function readServiceArgs(isPackaged: boolean): string[] {
-  const raw = process.env.KNOARBOR_DESKTOP_SERVICE_ARGS?.trim();
+  const raw = productEnv("DESKTOP_SERVICE_ARGS");
   if (raw) {
     return raw.split(/\s+/).filter(Boolean);
   }

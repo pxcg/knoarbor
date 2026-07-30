@@ -1,0 +1,97 @@
+# Public Product Line Convergence Verification
+
+Status: Accepted
+
+## Baseline And Ancestry
+
+```bash
+git merge-base --is-ancestor company-project/SieArbor HEAD
+test "$?" -eq 1
+git merge-base --is-ancestor origin/main HEAD
+git rev-list --objects origin/main..HEAD
+```
+
+Review every candidate commit and reachable added object. The private branch
+head must not be an ancestor.
+
+## Governance
+
+```bash
+python3 scripts/check-doc-governance.py
+python3 scripts/check-doc-links.py
+git diff --check
+```
+
+The registry, requirements, design, tasks, verification, ADR index, and stable
+owner links must agree.
+
+## Product Identity
+
+Required automated evidence:
+
+- manifest schema rejects missing, unknown, and ill-typed fields;
+- generation is deterministic and `--check` detects drift;
+- Python, Renderer, Electron, and packaging values match the manifest;
+- environment overrides are restricted to documented fields and one prefix;
+- public tree and generated artifacts contain no private product markers.
+
+Focused commands:
+
+```bash
+python3 scripts/generate-product-identity.py --check
+python3 scripts/check-public-product-boundary.py
+uv run --extra dev python -m unittest -q \
+  tests.test_product_identity tests.test_core_config tests.test_ui_api
+npm --prefix renderer run build
+npm --prefix desktop run typecheck
+npm --prefix desktop run test:smoke
+```
+
+## Persisted Migration
+
+Historical fixtures must cover:
+
+- KnoArbor 2.3.1 config and desktop data root;
+- vault layout and source records;
+- completed, failed, and interrupted ingest state;
+- indexes and projections that require deterministic rebuild;
+- chat sessions and citation records.
+
+Each fixture verifies compatibility, idempotent migration, explicit rejection,
+or a declared breaking outcome. Original fixture state must remain recoverable
+after an injected migration failure.
+
+## Domain Closure
+
+Each transfer slice runs its owner tests and direct consumers. The final
+candidate additionally verifies:
+
+- ingest, deletion, reingest, recovery, and deterministic materialization;
+- active-Raw query, graph closure, evidence reads, and exact support spans;
+- Chat retrieval, citations, source/generated images, editing, and persistence;
+- renderer vault switching, Markdown preview, highlights, and user-facing
+  errors;
+- desktop startup, shutdown, upgrade, backup, packaging, and data preservation;
+- API, CLI, config, report, and skill parity.
+
+## Security And Public Leakage
+
+Scan the public tree, candidate history, source archives, renderer output, and
+desktop packages for:
+
+- `SieArbor`, Siemens identifiers, and private product assets;
+- intranet hosts, private update metadata, and private provider defaults;
+- credentials, tokens, local runtime data, and internal-only documentation.
+
+Any intentional historical comparison must be confined to this specification
+or ADR and reviewed before release documentation is generated.
+
+## Release Acceptance
+
+Run the repository's affected planner after it is ported, then execute the
+actual R3 dependency closure. Before release, run clean-clone and source-package
+checks, public macOS/Windows packaging, migration acceptance, and the KnoArbor
+full-chain acceptance workflow.
+
+Record exact commands, commit OID, platform, result, and unresolved residual
+risk before marking the specification Implemented.

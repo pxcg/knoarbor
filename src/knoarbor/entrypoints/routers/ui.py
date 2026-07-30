@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from pathlib import Path
 
@@ -11,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from knoarbor.audit.token_ledger import read_token_analysis
 from knoarbor.core.config import DEFAULT_VAULT_PATH
+from knoarbor.product import product_env
 from knoarbor.services.ui_config import UiConfigService, summarize_default_config
 from knoarbor.services.ui_config_models import (
     UiConfigDiagnostics,
@@ -169,7 +169,7 @@ def _resolve_ui_asset(name: str) -> Path:
 
 
 def _ui_dist_root() -> Path:
-    override = os.environ.get("KNOARBOR_RENDERER_DIST")
+    override = product_env("RENDERER_DIST")
     if override:
         return Path(override).expanduser().resolve()
     return Path(__file__).resolve().parents[4] / "renderer" / "dist"

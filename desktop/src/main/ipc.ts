@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { parse, resolve } from "node:path";
 import type { DesktopAppConfig } from "./config.js";
 import { buildDesktopDiagnostics, getDesktopEnvironment } from "./diagnostics.js";
+import { productEnvName } from "./product.js";
 import type { DesktopServiceManager } from "./service-manager.js";
 
 export function registerDesktopIpc(input: {
@@ -186,7 +187,7 @@ function runJsonCommand(input: {
       cwd: input.cwd,
       env: {
         ...process.env,
-        KNOARBOR_DESKTOP: "1",
+        [productEnvName("DESKTOP")]: "1",
       },
     });
     let stdout = "";

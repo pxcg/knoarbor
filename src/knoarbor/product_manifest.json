@@ -1,0 +1,28 @@
+{
+  "schema_version": "knoarbor.product.v1",
+  "product": {
+    "name": "KnoArbor",
+    "service_title": "KnoArbor Processing Service",
+    "default_vault_name": "KnoArbor"
+  },
+  "environment": {
+    "prefix": "KNOARBOR"
+  },
+  "desktop": {
+    "app_data_dir": "KnoArbor",
+    "app_id": "ai.knoarbor.desktop",
+    "app_user_model_id": "ai.knoarbor.desktop",
+    "renderer_host": "renderer",
+    "renderer_scheme": "knoarbor"
+  },
+  "renderer": {
+    "logo_path": "knoarbor-logo.svg"
+  },
+  "links": {
+    "help": "https://github.com/pxcg/knoarbor"
+  },
+  "capabilities": {
+    "desktop_updates": false,
+    "public_help": true
+  }
+}
