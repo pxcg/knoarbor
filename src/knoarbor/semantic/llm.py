@@ -668,7 +668,7 @@ def _deep_merge_payload(base: dict[str, object], extra: dict[str, object]) -> di
 def _merge_system_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
     """Normalize chat payloads for providers that accept only one system message.
 
-    KnoArbor keeps system concerns separate internally: stable task prompt,
+    The runtime keeps system concerns separate internally: stable task prompt,
     workspace context, memory context, and provider probes are assembled by
     different layers. Provider adapters own wire-level compatibility, so they
     collapse those system sections into one ordered system message before

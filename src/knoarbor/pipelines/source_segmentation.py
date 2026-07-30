@@ -7,9 +7,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from knoarbor.core.checkpoints import session_unit_raw_index
 from knoarbor.core.config import IngestSegmentationConfig
 from knoarbor.core.schemas.sources import SourceContent, SourceDocument, SourceFingerprint
+from knoarbor.core.source_unitization import session_unit_raw_index
 
 
 SegmentationMode = Literal["none", "heading", "turns", "pages", "paragraphs"]
@@ -436,7 +436,7 @@ class SourceSegmenter:
         previous_outline = outlines[index - 1] if index > 0 else None
         next_outline = outlines[index + 1] if index + 1 < len(outlines) else None
         metadata = {
-            **document.metadata,
+            **{key: value for key, value in document.metadata.items() if key != "source_unitization"},
             "segmentation": {
                 "enabled": True,
                 "mode": mode,

@@ -1,6 +1,6 @@
 export type DesktopEnvironment = {
   isDesktopApp: true;
-  platform: NodeJS.Platform;
+  platform: string;
   versions: {
     chrome: string;
     electron: string;
@@ -29,7 +29,7 @@ export type DesktopServiceState = {
   logPath?: string;
   mode: DesktopServiceMode;
   port?: number;
-  signal?: NodeJS.Signals | null;
+  signal?: string | null;
   startedAt?: string;
   stateDir?: string;
   status: DesktopServiceStatus;
@@ -54,6 +54,11 @@ export type DesktopCommand =
   | "service.restart"
   | "logs.open";
 
+export type DesktopPickerResult = {
+  canceled: boolean;
+  path?: string;
+};
+
 export type KnoArborDesktopBridge = {
   config: {
     getDiagnostics(payload?: Record<string, unknown>): Promise<unknown>;
@@ -70,16 +75,10 @@ export type KnoArborDesktopBridge = {
   onServiceStateChanged(listener: (state: DesktopServiceState) => void): () => void;
   openLogs(): Promise<{ opened: boolean; path?: string }>;
   openPath(path: string): Promise<{ opened: boolean; path?: string; error?: string }>;
-  deleteDirectory(path: string): Promise<{ deleted: boolean; path?: string; error?: string }>;
+  revealPath(path: string): Promise<{ opened: boolean; path?: string; error?: string }>;
   restartService(): Promise<DesktopServiceState>;
-  selectDirectory(options?: { defaultPath?: string; title?: string }): Promise<{
-    canceled: boolean;
-    path?: string;
-  }>;
-  selectFile(options?: { defaultPath?: string; title?: string }): Promise<{
-    canceled: boolean;
-    path?: string;
-  }>;
+  selectDirectory(options?: { defaultPath?: string; title?: string }): Promise<DesktopPickerResult>;
+  selectFile(options?: { defaultPath?: string; title?: string }): Promise<DesktopPickerResult>;
 };
 
 declare global {

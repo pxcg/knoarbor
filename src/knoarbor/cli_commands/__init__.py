@@ -1,1 +1,1 @@
-"""Command-line parser and handlers for KnoArbor."""
+"""Command-line parser and handlers for the product runtime."""

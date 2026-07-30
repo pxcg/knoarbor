@@ -1,12 +1,11 @@
 import { BrandIcon, type BrandIconName } from "../BrandIcon";
-import type { AppNotice } from "../../appContext";
 import type { ConfigForm } from "../../api/client";
 import { splitLines } from "./ConfigFormControls";
 import type { SectionProps } from "./ConfigSectionTypes";
 
 type ConfigInputsSectionProps = SectionProps & {
   onCommit: (nextForm: ConfigForm) => Promise<void>;
-  onError: (notice: AppNotice | null) => void;
+  onError: (error: unknown) => void;
 };
 
 export function ConfigInputsSection({ form, setForm, t, onCommit, onError }: ConfigInputsSectionProps) {
@@ -17,8 +16,8 @@ export function ConfigInputsSection({ form, setForm, t, onCommit, onError }: Con
     try {
       await onCommit(nextForm);
     } catch (error) {
-      setForm(previousForm);
-      onError({ message: error instanceof Error ? error.message : String(error), error: true });
+      setForm((current) => current === nextForm ? previousForm : current);
+      onError(error);
     }
   }
 

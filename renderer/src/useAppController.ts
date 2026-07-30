@@ -13,21 +13,20 @@ import {
   getPages,
   getGraph,
   getQueryTrends,
+  getRun,
   getRuns,
   type ConfigSummary,
-  type DoctorReport,
   type GraphResponse,
   type ModelProviderProbeState,
   type PageSummary,
   type QueryTrendResponse,
-  type QueryResult,
   type ReportSummary,
   type UiStatusResponse,
 } from "./api/client";
 import { preloadRoute } from "./appRoutes";
-import type { AppContext, AppNotice } from "./appContext";
-import { useAppNavigation } from "./appNavigation";
-import { useLanguagePreference, useSidebarPreference } from "./appPreferences";
+import type { AppContext } from "./appContext";
+import { pageVaultStorageKey, storedPageVaultId, useAppNavigation } from "./appNavigation";
+import { useAppearancePreference, useLanguagePreference, useSidebarPreference } from "./appPreferences";
 import { useAppQueries } from "./appQueries";
 import { useAppRefresh } from "./appRefresh";
 import { readStoredModelProbeResults } from "./appRuntime";
@@ -36,11 +35,12 @@ import { useDesktopCommands } from "./desktop/useDesktopCommands";
 import { queryKeys } from "./queryKeys";
 import type { ViewName } from "./types";
 import type { RunRecord } from "./types";
-import { nextValidVaultId } from "./vaultRuntime";
+import { buildVaultSelector, nextValidChatScopeVaultId, nextValidWorkspaceVaultId } from "./vaultRuntime";
 
 export function useAppController() {
   const [activeView, setActiveView] = useState<ViewName>("chat");
   const { language, setLanguage, t } = useLanguagePreference();
+  const { appearanceMode, setAppearanceMode } = useAppearancePreference();
   const { sidebarCollapsed, toggleSidebar } = useSidebarPreference();
   const [serviceOnline, setServiceOnline] = useState<boolean | null>(null);
   const [healthHint, setHealthHint] = useState(() => translate(language, "healthCheck"));
@@ -48,18 +48,15 @@ export function useAppController() {
   const [configContent, setConfigContent] = useState("");
   const [configExists, setConfigExists] = useState(false);
   const [summary, setSummary] = useState<ConfigSummary>({});
-  const [, setNotice] = useState<AppNotice | null>(null);
-  const [queryResults, setQueryResults] = useState<QueryResult[]>([]);
-  const [queryContextPack, setQueryContextPack] = useState("");
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
   const [modelProbeResults, setModelProbeResultsState] = useState<Record<string, ModelProviderProbeState>>(() => readStoredModelProbeResults());
   const [selectedChatProvider, setSelectedChatProviderState] = useState(() => localStorage.getItem("knoarbor.chatProvider") || "");
-  const [selectedVaultId, setSelectedVaultId] = useState(() =>
-    localStorage.getItem("knoarbor.activeVaultId.userSet") === "true"
-      ? localStorage.getItem("knoarbor.activeVaultId") || ""
-      : "",
-  );
-  const previousActiveRunCountRef = useRef(0);
+  const [selectedVaultId, setSelectedVaultId] = useState(() => localStorage.getItem("knoarbor.workspaceVaultId") || "");
+  const [chatScopeVaultId, setChatScopeVaultIdState] = useState(() => localStorage.getItem("knoarbor.chatScopeVaultId") || "all");
+  const previousActiveRunsRef = useRef({ vaultId: "", count: 0 });
+  const refreshedTerminalRunsRef = useRef(new Set<string>());
+  const watchedRunsRef = useRef(new Set<string>());
+  const runWatchTimersRef = useRef(new Map<string, number>());
   const queryClient = useQueryClient();
 
   const {
@@ -68,32 +65,44 @@ export function useAppController() {
     activeVaultId,
     activeVaultSelector,
     configQuery,
-    doctorReport,
     effectiveConfigPath,
     effectiveSummary,
     graph,
+    graphReady,
     healthQuery,
     modelProviders,
     needsRecentRuns,
     needsReports,
     needsVaultStatus,
     pages,
+    pagesReady,
     queryTrend,
     recentRuns,
     reports,
+    reportsReady,
     shouldPollRuns,
     status,
     vaultOptions,
-    vaultOverviews,
+    vaultRegistryReady,
     vaultPath,
   } = useAppQueries({
     activeView,
     configPath,
     selectedVaultId,
     summary,
-    t,
   });
-  const navigation = useAppNavigation({ activeVaultId, setActiveView, setSelectedVaultId });
+  const setChatScopeVaultId = useCallback((next: string) => {
+    localStorage.setItem("knoarbor.chatScopeVaultId", next);
+    setChatScopeVaultIdState(next);
+  }, []);
+  const navigation = useAppNavigation({
+    activeView,
+    activeVaultId,
+    chatScopeVaultId,
+    setActiveView,
+    setChatScopeVaultId,
+    setSelectedVaultId,
+  });
   const { loadVaultState, refreshAll } = useAppRefresh({
     activeConcreteVault,
     activeView,
@@ -102,10 +111,66 @@ export function useAppController() {
     needsReports,
     needsVaultStatus,
     selectedVaultId,
-    setNotice,
     shouldPollRuns,
-    t,
   });
+
+  const refreshAfterRunTerminal = useCallback(async (run: RunRecord) => {
+    const vault = vaultOptions.find((item) => (
+      (run.vault_id && item.id === run.vault_id)
+      || (run.vault_path && item.path === run.vault_path)
+    )) || activeConcreteVault;
+    const refreshKey = `${vault.id}:${run.run_id}`;
+    if (refreshedTerminalRunsRef.current.has(refreshKey)) return;
+    refreshedTerminalRunsRef.current.add(refreshKey);
+
+    const refreshTasks: Promise<unknown>[] = [
+      loadVaultState(vault, {
+        activeRuns: true,
+        recentRuns: true,
+        reports: true,
+        status: true,
+      }),
+    ];
+    if (run.flow === "ingest") {
+      refreshTasks.push(
+        queryClient.invalidateQueries({ queryKey: queryKeys.pages(vault.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.graph(vault.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.queryTrends(vault.id) }),
+      );
+    }
+    await Promise.all(refreshTasks);
+  }, [activeConcreteVault, loadVaultState, queryClient, vaultOptions]);
+
+  const watchRunToTerminal = useCallback((runId: string, vaultId?: string | null) => {
+    const vault = vaultOptions.find((item) => item.id === vaultId) || activeConcreteVault;
+    const watchKey = `${vault.id}:${runId}`;
+    if (watchedRunsRef.current.has(watchKey)) return;
+    watchedRunsRef.current.add(watchKey);
+    const selector = buildVaultSelector(effectiveConfigPath, vault);
+
+    const poll = async () => {
+      try {
+        const run = await getRun(selector, runId);
+        if (["completed", "failed", "cancelled", "partially_failed"].includes(run.status)) {
+          watchedRunsRef.current.delete(watchKey);
+          runWatchTimersRef.current.delete(watchKey);
+          await refreshAfterRunTerminal(run);
+          return;
+        }
+      } catch (error) {
+        console.error("Tracked run refresh failed", error);
+      }
+      const timer = window.setTimeout(() => void poll(), 1000);
+      runWatchTimersRef.current.set(watchKey, timer);
+    };
+    void poll();
+  }, [activeConcreteVault, effectiveConfigPath, refreshAfterRunTerminal, vaultOptions]);
+
+  useEffect(() => () => {
+    for (const timer of runWatchTimersRef.current.values()) window.clearTimeout(timer);
+    runWatchTimersRef.current.clear();
+    watchedRunsRef.current.clear();
+  }, []);
 
   const setModelProbeResults: Dispatch<SetStateAction<Record<string, ModelProviderProbeState>>> = useCallback((value) => {
     setModelProbeResultsState((current) => {
@@ -123,7 +188,7 @@ export function useAppController() {
 
   useEffect(() => {
     const preloadCommonRoutes = () => {
-      for (const view of ["sources", "ingest", "lint", "query", "settings"] satisfies ViewName[]) {
+      for (const view of ["ingest", "lint", "query"] satisfies ViewName[]) {
         preloadRoute(view);
       }
     };
@@ -160,21 +225,45 @@ export function useAppController() {
 
   useEffect(() => {
     if (!vaultOptions.length) return;
-    const next = nextValidVaultId(vaultOptions, selectedVaultId, effectiveSummary);
+    const next = nextValidWorkspaceVaultId(vaultOptions, selectedVaultId, effectiveSummary);
     if (next === selectedVaultId) return;
-    if (localStorage.getItem("knoarbor.activeVaultId.userSet") === "true") {
-      localStorage.setItem("knoarbor.activeVaultId", next);
-    } else {
-      localStorage.removeItem("knoarbor.activeVaultId");
-    }
+    localStorage.setItem("knoarbor.workspaceVaultId", next);
     setSelectedVaultId(next);
   }, [effectiveSummary, selectedVaultId, vaultOptions]);
 
   useEffect(() => {
-    const previousRuns = previousActiveRunCountRef.current;
-    previousActiveRunCountRef.current = activeRuns.length;
-    if (previousRuns > 0 && activeRuns.length === 0) void loadVaultState();
-  }, [activeRuns.length, loadVaultState]);
+    if (!vaultRegistryReady || !vaultOptions.length) return;
+    const next = nextValidChatScopeVaultId(vaultOptions, chatScopeVaultId, activeVaultId);
+    if (next !== chatScopeVaultId) setChatScopeVaultId(next);
+  }, [activeVaultId, chatScopeVaultId, setChatScopeVaultId, vaultOptions, vaultRegistryReady]);
+
+  useEffect(() => {
+    if (activeView === "chat" || activeView === "query" || !activeVaultId || activeVaultId === "all") return;
+    if (!storedPageVaultId(activeView)) {
+      localStorage.setItem(pageVaultStorageKey(activeView), activeVaultId);
+    }
+  }, [activeVaultId, activeView]);
+
+  const chatScopeVaultSelector = useMemo(() => {
+    const selected = vaultOptions.find((vault) => vault.id === chatScopeVaultId);
+    if (selected) return buildVaultSelector(effectiveConfigPath, selected);
+    return activeVaultSelector;
+  }, [activeVaultSelector, chatScopeVaultId, effectiveConfigPath, vaultOptions]);
+
+  useEffect(() => {
+    const previous = previousActiveRunsRef.current;
+    previousActiveRunsRef.current = { vaultId: activeVaultId, count: activeRuns.length };
+    if (previous.vaultId !== activeVaultId || previous.count === 0 || activeRuns.length > 0) return;
+    void loadVaultState();
+  }, [activeRuns.length, activeVaultId, loadVaultState]);
+
+  useEffect(() => {
+    const terminalIngest = recentRuns.find((run) => (
+      run.flow === "ingest"
+      && ["completed", "failed", "cancelled", "partially_failed"].includes(run.status)
+    ));
+    if (terminalIngest) void refreshAfterRunTerminal(terminalIngest);
+  }, [recentRuns, refreshAfterRunTerminal]);
 
   const openWorkspaceSettings = useCallback(() => {
     setWorkspaceSettingsOpen(true);
@@ -184,15 +273,7 @@ export function useAppController() {
     onNewChat: navigation.openNewChat,
     onOpenSettings: openWorkspaceSettings,
     refreshAll,
-    setNotice,
-    t,
   });
-
-  const setDoctorReportCached: Dispatch<SetStateAction<DoctorReport | null>> = useCallback((value) => {
-    queryClient.setQueryData(queryKeys.doctor(configPath), (current: DoctorReport | null | undefined) =>
-      typeof value === "function" ? value(current || null) : value,
-    );
-  }, [configPath, queryClient]);
 
   const setStatusCached: Dispatch<SetStateAction<UiStatusResponse | null>> = useCallback((value) => {
     queryClient.setQueryData(queryKeys.status(activeVaultId), (current: UiStatusResponse | null | undefined) =>
@@ -253,21 +334,18 @@ export function useAppController() {
       configPath,
       configContent,
       configExists,
-      doctorReport,
       graph,
-      focusedPageId: navigation.focusedPageId,
-      focusedWikiPath: navigation.focusedWikiPath,
-      focusedReportPath: navigation.focusedReportPath,
-      pendingChatPrompt: navigation.pendingChatPrompt,
-      pendingChatSessionRequest: navigation.pendingChatSessionRequest,
+      graphReady,
+      navigationTarget: navigation.target,
+      consumeNavigationTarget: navigation.consumeTarget,
       healthHint,
       pages,
-      queryResults,
-      queryContextPack,
+      pagesReady,
       queryTrend,
       activeRuns,
       recentRuns,
       reports,
+      reportsReady,
       serviceOnline,
       modelProviders,
       modelProbeResults,
@@ -277,10 +355,6 @@ export function useAppController() {
       setConfigContent,
       setConfigPath,
       setConfigExists,
-      setDoctorReport: setDoctorReportCached,
-      setNotice,
-      setQueryResults,
-      setQueryContextPack,
       setQueryTrend: setQueryTrendCached,
       setActiveRuns: setActiveRunsCached,
       setRecentRuns: setRecentRunsCached,
@@ -289,49 +363,51 @@ export function useAppController() {
       setGraph: setGraphCached,
       setPages: setPagesCached,
       setReports: setReportsCached,
-      navigate: setActiveView,
+      navigate: navigation.navigate,
       openPageInGraph: navigation.openPageInGraph,
       openWikiPage: navigation.openWikiPage,
       openWikiPageInVault: navigation.openWikiPageInVault,
       openChatWithPrompt: navigation.openChatWithPrompt,
-      clearPendingChatPrompt: navigation.clearPendingChatPrompt,
       openChatSession: navigation.openChatSession,
-      clearPendingChatSessionRequest: navigation.clearPendingChatSessionRequest,
       openReport: navigation.openReport,
+      openRun: navigation.openRun,
       openSettings: openWorkspaceSettings,
       status,
       summary: effectiveSummary,
       activeVaultId,
       activeVaultSelector,
+      chatScopeVaultId,
+      chatScopeVaultSelector,
       vaultOptions,
-      vaultOverviews,
       setActiveVaultId: navigation.setActiveVaultId,
+      setChatScopeVaultId,
       vaultPath,
       refreshAll,
       loadVaultState,
+      refreshAfterRunTerminal,
+      watchRunToTerminal,
       language,
       setLanguage,
+      appearanceMode,
+      setAppearanceMode,
       t,
     }),
     [
       configPath,
       configContent,
       configExists,
-      doctorReport,
       graph,
-      navigation.focusedPageId,
-      navigation.pendingChatPrompt,
-      navigation.pendingChatSessionRequest,
-      navigation.focusedReportPath,
-      navigation.focusedWikiPath,
+      graphReady,
+      navigation.target,
+      navigation.consumeTarget,
       healthHint,
       pages,
-      queryResults,
-      queryContextPack,
+      pagesReady,
       queryTrend,
       activeRuns,
       recentRuns,
       reports,
+      reportsReady,
       serviceOnline,
       modelProviders,
       modelProbeResults,
@@ -342,24 +418,29 @@ export function useAppController() {
       effectiveSummary,
       activeVaultId,
       activeVaultSelector,
+      chatScopeVaultId,
+      chatScopeVaultSelector,
       vaultOptions,
-      vaultOverviews,
       navigation.setActiveVaultId,
+      setChatScopeVaultId,
       vaultPath,
       refreshAll,
       loadVaultState,
+      refreshAfterRunTerminal,
+      watchRunToTerminal,
       language,
       setLanguage,
+      appearanceMode,
+      setAppearanceMode,
       navigation.openPageInGraph,
       navigation.openWikiPage,
       navigation.openWikiPageInVault,
       navigation.openChatWithPrompt,
-      navigation.clearPendingChatPrompt,
       navigation.openChatSession,
-      navigation.clearPendingChatSessionRequest,
       navigation.openReport,
+      navigation.openRun,
+      navigation.navigate,
       openWorkspaceSettings,
-      setDoctorReportCached,
       setStatusCached,
       setGraphCached,
       setPagesCached,
@@ -377,7 +458,7 @@ export function useAppController() {
     language,
     preloadView,
     serviceOnline,
-    setActiveView,
+    setActiveView: navigation.navigate,
     setWorkspaceSettingsOpen,
     sidebarCollapsed,
     t,

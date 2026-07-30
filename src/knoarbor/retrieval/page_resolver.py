@@ -5,9 +5,7 @@ import re
 from pathlib import Path
 
 from knoarbor.core.markdown import wiki_target_key
-from knoarbor.storage import ensure_machine_index, machine_index_dir
-from knoarbor.storage.wiki_index import relative_wiki_path
-from knoarbor.storage.wiki_paths import content_root, source_digest_root
+from knoarbor.storage.wiki_index import read_wiki_page_records
 
 
 @dataclass(frozen=True)
@@ -52,7 +50,7 @@ def resolve_page_reference_path(vault_path: Path, reference: str, *, directory: 
 
 
 def page_resolver_conflicts(vault_path: Path) -> list[dict[str, object]]:
-    """Return deterministic alias/title/path collisions from the machine index."""
+    """Return deterministic alias/title/path collisions from local Markdown."""
 
     records = _page_records(vault_path)
     buckets: dict[str, list[str]] = {}
@@ -72,29 +70,7 @@ def page_resolver_conflicts(vault_path: Path) -> list[dict[str, object]]:
 
 
 def _page_records(vault_path: Path) -> list[dict[str, object]]:
-    vault = vault_path.expanduser().resolve()
-    try:
-        ensure_machine_index(vault)
-        import json
-
-        payload = json.loads((machine_index_dir(vault) / "pages.json").read_text(encoding="utf-8"))
-        records = payload.get("pages", [])
-        return [record for record in records if isinstance(record, dict)]
-    except (FileNotFoundError, OSError, ValueError):
-        return _scan_page_records_from_markdown(vault)
-
-
-def _scan_page_records_from_markdown(vault_path: Path) -> list[dict[str, object]]:
-    """Build minimal page records when the machine index is unavailable."""
-
-    root = content_root(vault_path)
-    source_root = source_digest_root(vault_path)
-    records: list[dict[str, object]] = []
-    for md_path in [*sorted(root.rglob("*.md")), *sorted(source_root.rglob("*.md"))]:
-        if not md_path.is_file():
-            continue
-        records.append({"path": relative_wiki_path(vault_path, md_path), "title": md_path.stem})
-    return records
+    return read_wiki_page_records(vault_path.expanduser().resolve())
 
 
 def _candidate_records(records: list[dict[str, object]], query: str, *, directory: str | None) -> list[dict[str, object]]:

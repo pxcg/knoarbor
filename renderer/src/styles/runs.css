@@ -6,7 +6,7 @@
 .import-source-cards {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .import-source-card {
@@ -14,25 +14,20 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   display: grid;
-  gap: 10px;
-  min-height: 128px;
-  padding: 12px;
-}
-
-.import-source-card.active {
-  border-color: rgba(15, 143, 116, 0.55);
-  background: #f0fdfa;
+  gap: 12px;
+  min-height: 0;
+  padding: 14px;
 }
 
 .import-source-card-top {
-  align-items: flex-start;
+  align-items: center;
   display: grid;
   gap: 12px;
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .import-source-card-heading {
-  align-items: flex-start;
+  align-items: center;
   display: flex;
   gap: 10px;
   min-width: 0;
@@ -70,12 +65,25 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .import-primary-actions .button {
   min-height: 34px;
   padding: 7px 11px;
+}
+
+.ingest-profile-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.ingest-profile-row .panel-copy {
+  flex: 1 1 220px;
+  margin: 0;
+  min-width: 0;
 }
 
 .import-path-field {
@@ -95,44 +103,40 @@
   padding: 8px 14px;
 }
 
-.lint-mode-picker {
-  align-items: stretch;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  display: inline-grid;
-  gap: 6px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  padding: 5px;
-  width: min(300px, 100%);
+.custom-input-card-copy {
+  margin: 0;
 }
 
-.lint-mode-option {
-  appearance: none;
-  align-items: center;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted-strong);
-  cursor: pointer;
-  display: inline-flex;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  justify-content: center;
-  line-height: 1;
-  min-height: 36px;
-  padding: 0 12px;
-  white-space: nowrap;
+.excerpt-ingest-dialog {
+  height: min(620px, calc(100vh - 88px));
+  width: min(760px, calc(100vw - 48px));
 }
 
-.lint-mode-option:hover {
-  background: #f4f8f6;
-  color: var(--text);
+.excerpt-ingest-dialog .settings-modal-content {
+  overflow: hidden;
 }
 
-.lint-mode-option.active {
-  background: var(--accent);
-  color: #ffffff;
+.excerpt-ingest-form {
+  display: grid;
+  gap: 14px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
+}
+
+.excerpt-ingest-meta {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.7fr);
+}
+
+.excerpt-ingest-content {
+  min-height: 0;
+}
+
+.excerpt-ingest-content textarea {
+  height: 100%;
+  min-height: 260px;
+  resize: none;
 }
 
 .run-event-item {
@@ -178,7 +182,7 @@
 
 @media (max-width: 1180px) {
   .import-source-cards {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .import-primary-actions {
@@ -194,11 +198,16 @@
   }
 
   .import-source-card-top {
-    align-items: flex-start;
+    align-items: center;
   }
 }
 
 @media (max-width: 720px) {
+  .import-source-cards,
+  .excerpt-ingest-meta {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .import-source-card-top {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -237,7 +246,7 @@
 .node-detail {
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface);
   padding: 12px;
   color: var(--muted-strong);
 }
@@ -252,6 +261,37 @@
   margin: 0 0 10px;
 }
 
+.graph-raw-detail {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  max-height: min(680px, 68vh);
+  overflow: hidden;
+}
+
+.graph-raw-detail-header {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding-bottom: 10px;
+}
+
+.graph-raw-detail-header h3 {
+  margin: 0;
+}
+
+.graph-raw-preview {
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 2px 4px;
+}
+
+.graph-raw-unavailable {
+  color: var(--muted);
+  padding-top: 12px;
+}
+
 .tag-list {
   display: flex;
   flex-wrap: wrap;
@@ -263,7 +303,7 @@
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 4px 8px;
-  background: #ffffff;
+  background: var(--surface);
   font-size: 12px;
 }
 
@@ -293,7 +333,7 @@
 .inline-list button {
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--muted-strong);
   cursor: pointer;
   font-size: 12px;
@@ -410,11 +450,11 @@
 
 .run-monitor-panel {
   border-color: var(--border);
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .run-flow-guide {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: var(--shadow-soft);
@@ -443,7 +483,7 @@
 
 .flow-step-card {
   align-items: start;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
   display: grid;
@@ -520,7 +560,7 @@
   appearance: none;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface);
   color: inherit;
   display: grid;
   gap: 5px;
@@ -557,7 +597,7 @@
 .run-monitor-card {
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface);
   box-shadow: var(--shadow-soft);
   display: grid;
   gap: 14px;
@@ -577,7 +617,7 @@
 
 .recoverable-run-card {
   align-items: center;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid #fed7aa;
   border-radius: 10px;
   display: flex;
@@ -613,7 +653,7 @@
 
 .run-status-banner {
   align-items: center;
-  background: #ffffff;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
   display: flex;
   gap: 14px;
@@ -622,13 +662,13 @@
 }
 
 .run-status-banner.completed {
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .run-status-banner.failed,
 .run-status-banner.partially_failed,
 .run-status-banner.cancelled {
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .run-status-main {
@@ -815,7 +855,7 @@
 }
 
 .run-stage-step.agent span::after {
-  background: #ffffff;
+  background: var(--surface);
   border-radius: 999px;
   content: "";
   height: 4px;
@@ -969,7 +1009,7 @@
 }
 
 .run-node-details-header span {
-  background: #f0fdfa;
+  background: var(--surface-selected);
   border: 1px solid #99f6e4;
   border-radius: 999px;
   color: var(--accent-strong);
@@ -1137,4 +1177,16 @@
   background: linear-gradient(90deg, #2563eb, #14b8a6);
   display: block;
   height: 100%;
+}
+
+.progress-track.indeterminate span {
+  animation: ingest-preparation-progress 1.2s ease-in-out infinite;
+  transform: translateX(-100%);
+  width: 34%;
+}
+
+@keyframes ingest-preparation-progress {
+  to {
+    transform: translateX(300%);
+  }
 }

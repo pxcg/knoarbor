@@ -4,33 +4,48 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { type GraphEdge, type GraphNode, type GraphResponse } from "../api/client";
 import { MetricCard } from "../components/MetricCard";
 import { InlineHelp } from "../components/InlineHelp";
-import type { AppContext } from "../appContext";
-import { buildGraphElements, filterVisibleGraph, mapEdgesByNodeId, mapNodesById, nodeColors } from "./graph/GraphModel";
+import type { GraphAppContext } from "../appContext";
+import { buildGraphElements, filterVisibleGraph, mapNodesById, nodeColors } from "./graph/GraphModel";
 import { GraphNodeDetail } from "./graph/GraphNodeDetail";
 
 type Props = {
+  active?: boolean;
   graph: GraphResponse | null;
-  context?: AppContext;
+  context?: GraphAppContext;
   embedded?: boolean;
 };
 
-export function GraphPage({ graph, context, embedded = false }: Props) {
+export function GraphPage({ active = true, graph, context, embedded = false }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const cyRef = useRef<Core | null>(null);
   const [nodeSearch, setNodeSearch] = useState("");
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [focusedPageId, setFocusedPageId] = useState<string | null>(null);
+  const [navigationError, setNavigationError] = useState<string | null>(null);
   const t = context?.t ?? ((key: string) => key);
-  const focusedPageId = context?.focusedPageId || null;
-  const activeGraph = graph;
+  const activeGraph = context && !context.graphReady ? null : graph;
 
   useEffect(() => {
-    if (!focusedPageId) return;
-    setNodeSearch("");
-  }, [focusedPageId]);
+    setFocusedPageId(null);
+    setSelectedNode(null);
+    setNavigationError(null);
+  }, [context?.activeVaultId]);
+
+  useEffect(() => {
+    const target = context?.navigationTarget;
+    if (!active || !context || target?.kind !== "graph-page" || target.vaultId !== context.activeVaultId || !context.graphReady) return;
+    if (activeGraph?.nodes.some((node) => node.id === target.pageId)) {
+      setFocusedPageId(target.pageId);
+      setNodeSearch("");
+      setNavigationError(null);
+    } else {
+      setNavigationError(context.language === "zh" ? "目标图谱节点不存在或已被删除。" : "The requested graph node does not exist or was deleted.");
+    }
+    context.consumeNavigationTarget(target.requestId);
+  }, [active, activeGraph, context?.activeVaultId, context?.consumeNavigationTarget, context?.graphReady, context?.language, context?.navigationTarget]);
 
   const visibleGraph = useMemo(() => filterVisibleGraph(activeGraph, nodeSearch), [activeGraph, nodeSearch]);
   const nodeById = useMemo(() => mapNodesById(activeGraph), [activeGraph]);
-  const edgeByNodeId = useMemo(() => mapEdgesByNodeId(activeGraph), [activeGraph]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -165,6 +180,7 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
 
   return (
     <section className={embedded ? "embedded-section" : "view active"}>
+      {navigationError && <p className="settings-action-note warning" role="alert">{navigationError}</p>}
       <div className="graph-metrics">
         <MetricCard label={t("pages")} value={graphData.stats.page_count} />
         <MetricCard label={t("graphEdges")} value={graphData.stats.edge_count} />
@@ -188,7 +204,8 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
               </label>
             </div>
           </div>
-          <div className="graph-canvas" ref={containerRef}>
+          <div className="graph-canvas">
+            <div className="graph-canvas-engine" ref={containerRef} />
             {!visibleGraph.nodes.length && <div className="graph-empty">{t("noPagesToDisplay")}</div>}
           </div>
         </article>
@@ -197,7 +214,7 @@ export function GraphPage({ graph, context, embedded = false }: Props) {
           <div className="panel-header">
             <h2>{t("selectedPage")}</h2>
           </div>
-          <GraphNodeDetail node={selectedNode} edges={selectedNode ? edgeByNodeId.get(selectedNode.id) || [] : []} t={t} onOpenPage={context?.openWikiPage} />
+          {context ? <GraphNodeDetail active={active} node={selectedNode} context={context} /> : null}
         </aside>
       </div>
     </section>

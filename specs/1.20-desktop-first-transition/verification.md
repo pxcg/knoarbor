@@ -18,6 +18,13 @@ Run the appropriate subset after each implementation phase:
 - `npm --prefix desktop run build`
 - `npm --prefix desktop run test:smoke`
 - desktop packaged smoke test on macOS and Windows release runners
+- fresh-start tree assertion for product root, `state/electron`, `cache/`, and
+  the single runtime endpoint
+- desktop shutdown test proving quit is resumed only after the managed service
+  stop promise settles
+- Windows NSIS contract test proving uninstall targets the exact managed
+  service path, defaults to data preservation, and scopes optional deletion to
+  `$LOCALAPPDATA\KnoArbor`
 
 ## Manual Checks
 
@@ -26,6 +33,14 @@ Run the appropriate subset after each implementation phase:
 - Chat streaming still uses the Python service runtime and preserves streaming/final/error semantics.
 - Ingest/lint run events and cancellation continue to share the existing Python runtime contract.
 - Service failure UI exposes config path, service command, port, logs, recent output, and recovery actions.
+- No packaged process writes `~/.knoarbor` or a top-level app-data
+  `.knoarbor`.
+- On Windows, install a newer build directly over a running older build; the
+  registered installation is replaced without manual uninstall and user data
+  remains unchanged.
+- On Windows, uninstall a running build; no `knoar-service.exe` process from
+  the removed installation remains. Verify both preservation (default) and
+  explicit local-data deletion while an external vault remains unchanged.
 
 ## Release Gates
 

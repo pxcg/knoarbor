@@ -1,0 +1,176 @@
+{
+  "schema_version": "knoarbor_spec_registry.v1",
+  "lifecycles": [
+    "Proposed",
+    "Accepted",
+    "Implemented",
+    "Superseded",
+    "Historical"
+  ],
+  "specs": [
+    {
+      "id": "1.10",
+      "path": "1.10-wiki-chat-agent",
+      "title": "Wiki Chat Agent",
+      "lifecycle": "Accepted",
+      "owner": "chat workflow"
+    },
+    {
+      "id": "1.11",
+      "path": "1.11-chat-memory",
+      "title": "Chat Memory",
+      "lifecycle": "Accepted",
+      "owner": "chat memory"
+    },
+    {
+      "id": "1.12",
+      "path": "1.12-response-evidence-selection",
+      "title": "Response Evidence Selection",
+      "lifecycle": "Superseded",
+      "owner": "historical page-level chat evidence selection",
+      "successor": "1.38"
+    },
+    {
+      "id": "1.17",
+      "path": "1.17-vault-layout-v2",
+      "title": "Vault Layout v2",
+      "lifecycle": "Accepted",
+      "owner": "physical vault layout"
+    },
+    {
+      "id": "1.18",
+      "path": "1.18-chat-response-style-prompt-governance",
+      "title": "Chat Response Style Prompt Governance",
+      "lifecycle": "Accepted",
+      "owner": "chat response prompt governance"
+    },
+    {
+      "id": "1.19",
+      "path": "1.19-desktop-config-ipc",
+      "title": "Desktop Config IPC",
+      "lifecycle": "Implemented",
+      "owner": "desktop configuration IPC"
+    },
+    {
+      "id": "1.20",
+      "path": "1.20-desktop-first-transition",
+      "title": "Desktop First Transition",
+      "lifecycle": "Implemented",
+      "owner": "desktop runtime transition"
+    },
+    {
+      "id": "1.21",
+      "path": "1.21-vault-artifacts-and-appdata-boundary",
+      "title": "Vault Artifacts And AppData Boundary",
+      "lifecycle": "Accepted",
+      "owner": "artifact and app-data placement"
+    },
+    {
+      "id": "1.26",
+      "path": "1.26-raw-grounded-ingest-chain",
+      "title": "Raw Grounded Ingest Chain",
+      "lifecycle": "Implemented",
+      "owner": "ingest semantic and source-grounded knowledge chain"
+    },
+    {
+      "id": "1.27",
+      "path": "1.27-deterministic-entity-identity",
+      "title": "Deterministic Entity Identity",
+      "lifecycle": "Accepted",
+      "owner": "entity identity and contribution linking"
+    },
+    {
+      "id": "1.3",
+      "path": "1.3-source-ecosystem",
+      "title": "Source Ecosystem",
+      "lifecycle": "Accepted",
+      "owner": "source connectors, catalog, and preflight"
+    },
+    {
+      "id": "1.37",
+      "path": "1.37-local-first-ingest-simplification",
+      "title": "Local First Ingest Simplification",
+      "lifecycle": "Accepted",
+      "owner": "local ingest execution, recovery, and materialization"
+    },
+    {
+      "id": "1.38",
+      "path": "1.38-semantic-indexed-raw-query",
+      "title": "Unified Active Raw Evidence Retrieval",
+      "lifecycle": "Accepted",
+      "owner": "unified active Raw recall, cross-source relation traversal, evidence handles, active resolution, and typed query outcomes"
+    },
+    {
+      "id": "1.39",
+      "path": "1.39-codebase-modularity",
+      "title": "Codebase Modularity",
+      "lifecycle": "Implemented",
+      "owner": "internal module boundaries, dependency direction, frontend domain organization, and code governance"
+    },
+    {
+      "id": "1.4",
+      "path": "1.4-machine-index-layer",
+      "title": "Machine Index Layer",
+      "lifecycle": "Accepted",
+      "owner": "immutable machine-index publication, verified snapshots, navigation artifacts, and rebuild contract"
+    },
+    {
+      "id": "1.41",
+      "path": "1.41-project-development-harness",
+      "title": "Project Development Harness",
+      "lifecycle": "Accepted",
+      "owner": "repository-development Initiative admission, stage state, workspace baselines, role budgets, validation deltas, and closure evidence"
+    },
+    {
+      "id": "1.42",
+      "path": "1.42-public-product-line-convergence",
+      "title": "Public Product Line Convergence",
+      "lifecycle": "Implemented",
+      "owner": "public-safe convergence, product identity authority, and upstream/downstream governance"
+    },
+    {
+      "id": "1.5",
+      "path": "1.5-knowledge-governance",
+      "title": "Knowledge Governance",
+      "lifecycle": "Accepted",
+      "owner": "lint and maintenance operations"
+    },
+    {
+      "id": "1.6",
+      "path": "1.6-productized-console",
+      "title": "Productized Console",
+      "lifecycle": "Accepted",
+      "owner": "console product interaction"
+    },
+    {
+      "id": "1.7",
+      "path": "1.7-cli-api-skill-closure",
+      "title": "CLI API Skill Closure",
+      "lifecycle": "Accepted",
+      "owner": "public CLI API and skill parity"
+    },
+    {
+      "id": "1.8",
+      "path": "1.8-model-capability-probe",
+      "title": "Model Capability Probe",
+      "lifecycle": "Accepted",
+      "owner": "model capability detection"
+    },
+    {
+      "id": "1.9",
+      "path": "1.9-vault-workspaces",
+      "title": "Vault Workspaces",
+      "lifecycle": "Implemented",
+      "owner": "vault identity and selection"
+    }
+  ],
+  "reserved_ids": {
+    "1.13": "Retired knowledge-atom design; durable decisions remain in ADR 0001 and current specifications 1.26/1.27.",
+    "1.14": "Superseded design line represented by 1.17; no empty spec is created.",
+    "1.15": "Retired desktop design; current boundaries are owned by specifications 1.19/1.20.",
+    "1.16": "Unused; reserved to preserve historical numbering.",
+    "1.22-1.25": "Retired ingest/retrieval transitions; current boundaries are owned by specifications 1.26/1.27 and ADR 0003.",
+    "1.28-1.36": "Retired intermediate ingest runtime designs; durable decisions are preserved by specification 1.37 and ADR 0004.",
+    "1.40": "Reserved for enterprise distribution capability; not part of the public product contract."
+  }
+}

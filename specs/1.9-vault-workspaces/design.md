@@ -58,3 +58,21 @@ After selection, lower layers receive a resolved path. They do not inspect
 
 This keeps workspace identity in the integration/config layer and keeps storage
 code simple and deterministic.
+
+## Renderer Boundary
+
+The renderer separates:
+
+- a concrete workspace vault used by Wiki, graph, ingest, lint, reports,
+  tokens, and other single-vault pages;
+- a Chat retrieval scope, which may be a concrete vault or the virtual
+  all-vault scope;
+- Query's explicit single/all-vault search scope.
+
+Page-local switchers are direct consumers of the shared concrete workspace
+selection. They are not independent persisted authorities. Cross-page targets
+carry `vault_id` so the destination switcher, cache key, and API selector agree.
+Reports consume only the concrete workspace selection and expose no nested
+all-vault selector. Report and run links must carry their originating vault;
+the renderer does not repair a missing identity by substituting the currently
+selected workspace.

@@ -1,88 +1,66 @@
 # 1.4 Machine Index Layer Requirements
 
-## Problem
+## Status And Ownership
 
-KnoArbor retrieves from Markdown wiki pages and machine index artifacts. Earlier
-drafts used a human-readable `index.md` as a routing artifact, but the durable
-retrieval boundary is now `.knoarbor/index/manifest.json` plus
-`.knoarbor/index/graph_index.json`.
+Accepted. This specification owns immutable machine-index publication,
+verification, navigation and lexical retrieval artifacts, rebuildability, and
+future freshness diagnostics. Specification 1.38 exclusively owns lexical
+document meaning, default knowledge-query ranking, and evidence resolution.
 
-The 1.4 line should introduce a machine index layer that improves retrieval
-without requiring a vector database or heavyweight service.
+## Required Invariants
 
-## Goals
+1. Machine indexes are rebuildable projections, never factual authority.
+2. A build writes a complete immutable generation under
+   `.knoarbor/index/generations/` and verifies every artifact before publication.
+3. `.knoarbor/index/CURRENT` atomically selects exactly one verified generation.
+4. Readers open one composite snapshot and do not mix artifacts from different
+   navigation, retrieval, or factual generations.
+5. Page, link, source, search, and graph artifacts serve UI navigation and
+   diagnostics; default query does not rank their page prose.
+6. Missing, stale, corrupt, or FTS5-incapable snapshots produce explicit typed
+   diagnostics or a lifecycle-owned rebuild request, not a fallback to a second
+   factual/retrieval authority.
+7. Rebuild never mutates active factual revisions or user-authored raw material.
+8. A retrieval cursor binds the retrieval generation, not a navigation-only
+   generation change.
 
-- Use `manifest.json` and `graph_index.json` as the default machine-readable
-  index boundary.
-- Treat `index.md` as a future optional export view, not as source of truth.
-- Prefer local BM25 ranking and SQLite FTS-style durable retrieval before optional vector search.
-- Give ingest, lint, query, and UI a shared index provider contract.
-- Track index freshness, rebuild status, and failure states.
-- Keep the default installation local and lightweight.
-- Return page-level roles so query callers can distinguish primary answer
-  pages, supporting context pages, and source provenance pages.
+## Current Capability
+
+- deterministic publication of `pages.json`, `links.json`, `sources.json`,
+  `search.json`, and `graph_index.json`;
+- content-addressed generation identity and per-file integrity hashes;
+- atomic `CURRENT` publication;
+- shared verified snapshot reader for graph and page navigation;
+- materialization recovery through the ingest lifecycle owner.
+
+## Remaining Scope
+
+- user-facing freshness diagnostics;
+- an explicit rebuild/status surface when its API, CLI, and report contracts are
+  ready to be frozen;
+- one SQLite FTS5 lexical snapshot for the atom/claim and Raw locator channels
+  defined by 1.38;
+- composite generation identity with independent navigation and retrieval
+  generation IDs;
+- reusable normalized revision shards and packaged-runtime FTS5 capability
+  diagnostics.
 
 ## Non-Goals
 
-- Do not require a vector database for the default install.
-- Do not replace wiki Markdown pages as the source of truth.
-- Do not make query depend on a network service.
-- Do not add multi-user search permissions.
-- Do not let query, UI, or graph traversal depend on ad hoc retrieval payloads
-  outside the index provider boundary.
+- page-first default query;
+- a Markdown scanning fallback behind an unused provider abstraction;
+- mandatory vector storage or an external search service;
+- a custom postings or per-request BM25 fallback beside FTS5;
+- treating `index.md`, projection Markdown, or index JSON as factual authority.
 
-## User Scenarios
+## Retrieval Snapshot Replacement
 
-### Query A Medium Vault
+The composite generation binds navigation, lexical, and active-fact generation
+identities. Active factual revisions compile one verified lexical snapshot for
+the atom/claim and Raw channels. Relation atoms remain ordinary atom documents;
+their `source_claim_ids` close matches to Claims and then active Raw. No
+relation-graph artifact or graph-specific generation identity is published.
 
-As a user with dozens or hundreds of pages, I can query the vault and receive
-more consistent page matches than path/title-only scanning.
-
-Acceptance criteria:
-
-- Query can use a machine index provider.
-- Query results still include source path, title, page role, excerpts, and
-  trace data.
-- Query results expose `role`, and responses group pages into `primary_pages`,
-  `supporting_pages`, and `source_pages`.
-- Missing or stale indexes produce actionable diagnostics.
-
-### Rebuild Index
-
-As a user or automation, I can rebuild the machine index without mutating wiki
-page content.
-
-Acceptance criteria:
-
-- Rebuild writes only index artifacts.
-- Rebuild is safe to run repeatedly.
-- Rebuild status is visible through CLI/API/UI diagnostics.
-
-### Shared Retrieval Contract
-
-As a developer, I can improve retrieval without changing ingest, lint, query,
-and UI independently.
-
-Acceptance criteria:
-
-- Retrieval callers depend on an index provider interface.
-- The durable provider can coexist with Markdown scanning as an implementation detail.
-- Tests cover provider behavior, freshness, and fallback decisions.
-
-## Current Status
-
-Implemented:
-
-- Markdown-based retrieval with field-weighted BM25 page scoring.
-- Durable `.knoarbor/index/manifest.json` and `.knoarbor/index/graph_index.json`.
-- Index-provider views for pages, links, sources, and search.
-- Query context packs and trace metadata.
-- `IndexProvider` direction documented in architecture and roadmap.
-- Query trace records the active scoring model.
-- Query response roles for primary answer pages, supporting context pages, and
-  source provenance pages.
-
-Still in scope for 1.4:
-
-- Add rebuild command/API/reporting.
-- Move query graph traversal to `graph_index.json`.
+Startup treats an unreadable or unsupported generation as a lifecycle-owned
+clean rebuild request. Query readers never rebuild inline, migrate factual
+data, or retain a compatibility reader.

@@ -24,8 +24,8 @@ Report directories:
 
 | Flow | Directory | Purpose |
 | --- | --- | --- |
-| ingest | `maintenance/reports/ingest/` | Source processing, segmentation, page planning, write gate, writes, scoped lint, token summary. |
-| lint | `maintenance/reports/lint/` | Deterministic issues, semantic candidates, review decisions, applied operations, diffs, verification, rescan. |
+| ingest | `maintenance/reports/ingest/` | Source processing, source unitization, index metadata extraction, deterministic compiler validation, source revision commits, materialization request, scoped lint, token summary. |
+| lint | `maintenance/reports/lint/` | Findings, repair plan, owner-workflow execution results, post-repair scan, metrics, and warnings. |
 | query | `maintenance/reports/query/` | Query candidates, answer-set trace, guidance, gaps, context pack. |
 | run-failure | `maintenance/reports/run-failure/` | Generic early workflow failures when a flow-specific report cannot be produced. |
 
@@ -43,8 +43,7 @@ directory with a failed status. Generic runtime failures use `run-failure`.
     query_feedback.jsonl
     token.jsonl
   runs/
-  checkpoints/
-  queue/
+  ingest/
   locks/
   logs/
 ```
@@ -55,7 +54,7 @@ Stable ledger schemas:
 | --- | --- |
 | `ingest.jsonl` | `ingest_run.v1` |
 | `lint_run.jsonl` | `lint_run_record.v1` |
-| `query.jsonl` | `query_record.v1` |
+| `query.jsonl` | `query_record.v2` |
 | `query_feedback.jsonl` | `query_feedback.v1` |
 | `token.jsonl` | `token_ledger.v1` |
 | failure records inside flow ledgers | `run_failure_record.v1` |
@@ -74,6 +73,14 @@ Failure artifacts use the same boundary:
 Failure records use `run_failure_record.v1`. They are written before normal
 workflow results exist, preserving enough context for UI, CLI, and logs to
 explain the failed run.
+
+## Ingest Materialization
+
+Ingest reports distinguish factual commits from deterministic materialization.
+`source_revision` records identify committed raw-grounded facts, and the source
+entry records that vault materialization was requested. The transactional run
+record owns final materialization warnings. Rebuilding projections and the
+machine index does not call a model or roll back committed source revisions.
 
 ## Ownership
 

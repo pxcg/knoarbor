@@ -1,6 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 
-import type { AppNotice } from "../../appContext";
 import type { ConfigForm, ConfigFormProvider, ModelProviderProbeState } from "../../api/client";
 import { PathField, PresetMenu } from "./ConfigFormControls";
 import { ModelProbeResultPanel } from "./ConfigModelProbeResultPanel";
@@ -16,12 +15,12 @@ type ChatModelProvidersSectionProps = {
   pendingAction: string | null;
   onDiscover: (provider: string) => void;
   onCommit: (nextForm: ConfigForm) => Promise<void>;
-  onError: (notice: AppNotice | null) => void;
+  onError: (error: unknown) => void;
 };
 
 export function ChatModelProvidersSection({ form, setForm, t, probeResults, pendingAction, onDiscover, onCommit, onError }: ChatModelProvidersSectionProps) {
   const [activeProvider, setActiveProvider] = useState(0);
-  const [providerPreset, setProviderPreset] = useState(PROVIDER_PRESETS[0].name);
+  const [providerPreset, setProviderPreset] = useState("");
 
   function uniqueProviderName(baseName: string): string {
     const existingNames = new Set(form.providers.map((provider) => provider.name.trim()).filter(Boolean));
@@ -42,8 +41,8 @@ export function ChatModelProvidersSection({ form, setForm, t, probeResults, pend
       await onCommit(nextForm);
       return true;
     } catch (error) {
-      setForm(previousForm);
-      onError({ message: error instanceof Error ? error.message : String(error), error: true });
+      setForm((current) => current === nextForm ? previousForm : current);
+      onError(error);
       return false;
     }
   }
@@ -56,9 +55,9 @@ export function ChatModelProvidersSection({ form, setForm, t, probeResults, pend
   }
 
   function providerPatchForm(index: number, patch: Partial<ConfigFormProvider>): ConfigForm {
-    const previousProvider = form.providers[index];
     const nextProviders = form.providers.map((provider, current) => (current === index ? { ...provider, ...patch } : provider));
-    const nextDefaultProvider = patch.name && form.default_provider === previousProvider?.name ? patch.name : form.default_provider;
+    const providerNames = new Set(nextProviders.map((provider) => provider.name.trim()).filter(Boolean));
+    const nextDefaultProvider = providerNames.has(form.default_provider) ? form.default_provider : nextProviders[index]?.name || nextProviders[0]?.name || "";
     return {
       ...form,
       providers: nextProviders,
@@ -158,7 +157,7 @@ export function ChatModelProvidersSection({ form, setForm, t, probeResults, pend
             <div className="form-grid provider-form-grid">
               <PathField label={t("name")} value={active.name} onBlur={(value) => void commit(providerPatchForm(activeProvider, { name: value }))} onChange={(value) => updateProvider(activeProvider, { name: value })} />
               <PathField label={t("model")} value={active.model} onBlur={(value) => void commit(providerPatchForm(activeProvider, { model: value }))} onChange={(value) => updateProvider(activeProvider, { model: value })} />
-              <PathField label={t("baseUrl")} value={active.base_url} onBlur={(value) => void commit(providerPatchForm(activeProvider, { base_url: value }))} onChange={(value) => updateProvider(activeProvider, { base_url: value })} />
+              <PathField label={t("baseUrl")} placeholder={t("baseUrlPlaceholder")} value={active.base_url} onBlur={(value) => void commit(providerPatchForm(activeProvider, { base_url: value }))} onChange={(value) => updateProvider(activeProvider, { base_url: value })} />
               <SecretField
                 label={t("apiKey")}
                 placeholder={t("apiKeyPlaceholder")}
@@ -174,6 +173,21 @@ export function ChatModelProvidersSection({ form, setForm, t, probeResults, pend
                 selectFileTitle={t("tlsCaFile")}
                 t={t}
               />
+              {supportsThinkingMode(active) && (
+                <div className="field thinking-mode-field">
+                  <span>{t("thinkingMode")}</span>
+                  <label className="thinking-mode-control">
+                    <input
+                      type="checkbox"
+                      checked={thinkingModeEnabled(active)}
+                      onChange={(event) => void commit(providerPatchForm(activeProvider, {
+                        extra_body: thinkingModeBody(active, event.target.checked),
+                      }))}
+                    />
+                    <span>{t("enableThinkingMode")}</span>
+                  </label>
+                </div>
+              )}
             </div>
             <div className="provider-actions">
               <button className="button secondary" onClick={() => onDiscover(active.name)} disabled={!active.name || pendingAction === `${active.name}:discover`} type="button">
@@ -189,4 +203,28 @@ export function ChatModelProvidersSection({ form, setForm, t, probeResults, pend
       </div>
     </>
   );
+}
+
+function supportsThinkingMode(provider: ConfigFormProvider): boolean {
+  if (provider.adapter === "ollama") return true;
+  const identity = `${provider.name} ${provider.model} ${provider.base_url}`.toLowerCase();
+  return identity.includes("deepseek");
+}
+
+function thinkingModeEnabled(provider: ConfigFormProvider): boolean {
+  if (provider.adapter === "ollama") return provider.extra_body?.think === true;
+  const thinking = provider.extra_body?.thinking;
+  return typeof thinking === "object"
+    && thinking !== null
+    && (thinking as Record<string, unknown>).type === "enabled";
+}
+
+function thinkingModeBody(provider: ConfigFormProvider, enabled: boolean): Record<string, unknown> {
+  const extraBody = { ...(provider.extra_body || {}) };
+  if (provider.adapter === "ollama") {
+    extraBody.think = enabled;
+    return extraBody;
+  }
+  extraBody.thinking = { type: enabled ? "enabled" : "disabled" };
+  return extraBody;
 }

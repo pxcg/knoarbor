@@ -3,79 +3,149 @@ from __future__ import annotations
 import unittest
 
 from knoarbor.core.schemas.chat import ChatCitation, ChatToolTraceItem
-from knoarbor.core.schemas.wiki_query import WIKI_ANSWER_PAGE_ROLES, WIKI_QUERY_RESPONSE_FIELDS, WIKI_QUERY_SCHEMA_VERSION
+from knoarbor.core.schemas.wiki_query import (
+    WIKI_QUERY_RESPONSE_FIELDS,
+    WIKI_QUERY_SCHEMA_VERSION,
+    WikiSearchRequest,
+    WikiSearchResult,
+)
 from knoarbor.audit.contracts import LEDGER_PATHS, LEDGER_SCHEMA_VERSIONS, REPORT_DIRECTORIES, REPORT_KINDS
-from knoarbor.pipelines.ingest_observer import INGEST_OBSERVATION_EVENT_TYPES, INGEST_OBSERVATION_STEPS
 from knoarbor.services.chat_evidence import CHAT_EVIDENCE_PACK_KEYS, CHAT_EVIDENCE_PACK_SCHEMA_VERSION, ChatEvidencePlanner
 from knoarbor.services.chat_reference_resolver import resolve_answer_presentation
 
 
 class RuntimeContractTests(unittest.TestCase):
-    def test_ingest_observation_steps_are_stable_ordered_contract(self) -> None:
-        self.assertEqual(
-            INGEST_OBSERVATION_STEPS,
-            (
-                "input",
-                "segment",
-                "normalize_agent",
-                "atom_agent",
-                "retrieval",
-                "plan_agent",
-                "draft_agent",
-                "review_agent",
-                "write_gate",
-                "write",
-            ),
-        )
-        self.assertEqual(
-            INGEST_OBSERVATION_EVENT_TYPES,
-            ("ingest_step_started", "ingest_step_finished", "ingest_step_skipped"),
-        )
-
-    def test_query_response_contract_names_answer_set_surfaces(self) -> None:
-        self.assertEqual(WIKI_QUERY_SCHEMA_VERSION, "wiki_query.v1")
-        self.assertEqual(WIKI_ANSWER_PAGE_ROLES, ("primary", "supporting", "source"))
+    def test_query_response_contract_has_one_locator_and_evidence_surface(self) -> None:
+        self.assertEqual(WIKI_QUERY_SCHEMA_VERSION, "wiki_query.v4")
         for field_name in (
             "results",
+            "status",
+            "evidence_handles",
+            "raw_evidence",
+            "context_pack",
+        ):
+            self.assertIn(field_name, WIKI_QUERY_RESPONSE_FIELDS)
+        for removed in (
             "primary_pages",
             "supporting_pages",
             "source_pages",
             "answer_scope",
             "answer_set",
             "evidence_coverage",
-            "context_pack",
+            "response_guidance",
+            "gap_suggestions",
+            "relation_paths",
         ):
-            self.assertIn(field_name, WIKI_QUERY_RESPONSE_FIELDS)
+            self.assertNotIn(removed, WIKI_QUERY_RESPONSE_FIELDS)
+
+    def test_query_contract_exposes_no_retired_page_retrieval_controls(self) -> None:
+        for removed in ("page_dirs", "page_roles", "include_related", "include_content"):
+            self.assertNotIn(removed, WikiSearchRequest.model_fields)
+
+    def test_query_locator_contract_contains_no_page_content_projection(self) -> None:
+        for removed in (
+            "page_role",
+            "match_kind",
+            "summary",
+            "claims",
+            "excerpts",
+            "content",
+            "source",
+            "entities",
+            "outbound_links",
+            "content_truncated",
+        ):
+            self.assertNotIn(removed, WikiSearchResult.model_fields)
 
     def test_chat_evidence_pack_keeps_candidate_evidence_separate_from_public_citations(self) -> None:
-        pack = ChatEvidencePlanner().build_search_pack(
-            query="Agent Loop 是什么？",
-            result_count=3,
-            answer_scope={"kind": "narrow"},
-            answer_set={
-                "kind": "multi_page",
-                "primary_paths": ["Agent-Loop.md"],
-                "supporting_paths": ["Memory.md"],
-                "source_paths": ["sources/Agent-Loop-Source.md"],
-            },
-            evidence_coverage={"status": "strong", "primary_count": 1, "supporting_count": 1, "source_count": 1},
-            primary_page={"path": "Agent-Loop.md", "title": "Agent Loop", "summary": "Loop page.", "content": "Loop content."},
-            primary_pages=[{"path": "Agent-Loop.md", "title": "Agent Loop", "summary": "Loop page.", "content": "Loop content."}],
-            supporting_pages=[{"path": "Memory.md", "title": "Memory", "summary": "Memory page.", "content": "Memory content."}],
-            source_pages=[{"path": "sources/Agent-Loop-Source.md", "title": "Agent Loop Source", "summary": "Source audit."}],
-            results=[
-                {"path": "Agent-Loop.md", "title": "Agent Loop"},
-                {"path": "Memory.md", "title": "Memory"},
-                {"path": "Extra.md", "title": "Extra"},
-            ],
-            warnings=[],
-        ).payload
+        projection = ChatEvidencePlanner().project_tool_observation(
+            "retrieve_knowledge_batch",
+            "ok",
+            "read",
+            {"raw_evidence": [{"evidence_id": "ev:1", "source_unit_id": "unit:1", "content": "fact"}]},
+        )
+        pack = projection["evidence_pack"]
 
         self.assertEqual(pack["schema_version"], CHAT_EVIDENCE_PACK_SCHEMA_VERSION)
         for key in CHAT_EVIDENCE_PACK_KEYS:
             self.assertIn(key, pack)
-        self.assertEqual([page["path"] for page in pack["citation_pages"]], ["Agent-Loop.md", "Memory.md", "sources/Agent-Loop-Source.md"])
-        self.assertEqual([page["path"] for page in pack["further_results"]], ["Extra.md"])
+        self.assertEqual(pack["citation_evidence"][0]["evidence_id"], "ev:1")
+        self.assertEqual(pack["citation_evidence"][0]["citation_marker"], "[1]")
+
+    def test_chat_answer_evidence_uses_one_global_deduplicated_namespace(self) -> None:
+        observations = [
+            ChatToolTraceItem(
+                tool="retrieve_knowledge_batch",
+                result={
+                    "raw_evidence": [
+                        {"evidence_id": "ev:1", "source_unit_id": "unit:1", "content": "first"},
+                        {"evidence_id": "ev:2", "source_unit_id": "unit:2", "content": "second"},
+                    ]
+                },
+            ),
+            ChatToolTraceItem(
+                tool="retrieve_knowledge_batch",
+                result={
+                    "raw_evidence": [
+                        {"evidence_id": "ev:2", "source_unit_id": "unit:2", "content": "second"},
+                        {"evidence_id": "ev:3", "source_unit_id": "unit:3", "content": "third"},
+                    ]
+                },
+            ),
+        ]
+
+        projected = ChatEvidencePlanner().project_answer_observations(observations)
+        pack = projected[0]["evidence_pack"]
+
+        self.assertEqual(
+            [item["index"] for item in pack["raw_evidence"]],
+            [1, 2, 3],
+        )
+        self.assertTrue(
+            all("evidence_id" not in item for item in pack["raw_evidence"])
+        )
+        self.assertEqual(
+            [
+                item["support_spans"][0]["text"]
+                for item in pack["raw_evidence"]
+            ],
+            ["first", "second", "third"],
+        )
+        self.assertTrue(all("citation_marker" not in item for item in pack["raw_evidence"]))
+        self.assertTrue(all(item["support_spans"] for item in pack["raw_evidence"]))
+
+    def test_chat_answer_evidence_keeps_distinct_spans_from_one_source_unit(self) -> None:
+        observations = [
+            ChatToolTraceItem(
+                tool="retrieve_knowledge_batch",
+                result={
+                    "raw_evidence": [
+                        {
+                            "evidence_id": "evref:color",
+                            "source_evidence_id": "ev:unit",
+                            "source_unit_id": "unit:aurora",
+                            "excerpt": "Green is the most common aurora color.",
+                            "content": "Green is the most common aurora color. Auroras are common near the Arctic Circle.",
+                        },
+                        {
+                            "evidence_id": "evref:location",
+                            "source_evidence_id": "ev:unit",
+                            "source_unit_id": "unit:aurora",
+                            "excerpt": "Auroras are common near the Arctic Circle.",
+                            "content": "Green is the most common aurora color. Auroras are common near the Arctic Circle.",
+                        },
+                    ]
+                },
+            )
+        ]
+
+        projected = ChatEvidencePlanner().project_answer_observations(observations)
+        pack = projected[0]["evidence_pack"]
+
+        self.assertTrue(all("citation_marker" not in item for item in pack["raw_evidence"]))
+        self.assertTrue(all("excerpt" not in item for item in pack["raw_evidence"]))
+        self.assertTrue(all("content" not in item for item in pack["raw_evidence"]))
+        self.assertTrue(all(item["support_spans"] for item in pack["raw_evidence"]))
 
     def test_chat_reference_resolver_publishes_only_answer_referenced_evidence(self) -> None:
         citation_pages = [
@@ -108,7 +178,7 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertEqual(LEDGER_PATHS["token"], ".knoarbor/ledgers/token.jsonl")
         self.assertEqual(LEDGER_SCHEMA_VERSIONS["ingest"], "ingest_run.v1")
         self.assertEqual(LEDGER_SCHEMA_VERSIONS["lint"], "lint_run_record.v1")
-        self.assertEqual(LEDGER_SCHEMA_VERSIONS["query"], "query_record.v1")
+        self.assertEqual(LEDGER_SCHEMA_VERSIONS["query"], "query_record.v2")
         self.assertEqual(LEDGER_SCHEMA_VERSIONS["query_feedback"], "query_feedback.v1")
         self.assertEqual(LEDGER_SCHEMA_VERSIONS["token"], "token_ledger.v1")
         self.assertEqual(LEDGER_SCHEMA_VERSIONS["run_failure"], "run_failure_record.v1")

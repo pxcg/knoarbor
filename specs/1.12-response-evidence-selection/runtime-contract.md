@@ -12,7 +12,7 @@ Stable answer-bearing fields:
 - `results`: ranked candidates returned by retrieval.
 - `primary_pages`: maintained pages that directly carry the answer.
 - `supporting_pages`: maintained pages that add complementary evidence.
-- `source_pages`: source digest pages for provenance.
+- `source_pages`: source record pages for provenance.
 - `answer_scope`: deterministic query breadth and vault scope.
 - `answer_set`: selected page-role plan.
 - `evidence_coverage`: deterministic coverage and gap signal.

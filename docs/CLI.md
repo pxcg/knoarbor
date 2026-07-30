@@ -139,6 +139,18 @@ settings schema for JSON output.
 `--include-content` only when you intentionally need the full normalized
 `SourceDocument.content` payload.
 
+### `desktop-config`
+
+Read and write desktop configuration payloads without starting the HTTP server.
+This command is used by the Electron desktop shell and is also useful for local
+diagnostics.
+
+```bash
+uv run knoar desktop-config read-form --json
+uv run knoar desktop-config diagnostics --refresh-source-counts --json
+uv run knoar desktop-config write-form --input payload.json --json
+```
+
 ### `ingest`
 
 Run the unified ingest workflow.
@@ -161,6 +173,11 @@ uv run knoar ingest --input /path/to/folder --write
 uv run knoar ingest --input /path/to/paper.pdf --write --no-follow
 ```
 
+Ingest uses one semantic extraction path. Short inputs normally use one model
+call; long inputs are split by the configured character budgets and merged at
+the source/window boundary. The resulting factual revision is published
+atomically, then readable source and machine-index projections are materialized.
+
 When `--input` is a folder, KnoArbor discovers Markdown files recursively by
 default. Rich files in that folder are first converted through the configured
 MinerU-compatible preprocessor.
@@ -178,10 +195,16 @@ uv run knoar ingest --recover-run-id RUN_ID --write
 uv run knoar ingest --vault-id personal --recover-run-id RUN_ID --write
 ```
 
-`ingest` is a long-running command. Human-readable CLI output follows the local
-run queue by default and prints progress events plus heartbeat lines. Use
-`--json` for a pure machine-readable response, or `--no-follow` when you
-explicitly want synchronous summary output.
+Rebuild deterministic source projections and the machine index without rerunning model extraction:
+
+```bash
+uv run knoar ingest --rebuild-materialization
+```
+
+`ingest` executes its persisted task in the CLI process and returns after the
+local operation finishes. Human-readable output prints progress events and
+heartbeat lines. Use `--json` for a pure machine-readable response, or
+`--no-follow` to print only the final summary; neither option changes execution ownership.
 
 When multiple vaults are configured, ingest writes to one vault per command. Use
 `--vault-id <id>` to select a configured vault, or `--vault /path/to/vault` for an
@@ -196,15 +219,16 @@ uv run knoar lint
 uv run knoar lint --vault-id personal
 uv run knoar lint --mode deterministic
 uv run knoar lint --mode semantic
-uv run knoar lint --mode semantic --no-apply-reviewed
+uv run knoar lint --mode semantic
 ```
 
 Modes:
 
-- `deterministic`: scan and apply deterministic safe fixes only.
-- `semantic`: first run deterministic structured maintenance, then run semantic maintenance over structural, provenance, and quality candidates. Approved changes are applied by default.
+- `deterministic`: scan, execute deterministic owner-routed repairs, and rescan.
+- `semantic`: add evidence-bound semantic diagnosis and automatically reingest sources whose approved findings concern canonical knowledge quality.
 
-Use `--no-apply-reviewed` when you want semantic review and reports without page writes.
+Semantic models emit findings rather than replacement knowledge. Lint executes
+the resulting repair plan through ingest or materialization automatically.
 
 Like ingest, `lint` follows progress by default for human-readable output. Use
 `--json` for machine-readable output or `--no-follow` for synchronous summary
@@ -221,19 +245,18 @@ generate a final answer.
 
 ```bash
 uv run knoar query "Agent Loop 和控制模式是什么？"
-uv run knoar query --mode deep --max-results 8 "RAG 和 LLM-Wiki 的区别"
+uv run knoar query "RAG 和 LLM-Wiki 的区别"
 uv run knoar query --vault-id personal "Agent Loop 是什么？"
 ```
 
-Modes:
+Query uses one semantic atom-to-claim-to-raw strategy and returns the complete
+matched evidence set. Recall breadth follows the semantic query and evidence
+sufficiency.
 
-- `quick`: compact routing context, no excerpts.
-- `balanced`: default evidence bundle with bounded excerpts and related-page expansion.
-- `deep`: larger local evidence budget, still retrieval-only.
-
-The returned context pack is page-first: it keeps the primary wiki page body
-intact and keeps supporting/source pages as structured evidence. Use
-`pages read` when a caller needs the full body of a specific supporting page.
+The returned context pack keeps one optional projection-locator list separate
+from claim-backed raw evidence. Raw evidence/source units are the only factual
+material. Use `pages read` when a caller needs a projection body for navigation
+or inspection.
 
 Use `--json` when another tool or skill needs structured fields. Use
 `--write-report` when you want the query run to leave an audit artifact under
@@ -266,10 +289,9 @@ Use `pages read` after query when you need the full maintained page body. Use
 `pages relations` to inspect page relation metadata without opening the UI.
 
 Page paths are relative to the maintained content root. In the default layout,
-KnoArbor stores knowledge pages under `vaults/default/wiki/pages/`. Knowledge
-pages use flat paths such as `Agent-Loop.md`; source digest pages use
-`sources/Agent-Loop-Source.md`. `pages list --dir pages` lists knowledge pages;
-`pages list --dir sources` lists source audit pages.
+KnoArbor stores authored pages and deterministic source projections under
+`vaults/default/wiki/pages/`, using flat paths such as `Agent-Loop.md`.
+Legacy vaults may still expose historical `sources/...` pages.
 
 ### `vaults`
 
@@ -355,5 +377,5 @@ uv run knoar contracts
 Run one semantic contract with a JSON payload.
 
 ```bash
-uv run knoar run-contract source_normalize --input /path/to/input.json
+uv run knoar run-contract index_metadata_extract --input /path/to/input.json
 ```

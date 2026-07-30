@@ -1,4 +1,5 @@
 import type { ModelProviderProbeState } from "../../api/client";
+import { currentModelProbeAssessment } from "../../modelProbeRuntime";
 
 export function ModelProbeResultPanel({
   result,
@@ -15,16 +16,17 @@ export function ModelProbeResultPanel({
     return <p className="settings-action-note">{t("modelProbeEmpty")}</p>;
   }
   const discovery = result.discovery;
+  const assessment = currentModelProbeAssessment(discovery, activeModel);
   const modelIds = discovery?.model_ids || [];
   return (
     <section className="model-probe-panel">
       <div className="model-probe-header">
         <h3>{t("modelProbeResult")}</h3>
-        <span className={`pill ${discovery?.status === "ok" ? "success" : discovery?.status === "error" ? "danger" : ""}`}>
-          {discovery?.status || t("unknown")}
+        <span className={`pill ${assessment?.status === "ok" ? "success" : assessment?.status === "error" ? "danger" : ""}`}>
+          {assessment?.status || t("unknown")}
         </span>
       </div>
-      <p className="panel-copy">{discovery?.message}</p>
+      <p className="panel-copy">{assessment?.status === "ok" ? t("modelAvailable") : assessment ? t("modelUnavailable") : t("modelNotChecked")}</p>
       <dl className="model-probe-grid">
         <div>
           <dt>{t("detectedContextWindow")}</dt>
@@ -39,7 +41,7 @@ export function ModelProbeResultPanel({
           <dd>{formatMaybeNumber(discovery?.model_count, t)}</dd>
         </div>
       </dl>
-      {discovery?.configured_model_found === false && activeModel && <p className="settings-action-note warning">{t("configuredModelMissing")}</p>}
+      {assessment?.configuredModelFound === false && <p className="settings-action-note warning">{t("configuredModelMissing")}</p>}
       {modelIds.length > 0 && (
         <div className="model-discovery-list">
           <div className="model-discovery-heading">

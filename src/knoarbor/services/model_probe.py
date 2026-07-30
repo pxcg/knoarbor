@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import yaml
 
-from knoarbor.core.config import ModelProviderConfig, default_config_path, load_config
+from knoarbor.core.config import KnoArborConfig, ModelProviderConfig, default_config_path, load_config, prepare_config_data
 from knoarbor.core.errors import UserInputError
 from knoarbor.core.schemas.model_probe import (
     ModelApplyCapabilitiesRequest,
@@ -14,7 +14,7 @@ from knoarbor.core.schemas.model_probe import (
     ModelProviderSummary,
 )
 from knoarbor.semantic.llm import ModelGateway, is_local_or_private_model_endpoint
-from knoarbor.services.ui_config import resolve_ui_config_path
+from knoarbor.services.ui_config import resolve_ui_config_path, write_private_text_atomic
 
 
 class ModelProbeService:
@@ -48,7 +48,7 @@ class ModelProbeService:
         details = dict(discovery.details)
         detected_context = _int_or_none(details.get("detected_context_window"))
         effective_context = detected_context or provider.context_window
-        configured_model_found = _bool_or_none(details.get("configured_model_found"))
+        configured_model_found = _bool_or_none(details.get("configured_model_found")) if provider.model else None
         status = "error"
         if discovery.available:
             status = "warning" if provider.model and configured_model_found is False else "ok"
@@ -71,7 +71,7 @@ class ModelProbeService:
         )
 
     def apply_capabilities(self, request: ModelApplyCapabilitiesRequest) -> ModelApplyCapabilitiesResponse:
-        path = resolve_ui_config_path(request.config_path, for_write=True)
+        path = resolve_ui_config_path(request.config_path)
         source_path = path if path.exists() else default_config_path()
         data = yaml.safe_load(source_path.read_text(encoding="utf-8")) or {}
         if not isinstance(data, dict):
@@ -90,7 +90,9 @@ class ModelProbeService:
         if request.json_mode is not None:
             target["json_mode"] = request.json_mode
             applied["json_mode"] = request.json_mode
-        path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+        content = yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
+        KnoArborConfig.model_validate(prepare_config_data(data, path.parent))
+        write_private_text_atomic(path, content)
         return ModelApplyCapabilitiesResponse(provider=request.provider, config_path=str(path), saved=True, applied=applied)
 
 

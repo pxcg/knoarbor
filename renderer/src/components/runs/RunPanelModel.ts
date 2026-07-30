@@ -13,20 +13,23 @@ export type RunSourceInfo = {
 
 const INGEST_STAGE_KEYS = new Set([
   "input",
-  "segment",
-  "normalize_agent",
-  "atom_agent",
-  "retrieval",
-  "plan_agent",
-  "draft_agent",
-  "review_agent",
-  "write_gate",
-  "write",
+  "document_process",
+  "source_unitize",
+  "index_metadata_agent",
+  "index_metadata_validation",
+  "index_write",
+  "projection",
+  "report",
 ]);
 
 const LINT_STAGE_KEYS = new Set(["scan", "diagnose", "review", "execute", "verify", "report"]);
 
 const SOURCE_EVENT_TYPES = new Set(["source_started", "source_processing", "segments_created", "source_queued"]);
+const TERMINAL_RUN_STATUSES = new Set<RunRecord["status"]>(["completed", "failed", "cancelled", "partially_failed"]);
+
+export function isTerminalRunStatus(status: RunRecord["status"]): boolean {
+  return TERMINAL_RUN_STATUSES.has(status);
+}
 
 export function dedupeRuns(runs: RunRecord[]): RunRecord[] {
   const seen = new Set<string>();
@@ -63,15 +66,13 @@ export function flowStages(flow: RunRecord["flow"]): FlowNode[] {
   return [
     { key: "queued", label: "runStageQueued", kind: "workflow" },
     { key: "input", label: "runStageInput", kind: "workflow" },
-    { key: "segment", label: "runStageSegment", kind: "workflow" },
-    { key: "normalize_agent", label: "runStageNormalizeAgent", kind: "agent" },
-    { key: "atom_agent", label: "runStageAtomAgent", kind: "agent" },
-    { key: "retrieval", label: "runStageRetrieval", kind: "workflow" },
-    { key: "plan_agent", label: "runStagePlanAgent", kind: "agent" },
-    { key: "draft_agent", label: "runStageDraftAgent", kind: "agent" },
-    { key: "review_agent", label: "runStageReviewAgent", kind: "agent" },
-    { key: "write_gate", label: "runStageWriteGate", kind: "workflow" },
-    { key: "write", label: "runStageWrite", kind: "workflow" },
+    { key: "document_process", label: "runStageDocumentProcess", kind: "workflow" },
+    { key: "source_unitize", label: "runStageSourceUnitize", kind: "workflow" },
+    { key: "index_metadata_agent", label: "runStageIndexMetadata", kind: "agent" },
+    { key: "index_metadata_validation", label: "runStageIndexMetadataValidation", kind: "workflow" },
+    { key: "index_write", label: "runStageIndexWrite", kind: "workflow" },
+    { key: "projection", label: "runStageProjection", kind: "workflow" },
+    { key: "report", label: "runStageReport", kind: "workflow" },
     { key: "done", label: "runStageDone", kind: "workflow" },
   ];
 }
@@ -81,26 +82,24 @@ export function currentStageKey(run: RunRecord): string {
   if (run.status === "queued" || run.stage === "queued") return "queued";
   const stage = `${run.stage || ""} ${run.current_item || ""}`;
   if (run.flow === "ingest" && INGEST_STAGE_KEYS.has(run.stage)) return run.stage;
+  if (run.flow === "ingest" && ["index_metadata_extract", "semantic", "waiting_model"].includes(run.stage)) return "index_metadata_agent";
   if (run.flow === "lint" && LINT_STAGE_KEYS.has(run.stage)) return run.stage;
-  if (stage.includes("source_normalize")) return "normalize_agent";
-  if (stage.includes("wiki_atom_extract")) return "atom_agent";
-  if (stage.includes("wiki_page_plan")) return "plan_agent";
-  if (stage.includes("wiki_relation")) return "plan_agent";
-  if (stage.includes("wiki_draft_compile")) return "draft_agent";
-  if (stage.includes("ingest_draft_review")) return "review_agent";
-  if (stage.includes("retrieval") || stage.includes("query")) return "retrieval";
+  if (run.flow === "ingest" && stage.includes("index_metadata")) return "index_metadata_agent";
   if (run.status === "waiting_model" || stage.includes("semantic") || stage.includes("model") || stage.includes("relation") || stage.includes("draft")) {
     if (run.flow === "lint") {
       if (stage.includes("review")) return "review";
       if (stage.includes("draft")) return "execute";
       return "diagnose";
     }
-    return run.flow === "ingest" ? "review_agent" : "diagnose_agent";
+    return run.flow === "ingest" ? "index_metadata_agent" : "diagnose_agent";
   }
   if (stage.includes("document") || stage.includes("preprocess")) return "input";
-  if (stage.includes("segment")) return "segment";
-  if (stage.includes("lint") || stage.includes("scan") || stage.includes("quality")) return run.flow === "lint" ? "scan" : "write";
-  if (stage.includes("write") || stage.includes("report") || stage.includes("checkpoint")) return "write";
+  if (run.flow === "ingest" && stage.includes("segment")) return "source_unitize";
+  if (run.flow === "lint" && (stage.includes("lint") || stage.includes("scan") || stage.includes("quality"))) return "scan";
+  if (run.flow === "ingest" && stage.includes("validation")) return "index_metadata_validation";
+  if (run.flow === "ingest" && (stage.includes("write") || stage.includes("checkpoint"))) return "index_write";
+  if (run.flow === "ingest" && stage.includes("projection")) return "projection";
+  if (run.flow === "ingest" && stage.includes("report")) return "report";
   if (run.flow === "query") {
     if (stage.includes("pack") || stage.includes("context")) return "pack";
     return "search";
@@ -115,21 +114,19 @@ export function eventNodeKey(event: RunEvent, flow: RunRecord["flow"]): string {
   if (flow === "lint" && lintStep && LINT_STAGE_KEYS.has(lintStep)) return lintStep;
   const text = `${event.stage || ""} ${event.current_item || ""} ${event.message || ""} ${event.event_type || ""}`.toLowerCase();
   if (event.status === "completed") return "done";
-  if (text.includes("source_normalize")) return "normalize_agent";
-  if (text.includes("wiki_atom_extract")) return "atom_agent";
-  if (text.includes("wiki_page_plan")) return "plan_agent";
-  if (text.includes("wiki_relation")) return "plan_agent";
-  if (text.includes("wiki_draft_compile")) return "draft_agent";
-  if (text.includes("ingest_draft_review")) return "review_agent";
+  if (flow === "ingest" && text.includes("index_metadata_validation")) return "index_metadata_validation";
+  if (flow === "ingest" && text.includes("index_metadata")) return "index_metadata_agent";
   if (text.includes("lint_diagnose") || text.includes("quality_diagnose") || text.includes("diagnose")) return flow === "lint" ? "diagnose" : "diagnose_agent";
-  if (text.includes("review")) return flow === "lint" ? "review" : "review_agent";
+  if (text.includes("review")) return flow === "lint" ? "review" : "index_metadata_agent";
   if (text.includes("query returned") || text.includes("retrieval") || text.includes("candidate") || text.includes("search")) {
-    return flow === "query" ? "search" : "retrieval";
+    return flow === "query" ? "search" : "index_metadata_agent";
   }
-  if (text.includes("segment")) return "segment";
-  if (text.includes("standardizing") || text.includes("normalizing") || text.includes("document") || text.includes("preprocess")) return "input";
-  if (text.includes("report")) return flow === "lint" ? "report" : "write";
-  if (text.includes("write") || text.includes("checkpoint")) return flow === "lint" ? "execute" : "write";
+  if (flow === "ingest" && text.includes("segment")) return "source_unitize";
+  if (text.includes("document") || text.includes("preprocess")) return flow === "ingest" ? "document_process" : "input";
+  if (text.includes("standardizing") || text.includes("normalizing")) return "input";
+  if (text.includes("report")) return "report";
+  if (text.includes("projection") || text.includes("materializ")) return "projection";
+  if (text.includes("write") || text.includes("checkpoint")) return flow === "lint" ? "execute" : "index_write";
   if (flow === "query" && (text.includes("pack") || text.includes("context"))) return "pack";
   if (event.status === "queued" || text.includes("queued")) return "queued";
   return currentStageKey({
@@ -233,6 +230,10 @@ export function canRecoverRun(run: RunRecord) {
   return run.flow === "ingest" && recovery.available === true;
 }
 
+export function isMaterializationPending(run: RunRecord) {
+  return run.flow === "ingest" && run.result_summary?.materialization_pending === true;
+}
+
 export function reportPathForRun(run: RunRecord): string | null {
   const path = run.result_summary?.report_path;
   return typeof path === "string" && path ? path : null;
@@ -255,16 +256,9 @@ export function localizeRunEventMessage(message: string | null | undefined, even
   const value = (message || eventType || "").trim();
   if (!value || t("language") !== "语言") return value;
   const direct: Record<string, string> = {
-    "Calling model for source_normalize.": "调用模型：资料标准化。",
-    "Calling model for wiki_atom_extract.": "调用模型：知识原子提取。",
-    "Calling model for wiki_page_plan.": "调用模型：页面规划。",
-    "Calling model for wiki_relation_plan.": "调用模型：页面关系规划。",
-    "Calling model for wiki_draft_compile.": "调用模型：页面编译。",
-    "Calling model for ingest_draft_review.": "调用模型：草稿评审。",
-    "Standardizing source document.": "标准化资料文档。",
-    "Extracting knowledge atoms.": "提取知识原子。",
-    "Compiling wiki draft.": "编译 Wiki 页面草稿。",
-    "Writing wiki pages.": "写入 Wiki 页面。",
+    "Running auto index metadata ingest extractor.": "正在提取知识元数据。",
+    "Publishing source revision.": "正在提交事实版本。",
+    "Materializing source projections.": "正在生成检索投影。",
   };
   if (direct[value]) return direct[value];
   const modelCall = value.match(/^Calling model for ([a-z0-9_:-]+)\.?$/i);
@@ -298,7 +292,7 @@ function displayStageLabel(stage: string, t: (key: string) => string): string {
   if (normalized === "execute") return t("runStageExecute");
   if (normalized === "verify") return t("runStageVerify");
   if (normalized === "report") return t("runStageReport");
-  if (normalized.includes("segment")) return t("runStageSegment");
+  if (normalized.includes("segment")) return t("runStageSourceUnitize");
   if (normalized.includes("semantic") || normalized.includes("model") || normalized.includes("relation") || normalized.includes("draft")) return t("runStageModel");
   if (normalized.includes("document") || normalized.includes("preprocess") || normalized.includes("normalizing")) return t("runStageInput");
   if (normalized.includes("scan") || normalized.includes("quality")) return t("runStageScan");

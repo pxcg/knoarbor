@@ -26,7 +26,7 @@ def render_query_report(request: WikiSearchRequest, response: WikiSearchResponse
         f"- run_id: {run_id}",
         f"- created_at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         f"- query: {response.query}",
-        f"- mode: {request.mode}",
+        f"- status: {response.status}",
         f"- retrieval_mode: {response.retrieval_mode}",
         f"- returned_count: {len(response.results)}",
         f"- context_pack_chars: {response.stats.get('context_pack_chars', 0)}",
@@ -43,7 +43,6 @@ def render_query_report(request: WikiSearchRequest, response: WikiSearchResponse
                 f"### {index}. {item.title}",
                 "",
                 f"- path: {item.path}",
-                f"- match_kind: {item.match_kind}",
                 f"- relevance: {item.relevance}",
                 f"- score: {item.score}",
                 f"- matched_fields: {', '.join(item.matched_fields) if item.matched_fields else 'none'}",
@@ -51,26 +50,8 @@ def render_query_report(request: WikiSearchRequest, response: WikiSearchResponse
                 "",
             ]
         )
-        if item.summary:
-            lines.extend(["Summary:", "", item.summary, ""])
-        if item.excerpts:
-            lines.append("Excerpts:")
-            for excerpt in item.excerpts[:3]:
-                lines.append(f"- {excerpt.section}: {excerpt.content}")
-            lines.append("")
-
-    lines.extend(["## Response Guidance", ""])
-    if response.response_guidance:
-        lines.extend(f"- {item}" for item in response.response_guidance)
-    else:
-        lines.append("- No response guidance.")
-    lines.append("")
-
     lines.extend(["## Gap Signals", ""])
-    if response.gap_suggestions:
-        for gap in response.gap_suggestions:
-            lines.append(f"- {gap.kind}: {gap.reason} ({gap.recommended_action})")
-    elif response.gaps:
+    if response.gaps:
         lines.extend(f"- {gap}" for gap in response.gaps)
     else:
         lines.append("- No gap signals.")

@@ -7,7 +7,7 @@ from typing import Any
 from knoarbor.audit.contracts import LEDGER_PATHS, LEDGER_SCHEMA_VERSIONS
 from knoarbor.core.schemas.wiki_lint import LintRunResult
 from knoarbor.audit.reports import write_maintenance_report
-from knoarbor.audit.report_formatting import as_dict, as_list, cache_metric_lines, fmt_number, format_list, semantic_token_report_lines
+from knoarbor.audit.report_formatting import as_dict, as_list, cache_metric_lines, fmt_number, semantic_token_report_lines
 from knoarbor.audit.token_ledger import append_lint_token_records
 from knoarbor.storage.ledger import append_jsonl_ledger, read_jsonl_ledger
 from knoarbor.storage.wiki_index import relative_wiki_path
@@ -50,8 +50,10 @@ def build_lint_run_record(result: LintRunResult, *, run_id: str, previous_record
     deterministic = result.deterministic_lint
     semantic_candidates = as_dict(result.semantic_candidates)
     review = as_dict(result.maintenance_review)
-    rescan = result.rescan
-    issue_summary = _issue_summary(deterministic.issues, rescan.issues if rescan else None)
+    issue_summary = _issue_summary(
+        deterministic.issues,
+        result.post_repair_lint.issues if result.post_repair_lint is not None else None,
+    )
     trend_summary = _trend_summary(previous_records or [], issue_summary)
     return {
         "schema_version": LINT_RUN_SCHEMA_VERSION,
@@ -70,23 +72,8 @@ def build_lint_run_record(result: LintRunResult, *, run_id: str, previous_record
         "semantic_candidates": _semantic_candidates_record(semantic_candidates),
         "quality_review_summary": _quality_review_summary(semantic_candidates),
         "maintenance_review": _review_record(review),
-        "queued_actions": result.queued_actions,
-        "deferred_retries": result.deferred_retries,
-        "refresh_queue": _queue_by_type(result.queued_actions, "refresh_request"),
-        "governance_queue": _governance_queue(result.queued_actions),
-        "applied_operations": result.applied_operations,
-        "written_pages": result.written_pages,
-        "written_page_details": result.written_page_details,
-        "verifications": result.verifications,
-        "verification_summary": _verification_summary(result.verifications),
-        "operation_summary": _operation_summary(result.applied_operations, result.written_pages, result.verifications),
-        "rescan": {
-            "stats": rescan.stats,
-            "issues": [_issue_record(issue) for issue in rescan.issues],
-            "fixes": [fix.model_dump() for fix in rescan.fixes],
-        }
-        if rescan
-        else None,
+        "repair_plan": result.repair_plan,
+        "repair_results": result.repair_results,
         "metrics": dict(result.metrics),
         "warnings": result.warnings,
     }
@@ -98,14 +85,10 @@ def render_lint_run_report(record: dict[str, object]) -> str:
     policy = as_dict(record.get("policy_decision"))
     semantic = as_dict(record.get("semantic_candidates"))
     review = as_dict(record.get("maintenance_review"))
-    rescan = as_dict(record.get("rescan"))
-    rescan_stats = as_dict(rescan.get("stats"))
     issue_summary = as_dict(record.get("issue_summary"))
     trend_summary = as_dict(record.get("trend_summary"))
     graph_health = as_dict(deterministic_stats.get("graph_health"))
     quality_review_summary = as_dict(record.get("quality_review_summary"))
-    operation_summary = as_dict(record.get("operation_summary"))
-    verification_summary = as_dict(record.get("verification_summary"))
     metrics = as_dict(record.get("metrics"))
     semantic_metrics = as_dict(metrics.get("semantic"))
     lines = [
@@ -121,14 +104,8 @@ def render_lint_run_report(record: dict[str, object]) -> str:
         f"- policy_triggered: {policy.get('triggered')}",
         f"- semantic_candidates: {semantic.get('candidate_count', 0)}",
         f"- review_decisions: {review.get('decision_count', 0)}",
-        f"- queued_actions: {len(as_list(record.get('queued_actions')))}",
-        f"- deferred_retries: {len(as_list(record.get('deferred_retries')))}",
-        f"- applied_operations: {len(as_list(record.get('applied_operations')))}",
-        f"- written_pages: {len(as_list(record.get('written_pages')))}",
-        f"- operation_success_rate: {fmt_number(operation_summary.get('success_rate'))}",
-        f"- verifications: {verification_summary.get('verified', 0)} verified / {verification_summary.get('failed', 0)} failed / {verification_summary.get('skipped', 0)} skipped",
-        f"- follow_up_required: {verification_summary.get('follow_up_required', False)}",
-        f"- rescan_issues: {rescan_stats.get('issue_count', 'not_run')}",
+        f"- repair_plan: {len(as_list(record.get('repair_plan')))}",
+        f"- repair_results: {len(as_list(record.get('repair_results')))}",
         f"- issue_delta: {issue_summary.get('issue_delta', 'n/a')}",
         f"- trend_issue_delta_from_previous: {trend_summary.get('issue_delta_from_previous', 'n/a')}",
         f"- graph_components: {graph_health.get('component_count', 'n/a')} / largest {graph_health.get('largest_component_size', 'n/a')}",
@@ -142,10 +119,10 @@ def render_lint_run_report(record: dict[str, object]) -> str:
         *semantic_token_report_lines(semantic_metrics),
         "## Issue Summary",
         "",
-        f"- before_rescan: {issue_summary.get('before_issue_count', 0)}",
-        f"- after_rescan: {issue_summary.get('after_issue_count', 'not_run')}",
+        f"- before_repair: {issue_summary.get('before_issue_count', 0)}",
+        f"- after_repair: {issue_summary.get('after_issue_count', 'not_run')}",
         f"- issue_delta: {issue_summary.get('issue_delta', 'n/a')}",
-        f"- repeated_issue_codes: {_format_issue_counts(as_dict(issue_summary.get('before_code_counts')))}",
+        f"- issue_codes: {_format_issue_counts(as_dict(issue_summary.get('before_code_counts')))}",
         "",
         "## Trend Summary",
         "",
@@ -205,102 +182,37 @@ def render_lint_run_report(record: dict[str, object]) -> str:
                 f"{decision.get('executor_fit')} risk={decision.get('risk_level')}: {decision.get('reason')}"
             )
 
-    lines.extend(["", "## Queued Actions", ""])
-    queued_actions = as_list(record.get("queued_actions"))
-    if not queued_actions:
-        lines.append("- No queued report-only or refresh-request actions.")
+    lines.extend(["", "## Repair Plan", ""])
+    repair_plan = as_list(record.get("repair_plan"))
+    if not repair_plan:
+        lines.append("- No repairs were planned.")
     else:
-        for item in queued_actions:
+        for item in repair_plan:
             lines.append(
                 f"- [{item.get('queue_type')}] `{item.get('action')}` "
                 f"on `{item.get('target_page')}` risk={item.get('risk_level')}: {item.get('reason')}"
             )
 
-    refresh_queue = as_list(record.get("refresh_queue"))
-    governance_queue = as_list(record.get("governance_queue"))
-    if refresh_queue or governance_queue:
-        lines.extend(["", "## Governance Queues", ""])
-        if refresh_queue:
-            lines.append("- refresh_queue:")
-            for item in refresh_queue:
-                lines.append(f"  - `{item.get('target_page')}` {item.get('action')}: {item.get('reason')}")
-        if governance_queue:
-            lines.append("- high_impact_queue:")
-            for item in governance_queue:
-                lines.append(f"  - `{item.get('target_page')}` {item.get('action')}: {item.get('expected_effect')}")
-
-    deferred_retries = as_list(record.get("deferred_retries"))
-    if deferred_retries:
-        lines.extend(["", "## Deferred Retries", ""])
-        for item in deferred_retries:
+    lines.extend(["", "## Repair Results", ""])
+    repair_results = as_list(record.get("repair_results"))
+    if not repair_results:
+        lines.append("- No automatic repairs were required.")
+    else:
+        for item in repair_results:
+            detail = f" error={item.get('error')}" if item.get("error") else ""
             lines.append(
-                f"- round {item.get('round')}: pages={format_list(as_list(item.get('retry_pages')))} "
-                f"candidates={item.get('candidate_count', 0)} decisions={item.get('review_decisions', 0)} "
-                f"applied={item.get('applied_operations', 0)} written={item.get('written_pages', 0)} "
-                f"queued={item.get('queued_actions', 0)}"
+                f"- [{item.get('status')}] `{item.get('action')}` by `{item.get('owner')}` "
+                f"on `{item.get('target_page') or item.get('target')}`{detail}"
             )
 
-    lines.extend(["", "## Execution", ""])
-    applied = as_list(record.get("applied_operations"))
-    written_pages = as_list(record.get("written_pages"))
-    written_page_details = as_list(record.get("written_page_details"))
-    if not applied and not written_pages:
-        lines.append("- No reviewed changes applied.")
-    if operation_summary:
-        lines.append(f"- success_rate: {fmt_number(operation_summary.get('success_rate'))}")
-        lines.append(f"- failed_verifications: {operation_summary.get('failed_verifications', 0)}")
-    for operation in applied:
-        lines.append(f"- operation `{operation.get('action')}` on `{operation.get('target_page')}`: {operation.get('status')}")
-    for page in written_pages:
-        lines.append(f"- wrote `{page}`")
-    applied_with_diff = [item for item in applied if as_dict(item).get("output_page") and as_dict(as_dict(item).get("details")).get("diff")]
-    if applied_with_diff:
-        lines.extend(["", "## Page Changes", ""])
-        for item in applied_with_diff:
-            operation = as_dict(item)
-            details = as_dict(operation.get("details"))
-            lines.append(
-                f"- `{operation.get('output_page')}` action={operation.get('action')} "
-                f"sections={format_list(as_list(details.get('patched_sections')))}"
-            )
-            diff = str(details.get("diff") or "")
-            if diff:
-                lines.extend(["", "```diff", diff, "```", ""])
-            if details.get("diff_truncated"):
-                lines.append("- diff_truncated: True")
-    if written_page_details:
-        if not applied_with_diff:
-            lines.extend(["", "## Page Changes", ""])
-        for item in written_page_details:
-            details = as_dict(item)
-            write_details = as_dict(details.get("write_details"))
-            lines.append(
-                f"- `{details.get('path')}` action={details.get('write_action')} "
-                f"sections={format_list(as_list(write_details.get('patched_sections')))}"
-            )
-            diff = str(write_details.get("diff") or "")
-            if diff:
-                lines.extend(["", "```diff", diff, "```", ""])
-            if write_details.get("diff_truncated"):
-                lines.append("- diff_truncated: True")
-
-    verifications = as_list(record.get("verifications"))
-    if verifications:
-        lines.extend(["", "## Post-fix Verification", ""])
-        for verification in verifications:
-            lines.append(
-                f"- [{verification.get('status')}] `{verification.get('action')}` "
-                f"on `{verification.get('target_page')}`: {verification.get('reason')}"
-            )
-
-    if rescan:
-        lines.extend(["", "## Rescan", ""])
-        rescan_issues = as_list(rescan.get("issues"))
-        if not rescan_issues:
-            lines.append("- No rescan issues.")
-        else:
-            for issue in rescan_issues[:50]:
-                lines.append(f"- [{issue.get('severity')}] `{issue.get('code')}` in `{issue.get('path')}`: {issue.get('message')}")
+    lines.extend(
+        [
+            "",
+            "## Write Boundary",
+            "",
+            "- Repairs were executed only through ingest or materialization owner workflows.",
+        ]
+    )
 
     warnings = as_list(record.get("warnings"))
     if warnings:
@@ -376,19 +288,6 @@ def _review_record(payload: dict[str, Any]) -> dict[str, object] | None:
     }
 
 
-def _verification_summary(verifications: list[dict[str, Any]]) -> dict[str, object]:
-    counts = {"verified": 0, "failed": 0, "skipped": 0}
-    for verification in verifications:
-        status = str(verification.get("status") or "")
-        if status in counts:
-            counts[status] += 1
-    return {
-        "total": len(verifications),
-        **counts,
-        "follow_up_required": counts["failed"] > 0,
-    }
-
-
 def _issue_summary(before: list[Any], after: list[Any] | None) -> dict[str, object]:
     before_counts = _issue_code_counts(before)
     after_counts = _issue_code_counts(after or [])
@@ -424,41 +323,6 @@ def _quality_review_summary(payload: dict[str, Any]) -> dict[str, object]:
         "average_overall_score": round(sum(scores) / len(scores), 3) if scores else None,
         "low_score_pages": low_score_pages,
     }
-
-
-def _operation_summary(
-    applied_operations: list[dict[str, Any]],
-    written_pages: list[str],
-    verifications: list[dict[str, Any]],
-) -> dict[str, object]:
-    verification_summary = _verification_summary(verifications)
-    total_effects = len(applied_operations) + len(written_pages)
-    failed = int(verification_summary.get("failed", 0))
-    success_rate = None if total_effects == 0 else round((total_effects - failed) / total_effects, 3)
-    return {
-        "total_effects": total_effects,
-        "success_rate": success_rate,
-        "failed_verifications": failed,
-    }
-
-
-def _queue_by_type(actions: list[dict[str, Any]], queue_type: str) -> list[dict[str, Any]]:
-    return [action for action in actions if action.get("queue_type") == queue_type]
-
-
-def _governance_queue(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    high_impact_actions = {
-        "queue_merge_candidate",
-        "merge_pages",
-        "split_page",
-        "queue_conflict_review",
-        "queue_graph_review",
-    }
-    return [
-        action
-        for action in actions
-        if action.get("queue_type") == "report_only" and action.get("action") in high_impact_actions
-    ]
 
 
 def _trend_summary(previous_records: list[dict[str, object]], current_issue_summary: dict[str, object]) -> dict[str, object]:

@@ -9,6 +9,7 @@ import {
   FileBarChart,
   FileCode2,
   FileText,
+  NotebookPen,
   FolderOpen,
   GitFork,
   Hammer,
@@ -40,7 +41,8 @@ export type IconName =
   | "hermes"
   | "openclaw"
   | "claude_code"
-  | "mineru";
+  | "mineru"
+  | "manual-input";
 
 const iconMap: Record<Exclude<IconName, "github">, LucideIcon> = {
   overview: PanelTop,
@@ -61,6 +63,7 @@ const iconMap: Record<Exclude<IconName, "github">, LucideIcon> = {
   openclaw: Sparkles,
   claude_code: FileCode2,
   mineru: Hammer,
+  "manual-input": NotebookPen,
 };
 
 export function LineIcon({ name, className }: { name: IconName; className?: string }) {

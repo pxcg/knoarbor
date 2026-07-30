@@ -6,10 +6,12 @@ from knoarbor.core.schemas.wiki_lint import (
 )
 from knoarbor.core.config import default_config_path, load_config
 from knoarbor.core.vaults import select_config_vault
-from knoarbor.pipelines import WikiLintPipeline
+from knoarbor.pipelines.lint import WikiLintPipeline
+from knoarbor.pipelines.lint_execution import LintExecutionRouter
 from knoarbor.runtime import configure_runtime_logging, runtime_logger
 from knoarbor.semantic import build_lint_semantic_workflow
 from knoarbor.services.workflow_failures import write_workflow_failure_artifacts
+from knoarbor.services.ingest_coordinator import IngestCoordinator
 
 logger = runtime_logger(__name__)
 
@@ -17,16 +19,20 @@ logger = runtime_logger(__name__)
 class WikiLinterService:
     """API adapter for deterministic and semantic lint maintenance."""
 
+    def __init__(self, ingest_coordinator: IngestCoordinator | None = None) -> None:
+        self.ingest_coordinator = ingest_coordinator or IngestCoordinator()
+
     def run_maintenance(self, request: LintRunRequest) -> LintRunResult:
         try:
             config = load_config(request.config_path or default_config_path())
             config = select_config_vault(config, vault_path=request.vault_path, vault_id=request.vault_id)
             request = request.model_copy(update={"vault_path": str(config.vault.path)})
             configure_runtime_logging(config.vault.path)
+            execution_router = LintExecutionRouter(ingest=self.ingest_coordinator, privacy_config=config.privacy)
             if request.mode == "deterministic":
-                return WikiLintPipeline(privacy_config=config.privacy).run_maintenance(request)
+                return WikiLintPipeline(privacy_config=config.privacy, execution_router=execution_router).run_maintenance(request)
             semantic = build_lint_semantic_workflow(config, request.provider)
-            semantic_pipeline = WikiLintPipeline(semantic, privacy_config=config.privacy)
+            semantic_pipeline = WikiLintPipeline(semantic, privacy_config=config.privacy, execution_router=execution_router)
             request_with_defaults = request.model_copy(
                 update={"max_tokens": config.models.resolve_max_tokens(request.provider, request.max_tokens)}
             )

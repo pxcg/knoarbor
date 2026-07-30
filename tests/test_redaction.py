@@ -29,7 +29,18 @@ def make_document(text: str) -> SourceDocument:
             format="markdown",
             text=text,
             sections=[{"heading": "Contact", "text": "owner alice@example.com"}],
-            attachments=[{"path": "/Users/alice/Desktop/image.png"}],
+            attachments=[
+                {
+                    "name": "11602df6040f9fef74f63e0f44eadfe2f3ec4f14967004112cd292b1e583783f.jpg",
+                    "path": "/Users/alice/Desktop/image.png",
+                    "relative_path": (
+                        "raw/derived/assets/images/"
+                        "11602df6040f9fef74f63e0f44eadfe2f3ec4f14967004112cd292b1e583783f.jpg"
+                    ),
+                    "content_hash": "11602df6040f9fef74f63e0f44eadfe2f3ec4f14967004112cd292b1e583783f",
+                    "description": "Call 13800138000 for the figure.",
+                }
+            ],
         ),
         metadata={"title": "Private note", "local_path": "/Users/alice/notes/private.md"},
         fingerprint=SourceFingerprint(content_hash="abc123", connector_version="test"),
@@ -43,7 +54,7 @@ class RedactionTests(unittest.TestCase):
                 [
                     "Email alice@example.com",
                     "Phone 13800138000",
-                    "DEEPSEEK_API_KEY=sk-1234567890abcdefghijklmnop",
+                    "MODEL_API_KEY=sk-1234567890abcdefghijklmnop",
                     "Token sk-abcdefghijklmnop1234567890",
                     "Feishu app cli_aa9f1cd454399bc8",
                     "Path /Users/alice/Projects/KnoArbor",
@@ -55,7 +66,7 @@ class RedactionTests(unittest.TestCase):
         result = redact_source_document(document, PrivacyConfig())
 
         self.assertTrue(result.enabled)
-        payload = result.document.model_dump_json()
+        payload = result.document.model_dump_json(exclude={"content": {"attachments"}})
         self.assertNotIn("alice@example.com", payload)
         self.assertNotIn("13800138000", payload)
         self.assertNotIn("sk-1234567890abcdefghijklmnop", payload)
@@ -64,11 +75,22 @@ class RedactionTests(unittest.TestCase):
         self.assertNotIn("/Users/alice", payload)
         self.assertNotIn("PRIVATE KEY-----secret", payload)
         self.assertGreaterEqual(result.counts["emails"], 2)
-        self.assertEqual(result.counts["phone_numbers"], 1)
+        self.assertEqual(result.counts["phone_numbers"], 2)
         self.assertEqual(result.counts["api_keys"], 1)
         self.assertEqual(result.counts["env_secrets"], 1)
         self.assertEqual(result.counts["platform_ids"], 1)
         self.assertEqual(result.document.metadata["redaction"]["enabled"], True)
+        attachment = result.document.content.attachments[0]
+        self.assertEqual(
+            attachment["content_hash"],
+            "11602df6040f9fef74f63e0f44eadfe2f3ec4f14967004112cd292b1e583783f",
+        )
+        self.assertEqual(
+            attachment["relative_path"],
+            "raw/derived/assets/images/11602df6040f9fef74f63e0f44eadfe2f3ec4f14967004112cd292b1e583783f.jpg",
+        )
+        self.assertEqual(attachment["path"], "/Users/alice/Desktop/image.png")
+        self.assertEqual(attachment["description"], "Call [REDACTED_PHONE] for the figure.")
 
     def test_public_text_redaction_reports_counts_without_counting_placeholders(self) -> None:
         text = "Use cli_aa9f1cd454399bc8 from /Users/alice/project, not `/Users/[REDACTED_USER]`."

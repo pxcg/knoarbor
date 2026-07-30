@@ -10,7 +10,7 @@ from knoarbor.storage.vault_layout import WIKI_PAGES_DIR, WIKI_SOURCES_DIR, wiki
 
 
 CONTENT_ROOT_DIR = WIKI_PAGES_DIR
-SOURCE_DIGEST_ROOT_DIR = WIKI_SOURCES_DIR
+SOURCE_RECORD_ROOT_DIR = WIKI_SOURCES_DIR
 
 
 def content_root(vault_path: Path) -> Path:
@@ -23,7 +23,7 @@ def content_root(vault_path: Path) -> Path:
     return wiki_pages_root(vault_path)
 
 
-def source_digest_root(vault_path: Path) -> Path:
+def source_record_root(vault_path: Path) -> Path:
     return wiki_sources_root(vault_path)
 
 
@@ -33,9 +33,9 @@ def is_pages_layout(vault_path: Path) -> bool:
 
 def content_relative_path(vault_path: Path, path: Path) -> str:
     resolved = path.resolve()
-    source_root = source_digest_root(vault_path).resolve()
+    source_root = source_record_root(vault_path).resolve()
     try:
-        return f"{SOURCE_DIGEST_ROOT_DIR}/{resolved.relative_to(source_root).as_posix()}"
+        return f"{SOURCE_RECORD_ROOT_DIR}/{resolved.relative_to(source_root).as_posix()}"
     except ValueError:
         return resolved.relative_to(content_root(vault_path).resolve()).as_posix()
 
@@ -46,8 +46,8 @@ def vault_relative_path(vault_path: Path, path: Path) -> str:
 
 def content_path(vault_path: Path, relative_path: str | Path) -> Path:
     relative = Path(str(relative_path).replace("\\", "/").lstrip("/"))
-    if relative.parts and relative.parts[0] == SOURCE_DIGEST_ROOT_DIR:
-        return source_digest_root(vault_path).joinpath(*relative.parts[1:])
+    if relative.parts and relative.parts[0] == SOURCE_RECORD_ROOT_DIR:
+        return source_record_root(vault_path).joinpath(*relative.parts[1:])
     return content_root(vault_path) / relative
 
 
@@ -61,13 +61,13 @@ def normalize_page_title(title: str) -> str:
     return re.sub(r"\.(?:md|markdown|pdf|docx?|txt|html?)$", "", title.strip(), flags=re.IGNORECASE).strip() or "Untitled"
 
 
-def normalize_source_digest_title(title: str) -> str:
+def normalize_source_record_title(title: str) -> str:
     cleaned = normalize_page_title(title)
-    if re.search(r"(source digest|source note|笔记源|来源)$", cleaned, flags=re.IGNORECASE):
+    if re.search(r"(source record|source note|笔记源|来源)$", cleaned, flags=re.IGNORECASE):
         return cleaned
     if re.search(r"source$", cleaned, flags=re.IGNORECASE):
-        return f"{cleaned} Digest"
-    return f"{cleaned or 'Untitled'} Source Digest"
+        return f"{cleaned} Record"
+    return f"{cleaned or 'Untitled'} Source Record"
 
 
 def normalize_wiki_page_path(raw_path: str) -> str:
@@ -87,8 +87,8 @@ def resolve_wiki_page(vault_path: Path, raw_path: str) -> Path:
     if not relative.parts or (relative.parts[0] not in AI_WRITABLE_DIRS and not is_flat_page):
         allowed = ", ".join(sorted(AI_WRITABLE_DIRS))
         raise VaultPathError(f"Wiki operation path must be a flat wiki page or in an AI writable directory ({allowed}): {raw_path}")
-    if relative.parts and relative.parts[0] == SOURCE_DIGEST_ROOT_DIR:
-        root = source_digest_root(vault_path)
+    if relative.parts and relative.parts[0] == SOURCE_RECORD_ROOT_DIR:
+        root = source_record_root(vault_path)
         target_relative = Path(*relative.parts[1:])
     else:
         root = content_root(vault_path)
@@ -102,14 +102,14 @@ def resolve_wiki_page(vault_path: Path, raw_path: str) -> Path:
 def resolve_existing_target(vault_path: Path, target_page: str | None) -> Path | None:
     if not target_page:
         return None
-    root = source_digest_root(vault_path) if target_page.strip().replace("\\", "/").lstrip("/").startswith(f"{SOURCE_DIGEST_ROOT_DIR}/") else content_root(vault_path)
+    root = source_record_root(vault_path) if target_page.strip().replace("\\", "/").lstrip("/").startswith(f"{SOURCE_RECORD_ROOT_DIR}/") else content_root(vault_path)
     try:
         raw_target = Path(target_page.strip()).expanduser()
         if raw_target.is_absolute():
             target_path = raw_target.resolve()
         else:
             normalized = Path(normalize_wiki_page_path(target_page))
-            if normalized.parts and normalized.parts[0] == SOURCE_DIGEST_ROOT_DIR:
+            if normalized.parts and normalized.parts[0] == SOURCE_RECORD_ROOT_DIR:
                 normalized = Path(*normalized.parts[1:])
             target_path = (root / normalized).resolve()
         target_path.relative_to(root)
@@ -143,7 +143,7 @@ def resolve_existing_by_hash(vault_path: Path, page_dir: str, digest: str) -> Pa
 
 def _hash_lookup_dirs(vault_path: Path, page_dir: str) -> list[Path]:
     if page_dir == "sources":
-        return [source_digest_root(vault_path)]
+        return [source_record_root(vault_path)]
     return [content_root(vault_path)]
 
 

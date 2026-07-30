@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 
 import { canSelectDesktopDirectory, canSelectDesktopFile, selectDesktopDirectory, selectDesktopFile } from "../../desktop/desktopBridge";
 
@@ -30,7 +31,7 @@ export function PresetMenu({
         type="button"
       >
         <span>{label}</span>
-        <span aria-hidden="true">⌄</span>
+        <ChevronDown aria-hidden="true" className="custom-select-chevron" />
       </button>
       {open && (
         <div className="custom-select-options" role="listbox">

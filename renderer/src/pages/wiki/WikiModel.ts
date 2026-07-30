@@ -1,5 +1,5 @@
 import type { PageDetail, PageSummary } from "../../api/client";
-import type { AppContext } from "../../appContext";
+import type { Language } from "../../types";
 
 export type RelatedPage = {
   page: PageSummary;
@@ -18,10 +18,16 @@ export type MarkdownTable = {
   rows: string[][];
 };
 
+export type ProjectionClaim = {
+  id: string;
+  statement: string;
+  evidence: string;
+};
+
 const WIKI_SECTION_ORDER = ["summary", "claims", "relations", "synthesis", "entities", "evidence", "attachments"];
 
 export function filterWikiPages(pages: PageSummary[]) {
-  return pages.filter((page) => !isSourceDigestPage(page));
+  return pages.filter((page) => !isSourceRecordPage(page));
 }
 
 export function searchWikiPages(pages: PageSummary[], search: string) {
@@ -47,8 +53,7 @@ export function relatedPagesByEntities(detail: PageDetail, pages: PageSummary[])
     .sort((left, right) => {
       if (right.sharedEntities.length !== left.sharedEntities.length) return right.sharedEntities.length - left.sharedEntities.length;
       return left.page.title.localeCompare(right.page.title);
-    })
-    .slice(0, 8);
+    });
 }
 
 export function pageEntitySet(detail: PageDetail) {
@@ -77,8 +82,8 @@ export function normalizeEntity(value: string) {
     .toLowerCase() || "";
 }
 
-export function isSourceDigestPage(page: PageSummary) {
-  return page.role === "source_digest" || page.directory === "sources";
+export function isSourceRecordPage(page: PageSummary) {
+  return page.role === "source_record" || page.directory === "sources";
 }
 
 export function extractWikiSections(content: string): WikiSection[] {
@@ -118,6 +123,21 @@ export function parseMarkdownTable(content: string): MarkdownTable | null {
   return headers.length && rows.length ? { headers, rows } : null;
 }
 
+export function parseProjectionClaims(content: string): ProjectionClaim[] {
+  const matches = Array.from(content.matchAll(/^###\s+([^\n]+)\s*$/gm));
+  return matches.map((match, index) => {
+    const start = (match.index || 0) + match[0].length;
+    const end = matches[index + 1]?.index ?? content.length;
+    const body = content.slice(start, end).trim();
+    const evidenceStart = body.search(/^(?:>|Source:)/m);
+    return {
+      id: match[1].trim(),
+      statement: (evidenceStart < 0 ? body : body.slice(0, evidenceStart)).trim(),
+      evidence: evidenceStart < 0 ? "" : body.slice(evidenceStart).trim(),
+    };
+  }).filter((claim) => claim.statement);
+}
+
 export function plainCellText(value: string) {
   return value
     .replace(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g, (_match, target: string, alias: string | undefined) => alias || target)
@@ -129,7 +149,7 @@ export function plainCellText(value: string) {
     .trim();
 }
 
-export function wikiSectionLabel(key: string, title: string, language: AppContext["language"]) {
+export function wikiSectionLabel(key: string, title: string, language: Language) {
   if (language !== "zh") return title;
   const labels: Record<string, string> = {
     summary: "摘要",

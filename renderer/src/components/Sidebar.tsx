@@ -1,4 +1,5 @@
 import { navCopy, viewTitles } from "../i18n";
+import { productIdentity } from "../product";
 import { LineIcon } from "./LineIcon";
 import type { Language, ViewName } from "../types";
 import type { ReactNode } from "react";
@@ -47,7 +48,7 @@ type SidebarProps = {
 };
 
 export function Sidebar({ activeView, collapsed, serviceOnline, language, t, onChangeView, onPreloadView, onToggleCollapsed, onOpenWorkspaceSettings, sidebarSlot }: SidebarProps) {
-  const logoUrl = `${import.meta.env.BASE_URL}knoarbor-logo.svg`;
+  const logoUrl = `${import.meta.env.BASE_URL}${productIdentity.logoPath}`;
   const activePrimary = primaryNavForView(activeView);
 
   return (
@@ -57,8 +58,7 @@ export function Sidebar({ activeView, collapsed, serviceOnline, language, t, onC
           <img src={logoUrl} alt="" />
         </div>
         <div className="brand-copy">
-          <div className="brand-title">KnoArbor</div>
-          <div className="brand-subtitle">{t("appTagline")}</div>
+          <div className="brand-title">{productIdentity.name}</div>
         </div>
         <button className="sidebar-toggle" type="button" onClick={onToggleCollapsed} title={collapsed ? t("expandSidebar") : t("collapseSidebar")} aria-label={collapsed ? t("expandSidebar") : t("collapseSidebar")}>
           <span aria-hidden="true">{collapsed ? "›" : "‹"}</span>

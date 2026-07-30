@@ -1,29 +1,26 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 
-import {
-  type ChatCitation,
-} from "../../api/client";
-import type { AppContext } from "../../appContext";
+import { type ChatCitation, type QueryRawEvidence } from "../../api/client";
+import type { ChatAppContext } from "../../appContext";
+import { MarkdownPreview } from "../../components/MarkdownPreview";
+import { markdownRehypePlugins, markdownRemarkPlugins } from "../../components/markdownPlugins";
 import { MermaidDiagram } from "./MermaidDiagram";
 import {
   buildChatFollowups,
+  citationExcerpt,
   citationTitle,
-  followupPromptForCitation,
   groupCitations,
-  openCitationTarget,
+  relatedCitationsForRaw,
   resolveChatImageSrc,
-  resolveVaultAssetImageSrc,
 } from "./ChatEvidence";
 import { renderInlineCitations, type ChatCitationPreview, type ChatTurn } from "./ChatModel";
+import { turnCanBeIngested } from "./useChatSelectionIngest";
 export {
   citationSelector,
-  followupPromptForCitation,
   openCitationTarget,
   readableChatError,
   resolveChatImageSrc,
-  resolveVaultAssetImageSrc,
 } from "./ChatEvidence";
 
 export function ChatStatusMessage({ message }: { message: string }) {
@@ -45,7 +42,7 @@ export function ChatContextMenu({
   onClose,
 }: {
   contextMenu: { x: number; y: number; messageIndex: number };
-  context: AppContext;
+  context: ChatAppContext;
   turns: ChatTurn[];
   sessionId: string | null;
   selectedMessageIndices: Set<number>;
@@ -61,7 +58,7 @@ export function ChatContextMenu({
   const turn = turns[messageIndex];
   const isSelected = selectedMessageIndices.has(messageIndex);
   const hasTextSelection = (typeof window !== "undefined" && window.getSelection()?.toString().trim()) || false;
-  const isExcerptable = turn?.role === "assistant" && turn.kind !== "error" && turn.kind !== "status" && sessionId;
+  const isExcerptable = turn?.role === "assistant" && turnCanBeIngested(turn) && sessionId;
   const zh = context.language === "zh";
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuPos, setMenuPos] = useState<{ left: number; top: number }>({ left: contextMenu.x, top: contextMenu.y });
@@ -81,9 +78,11 @@ export function ChatContextMenu({
 
   return (
     <div ref={menuRef} className="chat-context-menu" style={{ left: menuPos.left, top: menuPos.top }}>
-      <button type="button" onClick={() => { onToggleMessage(messageIndex); onClose(); }}>
-        {isSelected ? (zh ? "取消选择此消息" : "Deselect this message") : (zh ? "选择此消息" : "Select this message")}
-      </button>
+      {turnCanBeIngested(turn) && (
+        <button type="button" onClick={() => { onToggleMessage(messageIndex); onClose(); }}>
+          {isSelected ? (zh ? "取消选择此消息" : "Deselect this message") : (zh ? "选择此消息" : "Select this message")}
+        </button>
+      )}
       {isExcerptable && hasTextSelection && (
         <button
           type="button"
@@ -111,14 +110,24 @@ export function ChatContextMenu({
   );
 }
 
-export function ChatErrorMessage({ message, context }: { message: string; context: AppContext }) {
+export function ChatErrorMessage({
+  message,
+  context,
+  showSettings,
+}: {
+  message: string;
+  context: ChatAppContext;
+  showSettings: boolean;
+}) {
   return (
     <div className="chat-error-card" role="alert">
       <strong>{context.t("chatErrorTitle")}</strong>
       <p>{message}</p>
-      <div className="chat-error-actions">
-        <button type="button" onClick={context.openSettings}>{context.t("openSettings")}</button>
-      </div>
+      {showSettings && (
+        <div className="chat-error-actions">
+          <button type="button" onClick={context.openSettings}>{context.t("openSettings")}</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -131,13 +140,14 @@ export function ChatMarkdownAnswer({
 }: {
   content: string;
   citations: ChatCitation[];
-  context: AppContext;
-  onOpenCitation: (citation: ChatCitation) => void;
+  context: ChatAppContext;
+  onOpenCitation: (citation: ChatCitation, relatedCitations?: ChatCitation[]) => void;
 }) {
   return (
     <div className="chat-answer-markdown">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={markdownRemarkPlugins}
+        rehypePlugins={markdownRehypePlugins}
         components={{
           a: (props) => {
             const href = props.href || "";
@@ -149,7 +159,10 @@ export function ChatMarkdownAnswer({
                   className="chat-inline-citation"
                   type="button"
                   disabled={!citation}
-                  onClick={() => citation && onOpenCitation(citation)}
+                  onClick={() => citation && onOpenCitation(
+                    citation,
+                    relatedCitationsForRaw(citation, citations),
+                  )}
                 >
                   {props.children}
                 </button>
@@ -179,44 +192,63 @@ export function ChatMarkdownAnswer({
 
 export function CitationList({
   citations,
+  evidenceItems = [],
   hiddenEvidenceCount = 0,
   context,
   compact = false,
   onOpenCitation,
 }: {
   citations: ChatCitation[];
+  evidenceItems?: QueryRawEvidence[];
   hiddenEvidenceCount?: number;
-  context: AppContext;
+  context: ChatAppContext;
   compact?: boolean;
-  onOpenCitation: (citation: ChatCitation) => void;
+  onOpenCitation: (citation: ChatCitation, relatedCitations?: ChatCitation[]) => void;
 }) {
   const groups = groupCitations(citations, context);
+  const rawCount = groups.reduce((total, group) => total + group.items.length, 0);
+  const documentCountLabel = context.language === "zh"
+    ? `${groups.length} 篇 · ${rawCount} 个 Raw`
+    : `${groups.length} docs · ${rawCount} Raw`;
   return (
     <details className={`chat-citations ${compact ? "compact" : ""}`}>
       <summary>
         <span>{context.t("chatSourcesCompact")}</span>
-        <strong>{citations.length}</strong>
+        <strong>{documentCountLabel}</strong>
       </summary>
       {hiddenEvidenceCount > 0 && (
         <p className="chat-hidden-evidence">{context.t("chatHiddenEvidence").replace("{count}", String(hiddenEvidenceCount))}</p>
       )}
       <div className="chat-citation-list">
         {groups.map((group) => (
-          <div className="chat-citation-group" key={group.label}>
-            <span className="chat-citation-group-label">{group.label}</span>
-            {group.items.map(({ citation, index }) => (
+          <div className="chat-citation-group" key={group.key}>
+            <button
+              className="chat-citation-group-header"
+              type="button"
+              onClick={() => onOpenCitation(
+                group.items[0].citation,
+                group.items.flatMap((item) => item.relatedCitations),
+              )}
+            >
+              <span>{group.label}</span>
+              <small>
+                {context.language === "zh"
+                  ? `${group.items.length} 个 Raw`
+                  : `${group.items.length} Raw`}
+              </small>
+            </button>
+            {group.items.map(({ citation, index, relatedCitations }) => (
               <button
-                key={`${citation.kind}-${citation.path || citation.run_id}-${index}`}
+                key={`${citation.kind}-${citation.evidence_id || citation.source_unit_id || citation.path || citation.run_id}-${index}`}
                 type="button"
-                onClick={() => onOpenCitation(citation)}
+                onClick={() => onOpenCitation(citation, relatedCitations)}
                 className="chat-citation-card"
               >
                 <span className="chat-citation-index">{index + 1}</span>
                 <span className="chat-citation-main">
-                  <strong>{citation.title || citation.path || citation.run_id || citation.kind}</strong>
-                  <small>{citation.vault_name || citation.vault_id || citation.kind}</small>
+                  <strong>{citation.title || citation.source_unit_id || citation.path || citation.run_id || citation.kind}</strong>
+                  <small>{citationExcerpt(citation, evidenceItems) || citation.vault_name || citation.vault_id || citation.kind}</small>
                 </span>
-                {citation.path && <code>{citation.path}</code>}
               </button>
             ))}
           </div>
@@ -233,7 +265,7 @@ export function ChatFollowups({
   onAsk,
 }: {
   citations: ChatCitation[];
-  context: AppContext;
+  context: ChatAppContext;
   disabled: boolean;
   onAsk: (prompt: string) => void;
 }) {
@@ -260,23 +292,19 @@ export function ChatFollowups({
 export function ChatCitationPreviewPanel({
   context,
   preview,
-  onAsk,
   onClose,
 }: {
-  context: AppContext;
+  context: ChatAppContext;
   preview: ChatCitationPreview;
-  onAsk: (prompt: string) => void;
   onClose: () => void;
 }) {
   const title = preview.page?.summary.title || citationTitle(preview.citation);
-  const path = preview.citation.path || preview.page?.path || "";
   return (
     <aside className="chat-preview-panel" aria-label={context.t("chatSourcePreview")}>
       <div className="chat-preview-header">
         <div>
           <span className="eyebrow">{context.t("chatSourcePreview")}</span>
           <h3>{title}</h3>
-          {path && <code>{path}</code>}
         </div>
         <button className="icon-button" type="button" onClick={onClose} aria-label={context.t("close")}>×</button>
       </div>
@@ -287,49 +315,20 @@ export function ChatCitationPreviewPanel({
         </div>
       )}
       {!preview.loading && preview.error && (
-        <div className="chat-error-card">
-          <strong>{context.t("chatSourcePreviewFailed")}</strong>
+        <div className="chat-preview-state chat-preview-unavailable">
           <p>{preview.error}</p>
-          <div className="chat-error-actions">
-            <button type="button" onClick={() => openCitationTarget(preview.citation, context)}>
-              {context.t("viewInKnowledgeBase")}
-            </button>
-          </div>
         </div>
       )}
       {!preview.loading && preview.page && (
         <>
-          <div className="chat-preview-summary">
-            <p>{preview.page.summary.summary || context.t("noSummary")}</p>
-          </div>
-          <div className="chat-preview-actions">
-            <button
-              className="button secondary"
-              type="button"
-              onClick={() => onAsk(followupPromptForCitation(preview.citation, context))}
-            >
-              {context.t("chatAskAboutThisPage")}
-            </button>
-            <button
-              className="button secondary"
-              type="button"
-              onClick={() => openCitationTarget(preview.citation, context)}
-            >
-              {context.t("viewInKnowledgeBase")}
-            </button>
-          </div>
           <div className="chat-preview-content">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                img: (props) => {
-                  const resolvedSrc = resolveVaultAssetImageSrc(props.src, preview.citation.vault_path || context.activeVaultSelector.vault_path || context.vaultPath);
-                  return <img {...props} src={resolvedSrc} alt={props.alt || ""} loading="lazy" />;
-                },
-              }}
-            >
-              {preview.page.content}
-            </ReactMarkdown>
+            <MarkdownPreview
+              content={preview.page.raw_content || preview.page.content}
+              vaultPath={preview.citation.vault_path || context.activeVaultSelector.vault_path || context.vaultPath}
+              highlightTerm={preview.highlightTerm}
+              highlightTerms={preview.highlightTerms}
+              scrollToHighlight
+            />
           </div>
         </>
       )}

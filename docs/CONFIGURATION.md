@@ -17,25 +17,28 @@ Keep `config.yaml` private because it may contain API keys.
 
 ```text
 macOS: ~/Library/Application Support/KnoArbor/config.yaml
-Windows: %APPDATA%/KnoArbor/config.yaml
-Linux: ~/.config/KnoArbor/config.yaml
+Windows: %LOCALAPPDATA%/KnoArbor/config.yaml
+Linux: ${XDG_DATA_HOME:-~/.local/share}/KnoArbor/config.yaml
 ```
 
-`config_version` identifies the configuration schema. The first public schema is:
+`config_version` identifies the configuration schema. The current schema is:
 
 ```yaml
-config_version: 1
+config_version: 3
 ```
 
-Future incompatible configuration changes should ship with migration helpers instead of silently changing behavior.
+Version 3 is the first supported desktop configuration baseline. Unpublished
+version 1 and 2 files are rejected rather than migrated. Future incompatible
+configuration changes must ship with explicit migration helpers.
 
 Config loading follows a fixed order:
 
 ```text
-read YAML/JSON -> migrate schema -> resolve local paths -> validate typed config
+read YAML/JSON -> validate schema version -> resolve local paths -> validate typed config
 ```
 
-Migration helpers are structural only. They may move or rename fields in a future schema, but they do not guess user intent, repair secrets, or invent local paths. Config files newer than the running KnoArbor build fail explicitly.
+Future migration helpers are structural only. They may move or rename fields,
+but they do not guess user intent, repair secrets, or invent local paths.
 
 ## Vault
 
@@ -56,6 +59,10 @@ ID, a display name, and a local path. `vaults.default` selects the active vault
 used by CLI, API, UI, and host-AI skill calls when no request-specific path is
 provided.
 
+Removing a knowledge-base profile from Settings only unregisters it from this
+configuration. KnoArbor does not delete or modify the selected local folder;
+filesystem content removal is a separate user-managed operation.
+
 `all` is reserved as a virtual query scope. Do not create a real profile with
 ID `all`; use `all_vaults: true` or `vault_id: "all"` when a query should search
 every configured concrete vault.
@@ -66,15 +73,23 @@ KnoArbor derives `vault.path` from `vaults.default`.
 
 Vault directories are runtime Markdown knowledge bases. They are ignored by git
 because they can contain private notes, source documents, generated pages,
-checkpoints, ledgers, and reports.
+SQLite source cursors, ledgers, and reports.
 
 ## Models
 
-The default configuration uses one model provider for all semantic workflows:
+For an OpenAI-compatible provider, `base_url` is the API root. KnoArbor accepts
+either `https://gateway.example/v1` or the exact full endpoint
+`https://gateway.example/v1/chat/completions` and stores both as the API root.
+It does not add `/v1` automatically and rejects partial paths, URL credentials,
+query parameters, and fragments.
+
+The default configuration starts without a model provider. Add vLLM, Ollama, or
+a custom OpenAI-compatible endpoint in desktop Settings, then select one
+provider as the default for semantic workflows:
 
 ```yaml
 models:
-  default_provider: deepseek
+  default_provider:
   default_max_tokens: 30000
   request_timeout_seconds: 600
   retry:
@@ -87,25 +102,17 @@ models:
       - KA-MODEL-001
       - KA-SEM-001
       - KA-STORAGE-001
-  providers:
-    deepseek:
-      base_url: https://api.deepseek.com
-      api_key:
-      model: deepseek-v4-flash
-      json_mode: true
-      tls_ca_file:
-      context_window:
-      max_output_tokens:
+  providers: {}
 ```
 
 Model calls pass through the `ModelGateway` boundary. Providers use the `openai_compatible` adapter by default. Ollama can use `adapter: ollama` to call the native `/api/chat` endpoint; this is recommended for Ollama thinking models because KnoArbor can send `think: false` and avoid reasoning-only responses. Hosted providers usually need `api_key`; local or private endpoints such as Ollama and vLLM may leave `api_key` empty.
 
-`default_max_tokens` and `request_timeout_seconds` are intentionally generous. Ingest and lint are wiki compilation tasks, not short chat replies; page planning, page drafting, and maintenance review often need longer outputs and more time. A provider can override the global output limit with `max_output_tokens`. `context_window` records the model's usable context window for diagnostics and budget checks. Runtime diagnostics try to detect context length from vLLM `/v1/models` metadata and Ollama `/api/show`; when detection is unavailable, KnoArbor falls back to the configured `context_window`.
+`default_max_tokens` and `request_timeout_seconds` are intentionally generous. Ingest compilation and evidence-bound lint diagnosis are structured workflows rather than short chat replies, and their source context can be substantial. A provider can override the global output limit with `max_output_tokens`. `context_window` records the model's usable context window for diagnostics and budget checks. Runtime diagnostics try to detect context length from vLLM `/v1/models` metadata and Ollama `/api/show`; when detection is unavailable, KnoArbor falls back to the configured `context_window`.
 
 Configuration design follows the common shape used by AI workflow projects:
 
-- One global default model for most users.
-- A provider registry for users who need to switch between DeepSeek, OpenAI-compatible gateways, Ollama native, local servers, or hosted providers.
+- One global default model after the user selects a provider.
+- A provider registry for users who need to switch between OpenAI-compatible gateways, Ollama native, local servers, or hosted providers.
 - API keys are part of the local ignored config so desktop users do not need
   separate environment-variable files.
 - Runtime limits such as output tokens and request timeout exposed as first-class configuration.
@@ -113,7 +120,7 @@ Configuration design follows the common shape used by AI workflow projects:
 - TLS verification is always enabled by default. For an internal HTTPS endpoint
   with a private CA, set `tls_ca_file` to the CA bundle path.
 
-Semantic model retries are an explicit runner policy, not a hidden downstream fallback. `SemanticRunner` may retry retryable provider failures and invalid structured model output before the result reaches ingest or lint. Page writes still happen only after a full source or reviewed maintenance batch is approved, so a retried model call cannot partially commit a page by itself.
+Semantic model retries are an explicit runner policy, not a hidden downstream fallback. `SemanticRunner` may retry retryable provider failures and invalid structured model output before the result reaches ingest or lint. Ingest publishes only after its source transaction is approved; lint never writes canonical knowledge or projection content.
 
 `retryable_error_codes` is the public retry allowlist. Keep it narrow: external service failures, model output/semantic contract failures, and storage conflicts are safe to retry; deterministic input/config/policy failures should be fixed rather than retried.
 
@@ -121,20 +128,15 @@ Common examples:
 
 ```yaml
 models:
-  default_provider: deepseek
+  default_provider: vllm
   providers:
-    deepseek:
-      base_url: https://api.deepseek.com
+    vllm:
+      base_url: http://localhost:8001/v1
       api_key:
-      model: deepseek-v4-flash
-    openai:
-      base_url: https://api.openai.com/v1
-      api_key:
-      model: gpt-4.1
-    openrouter:
-      base_url: https://openrouter.ai/api/v1
-      api_key:
-      model: deepseek/deepseek-chat-v3.1
+      model: local-model
+      json_mode: true
+      context_window: 32768
+      max_output_tokens: 8000
     ollama:
       adapter: ollama
       base_url: http://localhost:11434
@@ -153,10 +155,10 @@ models:
       json_mode: true
       context_window: 32768
       max_output_tokens: 8000
-    vllm:
-      base_url: http://localhost:8001/v1
+    custom-openai-compatible:
+      base_url: https://your-model-gateway.example/v1
       api_key:
-      model: Qwen/Qwen3-32B-Instruct
+      model: your-model
       json_mode: false
       context_window: 32768
       max_output_tokens: 8000
@@ -175,6 +177,7 @@ Model capability checks are also available through the stable API:
 
 - `GET /models/providers` lists configured providers without contacting the model runtime.
 - `GET /models/image-providers` lists configured image-generation providers without contacting the image runtime.
+- `POST /models/image-probe` explicitly generates one test image and returns bounded availability metadata.
 - `POST /models/discover` reads provider model metadata, verifies the model-list endpoint, and tries to detect context length without generating tokens.
 - `POST /models/apply-capabilities` explicitly writes detected or selected `context_window`, `max_output_tokens`, and `json_mode` back to `config.yaml`.
 
@@ -212,9 +215,14 @@ uv run knoar lint --provider deepseek --mode semantic
 
 ## Chat Session Ingest
 
-KnoArbor chat sessions are stored under `.knoarbor/chat/` in the selected
-vault. They are not maintained wiki pages by default. A session can be
-manually queued into the normal ingest pipeline from the console or API.
+KnoArbor chat sessions for one selected vault are stored under
+`.knoarbor/chat/` in that vault. All-vault chat sessions are application state
+stored under `state/chat/sessions/` next to the active `config.yaml`. They are
+not maintained wiki pages by default. A session can be manually queued into the
+normal ingest pipeline from the console or API.
+
+All-vault chat sessions are cross-vault application history. Import chat content
+only after selecting one concrete target vault.
 
 Closing a chat session can also trigger ingest automatically when the policy is
 enabled:
@@ -237,7 +245,7 @@ report, and checkpoint pipeline as other document inputs.
 ## Chat Memory
 
 Chat memory stores durable interaction preferences for the Wiki Chat Agent. It
-is separate from wiki pages and source digests:
+is separate from wiki pages and source records:
 
 ```yaml
 memory:
@@ -270,20 +278,30 @@ ingest:
     soft_chars_per_segment: 12000
     max_segments_per_source: 20
     min_segment_chars: 1000
-  recovery:
-    enabled: true
-    execution_ledger_path: .knoarbor/ledgers/ingest_execution.jsonl
-  concurrency:
-    max_concurrent_sources: 1
 ```
+
+Ingest has one semantic extraction path. Short sources normally use one model
+call to propose entities, claims, relations, topics, synthesis, retrieval
+phrases, and evidence spans. Long sources are split by the character budgets
+above and each segment runs the same contract. Deterministic code validates and
+merges the result, binds evidence to source units, atomically publishes the
+factual revision and active head, then materializes readable source and machine
+index projections.
 
 The first implementation uses character budgets instead of tokenizer-specific
 token counts. Markdown is split by headings, Codex/Hermes/OpenClaw/Claude Code sessions by turn
 groups, parsed documents by sections/pages, and plain text by paragraphs.
-Checkpoint commits still happen at the source/window level after all segments
-finish, so a partially processed long source is not marked complete.
+Factual publication still happens at the source/window boundary after all
+segments finish, so a partially processed long source is not selected active.
 
-`recovery` writes a machine-readable source/segment execution ledger for run recovery and debugging. `concurrency.max_concurrent_sources` applies only to dry-run/preflight ingest; write-capable ingest remains serial inside one vault to protect page writes and checkpoints.
+Transactional recovery is always part of ingest: immutable commands, attempts,
+source heads, and source cursors live in `ingest.sqlite`, while run reports
+remain the human-readable diagnostic surface. Independent model calls for one
+segmented source use a code-derived adaptive window; there is no user-facing
+concurrency setting. Vault commits remain serial to protect raw records,
+indexes, and SQLite source cursors. MinerU folder conversion uses the
+service-advertised `max_concurrent_requests` capacity and falls back to one
+request when that capability is unavailable.
 
 ## Connectors
 
@@ -428,7 +446,8 @@ document_processing:
     mode_field: parse_method
     extra_fields:
       backend: pipeline
-      lang_list: ch
+      lang_list:
+        - ch
       formula_enable: true
       table_enable: true
       start_page_id: 0
@@ -447,20 +466,27 @@ the source connector that compiles the result is still `markdown`.
 When MinerU outputs images, KnoArbor records them as source attachments next to
 the generated Markdown using a `*.attachments.json` sidecar. The Markdown
 connector also scans Markdown image links such as `![figure](images/a.png)`.
-During ingest, those attachments are copied into the source digest audit page
-under `## Attachments` as a compact readable table with topic, description, and
+During materialization, attachment metadata appears in the readable source
+projection under `## Attachments` as a compact table with topic, description, and
 path. Full audit fields such as MIME type, content hash, page index, bounding
 box, and raw MinerU image extraction remain in the sidecar metadata. Image bytes
 are not sent to the semantic model.
 When a maintained wiki page uses an attachment, the page body keeps only
-topic/description attachment rows; retained file paths stay in the source audit
+topic/description attachment rows; retained file paths stay in the source projection
 and sidecar metadata.
 
 The management UI keeps only the endpoint visible by default. Use the folded
 advanced section when your MinerU deployment needs a different backend such as
-`pipeline`, `vlm-engine`, `hybrid-engine`, `vlm-http-client`, or
-`hybrid-http-client`, a different
-`parse_method`, custom file patterns, or extra multipart fields.
+`pipeline`, `vlm-auto-engine`, or `hybrid-auto-engine`, a different
+`parse_method`, custom file patterns, or extra multipart fields. The baseline
+accepts only `pipeline`, `vlm-auto-engine`, and `hybrid-auto-engine`; unpublished
+legacy aliases are rejected.
+
+The diagnostics panel verifies the service through `GET /health`; a configured
+but unreachable service is not reported as ready. Both native JSON responses
+and `response_format_zip: true` are supported. ZIP output is extracted only
+after validating every archive path. Loopback and private-network MinerU
+addresses bypass environment HTTP proxies.
 
 KnoArbor does not vendor or redistribute the MinerU runtime, model weights, or
 assets. If you enable this adapter, install and run MinerU separately and review
@@ -495,4 +521,6 @@ privacy:
   redact_private_ips: false
 ```
 
-`redact_source_paths_in_pages` keeps internal checkpoints on the real source path, but writes a redacted path into generated wiki pages. Use local models or private endpoints for sensitive personal or company data.
+`redact_source_paths_in_pages` keeps the internal SQLite source cursor on the
+real source path, but writes a redacted path into generated wiki pages. Use
+local models or private endpoints for sensitive personal or company data.

@@ -153,13 +153,8 @@ def _add_doctor(subparsers: argparse._SubParsersAction[argparse.ArgumentParser])
 def _add_query(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     parser = subparsers.add_parser("query", help="Retrieve wiki context for a user question.")
     parser.add_argument("query")
-    parser.add_argument("--mode", choices=["quick", "balanced", "deep"], default="balanced")
-    parser.add_argument("--max-results", type=int, default=6)
-    parser.add_argument("--page-dir", action="append", dest="page_dirs", default=[])
-    parser.add_argument("--include-related", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--all-vaults", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--query-vault-id", action="append", dest="query_vault_ids", default=[], help="Search a configured vault ID. Repeat to search multiple vaults.")
-    parser.add_argument("--auto", action=argparse.BooleanOptionalAction, default=True)
 
 
 def _add_page(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -210,8 +205,6 @@ def _add_lint(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -
     parser = subparsers.add_parser("lint", help="Start a wiki lint/maintenance run.")
     parser.add_argument("--mode", choices=["deterministic", "semantic"], default="semantic")
     parser.add_argument("--scope-page", action="append", dest="scope_pages", default=[])
-    parser.add_argument("--apply-safe-fixes", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--auto-apply-reviewed", action=argparse.BooleanOptionalAction, default=True)
     _add_workflow_flags(parser)
 
 
@@ -286,7 +279,6 @@ def _cmd_doctor(args: argparse.Namespace, runtime: Runtime) -> int:
 
 def _cmd_query(args: argparse.Namespace, runtime: Runtime) -> int:
     vault_path = runtime.vault_path if args.all_vaults or args.query_vault_ids else _require_vault(runtime)
-    settings = _query_settings(args)
     payload = {
         "query": args.query,
         "vault_path": vault_path,
@@ -294,10 +286,6 @@ def _cmd_query(args: argparse.Namespace, runtime: Runtime) -> int:
         "vault_ids": args.query_vault_ids,
         "all_vaults": args.all_vaults,
         "config_path": str(runtime.config_path) if runtime.config_path else None,
-        "mode": settings["mode"],
-        "max_results": settings["max_results"],
-        "page_dirs": args.page_dirs,
-        "include_related": args.include_related,
         "caller": "generic-skill",
     }
     response = _post_json(f"{runtime.base_url}/query", payload, timeout=runtime.timeout)
@@ -376,8 +364,6 @@ def _cmd_lint(args: argparse.Namespace, runtime: Runtime) -> int:
             "vault_path": vault_path,
             "vault_id": runtime.vault_id,
             "mode": args.mode,
-            "apply_safe_fixes": args.apply_safe_fixes,
-            "auto_apply_reviewed_changes": args.auto_apply_reviewed,
             "scope": {
                 "schema_version": "maintenance_scope.v1",
                 "scope_id": f"skill:{int(time.time())}",
@@ -713,33 +699,6 @@ def _require_vault(runtime: Runtime) -> str:
     return str(Path(runtime.vault_path).expanduser())
 
 
-def _query_settings(args: argparse.Namespace) -> dict[str, Any]:
-    settings = {
-        "mode": args.mode,
-        "max_results": args.max_results,
-    }
-    if not args.auto:
-        return settings
-    query = args.query.lower()
-    explicit_full = _contains_any(
-        query,
-        ["全文", "完整内容", "完整页面", "完整正文", "逐段", "原文", "详细页面", "full content", "full page", "entire page", "full text", "verbatim", "line by line", "section by section"],
-    )
-    broad_recall = _contains_any(query, ["尽量完整", "全部相关", "所有相关", "全面召回", "完整召回", "as much as possible", "all relevant", "comprehensive", "exhaustive"])
-    detailed = _contains_any(query, ["详细", "深入", "展开", "分析", "对比", "方案", "架构", "为什么", "如何", "detail", "deep dive", "analyze", "compare", "architecture", "why", "how"])
-    short_lookup = len(query.strip()) <= 32 and not detailed and not broad_recall and not explicit_full
-    if explicit_full:
-        settings["mode"] = "deep"
-    elif detailed:
-        settings["mode"] = "deep"
-    if broad_recall:
-        settings["mode"] = "deep"
-        settings["max_results"] = max(settings["max_results"], 10)
-    elif short_lookup:
-        settings["max_results"] = min(settings["max_results"], 4)
-    return settings
-
-
 def _contains_any(text: str, needles: list[str]) -> bool:
     return any(needle in text for needle in needles)
 
@@ -852,14 +811,16 @@ def _format_query(response: dict[str, Any]) -> str:
     for index, result in enumerate(response.get("results", [])[:10], start=1):
         vault_label = result.get("vault_name") or result.get("vault_id") or result.get("vault_path")
         prefix = f"{vault_label} · " if vault_label else ""
-        lines.append(f"{index}. {prefix}{result.get('title', '')} ({result.get('path', '')}) [{result.get('relevance', '')}, {result.get('match_kind', '')}]")
-        if result.get("summary"):
-            lines.append(f"   {result['summary']}")
-        for claim in result.get("claims", [])[:3]:
-            lines.append(f"   - {claim}")
-        if result.get("content"):
-            lines.append("   Content:")
-            lines.append(_indent(str(result["content"])[:8000], "   "))
+        lines.append(f"{index}. {prefix}{result.get('title', '')} ({result.get('path', '')}) [{result.get('relevance', '')}]")
+        if result.get("reason"):
+            lines.append(f"   {result['reason']}")
+    raw_evidence = response.get("raw_evidence", [])
+    if raw_evidence:
+        lines.extend(["", "Raw Evidence:"])
+        for index, evidence in enumerate(raw_evidence, start=1):
+            title = evidence.get("title") or evidence.get("source_unit_id") or "source unit"
+            source = evidence.get("source_path") or evidence.get("raw_record_id") or "unknown source"
+            lines.append(f"{index}. {title} ({source}) [{evidence.get('relevance', '')}]")
     if response.get("gaps"):
         lines.extend(["", "Gaps:", *[f"- {gap}" for gap in response["gaps"]]])
     if response.get("context_pack"):

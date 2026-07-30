@@ -1,6 +1,8 @@
-export type ViewName = "chat" | "overview" | "sources" | "wiki" | "ingest" | "lint" | "query" | "graph" | "reports" | "tokens" | "settings";
+export type ViewName = "chat" | "wiki" | "ingest" | "lint" | "query" | "graph" | "reports" | "tokens";
 
 export type Language = "en" | "zh";
+
+export type AppearanceMode = "system" | "light" | "dark";
 
 export type RunRecord = {
   run_id: string;

@@ -5,16 +5,16 @@
 project:
   # Display name of this specific wiki vault. Change it when you create a new
   # knowledge base.
-  name: My Knowledge Base
+  name: default
   host_project_root: .
 
-config_version: 1
+config_version: 3
 
 vaults:
   default: default
   profiles:
     default:
-      name: My Knowledge Base
+      name: default
       path: ./vaults/default
 
 # `vault` is the active vault resolved from `vaults.default`. It is kept for
@@ -27,21 +27,18 @@ server:
   port: 8000
 
 models:
-  # Pick one provider as the default model for all semantic workflows. Add more
-  # providers only when you need them. Most providers use the
-  # OpenAI-compatible Chat Completions adapter; Ollama can also use its native
-  # /api/chat adapter for thinking models.
-  default_provider: deepseek
+  # Pick one provider as the default model after adding it in Settings.
+  default_provider:
   # Wiki ingest/lint runs can be long because they compile or review multiple
   # pages. Keep these defaults larger than short chat-tool calls.
   default_max_tokens: 30000
   request_timeout_seconds: 600
-  providers:
-    deepseek:
-      base_url: https://api.deepseek.com
-      api_key:
-      model: deepseek-v4-flash
-      json_mode: true
+  providers: {}
+  # Add providers from Settings. Custom providers use the OpenAI-compatible
+  # Chat Completions format by default; local presets are available for vLLM
+  # and Ollama.
+  #
+  # providers:
     # Local presets. Keep only one default provider selected above; uncomment
     # and edit one of these when using a local runtime.
     # ollama:
@@ -54,6 +51,10 @@ models:
     #   max_output_tokens: 8000
     #   extra_body:
     #     think: false
+    # DeepSeek V4 non-thinking mode uses:
+    #   extra_body:
+    #     thinking:
+    #       type: disabled
     # ollama-openai-compatible:
     #   base_url: http://127.0.0.1:11434/v1
     #   api_key:
@@ -85,6 +86,33 @@ models:
       - KA-MODEL-001
       - KA-SEM-001
       - KA-STORAGE-001
+
+image_generation:
+  # Optional text-to-image providers used by Chat when the user explicitly asks
+  # to generate a visual asset. Generated images are chat artifacts by default;
+  # they are not written into wiki pages unless a later save-to-vault action is
+  # added.
+  default_provider:
+  request_timeout_seconds: 120
+  providers:
+    # sensenova:
+    #   adapter: sensenova_image
+    #   base_url: https://token.sensenova.cn/v1
+    #   endpoint_path: /images/generations
+    #   api_key:
+    #   model: sensenova-u1-fast
+    #   resolution: "2720*1536"
+    #   num_inference_steps: 20
+    #   guidance: 4
+    # local_chat_image:
+    #   adapter: openai_chat_image
+    #   base_url: http://127.0.0.1:8000/v1
+    #   endpoint_path: /chat/completions
+    #   api_key:
+    #   model: SenseNova-U1-8B
+    #   tls_ca_file:
+    #   num_inference_steps: 20
+    #   guidance: 4
 
 document_processing:
   mineru:
@@ -174,26 +202,12 @@ connectors:
       raw_output_dir: ./vaults/default/raw/inbox/notes
       preserve_relative_paths: true
 
-query:
-  mode: balanced
-  max_results: 6
-  max_pages_to_read: 10
-  max_excerpts_per_page: 3
-  max_chars_per_excerpt: 800
-  max_context_chars: 8000
-  # Optional initial retrieval scope. Leave empty for normal page-first retrieval.
-  page_dirs: []
-  include_related: true
-
 memory:
   enabled: true
   auto_write_explicit_low_risk: true
   max_recalled_records: 12
 
 chat:
-  # Default Chat answer depth: concise, balanced, or deep. A direct request in
-  # the current user message still takes priority for that turn.
-  response_style: balanced
   auto_ingest:
     # Manual chat-session ingest is always available through the chat API/UI.
     # This policy controls whether closing a KnoArbor chat automatically queues
@@ -206,25 +220,13 @@ chat:
     append_ledger: true
 
 ingest:
-  candidate_limit: 8
-  materialized_page_limit: 8
-  max_chars_per_materialized_page: 6000
   auto_scoped_lint: true
-  auto_apply_safe_lint_fixes: true
   segmentation:
     enabled: true
     max_chars_per_segment: 18000
     soft_chars_per_segment: 12000
     max_segments_per_source: 20
     min_segment_chars: 1000
-  recovery:
-    enabled: true
-    execution_ledger_path: .knoarbor/ledgers/ingest_execution.jsonl
-  concurrency:
-    # Source-level concurrency applies to dry-run/preflight workflows. Vault
-    # writes stay serial to keep page updates and checkpoints consistent.
-    max_concurrent_sources: 1
-
 lint:
   default_scope: latest-ingest
   scoped_include_related: true

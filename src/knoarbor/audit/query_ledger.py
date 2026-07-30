@@ -21,8 +21,7 @@ def append_query_record(vault_path: Path, request: WikiSearchRequest, response: 
         "timestamp": current_timestamp(),
         "caller": request.caller or "unknown",
         "query": request.query,
-        "mode": request.mode,
-        "page_dirs": request.page_dirs,
+        "status": response.status,
         "retrieval_mode": response.retrieval_mode,
         "result_count": len(response.results),
         "top_results": [
@@ -35,7 +34,6 @@ def append_query_record(vault_path: Path, request: WikiSearchRequest, response: 
             for item in response.results[:5]
         ],
         "gaps": response.gaps,
-        "gap_suggestions": [item.model_dump() for item in response.gap_suggestions],
         "warnings": response.warnings,
         "context_pack_chars": response.stats.get("context_pack_chars", 0),
         "context_pack_truncated": response.stats.get("context_pack_truncated", False),
@@ -62,20 +60,11 @@ def build_query_trend(vault_path: Path, *, limit: int = 100) -> dict[str, object
     no_result_queries: list[str] = []
     low_confidence_queries: list[str] = []
     for record in records:
-        suggestions = record.get("gap_suggestions")
-        if not isinstance(suggestions, list):
+        query = str(record.get("query") or "").strip()
+        if not query:
             continue
-        for suggestion in suggestions:
-            if not isinstance(suggestion, dict):
-                continue
-            query = str(suggestion.get("query") or record.get("query") or "").strip()
-            kind = suggestion.get("kind")
-            if not query:
-                continue
-            if kind == "no_result":
-                no_result_queries.append(query)
-            elif kind == "low_confidence":
-                low_confidence_queries.append(query)
+        if record.get("status") == "no_match":
+            no_result_queries.append(query)
 
     return {
         "sample_size": len(records),

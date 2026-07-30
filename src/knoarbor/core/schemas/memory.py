@@ -58,4 +58,3 @@ class MemoryRecallResult(BaseModel):
     records: list[MemoryRecord] = Field(default_factory=list)
     context_block: str = ""
     warnings: list[str] = Field(default_factory=list)
-

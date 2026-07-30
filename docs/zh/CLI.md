@@ -57,7 +57,7 @@ uv run knoar serve
 ## 本地诊断
 
 `doctor` 是只读诊断命令，用于首次运行或排查问题。它检查配置文件、Wiki
-目录、默认模型供应商、API Key 环境变量、来源连接器、可选文档预处理器和最近运行状态；不会调用模型，也不会写入 Wiki。
+目录、默认模型供应商、API Key 字段、来源连接器、可选文档预处理器和最近运行状态；不会调用模型，也不会写入 Wiki。
 
 ```bash
 uv run knoar doctor
@@ -132,9 +132,15 @@ uv run knoar ingest --recover-run-id RUN_ID --write
 uv run knoar ingest --vault-id personal --recover-run-id RUN_ID --write
 ```
 
-`ingest` 属于长任务。面向人的 CLI 输出默认会进入本地运行队列并跟随进度，
-持续打印事件和心跳状态。需要纯机器可解析输出时使用 `--json`；需要同步摘要
-输出时使用 `--no-follow`。
+重建确定性的 source projection 与 machine index，不重新运行模型抽取：
+
+```bash
+uv run knoar ingest --rebuild-materialization
+```
+
+`ingest` 会在 CLI 进程内执行已经持久化的任务，并在本地操作结束后返回。
+面向人的输出会打印进度事件和心跳状态；需要纯机器可解析输出时使用 `--json`。
+使用 `--no-follow` 可只打印最终摘要；这些选项都不会改变任务由当前 CLI 进程执行的语义。
 
 如果配置了多个知识库，知识编译每次只写入一个知识库。使用
 `--vault-id <id>` 选择已配置知识库，或使用 `--vault /path/to/vault` 指定路径。
@@ -165,15 +171,14 @@ uv run knoar lint --mode semantic
 
 ```bash
 uv run knoar query "检索主题"
-uv run knoar query --mode deep "Agent Loop 是什么？"
+uv run knoar query "Agent Loop 是什么？"
 uv run knoar query --write-report "Agent Loop 是什么？"
 uv run knoar query --vault-id personal "Agent Loop 是什么？"
 ```
 
-查询阶段返回的是本地 Wiki 上下文，不负责替代宿主 AI 生成最终聊天回答。
-返回的 context pack 是页面优先：primary 页面保留正文，supporting/source
-页面保留结构化摘要、claims、摘录和来源线索。需要读取某个辅助页面全文时，
-使用 `pages read`。
+查询阶段返回 claim-backed active raw evidence，不负责替代宿主 AI 生成最终聊天回答。
+返回的 context pack 使用 atom/claim trace 解释语义定位，单一可选投影定位列表只提供导航；
+事实材料来自完整 raw evidence/source units。需要读取投影页面全文时使用 `pages read`。
 
 记录一次查询反馈：
 
@@ -197,9 +202,9 @@ uv run knoar pages read --vault-id personal Agent-Loop-and-Control-Patterns.md
 当查询结果需要展开时，使用 `pages read` 读取完整页面正文。使用
 `pages relations` 可以查看页面关系元数据。
 
-页面路径相对于维护后的内容根目录。新知识页面使用 `Agent-Loop.md` 这样的
-flat path；来源摘要页面使用 `sources/Agent-Loop-Source.md`。`pages list --dir pages`
-列出知识页面；`pages list --dir sources` 列出来源审计页面。
+页面路径相对于维护后的内容根目录。当前知识与 source projection 使用
+`Agent-Loop.md` 这样的 flat path；旧 vault 可能仍保留历史 `sources/...` 路径。
+`pages list --dir pages` 列出当前页面。
 
 ## 知识库
 
@@ -239,6 +244,6 @@ uv run knoar runs cancel RUN_ID --vault ./vaults/default
 
 ```bash
 uv run knoar contracts
-uv run knoar run-contract source_normalize --input /path/to/input.json
+uv run knoar run-contract index_metadata_extract --input /path/to/input.json
 uv run knoar lint-plan --mode deterministic
 ```

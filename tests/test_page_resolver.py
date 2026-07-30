@@ -3,9 +3,8 @@ from pathlib import Path
 import tempfile
 
 from knoarbor.retrieval.page_resolver import page_resolver_conflicts, resolve_page_reference
-from knoarbor.retrieval.wiki_links import resolve_wikilink_target
 from knoarbor.services.wiki_pages import WikiPageService
-from knoarbor.storage import update_index
+from knoarbor.storage.materialization import VaultMaterializer
 
 
 class PageResolverTests(unittest.TestCase):
@@ -19,17 +18,17 @@ class PageResolverTests(unittest.TestCase):
                 "# OpenClaw\n\n## Summary\n\nAgent platform.\n",
                 encoding="utf-8",
             )
-            update_index(vault)
+            VaultMaterializer().reconcile(vault, force=True)
 
             by_path = resolve_page_reference(vault, "OpenClaw.md")
             by_title = resolve_page_reference(vault, "OpenClaw")
-            by_link = resolve_wikilink_target(vault, "[[OpenClaw|OpenClaw]]")
+            by_link = resolve_page_reference(vault, "[[OpenClaw|OpenClaw]]")
 
         self.assertTrue(by_path.resolved)
         self.assertEqual(by_path.resolved_path, "OpenClaw.md")
         self.assertEqual(by_path.canonical_path, "OpenClaw.md")
         self.assertEqual(by_title.resolved_path, "OpenClaw.md")
-        self.assertEqual(by_link, "OpenClaw.md")
+        self.assertEqual(by_link.resolved_path, "OpenClaw.md")
 
     def test_reports_ambiguous_title_collisions(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -38,7 +37,7 @@ class PageResolverTests(unittest.TestCase):
             pages_root.mkdir(parents=True)
             (pages_root / "Agent-Loop.md").write_text("# Agent Loop\n", encoding="utf-8")
             (pages_root / "Agent-Loop-Duplicate.md").write_text("# Agent Loop\n", encoding="utf-8")
-            update_index(vault)
+            VaultMaterializer().reconcile(vault, force=True)
 
             resolution = resolve_page_reference(vault, "Agent Loop")
             conflicts = page_resolver_conflicts(vault)
@@ -57,7 +56,7 @@ class PageResolverTests(unittest.TestCase):
                 "# OpenClaw\n\n## Summary\n\nAgent platform.\n",
                 encoding="utf-8",
             )
-            update_index(vault)
+            VaultMaterializer().reconcile(vault, force=True)
 
             detail = WikiPageService().read_page(vault, "OpenClaw.md")
 

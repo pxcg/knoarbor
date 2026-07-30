@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 
+from knoarbor.core.schemas.chat import ChatCitation, ChatToolTraceItem
 from knoarbor.core.schemas.image_generation import GeneratedImage, ImageGenerationRequest, ImageGenerationResponse
 from knoarbor.core.schemas.vaults import VaultListResponse, VaultProfile
-from knoarbor.core.schemas.wiki_query import WikiAnswerScope, WikiAnswerSet, WikiAtomTrace, WikiEvidenceCoverage, WikiSearchResponse, WikiSearchResult
+from knoarbor.core.schemas.wiki_query import WikiAtomTrace, WikiSearchResponse, WikiSearchResult
 from knoarbor.semantic.llm import ChatCompletionRequest, ChatCompletionResponse, ChatCompletionStreamChunk
 from knoarbor.services.chat_sessions import ChatSessionStore
 from knoarbor.services.memory import MemoryService
@@ -20,14 +21,36 @@ class FakeChatClient:
         self.outputs = list(outputs)
         self.requests: list[ChatCompletionRequest] = []
         self.failures_before_success: list[Exception] = []
+        self._pending_answer_fixture: dict[str, object] | None = None
 
     def complete(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         self.requests.append(request)
         if self.failures_before_success:
             raise self.failures_before_success.pop(0)
-        if "KnoArbor Chat Tool Planner" in request.messages[0].content or "KnoArbor Chat Tool Planner" in request.messages[0].content:
-            if self.outputs and isinstance(self.outputs[0], dict) and "tool_calls" in self.outputs[0]:
+        if (
+            "retrieval planner" in request.messages[0].content
+            or "Chat Tool Planner" in request.messages[0].content
+            or "corpus navigator" in request.messages[0].content
+        ):
+            if (
+                self.outputs
+                and isinstance(self.outputs[0], dict)
+                and ("searches" in self.outputs[0] or "selected_region_ids" in self.outputs[0])
+            ):
                 payload = self.outputs.pop(0)
+                if "selected_region_ids" in payload:
+                    latest_question = _planner_latest_question(request)
+                    payload = dict(payload)
+                    payload["searches"] = [
+                        {
+                            "region_id": region_id,
+                            "search_query": latest_question,
+                        }
+                        for region_id in payload.pop(
+                            "selected_region_ids",
+                            [],
+                        )
+                    ]
                 content = json.dumps(payload, ensure_ascii=False)
                 return ChatCompletionResponse(
                     content=content,
@@ -35,17 +58,56 @@ class FakeChatClient:
                     model=self.model,
                     usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
                 )
-            user_text = request.messages[-1].content
-            mode = "deep" if any(term in user_text for term in ["详细", "对比", "比较", "区别", "架构"]) else "balanced"
-            max_results = 8 if mode == "deep" else 6
+            payload = {}
+            for message in reversed(request.messages):
+                try:
+                    candidate = json.loads(message.content)
+                except (TypeError, json.JSONDecodeError):
+                    continue
+                if isinstance(candidate, dict) and "planning_state" in candidate:
+                    payload = candidate
+                    break
             content = json.dumps(
                 {
-                    "tool_calls": [{"name": "query_wiki", "arguments": {"query": user_text, "mode": mode, "max_results": max_results}}],
-                    "reason": "default fake tool plan",
-                    "confidence": 0.8,
+                    "searches": [],
                 },
                 ensure_ascii=False,
             )
+            return ChatCompletionResponse(
+                content=content,
+                provider=self.provider,
+                model=self.model,
+                usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            )
+        system_prompt = request.messages[0].content
+        if "Answer Decision model" in system_prompt:
+            payload = self.outputs.pop(0) if self.outputs else {}
+            fixture = payload.get("test_answer") if isinstance(payload, dict) else None
+            if isinstance(fixture, dict):
+                self._pending_answer_fixture = fixture
+                payload = fixture["decision"]
+            content = json.dumps(payload, ensure_ascii=False)
+            return ChatCompletionResponse(
+                content=content,
+                provider=self.provider,
+                model=self.model,
+                usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            )
+        if "Response Composer" in system_prompt and self._pending_answer_fixture is not None:
+            payload = json.loads(
+                json.dumps(
+                    self._pending_answer_fixture["composition"],
+                    ensure_ascii=False,
+                )
+            )
+            state = json.loads(request.messages[-1].content)
+            generated = state["composition_state"]["generated_image"]
+            offered_visuals = {visual["visual_ref"] for visual in generated["visuals"]}
+            payload["items"] = [
+                item for item in payload["items"] if item.get("type") != "generated_visual" or item.get("visual") in offered_visuals
+            ]
+            self._pending_answer_fixture = None
+            content = json.dumps(payload, ensure_ascii=False)
             return ChatCompletionResponse(
                 content=content,
                 provider=self.provider,
@@ -77,6 +139,80 @@ class FakeChatClient:
         yield ChatCompletionStreamChunk(response=response)
 
 
+def _planner_latest_question(request: ChatCompletionRequest) -> str:
+    for message in reversed(request.messages):
+        try:
+            payload = json.loads(message.content)
+        except (TypeError, json.JSONDecodeError):
+            continue
+        planning_state = payload.get("planning_state")
+        if isinstance(planning_state, dict):
+            return str(planning_state.get("latest_user_message") or "")
+    return ""
+
+
+def chat_answer_fixture(
+    *,
+    answer: str | None = None,
+    spans: list[str] | None = None,
+    visuals: list[str] | None = None,
+    gap: str | None = None,
+    gap_markdown: str | None = None,
+    generated_image_prompt: str | None = None,
+) -> dict[str, object]:
+    selected_spans = spans or []
+    selected_visuals = visuals or []
+    if selected_spans:
+        mode = "raw"
+    elif answer is not None:
+        mode = "general"
+    else:
+        mode = "gap"
+    owners: list[str] = []
+    for span in selected_spans:
+        owner = _reference_owner(span)
+        if owner not in owners:
+            owners.append(owner)
+    material_ids = {owner: f"material_{index}" for index, owner in enumerate(owners, start=1)}
+    items: list[dict[str, object]] = []
+    if answer is not None:
+        items.append(
+            {
+                "type": "text",
+                "markdown": answer,
+                "materials": list(material_ids.values()),
+            }
+        )
+    items.extend({"type": "source_visual", "visual": visual} for visual in selected_visuals)
+    if generated_image_prompt is not None:
+        items.append(
+            {
+                "type": "generated_visual",
+                "visual": "generated_visual_1",
+            }
+        )
+    return {
+        "test_answer": {
+            "decision": {
+                "mode": mode,
+                "spans": selected_spans,
+                "visuals": selected_visuals,
+                "gap": gap,
+                "generated_image_prompt": generated_image_prompt,
+            },
+            "composition": {
+                "items": items,
+                "gap_markdown": (gap_markdown if gap_markdown is not None else gap),
+            },
+        },
+    }
+
+
+def _reference_owner(reference: str) -> str:
+    parts = reference.split("_")
+    return parts[1] if len(parts) > 2 else reference
+
+
 class FakeWikiSearch:
     def __init__(self) -> None:
         self.requests = []
@@ -85,31 +221,24 @@ class FakeWikiSearch:
         self.requests.append(request)
         return WikiSearchResponse(
             query=request.query,
-            retrieval_mode=request.mode,
+            status="candidates",
+            retrieval_mode="semantic_atom_claim_raw",
             results=[
                 WikiSearchResult(
                     path="sources/Agent-Loop-Source.md",
                     title="Agent Loop Source",
-                    page_role="source",
                     score=12.0,
                     relevance="high",
-                    match_kind="direct",
-                    reason="source digest match",
-                    summary="Source digest for agent loop notes.",
-                    content="Source digest content.",
+                    reason="source record match",
                     vault_id="agent-engineering",
                     vault_name="Agent Engineering",
                 ),
                 WikiSearchResult(
                     path="Agent-Loop.md",
                     title="Agent Loop",
-                    page_role="primary",
                     score=9.0,
                     relevance="high",
-                    match_kind="direct",
                     reason="title match",
-                    summary="Agent loop alternates reasoning, action, and observation.",
-                    content="Agent Loop full maintained page content.",
                     vault_id="agent-engineering",
                     vault_name="Agent Engineering",
                     atom_traces=[
@@ -117,37 +246,22 @@ class FakeWikiSearch:
                             atom_id="claim_agent_loop_cycle",
                             atom_type="claim",
                             text="Agent loop alternates reasoning, action, and observation.",
-                            source_digest_id="sd_agent_loop",
+                            source_record_id="sr_agent_loop",
                         )
                     ],
                 ),
                 WikiSearchResult(
                     path="Session-Memory-Architecture-for-Agent-Loops.md",
                     title="Session Memory Architecture for Agent Loops",
-                    page_role="supporting",
                     score=7.0,
                     relevance="medium",
-                    match_kind="related",
                     reason="related implementation page",
-                    summary="Session memory explains production support for agent loops.",
-                    content="Session memory supporting page content for production agent loops.",
                     vault_id="agent-engineering",
                     vault_name="Agent Engineering",
                 ),
             ],
-            primary_pages=[],
-            supporting_pages=[],
-            source_pages=[],
-            answer_scope=WikiAnswerScope(kind="broad", vault_ids=["agent-engineering"], reason="test"),
-            answer_set=WikiAnswerSet(
-                kind="multi_page",
-                primary_paths=["Agent-Loop.md"],
-                supporting_paths=["Session-Memory-Architecture-for-Agent-Loops.md"],
-                source_paths=["sources/Agent-Loop-Source.md"],
-            ),
-            evidence_coverage=WikiEvidenceCoverage(status="strong", primary_count=1, supporting_count=1, source_count=1),
+            raw_evidence=[],
             context_pack="Agent Loop context",
-            response_guidance=[],
             warnings=[],
         )
 
@@ -230,6 +344,10 @@ class FakeVaults:
 @dataclass
 class FakeImageGeneration:
     requests: list[ImageGenerationRequest] = field(default_factory=list)
+    available: bool = True
+
+    def is_available(self, config_path=None):
+        return self.available
 
     def generate(self, request: ImageGenerationRequest, *, config_path=None, provider_name=None):
         self.requests.append(request)
@@ -242,8 +360,186 @@ class FakeImageGeneration:
         )
 
 
+class FakeChatKnowledge:
+    query_status = "candidates"
+
+    def retrieve_knowledge_batch(self, context, arguments):
+        expressions = [
+            item for item in arguments.get("query_expressions", []) if isinstance(item, dict) and str(item.get("query") or "").strip()
+        ]
+        query_results = []
+        candidates_by_id = {}
+        query_ids_by_evidence = {}
+        terminal_statuses = []
+        for index, expression in enumerate(expressions, start=1):
+            query_id = str(expression.get("query_id") or f"q{index}")
+            observation = self.search_knowledge(
+                context,
+                {"query": str(expression["query"]), "query_ids": [query_id]},
+            )
+            outcomes = observation.result.get("query_outcomes", [])
+            status = self._terminal_status(outcomes)
+            terminal_statuses.append(status)
+            candidates = observation.result.get("candidates", [])
+            query_results.append(
+                {
+                    "query_id": query_id,
+                    "query": str(expression["query"]),
+                    "status": status,
+                    "candidate_count": len(candidates),
+                    "outcomes": outcomes,
+                }
+            )
+            for candidate in candidates:
+                evidence_id = str(candidate["evidence_id"])
+                candidates_by_id.setdefault(evidence_id, candidate)
+                query_ids_by_evidence.setdefault(evidence_id, []).append(query_id)
+
+        ordered_ids = list(candidates_by_id)
+        read = (
+            self.read_evidence(context, {"evidence_ids": ordered_ids})
+            if ordered_ids
+            else ChatToolTraceItem(tool="read_evidence", result={"raw_evidence": []})
+        )
+        raw_evidence = []
+        for item in read.result.get("raw_evidence", []):
+            payload = dict(item)
+            payload["query_ids"] = query_ids_by_evidence.get(str(item["evidence_id"]), [])
+            raw_evidence.append(payload)
+        status = (
+            "candidates"
+            if raw_evidence
+            else "no_match"
+            if terminal_statuses and all(item == "no_match" for item in terminal_statuses)
+            else terminal_statuses[0]
+            if terminal_statuses
+            else "integrity_error"
+        )
+        return ChatToolTraceItem(
+            tool="retrieve_knowledge_batch",
+            arguments=arguments,
+            summary=f"Retrieved {len(raw_evidence)} active Raw source unit(s) for one answer.",
+            citations=read.citations,
+            result={
+                "status": status,
+                "query_expressions": expressions,
+                "query_results": query_results,
+                "raw_evidence": raw_evidence,
+                "selected_evidence_ids": ordered_ids,
+                "evidence_query_ids": query_ids_by_evidence,
+                "candidate_count": len(ordered_ids),
+                "selected_content_chars": sum(len(str(item.get("content") or item.get("excerpt") or "")) for item in raw_evidence),
+                "raw_read_rounds": 1 if ordered_ids else 0,
+                "raw_read_count": len(ordered_ids),
+                "search_elapsed_ms": {str(item.get("query_id") or f"q{index}"): 0.0 for index, item in enumerate(expressions, start=1)},
+                "raw_read_elapsed_ms": 0.0,
+                "batch_elapsed_ms": 0.0,
+                "warnings": [],
+                "factual_authority": "active_raw_source_unit",
+            },
+        )
+
+    @staticmethod
+    def _terminal_status(outcomes):
+        statuses = [str(item.get("status") or "") for item in outcomes]
+        if "candidates" in statuses:
+            return "candidates"
+        if statuses and all(item == "no_match" for item in statuses):
+            complete = all(
+                item.get("exhausted") is True
+                and all(channel.get("exhausted") is True for channel in item.get("channel_statuses", []) if isinstance(channel, dict))
+                for item in outcomes
+            )
+            return "no_match" if complete else "resource_exhausted"
+        return statuses[0] if statuses else "integrity_error"
+
+    def search_knowledge(self, _context, arguments):
+        candidates = (
+            []
+            if self.query_status != "candidates"
+            else [
+                {
+                    "evidence_id": "ev:test",
+                    "source_record_id": "sr_agent_loop",
+                    "raw_revision_id": "rawrev:test",
+                    "source_unit_id": "unit:test",
+                    "score": 1.0,
+                    "rank": 1,
+                    "signals": [],
+                }
+            ]
+        )
+        channel_status = "completed" if self.query_status == "candidates" else "no_candidates"
+        channel_statuses = [
+            {"channel": "atom_claim", "status": channel_status, "match_count": len(candidates), "exhausted": True},
+            {"channel": "raw_lexical", "status": channel_status, "match_count": len(candidates), "exhausted": True},
+        ]
+        return ChatToolTraceItem(
+            tool="search_knowledge",
+            arguments=arguments,
+            summary="Found one claim candidate.",
+            result={
+                "query": arguments.get("query"),
+                "candidates": candidates,
+                "query_outcomes": [
+                    {
+                        "vault_id": "test",
+                        "status": self.query_status,
+                        "channel_statuses": channel_statuses,
+                        "exhausted": self.query_status != "resource_exhausted",
+                        "continuation_cursor": "cursor:test" if self.query_status == "resource_exhausted" else None,
+                        "snapshot_generation": "generation:test",
+                        "query_fingerprint": "sha256:test",
+                    }
+                ],
+            },
+        )
+
+    def read_evidence(self, _context, arguments):
+        evidence = {
+            "evidence_id": "ev:test",
+            "raw_record_id": "raw:test",
+            "raw_revision_id": "rawrev:test",
+            "source_unit_id": "unit:test",
+            "source_record_id": "sr_agent_loop",
+            "processing_record_id": "spr:test",
+            "source_path": "raw/agent-loop.md",
+            "unit_index": 0,
+            "unit_type": "section",
+            "title": "Agent Loop",
+            "locator_page_paths": ["sources/Agent-Loop-Source.md"],
+            "excerpt": "Agent Loop 是推理、行动和观察的循环。",
+            "content": "Agent Loop 是推理、行动和观察的循环。",
+            "excerpt_hash": "sha256:test",
+            "char_start": 106,
+            "char_end": 116,
+            "source_unit_char_start": 100,
+            "source_unit_char_end": 124,
+        }
+        return ChatToolTraceItem(
+            tool="read_evidence",
+            arguments=arguments,
+            summary="Read one raw source unit.",
+            citations=[
+                ChatCitation(
+                    kind="raw_evidence",
+                    role="source",
+                    path="raw/agent-loop.md",
+                    title="Agent Loop",
+                    evidence_id="ev:test",
+                    raw_revision_id="rawrev:test",
+                    source_unit_id="unit:test",
+                    char_start=106,
+                    char_end=116,
+                )
+            ],
+            result={"raw_evidence": [evidence]},
+        )
+
+
 @dataclass
 class FakeServices:
+    chat_knowledge: FakeChatKnowledge = field(default_factory=FakeChatKnowledge)
     wiki_search: FakeWikiSearch = field(default_factory=FakeWikiSearch)
     wiki_pages: FakeWikiPages = field(default_factory=FakeWikiPages)
     vaults: FakeVaults = field(default_factory=FakeVaults)

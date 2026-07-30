@@ -1,44 +1,56 @@
-import type { GraphEdge, GraphNode } from "../../api/client";
-export function GraphNodeDetail({
-  node,
-  edges,
-  t,
-  onOpenPage,
-}: {
-  node: GraphNode | null;
-  edges: GraphEdge[];
-  t: (key: string) => string;
-  onOpenPage?: (path: string) => void;
-}) {
-  if (!node) {
-    return <div className="node-detail">{t("selectNode")}</div>;
-  }
-  const openPath = node.id;
+import { useEffect, useState } from "react";
+
+import { getPage, type GraphNode, type PageDetail } from "../../api/client";
+import type { GraphAppContext } from "../../appContext";
+import { AsyncMarkdownPreview } from "../../components/AsyncMarkdownPreview";
+import { LoadingBlock } from "../../components/LoadingBlock";
+import { userFacingError } from "../../userFacingError";
+
+export function GraphNodeDetail({ active, node, context }: { active: boolean; node: GraphNode | null; context: GraphAppContext }) {
+  const [page, setPage] = useState<PageDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!active) return;
+    setPage(null);
+    setError(null);
+    if (!node) return;
+    let cancelled = false;
+    setLoading(true);
+    getPage(context.activeVaultSelector, node.id)
+      .then((detail) => {
+        if (!cancelled) setPage(detail);
+      })
+      .catch((reason) => {
+        if (!cancelled) setError(userFacingError(reason, context.language));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [active, context.activeVaultSelector, context.language, node]);
+
+  if (!node) return <div className="node-detail">{context.t("selectNode")}</div>;
+
   return (
-    <div className="node-detail">
-      <h3>{node.title}</h3>
-      <p>{node.summary || t("noSummary")}</p>
-      <div className="tag-list">
-        {node.entities.length ? node.entities.map((entity) => <span key={entity}>{entity}</span>) : <em>{t("noEntities")}</em>}
-      </div>
-      {edges.length > 0 && (
-        <div className="mini-section">
-          <h4>{t("relations")}</h4>
-          <ul className="relation-list">
-            {edges.slice(0, 8).map((edge, index) => (
-              <li key={`${edge.source}-${edge.target}-${index}`}>
-                <span>{edge.source}</span>
-                <strong>{edge.label || edge.kind}</strong>
-                <span>{edge.target}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {onOpenPage && openPath && (
-        <button className="button secondary full-width-button" type="button" onClick={() => onOpenPage(openPath)}>
-          {t("openInWiki")}
+    <div className="node-detail graph-raw-detail">
+      <div className="graph-raw-detail-header">
+        <h3>{page?.summary.title || node.title}</h3>
+        <button className="button secondary small-button" type="button" onClick={() => context.openWikiPage(node.id)}>
+          {context.t("openInWiki")}
         </button>
+      </div>
+      {loading && <LoadingBlock title={context.t("wikiPageLoading")} copy={context.t("wikiPageLoadingCopy")} compact />}
+      {!loading && error && <p className="graph-raw-unavailable">{error}</p>}
+      {!loading && page && (
+        <AsyncMarkdownPreview
+          className="graph-raw-preview"
+          content={page.raw_content || page.content}
+          vaultPath={context.vaultPath}
+        />
       )}
     </div>
   );

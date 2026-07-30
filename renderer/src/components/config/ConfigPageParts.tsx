@@ -1,7 +1,7 @@
 import type { ConfigForm } from "../../api/client";
 import { productIdentity } from "../../product";
-import type { AppContext } from "../../appContext";
-import type { AppNotice } from "../../appContext";
+import type { ConfigAppContext } from "../../appContext";
+import type { AppearanceMode } from "../../types";
 
 export type ConfigSectionId = "general" | "basic" | "inputs" | "preprocessing" | "models" | "advanced";
 
@@ -71,28 +71,9 @@ export function SettingsLoadingState({ t }: { t: (key: string) => string }) {
   );
 }
 
-type ConfigGeneralSectionProps = {
-  context: AppContext;
-  form: ConfigForm;
-  setForm: (form: ConfigForm | null | ((previous: ConfigForm | null) => ConfigForm | null)) => void;
-  onCommit: (nextForm: ConfigForm) => Promise<void>;
-  onError: (notice: AppNotice | null) => void;
-};
+const APPEARANCE_MODES: AppearanceMode[] = ["system", "light", "dark"];
 
-const RESPONSE_STYLES: Array<ConfigForm["chat_response_style"]> = ["concise", "balanced", "deep"];
-
-export function ConfigGeneralSection({ context, form, setForm, onCommit, onError }: ConfigGeneralSectionProps) {
-  async function commit(nextForm: ConfigForm) {
-    const previousForm = form;
-    setForm(nextForm);
-    try {
-      await onCommit(nextForm);
-    } catch (error) {
-      setForm(previousForm);
-      onError({ message: error instanceof Error ? error.message : String(error), error: true });
-    }
-  }
-
+export function ConfigGeneralSection({ context }: { context: ConfigAppContext }) {
   return (
     <div className="settings-card-grid single">
       <div className="settings-card">
@@ -111,28 +92,36 @@ export function ConfigGeneralSection({ context, form, setForm, onCommit, onError
 
       <div className="settings-card">
         <div>
-          <h3>{context.t("chatResponseStyle")}</h3>
-          <p className="panel-copy">{context.t("chatResponseStyleCopy")}</p>
+          <h3>{context.t("appearance")}</h3>
+          <p className="panel-copy">{context.t("appearanceCopy")}</p>
         </div>
-        <div className="settings-language-options" role="group" aria-label={context.t("chatResponseStyle")}>
-          {RESPONSE_STYLES.map((style) => (
+        <div className="settings-language-options" role="group" aria-label={context.t("appearance")}>
+          {APPEARANCE_MODES.map((mode) => (
             <button
-              className={`button ${form.chat_response_style === style ? "primary" : "secondary"}`}
-              key={style}
+              className={`button ${context.appearanceMode === mode ? "primary" : "secondary"}`}
+              key={mode}
               type="button"
-              onClick={() => void commit({ ...form, chat_response_style: style })}
+              onClick={() => context.setAppearanceMode(mode)}
             >
-              {context.t(`chatResponseStyle.${style}`)}
+              {context.t(`appearance.${mode}`)}
             </button>
           ))}
         </div>
       </div>
+
     </div>
   );
 }
 
 export function normalizeConfigForm(form: ConfigForm): ConfigForm {
-  const mineruBackend = ["hybrid-auto-engine", "pipeline", "vlm-auto-engine"].includes(form.mineru_backend || "") ? form.mineru_backend : "pipeline";
+  const mineruBackendAliases: Record<string, string> = {
+    "hybrid-engine": "hybrid-auto-engine",
+    "vlm-engine": "vlm-auto-engine",
+  };
+  const requestedMineruBackend = mineruBackendAliases[form.mineru_backend || ""] || form.mineru_backend;
+  const mineruBackend = ["pipeline", "vlm-auto-engine", "hybrid-auto-engine"].includes(requestedMineruBackend || "")
+    ? requestedMineruBackend
+    : "pipeline";
 
   return {
     ...form,
@@ -161,25 +150,24 @@ export function normalizeConfigForm(form: ConfigForm): ConfigForm {
     generic_chat_enabled: Boolean(form.generic_chat_enabled),
     generic_chat_roots: form.generic_chat_roots || [],
     generic_chat_raw_output_dir: form.generic_chat_raw_output_dir || "",
-    chat_response_style: ["concise", "balanced", "deep"].includes(form.chat_response_style) ? form.chat_response_style : "balanced",
     mineru_input_dir: "",
     mineru_enabled: true,
     mineru_endpoint: form.mineru_endpoint || "http://127.0.0.1:18000/file_parse",
-    mineru_parse_method: "auto",
+    mineru_parse_method: ["auto", "txt", "ocr"].includes(form.mineru_parse_method || "") ? form.mineru_parse_method : "auto",
     mineru_backend: mineruBackend || "pipeline",
     mineru_timeout_seconds: form.mineru_timeout_seconds || 600,
     mineru_patterns: form.mineru_patterns || ["*.pdf", "*.docx", "*.pptx"],
     mineru_recursive: form.mineru_recursive ?? true,
     mineru_return_md: true,
-    mineru_return_middle_json: false,
-    mineru_return_model_output: false,
-    mineru_return_content_list: false,
-    mineru_return_images: true,
-    mineru_response_format_zip: false,
+    mineru_return_middle_json: Boolean(form.mineru_return_middle_json),
+    mineru_return_model_output: Boolean(form.mineru_return_model_output),
+    mineru_return_content_list: Boolean(form.mineru_return_content_list),
+    mineru_return_images: form.mineru_return_images ?? true,
+    mineru_response_format_zip: Boolean(form.mineru_response_format_zip),
     mineru_lang_list: form.mineru_lang_list || "ch",
     mineru_formula_enable: form.mineru_formula_enable ?? true,
     mineru_table_enable: form.mineru_table_enable ?? true,
-    mineru_server_url: "",
+    mineru_server_url: form.mineru_server_url || "",
     mineru_start_page_id: form.mineru_start_page_id ?? 0,
     mineru_end_page_id: form.mineru_end_page_id ?? 99999,
     mineru_extra_fields_json: form.mineru_extra_fields_json || "{}",

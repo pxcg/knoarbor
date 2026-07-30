@@ -6,47 +6,26 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 
 KnowledgeAtomObjectType = Literal["knowledge_object", "page", "source", "claim", "unknown"]
-KnowledgeClaimType = Literal["definition", "recommendation", "assessment", "causal", "decision", "comparison", "open_question"]
-KnowledgeClaimStance = Literal["asserted", "tentative", "disputed"]
-KnowledgeRelationPredicate = Literal[
-    "supports",
-    "contradicts",
-    "contrasts_with",
-    "derived_from",
-    "depends_on",
-    "requires",
-    "uses",
-    "implements",
-    "constrains",
-    "part_of",
-    "coordinates",
-    "includes",
-    "can_mask",
-    "preferred_over",
-]
-KnowledgeAtomIssueSeverity = Literal["error", "warning", "info"]
-KnowledgeAtomIssueType = Literal[
-    "duplicate_atom_id",
-    "unsupported_claim",
-    "unsupported_relation",
-    "conflicting_relation",
-    "undefined_entity_reference",
-    "unused_entity",
-]
 
 
 class KnowledgeEvidenceSpan(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    source_digest_id: str = Field(..., min_length=1)
+    source_record_id: str = Field(..., min_length=1)
+    raw_record_id: str | None = None
+    raw_revision_id: str | None = None
+    revision_id: str | None = None
+    window_id: str | None = None
+    source_unit_id: str | None = None
+    processing_record_id: str | None = None
     source_path: str | None = None
     source_unit_index: int | None = Field(default=None, ge=0)
-    excerpt: str = Field(..., min_length=1)
+    excerpt: str = ""
     excerpt_hash: str | None = None
     char_start: int | None = Field(default=None, ge=0)
     char_end: int | None = Field(default=None, ge=0)
 
-    @field_validator("source_digest_id", "excerpt")
+    @field_validator("source_record_id")
     @classmethod
     def strip_required_text(cls, value: str) -> str:
         text = value.strip()
@@ -58,6 +37,8 @@ class KnowledgeEvidenceSpan(BaseModel):
     def validate_char_range(self) -> "KnowledgeEvidenceSpan":
         if self.char_start is not None and self.char_end is not None and self.char_end < self.char_start:
             raise ValueError("char_end must be greater than or equal to char_start")
+        if not self.excerpt.strip() and not self.source_unit_id:
+            raise ValueError("evidence span requires excerpt or source_unit_id")
         return self
 
 
@@ -69,6 +50,7 @@ class KnowledgeAtomObject(BaseModel):
     page_path: str | None = None
     atom_id: str | None = None
     aliases: list[str] = Field(default_factory=list)
+    evidence: list[KnowledgeEvidenceSpan] = Field(default_factory=list)
 
     @field_validator("name")
     @classmethod
@@ -98,11 +80,9 @@ class KnowledgeClaim(BaseModel):
 
     id: str = Field(..., min_length=1)
     claim: str = Field(..., min_length=1)
-    claim_type: KnowledgeClaimType
-    stance: KnowledgeClaimStance = "asserted"
     evidence: list[KnowledgeEvidenceSpan] = Field(default_factory=list)
     entity_names: list[str] = Field(default_factory=list)
-    confidence: float = Field(default=0.8, ge=0, le=1)
+    entity_ids: list[str] = Field(default_factory=list)
 
     @field_validator("id", "claim")
     @classmethod
@@ -112,7 +92,7 @@ class KnowledgeClaim(BaseModel):
             raise ValueError("claim fields cannot be empty")
         return text
 
-    @field_validator("entity_names", mode="before")
+    @field_validator("entity_names", "entity_ids", mode="before")
     @classmethod
     def normalize_string_list(cls, value: object) -> list[str]:
         if value is None:
@@ -138,19 +118,17 @@ class KnowledgeRelation(BaseModel):
 
     id: str = Field(..., min_length=1)
     subject: KnowledgeAtomObject
-    predicate: KnowledgeRelationPredicate
+    predicate: str = Field(..., min_length=1)
     object: KnowledgeAtomObject
     source_claim_ids: list[str] = Field(default_factory=list)
     evidence: list[KnowledgeEvidenceSpan] = Field(default_factory=list)
-    reason: str = ""
-    confidence: float = Field(default=0.8, ge=0, le=1)
 
-    @field_validator("id")
+    @field_validator("id", "predicate")
     @classmethod
-    def strip_id(cls, value: str) -> str:
+    def strip_required_text(cls, value: str) -> str:
         text = value.strip()
         if not text:
-            raise ValueError("relation id cannot be empty")
+            raise ValueError("relation fields cannot be empty")
         return text
 
     @field_validator("source_claim_ids", mode="before")
@@ -177,34 +155,41 @@ class KnowledgeRelation(BaseModel):
 class KnowledgeAtomBatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["knowledge_atoms.v2"] = "knowledge_atoms.v2"
-    source_digest_id: str = Field(..., min_length=1)
+    schema_version: Literal["knowledge_atoms.v3"] = "knowledge_atoms.v3"
+    source_record_id: str = Field(..., min_length=1)
+    revision_id: str | None = None
+    window_id: str | None = None
     entities: list[KnowledgeAtomObject] = Field(default_factory=list)
     claims: list[KnowledgeClaim] = Field(default_factory=list)
     relations: list[KnowledgeRelation] = Field(default_factory=list)
-    evidence: list[KnowledgeEvidenceSpan] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
+    synthesis: str = ""
 
-    @field_validator("source_digest_id")
+    @field_validator("source_record_id")
     @classmethod
-    def strip_source_digest_id(cls, value: str) -> str:
+    def strip_source_record_id(cls, value: str) -> str:
         text = value.strip()
         if not text:
-            raise ValueError("source_digest_id cannot be empty")
+            raise ValueError("source_record_id cannot be empty")
         return text
+
+    @field_validator("synthesis", mode="before")
+    @classmethod
+    def normalize_synthesis(cls, value: object) -> str:
+        return str(value or "").strip()
 
     def summary(self) -> dict[str, int]:
         evidence_ids = {
-            (span.source_digest_id, span.source_unit_index, span.excerpt_hash or span.excerpt)
-            for span in self.evidence
+            (span.source_record_id, span.source_unit_index, span.excerpt_hash or span.excerpt)
+            for entity in self.entities
+            for span in entity.evidence
         }
         evidence_ids.update(
-            (span.source_digest_id, span.source_unit_index, span.excerpt_hash or span.excerpt)
+            (span.source_record_id, span.source_unit_index, span.excerpt_hash or span.excerpt)
             for claim in self.claims
             for span in claim.evidence
         )
         evidence_ids.update(
-            (span.source_digest_id, span.source_unit_index, span.excerpt_hash or span.excerpt)
+            (span.source_record_id, span.source_unit_index, span.excerpt_hash or span.excerpt)
             for relation in self.relations
             for span in relation.evidence
         )
@@ -213,52 +198,4 @@ class KnowledgeAtomBatch(BaseModel):
             "claims": len(self.claims),
             "relations": len(self.relations),
             "evidence_spans": len(evidence_ids),
-        }
-
-
-class KnowledgeAtomQualityIssue(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    issue_type: KnowledgeAtomIssueType
-    severity: KnowledgeAtomIssueSeverity = "warning"
-    atom_id: str | None = None
-    message: str = Field(..., min_length=1)
-
-    @field_validator("message")
-    @classmethod
-    def strip_message(cls, value: str) -> str:
-        text = value.strip()
-        if not text:
-            raise ValueError("quality issue message cannot be empty")
-        return text
-
-
-class KnowledgeAtomQualityReport(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    schema_version: Literal["knowledge_atom_quality.v1"] = "knowledge_atom_quality.v1"
-    source_digest_id: str = Field(..., min_length=1)
-    extracted: dict[str, int] = Field(default_factory=dict)
-    issues: list[KnowledgeAtomQualityIssue] = Field(default_factory=list)
-
-    @field_validator("source_digest_id")
-    @classmethod
-    def strip_source_digest_id(cls, value: str) -> str:
-        text = value.strip()
-        if not text:
-            raise ValueError("source_digest_id cannot be empty")
-        return text
-
-    def summary(self) -> dict[str, int]:
-        unsupported = sum(1 for issue in self.issues if issue.issue_type.startswith("unsupported_"))
-        conflicting = sum(1 for issue in self.issues if issue.issue_type == "conflicting_relation")
-        rejected = sum(1 for issue in self.issues if issue.severity == "error")
-        return {
-            "entities": int(self.extracted.get("entities", 0)),
-            "claims": int(self.extracted.get("claims", 0)),
-            "relations": int(self.extracted.get("relations", 0)),
-            "evidence_spans": int(self.extracted.get("evidence_spans", 0)),
-            "unsupported": unsupported,
-            "conflicting": conflicting,
-            "rejected": rejected,
         }

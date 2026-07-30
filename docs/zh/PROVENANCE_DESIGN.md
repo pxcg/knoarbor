@@ -1,86 +1,63 @@
 # 溯源设计
 
-本文档解释 KnoArbor 的来源溯源模型。冻结的字段和目录契约记录在
-[契约总览](CONTRACTS.md)；本文说明 raw source、source digest、知识页、
-lint 维护和 query context 如何共享同一个“来源”语义。
+本文定义 ingest、检索、Chat、投影和维护共同使用的稳定溯源语义。字段级契约见[契约总览](CONTRACTS.md)，事实权威见
+[ADR 0004](../adr/0004-ingest-factual-authority.md)。
 
-## 设计目标
+## 溯源链
 
-- 保留 raw source 作为不可变证据底座。
-- 让每个生成页都能追溯到一个或多个来源。
-- 让 source digest 成为 raw source 与知识页之间的人类可读摘要页。
-- 使用正文中的结构化 Evidence 作为单来源和多来源页面的标准溯源模型。
-- 让 lint 能检查 provenance 链路，而不是凭自然语言猜测来源。
+```text
+原始资料
+  -> 标准化 source units
+  -> 不可变 source revision
+  -> 带证据的知识元数据
+  -> 可读投影和机器投影
+  -> raw-grounded 检索
+```
 
-## 来源层级
+## 权威边界
 
-| 层级 | 目录/字段 | 职责 |
+| 层 | 角色 | 权威范围 |
 | --- | --- | --- |
-| Raw Source | `raw/**` | 原始输入，原则上不可改写。 |
-| Source Digest | `wiki/sources/*.md` | 单个 raw source 的来源审计页，连接原始资料与生成知识页。 |
-| Knowledge Page | `wiki/pages/<slug>.md` | 面向复用的知识页面。Claims、Relations、Entities、Synthesis 和 Evidence 保存在页面正文与图索引中。 |
+| Raw source | 用户资料或确定性标准化产物 | 事实输入 |
+| Source unit | Source revision 内的稳定证据坐标 | 可用于回答的证据 |
+| Source revision | Processing record、source units、knowledge atoms 和 manifest | 已发布事实记录 |
+| SQLite source head | 选择当前 revision 和 session window | 发布权威 |
+| Wiki source projection | 可读 synthesis、claims、entities 和 relations | 可重建定位视图 |
+| Machine index | 搜索、图、页面、来源和链接记录 | 可重建检索视图 |
+| Run/report artifacts | 执行、失败、Token 和恢复诊断 | 仅运行审计 |
 
-## 页面正文来源证据
+`.knoarbor/ingest.sqlite` 中的 active source heads 与其可达的
+`.knoarbor/facts/` 不可变 revision 共同定义已发布事实。
+Wiki Markdown 和机器索引不会重新定义事实。
 
-当前页面在专门的正文结构中记录来源。知识页使用 `## Evidence`；source digest 使用 `## Source Identity`、`## Source Units`、`## Contribution Map` 与 `## Raw Source`。
-
-```markdown
 ## Evidence
 
-| Claim | Source | Range | Basis | Confidence |
-|---|---|---|---|---|
-| C1 | raw/inbox/notes/Agent.md | unit:0 | 原始资料描述了 Agent Loop 的控制循环。 | high |
-```
+每个接受的 entity、claim 或 relation 都指向由稳定 source unit 构造的
+evidence。Evidence 保存来源、revision、unit、excerpt 和完整性信息。模型
+请求中的数组位置只在该次调用内有效，不属于持久溯源。
 
-职责：
+Query 和 Chat 可以利用 Wiki 页面与 atom metadata 定位相关事实。事实性回答
+使用 raw evidence 或 source units，遵循 [ADR 0003](../adr/0003-raw-grounded-answering.md)。
+Wiki 页面提供导航和 synthesis，但页面文字不会因为由 ingest 生成就自动成为
+raw evidence。
 
-- `## Evidence` 将每条 claim 绑定到 source、range、basis 和 confidence。它是知识页记录 raw source 的唯一正文来源表。
-- 知识页依赖的每个 raw source 都有匹配的 source digest trace。
-- source digest 通过 Contribution Map 和机器索引 trace 记录由同一 raw source 生成的知识页。
-- 同一个 raw source 在同一批 ingest 中生成一个 source digest。长文档或长聊天被切分为多个 segment 时，重复的 source digest 草稿在写入前归并。
-- ingest 将主题相似和弱候选匹配保留为 retrieval/index 信号，页面正文聚焦 claims、relations、entities、evidence 和 synthesis。
+## Projection
 
-## 多来源模型
+事务 ingest 为每个 active replaceable source 在 `wiki/pages/` 生成一份可读
+source projection；增量 session 生成合并投影。这些页面标记为投影材料，并可在
+不调用模型的情况下重建。
 
-多来源页面通过多行 `## Evidence` 表达：
+`wiki/sources/` 属于早期 source-record Markdown 设计。已有文件可以继续读取，
+但当前 ingest 不要求也不生成它们作为溯源权威。
 
-```markdown
-## Evidence
+## 维护边界
 
-| Claim | Source | Range | Basis | Confidence |
-|---|---|---|---|---|
-| C1 | raw/inbox/notes/Agent.md | unit:0 | Agent Loop 控制循环。 | high |
-| C2 | raw/inbox/chats/session_20260505_173432_47d596.json | turn:4-6 | 生产环境记忆设计讨论。 | medium |
-```
+维护流程可以检查 revision/source-unit 引用、evidence 完整性、原始资料缺失、
+投影 freshness、来源导航和机器索引 generation 一致性。维护流程不会从普通 Wiki
+链接推断溯源，不会改写 raw source，也不会把运行诊断当作知识事实。
 
-检索、lint 和关系判断以 `## Evidence` 与 source digest trace 为准。
+## 恢复与备份
 
-## Lint 责任边界
-
-Lint 负责：
-
-- 检查 `## Evidence` 与 source digest trace 中的来源是否完整。
-- 检查 raw source 是否存在。
-- 检查 source digest 是否存在。
-- 检查 source digest trace 与 Contribution Map 是否和生成页一致。
-- 为缺失 source digest 和缺失 trace 记录生成维护候选。
-
-Lint 范围外：
-
-- 缺少结构化 Evidence、Source Identity、Raw Source 或 Contribution Map 证据时的来源猜测。
-- 联网事实验证。
-- 将普通 wiki 链接解释为 provenance source。
-- 未更新结构化 Evidence 行且未通过 review 的多来源合并。
-
-## 迁移策略
-
-1. 将来源溯源保存在页面正文的证据章节中。
-2. 从 Evidence、Source Identity、Raw Source 和 Contribution Map 校验来源引用。
-3. frontmatter 仅保存创建时间、更新时间、内容哈希等页面身份元数据。
-4. 自动来源修复只更新结构化 Evidence 与 source digest trace，不改写页面身份元数据。
-
-## 后续实现点
-
-- 在 scanner 中校验 Evidence、Source Identity、Raw Source 和 Contribution Map 的来源完整性。
-- 在 source digest 关系检查中支持一页多来源。
-- 在 query context pack 中暴露证据置信度与来源范围。
+备份应保护 raw material、`.knoarbor/ingest.sqlite` 和可达 source revision
+generations。Wiki projections 与 machine indexes 可以重建。事实提交后发生的投影
+失败通过 materialization 恢复，不重复模型调用。

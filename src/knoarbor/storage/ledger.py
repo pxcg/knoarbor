@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from knoarbor.core.errors import VaultPathError
-from knoarbor.runtime import vault_write_lock
+from knoarbor.runtime import FileLock, vault_write_lock
 
 
 def append_jsonl_ledger(vault_path: Path, ledger_path: str, record: dict[str, object]) -> Path:
@@ -31,6 +31,24 @@ def append_jsonl_records(vault_path: Path, ledger_path: str, records: list[dict[
     if not path.is_relative_to(vault_path.resolve()):
         raise VaultPathError(f"Ledger path escapes vault: {ledger_path}")
     with vault_write_lock(vault_path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            for record in records:
+                handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+    return path
+
+
+def append_jsonl_records_with_file_lock(root_path: Path, ledger_path: str, records: list[dict[str, object]], lock_path: Path) -> Path | None:
+    if not records:
+        return None
+    root = root_path.expanduser().resolve()
+    relative = _ledger_relative_path(ledger_path)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise VaultPathError(f"Invalid ledger path: {ledger_path}")
+    path = (root / relative).resolve()
+    if not path.is_relative_to(root):
+        raise VaultPathError(f"Ledger path escapes root: {ledger_path}")
+    with FileLock(lock_path):
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as handle:
             for record in records:

@@ -6,20 +6,16 @@ from knoarbor.core.config import default_config_path, load_config
 from knoarbor.core.errors import UserInputError
 from knoarbor.core.vaults import VIRTUAL_ALL_VAULT_ID, concrete_vault_profile_ids, resolve_config_vault_path
 from knoarbor.core.schemas.wiki_query import (
-    WikiAnswerScope,
-    WikiAnswerSet,
-    WikiEvidenceCoverage,
-    WikiContextRequest,
-    WikiContextResponse,
     WikiQueryFeedbackRequest,
     WikiQueryFeedbackResponse,
     WikiQueryTrendResponse,
+    WikiRawEvidence,
     WikiSearchRequest,
     WikiSearchResponse,
 )
 from knoarbor.audit.query_ledger import append_query_feedback, append_query_record, build_query_trend
 from knoarbor.audit.query_report import write_query_report
-from knoarbor.presenters.wiki_context import build_wiki_context, search_query
+from knoarbor.presenters.wiki_context import search_query
 from knoarbor.runtime import runtime_logger
 from knoarbor.services.workflow_failures import write_workflow_failure_artifacts
 
@@ -72,6 +68,8 @@ class WikiSearchService:
                     "vault_id": vault_id,
                     "vault_ids": [],
                     "all_vaults": False,
+                    "continuation_cursor": request.continuation_cursors.get(vault_id),
+                    "continuation_cursors": {},
                 },
             )
             response = self._search_one(scoped_request)
@@ -82,31 +80,21 @@ class WikiSearchService:
             [result for response in responses for result in response.results],
             key=lambda item: item.score,
             reverse=True,
-        )[: request.max_results]
-        primary_pages = [result for result in merged_results if result.role == "primary"]
-        supporting_pages = [result for result in merged_results if result.role == "supporting"]
-        source_pages = [result for result in merged_results if result.role == "source"]
-        answer_scope = _merge_answer_scope(request, responses, target_vault_ids, merged_results)
-        answer_set = _merge_answer_set(primary_pages, supporting_pages, source_pages, responses)
-        evidence_coverage = _merge_evidence_coverage(primary_pages, supporting_pages, source_pages, responses)
+        )
+        raw_evidence = _merge_raw_evidence(responses)
+        evidence_handles = _merge_evidence_handles(responses)
         context_pack = _merge_context_packs(responses)
-        rejected_candidates = _merge_unique_rejected([item for response in responses for item in response.rejected_candidates])
         return WikiSearchResponse(
             query=request.query,
-            retrieval_mode=request.mode,
+            status=_merge_query_status(responses),
+            retrieval_mode="unified_active_raw_lexical",
             results=merged_results,
-            primary_pages=primary_pages,
-            supporting_pages=supporting_pages,
-            source_pages=source_pages,
-            answer_scope=answer_scope,
-            answer_set=answer_set,
-            evidence_coverage=evidence_coverage,
-            rejected_candidates=rejected_candidates,
+            evidence_handles=evidence_handles,
+            raw_evidence=raw_evidence,
             context_pack=context_pack,
-            response_guidance=_merge_unique([item for response in responses for item in response.response_guidance]),
-            gap_suggestions=[item for response in responses for item in response.gap_suggestions],
             gaps=_merge_unique([item for response in responses for item in response.gaps]),
             warnings=_merge_unique(warnings),
+            channel_statuses=[item for response in responses for item in response.channel_statuses],
             stats={
                 "multi_vault": True,
                 "vault_count": len(responses),
@@ -124,21 +112,19 @@ class WikiSearchService:
                 ],
             },
             trace={
-                "schema_version": "query_trace.v1",
+                "schema_version": "query_trace.v3",
                 "multi_vault": True,
                 "vault_ids": target_vault_ids,
-                "role_counts": {
-                    "primary": len(primary_pages),
-                    "supporting": len(supporting_pages),
-                    "source": len(source_pages),
-                },
-                "answer_scope": answer_scope.model_dump(),
-                "answer_set": answer_set.model_dump(),
+                "locator_count": len(merged_results),
+                "raw_evidence_count": len(raw_evidence),
+            },
+            exhausted=all(response.exhausted for response in responses),
+            continuation_cursors={
+                vault_id: response.continuation_cursor
+                for vault_id, response in zip(target_vault_ids, responses, strict=True)
+                if response.continuation_cursor
             },
         )
-
-    def context(self, request: WikiContextRequest) -> WikiContextResponse:
-        return build_wiki_context(request)
 
     def feedback(self, request: WikiQueryFeedbackRequest) -> WikiQueryFeedbackResponse:
         request, vault_path = _resolve_feedback_request(request)
@@ -195,10 +181,8 @@ def _annotate_results_with_vault(response: WikiSearchResponse, vault_path: Path)
         "vault_name": str(vault_name) if vault_name else None,
         "vault_path": str(vault_path),
     }
-    for field_name in ("results", "primary_pages", "supporting_pages", "source_pages"):
-        pages = getattr(response, field_name)
-        for index, result in enumerate(pages):
-            pages[index] = result.model_copy(update=update)
+    for index, result in enumerate(response.results):
+        response.results[index] = result.model_copy(update=update)
 
 
 def _merge_context_packs(responses: list[WikiSearchResponse]) -> str:
@@ -212,74 +196,44 @@ def _merge_context_packs(responses: list[WikiSearchResponse]) -> str:
     return "\n\n---\n\n".join(sections)
 
 
-def _merge_answer_scope(
-    request: WikiSearchRequest,
-    responses: list[WikiSearchResponse],
-    target_vault_ids: list[str],
-    merged_results: list,
-) -> WikiAnswerScope:
-    kinds = {response.answer_scope.kind for response in responses}
-    kind = "broad" if len(responses) > 1 or "broad" in kinds else "exploratory" if "exploratory" in kinds else "narrow"
-    initial_dirs = _merge_unique([item for response in responses for item in response.answer_scope.initial_page_dirs])
-    expanded_dirs = _merge_unique([item for response in responses for item in response.answer_scope.expanded_page_dirs])
-    return WikiAnswerScope(
-        kind=kind,
-        vault_ids=target_vault_ids,
-        initial_page_dirs=initial_dirs or request.page_dirs,
-        expanded_page_dirs=expanded_dirs or request.page_dirs,
-        include_related=request.include_related,
-        reason=f"Combined {len(responses)} vault response(s) into {len(merged_results)} ranked page result(s).",
-    )
+def _merge_query_status(responses: list[WikiSearchResponse]):
+    statuses = {response.status for response in responses}
+    if "candidates" in statuses:
+        return "candidates"
+    if statuses == {"no_match"}:
+        return "no_match"
+    for status in ("integrity_error", "index_unavailable", "resource_exhausted", "cancelled", "invalid_scope", "invalid_query"):
+        if status in statuses:
+            return status
+    return "no_match"
 
 
-def _merge_answer_set(
-    primary_pages: list,
-    supporting_pages: list,
-    source_pages: list,
-    responses: list[WikiSearchResponse],
-) -> WikiAnswerSet:
-    primary_paths = _merge_unique([item.path for item in primary_pages])
-    supporting_paths = _merge_unique([item.path for item in supporting_pages])
-    source_paths = _merge_unique([item.path for item in source_pages])
-    further_reading_paths = _merge_unique(
-        [path for response in responses for path in response.answer_set.further_reading_paths]
-    )
-    rejected_candidates = _merge_unique_rejected(
-        [item for response in responses for item in response.answer_set.rejected_candidates]
-    )
-    return WikiAnswerSet(
-        kind="multi_page" if len(primary_paths) + len(supporting_paths) > 1 else "single_page",
-        primary_paths=primary_paths,
-        supporting_paths=supporting_paths,
-        source_paths=source_paths,
-        further_reading_paths=further_reading_paths[:6],
-        rejected_candidates=rejected_candidates,
-        reason="Merged per-vault answer sets while preserving page roles.",
-        stop_reason="multi_vault_merge",
-    )
+def _merge_evidence_handles(responses: list[WikiSearchResponse]):
+    output = []
+    seen: set[tuple[str, str]] = set()
+    for response in responses:
+        for handle in response.evidence_handles:
+            key = (handle.vault_id, handle.evidence_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            output.append(handle)
+    output.sort(key=lambda item: (-item.fused_score, item.vault_id, item.evidence_id))
+    return output
 
 
-def _merge_evidence_coverage(
-    primary_pages: list,
-    supporting_pages: list,
-    source_pages: list,
-    responses: list[WikiSearchResponse],
-) -> WikiEvidenceCoverage:
-    statuses = {response.evidence_coverage.status for response in responses}
-    status = "strong" if "strong" in statuses else "adequate" if "adequate" in statuses else "weak"
-    covered_terms = _merge_unique([term for response in responses for term in response.evidence_coverage.covered_terms])
-    covered_dimensions = _merge_unique([dimension for response in responses for dimension in response.evidence_coverage.covered_dimensions])
-    missing_dimensions = _merge_unique([dimension for response in responses for dimension in response.evidence_coverage.missing_dimensions if dimension not in set(covered_terms)])
-    return WikiEvidenceCoverage(
-        status=status,
-        primary_count=len(primary_pages),
-        supporting_count=len(supporting_pages),
-        source_count=len(source_pages),
-        gap_count=sum(response.evidence_coverage.gap_count for response in responses),
-        covered_terms=covered_terms[:12],
-        covered_dimensions=covered_dimensions[:12],
-        missing_dimensions=missing_dimensions[:8],
-    )
+def _merge_raw_evidence(responses: list[WikiSearchResponse]) -> list[WikiRawEvidence]:
+    merged: list[WikiRawEvidence] = []
+    seen: set[tuple[str, str]] = set()
+    for response in responses:
+        vault_id = str(response.stats.get("vault_id") or response.stats.get("vault_path") or "")
+        for evidence in response.raw_evidence:
+            key = (vault_id, evidence.evidence_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(evidence)
+    return merged
 
 
 def _merge_unique(items: list[str]) -> list[str]:
@@ -289,18 +243,6 @@ def _merge_unique(items: list[str]) -> list[str]:
         if item in seen:
             continue
         seen.add(item)
-        output.append(item)
-    return output
-
-
-def _merge_unique_rejected(items: list) -> list:
-    seen: set[tuple[str, str | None]] = set()
-    output: list = []
-    for item in items:
-        key = (item.path, item.role_hint)
-        if key in seen:
-            continue
-        seen.add(key)
         output.append(item)
     return output
 

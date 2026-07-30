@@ -1,23 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 
 import { getTokenAnalysis, type TokenAnalysis, type TokenCallRecord, type TokenMetricGroup, type TokenPayloadFieldGroup } from "../api/client";
 import { BarChart } from "../components/BarChart";
 import { LoadingBlock } from "../components/LoadingBlock";
-import type { AppContext } from "../appContext";
+import type { TokensAppContext } from "../appContext";
 
 type Props = {
-  context: AppContext;
+  active: boolean;
+  context: TokensAppContext;
 };
 
 const LEDGER_LIMITS = [500, 1000, 5000, 10000];
 
-export function TokensPage({ context }: Props) {
+export function TokensPage({ active, context }: Props) {
   const [analysis, setAnalysis] = useState<TokenAnalysis | null>(null);
   const [limit, setLimit] = useState(5000);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -34,36 +37,36 @@ export function TokensPage({ context }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [context.vaultPath, limit]);
+  }, [active, context.vaultPath, limit]);
 
   const flowAgentGroups = useMemo(() => buildFlowAgentGroups(analysis?.top_calls || [], analysis?.by_flow || []), [analysis]);
   const expensiveRun = analysis?.recent_runs?.[0];
   const topCall = analysis?.top_calls?.[0];
 
   if (loading && !analysis) {
-    return <section className="view active token-page"><section className="panel"><LoadingBlock title={context.t("tokensLoading")} copy={context.t("tokensLoadingCopy")} /></section></section>;
+    return <TokenPageShell context={context}><section className="panel"><LoadingBlock title={context.t("tokensLoading")} copy={context.t("tokensLoadingCopy")} /></section></TokenPageShell>;
   }
 
   if (error) {
-    return <section className="view active token-page"><section className="panel"><p className="panel-copy">{error}</p></section></section>;
+    return <TokenPageShell context={context}><section className="panel"><p className="panel-copy">{error}</p></section></TokenPageShell>;
   }
 
   if (!analysis || analysis.record_count === 0) {
     return (
-      <section className="view active token-page">
+      <TokenPageShell context={context}>
         <section className="panel">
           <div className="section-heading">
             <h2>{context.t("tokensTitle")}</h2>
             <p>{context.t("tokenNoData")}</p>
           </div>
         </section>
-      </section>
+      </TokenPageShell>
     );
   }
 
   const totals = analysis.totals;
   return (
-    <section className="view active token-page">
+    <TokenPageShell context={context}>
       <section className="panel token-header">
         <div className="section-heading">
           <h2>{context.t("tokenCostOverview")}</h2>
@@ -141,6 +144,14 @@ export function TokensPage({ context }: Props) {
           <TopCallsTable context={context} rows={analysis.top_calls} />
         </article>
       </section>
+    </TokenPageShell>
+  );
+}
+
+function TokenPageShell({ children }: { context: TokensAppContext; children: ReactNode }) {
+  return (
+    <section className="view active token-page">
+      {children}
     </section>
   );
 }
@@ -164,7 +175,7 @@ function TokenTable({
   compact = false,
   nameFormatter,
 }: {
-  context: AppContext;
+  context: TokensAppContext;
   title?: string;
   rows: TokenMetricRow[];
   compact?: boolean;
@@ -210,7 +221,7 @@ function TokenTable({
   );
 }
 
-function TopCallsTable({ context, rows }: { context: AppContext; rows: TokenCallRecord[] }) {
+function TopCallsTable({ context, rows }: { context: TokensAppContext; rows: TokenCallRecord[] }) {
   return (
     <div className="table-scroll">
       <table className="data-table">
@@ -241,7 +252,7 @@ function TopCallsTable({ context, rows }: { context: AppContext; rows: TokenCall
   );
 }
 
-function PayloadFieldTable({ context, rows }: { context: AppContext; rows: TokenPayloadFieldGroup[] }) {
+function PayloadFieldTable({ context, rows }: { context: TokensAppContext; rows: TokenPayloadFieldGroup[] }) {
   return (
     <article className="panel">
       <div className="section-heading">

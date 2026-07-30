@@ -7,16 +7,71 @@ from knoarbor.services.chat_reference_resolver import clean_answer_citation_path
 
 
 class ChatCitationPolicyTests(unittest.TestCase):
-    def test_returns_evidence_pack_pages_in_citation_order(self) -> None:
+    def test_raw_evidence_citation_numbers_resolve_to_source_units(self) -> None:
         trace = [
             ChatToolTraceItem(
                 tool="query_wiki",
                 result={
                     "evidence_pack": {
-                        "primary_pages": [
-                            {"path": "Agent-Loop.md", "title": "Agent Loop", "role": "primary"},
+                        "citation_evidence": [
+                            {
+                                "index": index,
+                                "kind": "source_unit",
+                                "evidence_id": f"ev:{index}",
+                                "source_unit_id": f"unit:{index}",
+                                "source_path": "/vault/raw/source.md",
+                                "title": f"Section {index}",
+                            }
+                            for index in range(1, 5)
                         ],
-                        "supporting_pages": [
+                        "citation_pages": [{"path": "Topic.md", "title": "Topic", "role": "primary"}],
+                    }
+                },
+            )
+        ]
+
+        presentation = resolve_answer_presentation([], trace, answer="架构见 [1][2]，流程见 [3][4]。")
+
+        self.assertEqual(presentation.warnings, [])
+        self.assertEqual([citation.kind for citation in presentation.citations], ["raw_evidence"] * 4)
+        self.assertEqual([citation.source_unit_id for citation in presentation.citations], [f"unit:{index}" for index in range(1, 5)])
+
+    def test_global_evidence_markers_resolve_across_multiple_tool_batches(self) -> None:
+        trace = [
+            ChatToolTraceItem(
+                tool="retrieve_knowledge_batch",
+                result={
+                    "raw_evidence": [
+                        {"evidence_id": "ev:1", "source_unit_id": "unit:1", "source_path": "raw/a.md", "title": "First"},
+                        {"evidence_id": "ev:2", "source_unit_id": "unit:2", "source_path": "raw/a.md", "title": "Second"},
+                    ]
+                },
+            ),
+            ChatToolTraceItem(
+                tool="retrieve_knowledge_batch",
+                result={
+                    "raw_evidence": [
+                        {"evidence_id": "ev:2", "source_unit_id": "unit:2", "source_path": "raw/a.md", "title": "Second"},
+                        {"evidence_id": "ev:3", "source_unit_id": "unit:3", "source_path": "raw/a.md", "title": "Third"},
+                    ]
+                },
+            ),
+        ]
+
+        presentation = resolve_answer_presentation([], trace, answer="第三项见 [3]，第一项见 [1]。")
+
+        self.assertEqual(presentation.answer, "第三项见 [1]，第一项见 [2]。")
+        self.assertEqual([citation.source_unit_id for citation in presentation.citations], ["unit:3", "unit:1"])
+        self.assertEqual(presentation.hidden_evidence_count, 1)
+
+    def test_returns_canonical_evidence_pack_pages_in_citation_order(self) -> None:
+        trace = [
+            ChatToolTraceItem(
+                tool="query_wiki",
+                result={
+                    "evidence_pack": {
+                        "citation_pages": [
+                            {"path": "Agent-Loop.md", "title": "Agent Loop", "role": "primary"},
                             {"path": "OpenClaw.md", "title": "OpenClaw", "role": "supporting"},
                         ],
                     }
@@ -65,6 +120,32 @@ class ChatCitationPolicyTests(unittest.TestCase):
         self.assertEqual(presentation.citations[0].path, "Agent-Loop.md")
         self.assertEqual(presentation.citations[0].title, "Model Title")
 
+    def test_validated_support_span_overrides_retrieval_match_span(self) -> None:
+        trace = [ChatToolTraceItem(
+            tool="retrieve_knowledge_batch",
+            citations=[ChatCitation(
+                kind="raw_evidence",
+                evidence_id="ev:1",
+                source_unit_id="unit:1",
+                raw_revision_id="rawrev:1",
+                char_start=10,
+                char_end=20,
+            )],
+            result={"raw_evidence": [{"evidence_id": "ev:1", "source_unit_id": "unit:1", "char_start": 10, "char_end": 20}]},
+        )]
+        decision = [ChatCitation(
+            kind="raw_evidence",
+            evidence_id="ev:1",
+            source_unit_id="unit:1",
+            raw_revision_id="rawrev:1",
+            char_start=103,
+            char_end=118,
+        )]
+
+        presentation = resolve_answer_presentation(decision, trace, answer="结论来自原文 [1]。")
+
+        self.assertEqual((presentation.citations[0].char_start, presentation.citations[0].char_end), (103, 118))
+
     def test_answer_references_override_broad_model_selected_citations(self) -> None:
         citation_pages = [
             {"path": f"Page-{index}.md", "title": f"Page {index}", "role": "supporting"}
@@ -85,13 +166,37 @@ class ChatCitationPolicyTests(unittest.TestCase):
         self.assertEqual([citation.path for citation in presentation.citations], [f"Page-{index}.md" for index in range(1, 5)])
         self.assertEqual(presentation.hidden_evidence_count, 16)
 
+    def test_reference_parser_accepts_three_digit_markers(self) -> None:
+        pages = [
+            {"path": f"Page-{index}.md", "title": f"Page {index}"}
+            for index in range(1, 121)
+        ]
+        trace = [
+            ChatToolTraceItem(
+                tool="query_wiki",
+                result={"evidence_pack": {"citation_pages": pages}},
+            )
+        ]
+
+        presentation = resolve_answer_presentation(
+            [],
+            trace,
+            answer="依据见 [120]。",
+        )
+
+        self.assertEqual(presentation.answer, "依据见 [1]。")
+        self.assertEqual(
+            [citation.path for citation in presentation.citations],
+            ["Page-120.md"],
+        )
+
     def test_answer_references_choose_matching_evidence_order(self) -> None:
         trace = [
             ChatToolTraceItem(
                 tool="query_wiki",
                 result={
                     "evidence_pack": {
-                        "primary_pages": [
+                        "citation_pages": [
                             {"path": "A.md", "title": "A", "role": "primary"},
                             {"path": "B.md", "title": "B", "role": "primary"},
                         ]
@@ -185,19 +290,19 @@ class ChatCitationPolicyTests(unittest.TestCase):
         self.assertEqual(presentation.answer, "可以先读 [1] 和 [2]。")
         self.assertEqual([citation.path for citation in presentation.citations], ["Page-1.md", "Page-6.md"])
 
-    def test_read_wiki_page_single_page_answer_keeps_one_citation(self) -> None:
+    def test_read_evidence_single_source_answer_keeps_one_citation(self) -> None:
         trace = [
             ChatToolTraceItem(
-                tool="read_wiki_page",
-                citations=[ChatCitation(kind="page", path="Agent-Loop.md", title="Agent Loop")],
-                result={"path": "Agent-Loop.md", "content": "Agent loop content."},
+                tool="retrieve_knowledge_batch",
+                citations=[ChatCitation(kind="raw_evidence", path="raw/agent-loop.md", title="Agent Loop", evidence_id="ev:1", source_unit_id="unit:1")],
+                result={"raw_evidence": [{"evidence_id": "ev:1", "source_unit_id": "unit:1", "content": "Agent loop content."}]},
             )
         ]
 
-        presentation = resolve_answer_presentation([], trace, answer="这个页面说明了 Agent Loop。")
+        presentation = resolve_answer_presentation([], trace, answer="原始材料说明了 Agent Loop [1]。")
 
         self.assertEqual(len(presentation.citations), 1)
-        self.assertEqual(presentation.citations[0].path, "Agent-Loop.md")
+        self.assertEqual(presentation.citations[0].path, "raw/agent-loop.md")
 
     def test_clean_answer_paths_keeps_explicit_path_questions(self) -> None:
         citation = ChatCitation(kind="page", path="Agent-Loop.md", title="Agent Loop")

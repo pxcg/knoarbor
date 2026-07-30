@@ -1,4 +1,19 @@
 import type { ChatStreamEvent } from "./types";
+import { resolveDesktopServiceUrl } from "../desktop/desktopBridge";
+
+export class ApiRequestError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+  }
+}
+
+export function isApiNotFound(error: unknown): error is ApiRequestError {
+  return error instanceof ApiRequestError && error.status === 404;
+}
 
 export async function requestJson<T>(url: string, options: { method?: string; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
   const init: RequestInit = {
@@ -15,9 +30,28 @@ export async function requestJson<T>(url: string, options: { method?: string; bo
   const text = await response.text();
   const data = text ? parseJson(text) : null;
   if (!response.ok) {
-    throw new Error(formatApiError(data, text));
+    throw new ApiRequestError(formatApiError(data, text), response.status);
   }
   return data as T;
+}
+
+export async function openEventStream(url: string, body: unknown, signal?: AbortSignal): Promise<Response> {
+  // Electron custom-protocol handlers have a bounded response lifetime. Chat
+  // streams can legitimately outlive it while the model is generating, so the
+  // packaged renderer uses the managed loopback endpoint for this long-lived
+  // request. Browser/dev mode keeps the existing same-origin path.
+  const requestUrl = (await resolveDesktopServiceUrl(url)) ?? url;
+  const response = await fetch(requestUrl, {
+    method: "POST",
+    headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(formatApiError(parseJson(text), text));
+  }
+  return response;
 }
 
 export function formatApiError(data: unknown, fallback: string): string {

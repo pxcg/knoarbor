@@ -36,7 +36,7 @@ def parse_frontmatter(content: str) -> dict[str, str]:
 
 def extract_heading(content: str, fallback: str) -> str:
     match = re.search(r"^#\s+(.+)$", content, flags=re.MULTILINE)
-    return compact_inline_text(match.group(1), 80) if match else fallback
+    return inline_text(match.group(1)) if match else fallback
 
 
 def update_heading(content: str, title: str) -> str:
@@ -102,6 +102,17 @@ def format_wikilink(target: str, alias: str | None = None) -> str:
     clean_target = target.strip()
     clean_alias = (alias or "").strip()
     return f"[[{clean_target}|{clean_alias}]]" if clean_alias else f"[[{clean_target}]]"
+
+
+def wikilink_display_text(value: str) -> str:
+    text = value.strip()
+    match = re.match(r"^\[\[(?P<link>[^\]]+?)\]\]", text)
+    if not match:
+        return text
+    link = match.group("link").strip()
+    if "|" in link:
+        return link.split("|", 1)[1].strip()
+    return link.split("#", 1)[0].removesuffix(".md").strip()
 
 
 def render_list_section(items: list[str], empty_text: str) -> str:

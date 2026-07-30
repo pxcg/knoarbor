@@ -1,0 +1,9 @@
+{
+  "schema_version": "knoarbor_development_method.v2",
+  "asset": "delivery",
+  "side_effect_classes": ["github_pr"],
+  "adapters": [
+    {"id":"local","required_authorization":null,"external":false,"required_state":"acceptance_passed"},
+    {"id":"github","required_authorization":"github_pr","external":true,"required_state":"acceptance_sealed","idempotency_fields":["repository","base_ref","head_ref","accepted_head_oid","initiative_marker"]}
+  ]
+}

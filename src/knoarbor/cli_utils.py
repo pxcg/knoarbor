@@ -60,12 +60,13 @@ def follow_run_events(
     after: int = 0,
     poll_seconds: float = 2.0,
     stream: TextIO = sys.stdout,
+    record_reader=None,
 ) -> int:
     cursor = after
     last_status_line: tuple[str, str, str | None] | None = None
     last_heartbeat_log = 0.0
     while True:
-        record = read_run(vault_path, run_id)
+        record = record_reader() if record_reader is not None else read_run(vault_path, run_id)
         saw_event = False
         for event in read_run_events(vault_path, run_id, after=cursor):
             saw_event = True

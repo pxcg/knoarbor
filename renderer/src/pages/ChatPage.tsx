@@ -1,5 +1,6 @@
 import type { KeyboardEvent } from "react";
-import type { AppContext } from "../appContext";
+import type { ChatAppContext } from "../appContext";
+import { ExcerptIngestDialog } from "../components/ExcerptIngestDialog";
 import {
   ChatCitationPreviewPanel,
   ChatContextMenu,
@@ -11,13 +12,14 @@ import {
 } from "./chat/ChatParts";
 import { chatProviderStatusLabel, chatStageLabel, modelProviderOptionLabel } from "./chat/ChatModel";
 import { useChatController } from "./chat/useChatController";
+import { turnCanBeIngested } from "./chat/useChatSelectionIngest";
 
 function isComposingText(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
   return event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229;
 }
 
 type Props = {
-  context: AppContext;
+  context: ChatAppContext;
 };
 
 export function ChatPage({ context }: Props) {
@@ -26,12 +28,11 @@ export function ChatPage({ context }: Props) {
   const selectionActive = chat.selectedMessageIndices.size > 0;
   const modelProvidersReady = context.modelProviders !== null;
   const needsModelSetup = modelProvidersReady && !chat.chatModelProviders.length;
-  const needsImport = context.status?.pages === 0;
 
   return (
     <section className="view active chat-page">
       <div className="chat-layout">
-        <article className="chat-thread-panel">
+        <article className={`chat-thread-panel ${hasConversation ? "conversation-mode" : "welcome-mode"}`}>
           <div className="chat-thread">
             {!hasConversation && (
               <div className="chat-empty-state">
@@ -39,29 +40,16 @@ export function ChatPage({ context }: Props) {
                   <h2>{context.t("chatIntroTitle")}</h2>
                   <p>{context.t("chatIntroCopy")}</p>
                 </div>
-                {(needsModelSetup || needsImport) && (
-                  <div className="chat-readiness-grid">
-                    {needsModelSetup && (
-                      <button className="chat-readiness-card" type="button" onClick={context.openSettings}>
-                        <strong>{context.t("chatReadinessModelTitle")}</strong>
-                        <span>{context.t("chatReadinessModelCopy")}</span>
-                        <em>{context.t("configureModel")}</em>
-                      </button>
-                    )}
-                    {needsImport && (
-                      <button className="chat-readiness-card" type="button" onClick={() => context.navigate("ingest")}>
-                        <strong>{context.t("chatReadinessImportTitle")}</strong>
-                        <span>{context.t("chatReadinessImportCopy")}</span>
-                        <em>{context.t("importMaterials")}</em>
-                      </button>
-                    )}
-                  </div>
-                )}
               </div>
             )}
 
             {chat.turns.map((turn, index) => {
               const isSelected = chat.selectedMessageIndices.has(index);
+              const isLatestCompletedReply = !chat.isSending
+                && index === chat.turns.length - 1
+                && turn.role === "assistant"
+                && turn.kind !== "error"
+                && turn.kind !== "status";
               return (
                 <div
                   className={`chat-message ${turn.role}${isSelected ? " selected-for-ingest" : ""}`}
@@ -78,13 +66,28 @@ export function ChatPage({ context }: Props) {
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => chat.toggleMessageSelection(index)}
-                        disabled={chat.isSending || chat.ingestingMessages}
+                        disabled={chat.isSending || chat.ingestingMessages || !turnCanBeIngested(turn)}
                       />
                     </label>
                   )}
                   <div className="chat-bubble">
+                    {turn.role === "assistant" && turn.answerProvenance && (
+                      <span className={`chat-answer-source ${turn.answerProvenance.mode}`}>
+                        {turn.answerProvenance.mode === "general_knowledge"
+                          ? (context.language === "zh" ? "模型通用知识" : "Model general knowledge")
+                          : turn.answerProvenance.mode.startsWith("knowledge_grounded")
+                            ? (context.language === "zh" ? "知识库依据" : "Knowledge-base evidence")
+                            : turn.answerProvenance.mode === "knowledge_gap"
+                              ? (context.language === "zh" ? "知识库无匹配" : "No knowledge-base match")
+                              : (context.language === "zh" ? "KnoArbor 功能说明" : "KnoArbor capability")}
+                      </span>
+                    )}
                     {turn.kind === "error" ? (
-                      <ChatErrorMessage message={turn.content} context={context} />
+                      <ChatErrorMessage
+                        message={turn.content}
+                        context={context}
+                        showSettings={turn.errorAction === "settings"}
+                      />
                     ) : turn.kind === "status" ? (
                       <ChatStatusMessage message={turn.content} />
                     ) : turn.role === "assistant" ? (
@@ -92,18 +95,18 @@ export function ChatPage({ context }: Props) {
                         content={turn.content}
                         citations={turn.citations || []}
                         context={context}
-                        onOpenCitation={(citation) => void chat.openCitationPreview(citation)}
+                        onOpenCitation={(citation, related) => void chat.openCitationPreview(citation, related)}
                       />
                     ) : (
                       <p>{turn.content}</p>
                     )}
 
-                    {turn.role === "assistant" && turn.kind !== "error" && turn.kind !== "status" && (
+                    {isLatestCompletedReply && (
                       <div className="chat-message-actions">
-                        <button type="button" onClick={() => void chat.deleteTurn(index)} disabled={chat.isSending}>
+                        <button type="button" onClick={() => void chat.deleteTurn(index)}>
                           {context.language === "zh" ? "删除此轮" : "Delete turn"}
                         </button>
-                        <button type="button" onClick={() => void chat.regenerateTurn(index)} disabled={chat.isSending || chat.isRegenerating}>
+                        <button type="button" onClick={() => void chat.regenerateTurn(index)} disabled={chat.isRegenerating}>
                           {context.language === "zh" ? "重新生成" : "Regenerate"}
                         </button>
                       </div>
@@ -112,9 +115,10 @@ export function ChatPage({ context }: Props) {
                     {(!!turn.citations?.length || !!turn.hiddenEvidenceCount) && (
                       <CitationList
                         citations={turn.citations || []}
+                        evidenceItems={turn.rawEvidence || []}
                         hiddenEvidenceCount={turn.hiddenEvidenceCount || 0}
                         context={context}
-                        onOpenCitation={(citation) => void chat.openCitationPreview(citation)}
+                        onOpenCitation={(citation, related) => void chat.openCitationPreview(citation, related)}
                       />
                     )}
                     {turn.role === "assistant" && !!turn.citations?.length && (
@@ -165,7 +169,7 @@ export function ChatPage({ context }: Props) {
             )}
           </div>
 
-          <div className="chat-composer">
+          <div className={`chat-composer ${hasConversation ? "in-thread" : "welcome"}`}>
             <div className="chat-input-shell">
               <textarea
                 value={chat.input}
@@ -184,8 +188,8 @@ export function ChatPage({ context }: Props) {
                   {!!context.vaultOptions.length && (
                     <div className="chat-vault-toolbar" title={context.t("activeVault")}>
                       <select
-                        value={context.activeVaultId}
-                        onChange={(event) => context.setActiveVaultId(event.target.value)}
+                        value={context.chatScopeVaultId}
+                        onChange={(event) => context.openChatSession(null, event.target.value)}
                         disabled={chat.isSending}
                         aria-label={context.t("activeVault")}
                       >
@@ -198,7 +202,7 @@ export function ChatPage({ context }: Props) {
                     </div>
                   )}
                 </div>
-                {!!chat.chatModelProviders.length ? (
+                {!!chat.chatModelProviders.length && (
                   <div className="chat-model-toolbar" title={chatProviderStatusLabel(chat.activeChatProvider, context)}>
                     <select
                       value={chat.activeChatProvider}
@@ -213,12 +217,6 @@ export function ChatPage({ context }: Props) {
                       ))}
                     </select>
                   </div>
-                ) : modelProvidersReady ? (
-                  <button className="button secondary compact" type="button" onClick={context.openSettings}>
-                    {context.t("configureModel")}
-                  </button>
-                ) : (
-                  <span />
                 )}
                 <button
                   className={`button ${chat.isSending ? "secondary" : "primary"} chat-send-button`}
@@ -255,13 +253,18 @@ export function ChatPage({ context }: Props) {
           <ChatCitationPreviewPanel
             context={context}
             preview={chat.citationPreview}
-            onClose={() => chat.setCitationPreview(null)}
-            onAsk={(prompt) => {
-              chat.setCitationPreview(null);
-              void chat.submit(prompt);
-            }}
+            onClose={chat.closeCitationPreview}
           />
         )}
+        <ExcerptIngestDialog
+          context={context}
+          draft={chat.pendingIngest}
+          heading={context.t("editExcerptTitle")}
+          submitting={chat.ingestingMessages}
+          onChange={chat.updatePendingExcerpt}
+          onCancel={chat.cancelPendingIngest}
+          onConfirm={chat.confirmPendingIngest}
+        />
       </div>
     </section>
   );

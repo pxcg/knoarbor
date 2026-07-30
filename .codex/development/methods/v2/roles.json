@@ -1,0 +1,11 @@
+{
+  "schema_version": "knoarbor_development_method.v2",
+  "asset": "roles",
+  "roles": [
+    {"id":"controller","repository_write":"scope_only","read_kinds":["*"],"write_kinds":["objective","integration_evidence","acceptance_verdict","delivery_evidence","handoff"],"forbidden":["invent_product_decision","raw_output_persistence"]},
+    {"id":"requirement","repository_write":"scope_only","read_kinds":["objective"],"write_kinds":["requirements","acceptance_criteria","impact_map","reproduction"],"forbidden":["write_design","write_implementation"]},
+    {"id":"design","repository_write":"scope_only","read_kinds":["objective","requirements","acceptance_criteria","impact_map","reproduction"],"write_kinds":["design","task_plan","verification_plan"],"forbidden":["rewrite_requirement","write_implementation"]},
+    {"id":"implementer","repository_write":"scope_only","read_kinds":["objective","requirements","acceptance_criteria","impact_map","reproduction","design","task_plan","verification_plan","design_verdict"],"write_kinds":["implementation","tests"],"forbidden":["rewrite_requirement","rewrite_design","self_review"]},
+    {"id":"reviewer","repository_write":"none","read_kinds":["*"],"write_kinds":["design_verdict","code_verdict"],"forbidden":["repository_mutation","rewrite_upstream","fix_finding"]}
+  ]
+}

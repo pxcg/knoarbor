@@ -14,9 +14,9 @@ uv run knoar serve
 http://127.0.0.1:8000
 ```
 
-开发者/runtime 入口：
+交互入口：
 
-- 开发者控制台：`GET /`
+- 前端：`GET /`
 - Swagger/OpenAPI：`GET /docs`
 - OpenAPI JSON：`GET /openapi.json`
 
@@ -34,7 +34,7 @@ http://127.0.0.1:8000
 | 模型供应商 | `GET /models/providers`, `GET /models/image-providers`, `POST /models/discover`, `POST /models/apply-capabilities` | 列出文本和图片模型供应商、检查运行时模型信息，并显式写回选定配置 |
 | 知识编译 | `POST /ingest` | 编译配置来源、标准文档、单个文件或文件夹，或恢复失败编译 |
 | 校验维护 | `POST /lint` | 执行确定性、结构、质量或完整维护 |
-| 知识查询 | `POST /query` | 为宿主 AI 检索 Wiki 上下文 |
+| 知识查询 | `POST /query` | 为宿主 AI 检索 claim-backed active raw evidence 与 trace |
 | 对话 | `POST /chat`, `POST /chat/stream`, `GET /chat/sessions`, `GET/PATCH/DELETE /chat/sessions/{session_id}`, `POST /chat/sessions/{session_id}/ingest`, `POST /chat/sessions/{session_id}/close`, `POST /chat/sessions/{session_id}/retry` | 询问选中的知识库、流式回答、管理会话、将会话入库、关闭会话并重试失败回答 |
 | 查询反馈 | `POST /query/feedback`, `GET /query/trends` | 记录和查看查询反馈 |
 | 运行报告 | `GET /reports`, `GET /reports/content` | 列出和读取流程报告 |
@@ -42,7 +42,7 @@ http://127.0.0.1:8000
 | 运行事件 | `GET /runs/{run_id}/events`, `GET /runs/{run_id}/stream`, `POST /runs/{run_id}/cancel` | 观察或取消运行 |
 | Wiki 页面 | `GET /wiki/pages`, `GET /wiki/pages/content`, `GET /wiki/pages/relations` | 读取生成后的 Wiki 页面 |
 
-打包后的桌面端通过 Electron bridge 持久化设置。`/config*` HTTP 路由保留给本地开发和诊断使用；知识库状态、图谱、token 与知识库资产读取使用业务本地端点。
+桌面本地 renderer 端点仅供打包后的桌面应用使用，不作为稳定集成 API。
 
 ## 执行模式
 
@@ -70,7 +70,7 @@ http://127.0.0.1:8000
 `schema_version` 是工作流响应的兼容性标记。客户端只需要根据
 `execution` 判断读取 `run_id`/`run` 还是 `result`；两种模式的顶层字段
 保持一致。`/query` 不使用工作流 envelope，它直接返回
-`schema_version: "wiki_query.v1"` 的检索结果。
+`schema_version: "wiki_query.v4"` 的检索结果。
 
 ## 对话
 
@@ -78,23 +78,21 @@ http://127.0.0.1:8000
 POST /chat
 ```
 
-通过 KnoArbor Wiki Chat Agent 询问选中的知识库。Chat 是页面优先的
-Wiki 问答入口：KnoArbor 会先规划受限的 Wiki 工具，在服务守卫内执行，
-再从已维护 Wiki 页面中构建标准 evidence pack，让配置的模型基于证据综合回答
-并给出引用。检索控制由服务内部决定；调用方只需要选择知识库并发送消息，
-不需要选择检索模式或执行方式。
+通过 KnoArbor Wiki Chat Agent 询问选中的知识库。Chat 先执行统一的 active Raw
+检索；存在候选时只基于已验证 Raw 证据回答。只有检索得到可信
+`no_match` 且随包质量门禁已通过时，才进入物理隔离的
+模型通用知识回答路径。每个完成的轮次都会持久化最终来源证明。
 
 请求示例：
 
 ```json
 {
-  "schema_version": "chat_request.v1",
+  "schema_version": "chat_request.v4",
+  "request_id": "req_01",
+  "execution_id": "exec_01",
   "config_path": "/path/to/config.yaml",
   "vault_id": "personal",
-  "messages": [
-    {"role": "user", "content": "Agent Loop 是什么？"}
-  ],
-  "max_turns": 6,
+  "message": {"message_id": "msg_01", "role": "user", "content": "Agent Loop 是什么？"},
   "include_trace": true
 }
 ```
@@ -103,50 +101,49 @@ Wiki 问答入口：KnoArbor 会先规划受限的 Wiki 工具，在服务守卫
 
 ```json
 {
-  "schema_version": "chat_response.v1",
+  "schema_version": "chat_response.v4",
+  "request_id": "req_01",
+  "execution_id": "exec_01",
+  "session_id": "chat_01",
+  "session_revision": 1,
+  "turn_id": "turn_01",
   "answer": "Agent Loop 是...",
+  "answer_provenance": {
+    "mode": "knowledge_grounded",
+    "query_outcome": "candidates",
+    "chat_outcome": "sufficient"
+  },
   "citations": [
-    {"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}
+    {"kind": "raw_evidence", "evidence_id": "evh:01", "raw_revision_id": "rawrev:01", "source_unit_id": "unit:01"}
   ],
   "tool_trace": [
-    {"tool": "query_wiki", "status": "ok", "summary": "Found 3 wiki result(s)."}
+    {"tool": "retrieve_knowledge_batch", "status": "ok", "summary": "已返回 active Raw 证据。"}
   ],
   "run_links": [],
   "memory_used": [],
   "memory_candidates": [],
   "memory_writes": [],
-  "stats": {
-    "retrieval_strategy": "model_planned_tools",
-    "tool_plan": {
-      "tool_calls": [
-        {"name": "query_wiki", "arguments": {"query": "Agent Loop 是什么？"}},
-        {"name": "finish_answer", "arguments": {"reason": "evidence is sufficient"}}
-      ]
-    },
-    "tool_plans": [
-      {
-        "tool_calls": [
-          {"name": "query_wiki", "arguments": {"query": "Agent Loop 是什么？"}},
-          {"name": "finish_answer", "arguments": {"reason": "evidence is sufficient"}}
-        ]
-      }
-    ],
-    "evidence_rounds": 1,
-    "evidence_stop_reason": "evidence_sufficient",
-    "model_calls": 2,
-    "tool_calls": 1,
-    "memory_used": 0,
-    "memory_writes": 0,
-    "total_tokens": 1200
-  },
+  "stats": {"retrieval_strategy": "fast_unified_recall", "model_calls": 1, "tool_calls": 2},
   "warnings": []
 }
 ```
 
-当需要 KnoArbor 在控制台内综合回答时使用 `/chat`。Chat 在同一轮用户问题中
-可以执行多轮受限证据收集：先规划 KnoArbor 工具，执行后再判断是否需要继续
-查证，最后生成带引用的回答。当另一个宿主 AI 需要拿到证据并自行生成最终
-回答时使用 `/query`。写入和维护工作流应直接调用 `/ingest` 与 `/lint`。
+当需要 KnoArbor 在控制台内综合回答时使用 `/chat`。系统可先调用一次带会话
+上下文的知识树导航模型，选择目录中已有的来源或章节节点，再将不变的原始问题
+与代码编译的树作用域放入同一个 Query 批次；编号章节直接提供 Active Raw
+子树候选，不再执行第二次标题检索，也不会拼接或改写用户问题。当另一个宿主 AI 需要拿到证据
+并自行生成最终回答时使用 `/query`。写入和维护工作流应直接调用 `/ingest`
+与 `/lint`。
+
+继续已有会话时，请同时提交持久化的 `session_id` 与最新
+`expected_session_revision`。过期 revision 会返回存储冲突；重复
+`request_id` 会返回已持久化轮次，不会追加重复记录。
+
+候选与 typed `no_match` 都进入同一个统一 Final Answer 模型。该模型接收原始
+用户问题、纯对话历史、检索结果与当前 Raw 证据，并为整轮选择 Raw 依据、通用知识
+或知识缺口。代码校验支撑并派生 provenance，不再使用 no-match 门禁或本地材料
+关键词路由。普通完成的知识问答最多包含 Retrieval Planner 与 Final Answer 两个
+语义阶段，不计配置内重试和可选生图调用。
 
 如果前端或集成工具需要在检索和生成过程中展示进度，可以使用流式入口：
 
@@ -155,20 +152,31 @@ POST /chat/stream
 ```
 
 `/chat/stream` 接收与 `/chat` 相同的请求体，返回 `text/event-stream`。
-它在同一个 Chat Loop 运行期间持续输出进度事件，并在最后输出一个 `final`
-事件；该事件的 `response` 字段与 `POST /chat` 返回的 `chat_response.v1`
+它在同一条 Chat 主线运行期间持续输出进度事件，并在最后输出一个 `final`
+事件；该事件的 `response` 字段与 `POST /chat` 返回的 `chat_response.v4`
 完全一致。
 
 事件类型：
 
-- `stage`：Chat Loop 进入规划、检索或回答生成阶段。
+- `stage`：Chat 进入语义改写、检索或回答生成阶段。
 - `tool`：受限 KnoArbor 工具开始或完成调用。
+- `source`：生成前由代码选择的临时回答来源路径。
 - `answer_delta`：模型适配器返回的最终回答增量文本。
 - `final`：最终回答、引用、trace、token 指标和持久化会话信息。
 - `error`：共享 KnoArbor 错误 envelope。
 
+引用预览通过 `POST /chat/citations/resolve` 按需解析，不在 Chat 会话中保存 Raw
+摘录。请求携带知识库选择器和仅含定位符的引用；一个 Raw 引用可包含多个精确
+`spans`，响应按请求顺序返回对应的临时 `texts` 和首个 `text`。解析器只读取指定的
+不可变 source unit，不重新 ingest，也不调用模型。来源缺失时返回
+`status: "unavailable"`，客户端打开 Raw 但不进行猜测高亮。
+
 Chat 会话默认保存在已维护 Wiki 页面之外。当某次对话需要沉淀为持久 Wiki
 知识时，调用会话入库入口：
+
+`GET /chat/sessions` 支持 `limit`（每页最多 200 条）和 `offset`。响应包含
+`total_count`、规范化后的 `offset`/`limit` 与 `has_more`，客户端可继续读取旧会话
+摘要，而不会加载完整会话正文。
 
 如果需要重命名已保存的 Chat 会话：
 
@@ -180,6 +188,7 @@ PATCH /chat/sessions/{session_id}
 {
   "config_path": "/path/to/config.yaml",
   "vault_id": "personal",
+  "expected_session_revision": 8,
   "title": "Agent Loop 架构讨论"
 }
 ```
@@ -190,8 +199,13 @@ PATCH /chat/sessions/{session_id}
 POST /chat/sessions/{session_id}/retry
 ```
 
-该入口会移除最后一个已完成对话轮次，复用同一条用户问题重新进入标准
-`/chat` loop。如果重新生成失败，会恢复上一版回答。
+该入口使用不含目标回答的会话快照重新执行，并在单次 session revision 提交中
+原子替换目标轮次。失败、取消或崩溃都不会改动上一版回答。
+
+请求体必须携带稳定的 `target_turn_id` 与 `expected_session_revision`。删除轮次使用
+`DELETE /chat/sessions/{session_id}/turns/{turn_id}`，删除轮次、删除整个会话、
+重命名和会话入库都使用相同的 revision compare-and-swap 约束；会话入库可通过
+`turn_ids` 选择稳定轮次，不再使用数组下标。
 
 ```http
 POST /chat/sessions/{session_id}/ingest
@@ -206,6 +220,7 @@ queued workflow envelope。
 {
   "config_path": "/path/to/config.yaml",
   "vault_id": "personal",
+  "expected_session_revision": 8,
   "write": true,
   "write_report": true,
   "append_ledger": true
@@ -299,15 +314,14 @@ GET /runtime
       "path": "/path/to/vault"
     }
   ],
-  "endpoint_path": "/path/to/.knoarbor/endpoint.json",
-  "user_endpoint_path": "~/.knoarbor/endpoint.json",
+  "endpoint_path": "/path/to/state/endpoint.json",
   "errors": []
 }
 ```
 
-集成工具需要发现当前知识库路径时，应使用该接口，而不是调用配置诊断或 renderer 辅助接口。如果服务启动时自动切换端口，`knoar serve` 也会把实际
-运行地址写入用户级 `.knoarbor/endpoint.json`，并同步写入
-`config.yaml` 同级的项目级 `.knoarbor/endpoint.json`。
+集成工具需要发现当前知识库路径时，应使用该接口，而不是调用桌面本地
+renderer 端点。如果服务启动时自动切换端口，`knoar serve` 会原子更新
+活动 `config.yaml` 同级唯一的 `state/endpoint.json` 权威文件。
 
 ## 知识库注册表
 
@@ -392,15 +406,18 @@ KnoArbor 支持哪些来源、每个连接器会产生哪些 `source_type`，以
 ```http
 GET /models/providers
 GET /models/image-providers
+POST /models/image-probe
 POST /models/discover
 POST /models/apply-capabilities
 ```
 
 模型接口用于在长流程运行前检查供应商配置和模型列表，可由 Swagger、Apifox、脚本或本地前端调用。
 
-`GET /models/providers` 只读取当前模型配置，不访问模型运行时。返回内容会隐藏 API Key，只标注环境变量是否已配置。
+`GET /models/providers` 只读取当前模型配置，不访问模型运行时。返回内容会隐藏 API Key，只标注已配置的密钥是否可用。
 
 `GET /models/image-providers` 读取图片生成供应商配置。图片生成供应商和聊天/编译模型供应商分离，供 chat 的 `generate_image` 工具使用。
+
+`POST /models/image-probe` 会在用户明确操作时执行一次真实生图，只返回受限的状态信息。该操作会耗费正常生图时间并可能产生供应商用量，不返回生成图片内容或原始响应。
 
 `POST /models/discover` 调用适配器对应的模型列表接口。OpenAI 兼容供应商使用 `/models`；Ollama 原生供应商使用 `/api/tags` 和 `/api/show` 探测模型可用性与上下文长度。该接口不发送对话生成请求，因此不消耗生成 token。供应商返回模型 ID 时，响应会包含 `model_ids`，前端可以让用户继续保留手动填写的模型，也可以从发现到的模型中选择一个。
 
@@ -498,7 +515,7 @@ POST /ingest
 }
 ```
 
-选中文本摘录：
+可编辑摘录（手动输入或从 Chat 选中的内容）：
 
 ```json
 {
@@ -517,8 +534,10 @@ POST /ingest
 }
 ```
 
-摘录编译会把用户选择视为高价值信号，但仍复用标准 document ingest 路径：
-来源标准化、atom 抽取、页面规划、草稿评审、写入/报告生成，以及可选局部 lint。
+摘录导入既支持用户手动输入，也支持从 Chat 选择内容后继续编辑。UI 在提交前收集
+标题和目标知识库，API 统一使用 `kind=excerpt` 契约。摘录仍复用标准 document
+ingest 路径：来源标准化、atom 抽取与确定性校验、事实 revision 发布、
+projection/index materialization 和报告生成。
 
 恢复失败的知识编译：
 
@@ -538,20 +557,31 @@ POST /ingest
 Markdown 文件会直接处理。PDF/DOCX/PPTX 等富文档需要配置 MinerU 等文档预处理器。
 接口响应始终使用[执行模式](#执行模式)中的统一 workflow envelope。
 
+若只需从已提交事实重建确定性的来源投影和机器索引，而不重新运行语义抽取：
+
+```http
+POST /ingest/materialization/rebuild
+```
+
+请求通过 query 参数选择一个知识库，并提交空 JSON body。响应会返回完成协调后的
+materialization epoch 以及当前 fact/index generation。
+
 ## 校验维护
 
 ```http
 POST /lint
 ```
 
-对单个知识库执行校验维护。`mode` 控制行为：
+对单个知识库执行自动完整性治理。`mode` 控制是否在同一确定性扫描与自动修复上增加只读语义诊断：
 
 - `deterministic`
 - `semantic`
 
-校验维护同样是可能写入页面的流程，每次请求只作用于一个知识库。
-可以直接传 `vault_path`，也可以传 `config_path` 加 `vault_id` 选择已配置知识库。
-跨知识库汇总请使用 `/reports` 和 `/runs`；真正的维护运行应按知识库分别启动。
+Lint 不直接 patch raw、canonical facts、provenance 或生成页正文。通过审查
+的发现由所属 ingest 或 materialization 流程自动执行，随后复扫知识库。
+修复计划统一使用 `reingest_request`、`index_rebuild_request`、
+`projection_rebuild_request` 或 `report_only`。
+可以直接传 `vault_path`，也可以传 `config_path` 加 `vault_id` 选择知识库。
 
 示例：
 
@@ -578,41 +608,23 @@ POST /lint
 POST /query
 ```
 
-检索相关 Wiki 页面、摘录、关联上下文、trace 数据和可直接交给宿主 AI
-使用的 context pack。KnoArbor 在 `/query` 中不生成最终聊天回答，宿主 AI
-决定如何使用返回的证据。
+检索 claim-backed active raw evidence、定位元数据、缺口、trace 数据和可直接交给
+宿主 AI 使用的 context pack。KnoArbor 在 `/query` 中不生成最终聊天回答。
 
-Query 采用页面优先的检索语义，而不是 chunk 优先语义。返回页面仍然按相关性
-放在 `results` 中，每个结果会带有 `role`：
+`wiki_query.v4` 在不可变 active retrieval snapshot 上同时执行 atom/claim 与直接
+Raw 检索；代码判定为关系意图时，还会确定性枚举最多两条边的跨来源关系路径。
+这些信号融合成带 vault 身份的 `evidence_handles`，并保留为完整的轻量候选集。
+Query 确定性准入本轮回答证据，只通过 active resolver 将已准入 handle 读取为完整
+`raw_evidence`；未准入的低排名 handle 仍可达，但不会加载其 Raw 正文。ranked
+`results` 仅用于可选导航；通道状态、
+typed outcome、缺口、警告与 trace 独立保留。Wiki 页面正文和 atom summary
+不提供事实材料。
 
-- `primary`：最直接回答问题的已维护 Wiki 页面。
-- `supporting`：补充实现细节、限制、对比或延伸阅读的相关页面。
-- `source`：用于溯源的来源摘要页面。
-
-响应会同时把这些结果分组为 `primary_pages`、`supporting_pages` 和
-`source_pages`。调用方可以自由引用任意返回页面；普通回答通常应优先基于
-primary 页面的结构化内容，再按需要使用 supporting/source 页面。
-
-返回的 context pack 是页面优先，而不是 chunk 优先：当页面进入答案集合后，
-primary 和 supporting 页面都会尽量保留已维护的 Wiki 正文。source 页面和
-延伸阅读候选默认保留摘要级溯源与导航信息。
-
-响应还会包含：
-
-- `answer_scope`：标记查询是窄问题、广泛问题还是探索问题，并记录本次检索
-  使用的知识库和目录范围。
-- `answer_set`：按路径组织的推荐答案集合。窄问题通常以一个主页面为核心；
-  广泛问题可以包含多个补充页面，因为 Wiki 页面本身就是已维护的知识单元。
-- `rejected_candidates`：答案页面选择器考虑过但未放入默认回答证据的候选页，
-  会记录 `redundant_dimension`、`weak_score` 或 `source_not_requested` 等原因。
-- `evidence_coverage`：用 strong、adequate 或 weak 表示本地页面对问题的
-  覆盖程度。
 
 ```json
 {
   "vault_path": "/path/to/vault",
-  "query": "agent loop",
-  "mode": "balanced"
+  "query": "agent loop"
 }
 ```
 
@@ -622,8 +634,7 @@ primary 和 supporting 页面都会尽量保留已维护的 Wiki 正文。source
 {
   "config_path": "/path/to/config.yaml",
   "query": "agent loop",
-  "all_vaults": true,
-  "mode": "balanced"
+  "all_vaults": true
 }
 ```
 
@@ -633,10 +644,27 @@ primary 和 supporting 页面都会尽量保留已维护的 Wiki 正文。source
 {
   "config_path": "/path/to/config.yaml",
   "query": "agent loop",
-  "vault_ids": ["personal", "team"],
-  "mode": "balanced"
+  "vault_ids": ["personal", "team"]
 }
 ```
+
+只有查询计划要求的全部通道都完成后，响应中的 `exhausted` 才为 `true`（普通查询
+为两个 lexical 通道）。如果先触发
+资源安全边界，状态为 `resource_exhausted`，已完成的 handles 仍保留在响应中，
+`continuation_cursor` 则保存与查询、知识库和 snapshot generation 绑定的不透明
+续查位置。单知识库续查时原样传回该游标：
+
+```json
+{
+  "vault_path": "/path/to/vault",
+  "query": "agent loop",
+  "continuation_cursor": "retrieval_cursor.v1..."
+}
+```
+
+多知识库查询使用以 vault ID 为键的 `continuation_cursors`。查询、知识库或
+active snapshot generation 发生变化时，旧游标会被拒绝。该游标只用于资源安全
+续查，不是 top-k 或相关性截断。
 
 ## 运行监控
 
@@ -678,17 +706,65 @@ POST /runs/{run_id}/cancel
 GET /wiki/pages?vault_path=/path/to/vault
 GET /wiki/pages/content?vault_path=/path/to/vault&path=Agent-Loop.md
 GET /wiki/pages/relations?vault_path=/path/to/vault&path=Agent-Loop.md
+PATCH /wiki/pages/content
+DELETE /wiki/pages/content
+PATCH /wiki/pages/raw
 ```
 
 `/wiki/pages` 返回页面摘要和链接元数据。`/wiki/pages/content` 返回单个
 Markdown 页面及其元数据。`/wiki/pages/relations` 返回所选页面的入站和出站页面关系。
-页面路径是相对于 Wiki 内容根目录的路径。新知识页面使用 `Agent-Loop.md`
-这样的 flat path；来源摘要页面使用 `sources/Agent-Loop-Source.md`。
+页面路径是相对于 Wiki 内容根目录的路径。当前知识与 source projection 使用
+`Agent-Loop.md` 这样的 flat path；旧 vault 可能仍保留历史 `sources/...` 路径。
 
 这些接口也支持同时传入 `config_path` 和 `vault_id`。当用户选择跨知识库
 `/query` 返回的某个结果时，应使用该结果的 `vault_id` 读取页面正文或链接，
 确保后续查看仍然落在同一个知识库。
 
+对于可编辑的 `source_index` 页面，`GET /wiki/pages/content` 会返回可选的
+`editable_projection` 结构。`PATCH /wiki/pages/content` 只接收其中的结构化可编辑
+字段和 `base_revision_id`，不接收生成后的 Markdown 或 evidence 内容。保存会提交新的
+canonical revision，并重新生成投影与索引。可编辑范围为 synthesis、现有 claim
+文本、entities 和 relations；claim identity 与 evidence mapping 仍由 ingest 管理。
+若 `base_revision_id` 已过期，保存会被拒绝，不覆盖较新的 ingest。后续 raw ingest
+会生成新的投影，不自动携带旧 Raw revision 上的用户编辑字段。
+
+`DELETE /wiki/pages/content` 在 JSON body 中接收同样的单知识库选择器和相对
+页面路径。删除操作经过页面 service，以保持 canonical source facts 与确定性
+materialization 协调一致。
+
+`GET /wiki/pages/content` 还会为可编辑的来源投影返回 `editable_raw`。
+`PATCH /wiki/pages/raw` 接收 `raw_revision_edit.v1`，其中包含打开编辑器时的
+`base_revision_id` 与修订后的标准化 Raw 文本。该操作不运行语义 ingest extractor，
+而是把修订后的 SourceDocument 提交给标准 queued ingest coordinator，并设置
+`force_reprocess=true`。响应为 `workflow_response.v1`，客户端使用返回的 `run_id`
+进入统一运行监控。该 ingest 会调用已配置模型，重新生成 synthesis、claims、entities、
+relations、evidence、投影和索引。发布时再次校验 parent revision，避免过期编辑覆盖
+较新的 active head。
+
 ## 移除的原型端点
 
 原型期的连接器、草稿写入、扫描、操作执行、拆分工作流端点和通用 run-start 端点都不再公开。请使用 `POST /ingest`、`POST /lint`、`POST /query` 以及上述运行监控端点。
+
+## Query 遥测
+
+Query 响应的 `stats` 提供检索策略、候选数、raw evidence 数量和耗时等确定性
+遥测。遥测用于诊断，不改变 answer set 或事实证据策略。
+
+## 并发模型
+
+读取请求可以并行。Ingest provider/segment 请求使用配置的有界并发；事实发布
+和 materialization 修改仍经过 SQLite fencing 与 vault write lock。API route
+不维护第二套队列或并发策略。
+
+## Desktop-Local Endpoints
+
+打包桌面 renderer 使用 `UI_PUBLIC_ROUTES` 管理的配置、图谱摘要、token
+摘要和 vault 资产等内部适配器，并通过 preload IPC 访问文件选择等桌面能力。
+这些具体适配器不属于稳定公共 API。兼容范围见
+[API 兼容性](API_COMPATIBILITY.md)。
+
+## Architecture Boundary
+
+Route 负责 HTTP 解析与 response envelope；service/coordinator 负责 use case；
+runtime/storage 负责持久状态和发布。Route 不直接实现恢复、事实提交或
+materialization policy。

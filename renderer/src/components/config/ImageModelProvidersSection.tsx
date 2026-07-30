@@ -1,7 +1,6 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 
-import type { AppNotice } from "../../appContext";
-import type { ConfigForm, ConfigImageProvider } from "../../api/client";
+import type { ConfigForm, ConfigImageProvider, ImageProviderProbeResponse } from "../../api/client";
 import { NumberField, PathField, PresetMenu } from "./ConfigFormControls";
 import { IMAGE_PROVIDER_PRESETS } from "./ConfigModelProviderPresets";
 import { SecretField } from "./ConfigSecretField";
@@ -10,13 +9,29 @@ type ImageModelProvidersSectionProps = {
   form: ConfigForm;
   setForm: Dispatch<SetStateAction<ConfigForm | null>>;
   t: (key: string) => string;
+  probeResults: Record<string, ImageProviderProbeResponse>;
+  pendingProvider: string | null;
+  onProbe: (provider: string) => void;
+  onProbeInvalidated: (provider: string) => void;
   onCommit: (nextForm: ConfigForm) => Promise<void>;
-  onError: (notice: AppNotice | null) => void;
+  onError: (error: unknown) => void;
 };
 
-export function ImageModelProvidersSection({ form, setForm, t, onCommit, onError }: ImageModelProvidersSectionProps) {
+const IMAGE_ADAPTERS: Array<ConfigImageProvider["adapter"]> = ["sensenova_image", "openai_chat_image"];
+
+export function ImageModelProvidersSection({
+  form,
+  setForm,
+  t,
+  probeResults,
+  pendingProvider,
+  onProbe,
+  onProbeInvalidated,
+  onCommit,
+  onError,
+}: ImageModelProvidersSectionProps) {
   const [activeImageProvider, setActiveImageProvider] = useState(0);
-  const [imageProviderPreset, setImageProviderPreset] = useState(IMAGE_PROVIDER_PRESETS[0].name);
+  const [imageProviderPreset, setImageProviderPreset] = useState("");
 
   async function commit(nextForm: ConfigForm): Promise<boolean> {
     const previousForm = form;
@@ -25,13 +40,15 @@ export function ImageModelProvidersSection({ form, setForm, t, onCommit, onError
       await onCommit(nextForm);
       return true;
     } catch (error) {
-      setForm(previousForm);
-      onError({ message: error instanceof Error ? error.message : String(error), error: true });
+      setForm((current) => current === nextForm ? previousForm : current);
+      onError(error);
       return false;
     }
   }
 
   function updateImageProvider(index: number, patch: Partial<ConfigImageProvider>) {
+    const previousName = form.image_providers[index]?.name;
+    if (previousName) onProbeInvalidated(previousName);
     setForm({
       ...form,
       image_providers: form.image_providers.map((provider, current) => (current === index ? { ...provider, ...patch } : provider)),
@@ -94,6 +111,8 @@ export function ImageModelProvidersSection({ form, setForm, t, onCommit, onError
   }
 
   const activeImage = form.image_providers[activeImageProvider];
+  const activeProbe = activeImage?.name ? probeResults[activeImage.name] : undefined;
+  const probePending = Boolean(activeImage?.name && pendingProvider === activeImage.name);
 
   return (
     <>
@@ -120,9 +139,12 @@ export function ImageModelProvidersSection({ form, setForm, t, onCommit, onError
         <div className="provider-list">
           {form.image_providers.map((provider, index) => {
             const ready = Boolean(provider.name && provider.model && provider.base_url);
+            const probe = provider.name ? probeResults[provider.name] : undefined;
+            const tone = probe?.status || (ready ? "unknown" : "warning");
+            const dotClass = probe?.available ? "online" : probe?.status === "error" ? "offline" : ready ? "neutral" : "warning";
             return (
-              <button className={`provider-row ${index === activeImageProvider ? "active" : ""} ${ready ? "unknown" : "warning"}`} key={`${provider.name}:${index}`} onClick={() => setActiveImageProvider(index)} type="button">
-                <span className={`status-dot ${ready ? "neutral" : "warning"}`} />
+              <button className={`provider-row ${index === activeImageProvider ? "active" : ""} ${tone}`} key={`${provider.name}:${index}`} onClick={() => setActiveImageProvider(index)} type="button">
+                <span className={`status-dot ${dotClass}`} />
                 <strong>{provider.name || t("untitledProvider")}</strong>
                 <small title={provider.model || t("providerMissingRequiredFields")}>{provider.model || t("providerMissingRequiredFields")}</small>
               </button>
@@ -131,21 +153,36 @@ export function ImageModelProvidersSection({ form, setForm, t, onCommit, onError
           {!form.image_providers.length && <div className="empty-state">{t("noImageProviders")}</div>}
         </div>
         {activeImage && (
-          <div className="provider-card unknown">
+          <div className={`provider-card ${activeProbe?.status || "unknown"}`}>
             <div className="provider-card-header">
               <div>
                 <h3>{activeImage.name || t("newImageProvider")}</h3>
                 <p className="panel-copy">{t("imageProviderCopy")}</p>
               </div>
-              <div className="provider-status unknown">
-                <span className="status-dot neutral" />
-                <span>{t("modelNotChecked")}</span>
+              <div className={`provider-status ${activeProbe?.status || "unknown"}`}>
+                <span className={`status-dot ${activeProbe?.status === "ok" ? "online" : activeProbe?.status === "error" ? "offline" : "neutral"}`} />
+                <span>{activeProbe ? (activeProbe.available ? t("imageProbeAvailable") : t("imageProbeUnavailable")) : t("modelNotChecked")}</span>
               </div>
             </div>
             <div className="form-grid provider-form-grid">
               <PathField label={t("name")} value={activeImage.name} onBlur={(value) => void commit(imageProviderPatchForm(activeImageProvider, { name: value }))} onChange={(value) => updateImageProvider(activeImageProvider, { name: value })} />
+              <div className="field compact-field">
+                <span>{t("imageAdapter")}</span>
+                <div className="settings-language-options" role="group" aria-label={t("imageAdapter")}>
+                  {IMAGE_ADAPTERS.map((adapter) => (
+                    <button
+                      className={`button ${activeImage.adapter === adapter ? "primary" : "secondary"}`}
+                      key={adapter}
+                      onClick={() => void commit(imageProviderPatchForm(activeImageProvider, adapterDefaults(adapter)))}
+                      type="button"
+                    >
+                      {t(`imageAdapter.${adapter}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <PathField label={t("model")} value={activeImage.model} onBlur={(value) => void commit(imageProviderPatchForm(activeImageProvider, { model: value }))} onChange={(value) => updateImageProvider(activeImageProvider, { model: value })} />
-              <PathField label={t("baseUrl")} value={activeImage.base_url} onBlur={(value) => void commit(imageProviderPatchForm(activeImageProvider, { base_url: value }))} onChange={(value) => updateImageProvider(activeImageProvider, { base_url: value })} />
+              <PathField label={t("baseUrl")} placeholder={t("baseUrlPlaceholder")} value={activeImage.base_url} onBlur={(value) => void commit(imageProviderPatchForm(activeImageProvider, { base_url: value }))} onChange={(value) => updateImageProvider(activeImageProvider, { base_url: value })} />
               <PathField label={t("imageEndpointPath")} value={activeImage.endpoint_path} onBlur={(value) => void commit(imageProviderPatchForm(activeImageProvider, { endpoint_path: value }))} onChange={(value) => updateImageProvider(activeImageProvider, { endpoint_path: value })} />
               <SecretField
                 label={t("apiKey")}
@@ -178,7 +215,25 @@ export function ImageModelProvidersSection({ form, setForm, t, onCommit, onError
                 onChange={(value) => updateImageProvider(activeImageProvider, { guidance: value ?? 4 })}
               />
             </div>
+            {activeProbe && (
+              <div className={`model-probe-panel ${activeProbe.status}`}>
+                <div className="model-probe-header">
+                  <h3>{t("imageProbeResult")}</h3>
+                  <span>{activeProbe.elapsed_ms} ms</span>
+                </div>
+                <p className={`provider-status-message ${activeProbe.status}`}>{activeProbe.message}</p>
+                {activeProbe.available && <p className="panel-copy">{t("imageProbeImages")}: {activeProbe.image_count}</p>}
+              </div>
+            )}
             <div className="provider-actions">
+              <button
+                className="button primary"
+                disabled={probePending || !activeImage.name || !activeImage.model || !activeImage.base_url}
+                onClick={() => onProbe(activeImage.name)}
+                type="button"
+              >
+                {probePending ? t("probingImageModel") : t("probeImageModel")}
+              </button>
               <button className="button secondary" onClick={() => void removeImageProvider(activeImageProvider)} type="button">
                 {t("removeImageProvider")}
               </button>
@@ -188,4 +243,11 @@ export function ImageModelProvidersSection({ form, setForm, t, onCommit, onError
       </div>
     </>
   );
+}
+
+function adapterDefaults(adapter: ConfigImageProvider["adapter"]): Partial<ConfigImageProvider> {
+  if (adapter === "openai_chat_image") {
+    return { adapter, endpoint_path: "/chat/completions", resolution: "" };
+  }
+  return { adapter, endpoint_path: "/images/generations", resolution: "2720*1536" };
 }

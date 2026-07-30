@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { AppContext } from "../appContext";
+import type { ConfigAppContext } from "../appContext";
 import {
   ConfigGeneralSection,
   SettingsDirectory,
@@ -16,7 +16,7 @@ import { ConfigModelProvidersSection } from "../components/config/ConfigModelPro
 import { useConfigController } from "./config/useConfigController";
 
 type Props = {
-  context: AppContext;
+  context: ConfigAppContext;
   embedded?: boolean;
 };
 
@@ -35,20 +35,28 @@ export function ConfigPage({ context, embedded = false }: Props) {
             <SettingsDirectory activeSection={activeSection} setActiveSection={setActiveSection} t={context.t} />
 
             <div className="settings-section-panel" role="tabpanel">
-              {activeSection === "basic" && <ConfigBasicSection form={form} setForm={setForm} t={context.t} onCommit={controller.commitFormSnapshot} onError={context.setNotice} />}
-              {activeSection === "general" && <ConfigGeneralSection context={context} form={form} setForm={setForm} onCommit={controller.commitFormSnapshot} onError={context.setNotice} />}
-              {activeSection === "inputs" && <ConfigInputsSection form={form} setForm={setForm} t={context.t} onCommit={controller.commitFormSnapshot} onError={context.setNotice} />}
-              {activeSection === "preprocessing" && <ConfigPreprocessingSection form={form} setForm={setForm} t={context.t} onCommit={controller.commitFormSnapshot} onError={context.setNotice} />}
+              {activeSection === "basic" && <ConfigBasicSection form={form} setForm={setForm} t={context.t} onCommit={controller.commitFormSnapshot} onError={reportConfigError} />}
+              {activeSection === "general" && (
+                <>
+                  <ConfigGeneralSection context={context} />
+                </>
+              )}
+              {activeSection === "inputs" && <ConfigInputsSection form={form} setForm={setForm} t={context.t} onCommit={controller.commitFormSnapshot} onError={reportConfigError} />}
+              {activeSection === "preprocessing" && <ConfigPreprocessingSection form={form} setForm={setForm} t={context.t} onCommit={controller.commitFormSnapshot} onError={reportConfigError} />}
               {activeSection === "models" && (
                 <ConfigModelProvidersSection
                   form={form}
                   setForm={setForm}
                   t={context.t}
                   probeResults={context.modelProbeResults}
+                  imageProbeResults={controller.imageProbeResults}
                   pendingAction={controller.modelPendingAction}
+                  imagePendingProvider={controller.imagePendingProvider}
                   onDiscover={controller.startDiscover}
-                  onCommit={controller.commitFormSnapshot}
-                  onError={context.setNotice}
+                  onImageProbe={controller.startImageProbe}
+                  onImageProbeInvalidated={controller.clearImageProbe}
+                  onCommit={controller.commitModelFormSnapshot}
+                  onError={reportConfigError}
                 />
               )}
               {activeSection === "advanced" && (
@@ -65,4 +73,8 @@ export function ConfigPage({ context, embedded = false }: Props) {
       </article>
     </section>
   );
+}
+
+function reportConfigError(error: unknown) {
+  console.error("Configuration operation failed", error);
 }

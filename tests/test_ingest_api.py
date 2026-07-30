@@ -16,6 +16,9 @@ from knoarbor.services import ApplicationServices
 
 
 class FakeIngestService:
+    def run_generation_command(self, _command, *, execution) -> IngestPipelineResult:
+        return self.run(None)
+
     def run_unified(self, request):
         if request.kind == "document":
             return self.run_document(request.to_document_request())
@@ -72,15 +75,48 @@ class FakeIngestService:
 
 
 class IngestApiTests(unittest.TestCase):
-    def test_run_ingest_direct_returns_result_without_run_record(self) -> None:
-        services = ApplicationServices()
-        services.ingest = FakeIngestService()
-        client = TestClient(create_app(services))
+    def test_application_services_wires_ingest_dependencies_once(self) -> None:
+        ingest = FakeIngestService()
+        services = ApplicationServices(ingest=ingest)  # type: ignore[arg-type]
+        coordinator = services.ingest_coordinator
 
-        response = client.post(
-            "/ingest",
-            json={"execution": "direct", "kind": "connectors", "write": False},
-        )
+        create_app(services)
+
+        self.assertIs(services.ingest_coordinator, coordinator)
+        self.assertIs(coordinator.ingest, ingest)
+        self.assertIs(coordinator.runs, services.runs)
+        self.assertIs(coordinator.scheduler, services.operations)
+        self.assertIs(services.wiki_linter.ingest_coordinator, coordinator)
+        self.assertFalse(hasattr(services, "wire_ingest"))
+
+    def test_materialization_rebuild_endpoint_returns_clean_state(self) -> None:
+        client = TestClient(create_app())
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir) / "vault"
+            vault.mkdir()
+            response = client.post(
+                f"/ingest/materialization/rebuild?vault_path={vault}",
+                json={},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["phase"], "clean")
+        self.assertEqual(payload["requested_epoch"], payload["published_epoch"])
+        self.assertTrue(payload["fact_generation"].startswith("sha256:"))
+
+    def test_run_ingest_direct_waits_for_the_normal_run_record(self) -> None:
+        services = ApplicationServices(ingest=FakeIngestService())  # type: ignore[arg-type]
+        client = TestClient(create_app(services))
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir) / "vault"
+            vault.mkdir()
+            config = Path(tmp_dir) / "config.yaml"
+            config.write_text(_config_text(vault), encoding="utf-8")
+            response = client.post(
+                "/ingest",
+                json={"execution": "direct", "kind": "excerpt", "excerpt_text": "direct input", "write": False, "config_path": str(config)},
+            )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
@@ -89,11 +125,10 @@ class IngestApiTests(unittest.TestCase):
         self.assertEqual(payload["execution"], "direct")
         self.assertEqual(payload["status"], "completed")
         self.assertEqual(payload["result"]["stats"]["source_count"], 1)
-        self.assertIsNone(payload["run_id"])
+        self.assertIsNotNone(payload["run_id"])
 
     def test_run_ingest_connectors_uses_high_level_ingest_service(self) -> None:
-        services = ApplicationServices()
-        services.ingest = FakeIngestService()
+        services = ApplicationServices(ingest=FakeIngestService())  # type: ignore[arg-type]
         client = TestClient(create_app(services))
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -101,10 +136,10 @@ class IngestApiTests(unittest.TestCase):
             vault = root / "vaults" / "all"
             vault.mkdir(parents=True)
             config = root / "config.yaml"
-            config.write_text(f"vault:\n  path: {vault}\n", encoding="utf-8")
+            config.write_text(_config_text(vault), encoding="utf-8")
             response = client.post(
                 "/ingest",
-                json={"execution": "queued", "kind": "connectors", "config_path": str(config), "write": False},
+                json={"execution": "queued", "kind": "excerpt", "excerpt_text": "queued input", "config_path": str(config), "write": False},
             )
             self.assertEqual(response.status_code, 200)
             response_payload = response.json()
@@ -132,8 +167,7 @@ class IngestApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
 
     def test_run_ingest_document_accepts_source_document(self) -> None:
-        services = ApplicationServices()
-        services.ingest = FakeIngestService()
+        services = ApplicationServices(ingest=FakeIngestService())  # type: ignore[arg-type]
         client = TestClient(create_app(services))
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -141,7 +175,7 @@ class IngestApiTests(unittest.TestCase):
             vault = root / "vaults" / "all"
             vault.mkdir(parents=True)
             config = root / "config.yaml"
-            config.write_text(f"vault:\n  path: {vault}\n", encoding="utf-8")
+            config.write_text(_config_text(vault), encoding="utf-8")
             response = client.post(
                 "/ingest",
                 json={
@@ -176,8 +210,7 @@ class IngestApiTests(unittest.TestCase):
         self.assertEqual(payload["status"], "completed")
 
     def test_run_ingest_excerpt_accepts_selected_text(self) -> None:
-        services = ApplicationServices()
-        services.ingest = FakeIngestService()
+        services = ApplicationServices(ingest=FakeIngestService())  # type: ignore[arg-type]
         client = TestClient(create_app(services))
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -185,7 +218,7 @@ class IngestApiTests(unittest.TestCase):
             vault = root / "vaults" / "all"
             vault.mkdir(parents=True)
             config = root / "config.yaml"
-            config.write_text(f"vault:\n  path: {vault}\n", encoding="utf-8")
+            config.write_text(_config_text(vault), encoding="utf-8")
             response = client.post(
                 "/ingest",
                 json={
@@ -213,8 +246,7 @@ class IngestApiTests(unittest.TestCase):
         self.assertEqual(payload["status"], "completed")
 
     def test_run_ingest_folder_accepts_queued_folder_input(self) -> None:
-        services = ApplicationServices()
-        services.ingest = FakeIngestService()
+        services = ApplicationServices(ingest=FakeIngestService())  # type: ignore[arg-type]
         client = TestClient(create_app(services))
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -223,8 +255,9 @@ class IngestApiTests(unittest.TestCase):
             folder = root / "notes"
             vault.mkdir(parents=True)
             folder.mkdir()
+            (folder / "one.md").write_text("# One\n\nBody.", encoding="utf-8")
             config = root / "config.yaml"
-            config.write_text(f"vault:\n  path: {vault}\n", encoding="utf-8")
+            config.write_text(_config_text(vault), encoding="utf-8")
             response = client.post(
                 "/ingest",
                 json={
@@ -256,6 +289,19 @@ def _wait_for_run(client: TestClient, vault_path: str, run_id: str) -> dict:
             return payload
         time.sleep(0.05)
     return payload
+
+
+def _config_text(vault: Path) -> str:
+    return f"""
+vault:
+  path: {vault}
+models:
+  default_provider: test
+  providers:
+    test:
+      model: test
+      base_url: http://localhost
+"""
 
 
 if __name__ == "__main__":

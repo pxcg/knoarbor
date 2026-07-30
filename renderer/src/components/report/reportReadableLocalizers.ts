@@ -41,7 +41,7 @@ export function localizeOperationAction(value: string, t: (key: string) => strin
   if (!isChinese(t)) return normalized.replace(/_/g, " ");
   return {
     add_missing_section: "补充缺失章节",
-    record_source_digest: "记录来源审计关联",
+    record_source_record: "记录来源审计关联",
     deduplicate_section_items: "去重章节条目",
     deterministic_wiki_operation: "确定性维护操作",
     normalize_wikilink: "规范 Wiki 链接",

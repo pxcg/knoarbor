@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 
+from knoarbor.product import PRODUCT
 from knoarbor.cli_commands.handlers import (
     add_vault_argument,
     run_contract,
@@ -28,7 +29,7 @@ from knoarbor.cli_commands.handlers import (
 )
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="KnoArbor local command line interface.")
+    parser = argparse.ArgumentParser(description=f"{PRODUCT.name} local command line interface.")
     parser.add_argument("--config", default=None, help="Path to config.yaml. Defaults to ./config.yaml or config.example.yaml.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -49,9 +50,8 @@ def build_parser() -> argparse.ArgumentParser:
     serve_parser.add_argument("--port", type=int, default=None)
     serve_parser.set_defaults(handler=run_serve)
 
-    init_parser = subparsers.add_parser("init", help="Initialize a local KnoArbor vault.")
+    init_parser = subparsers.add_parser("init", help=f"Initialize a local {PRODUCT.name} vault.")
     init_parser.add_argument("--vault", default=None, help="Vault path to create. Defaults to config.yaml vault.path.")
-    init_parser.add_argument("--force", action="store_true", help="Overwrite .knoarborignore if it already exists.")
     init_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
     init_parser.set_defaults(handler=run_init)
 
@@ -60,7 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     status_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
     status_parser.set_defaults(handler=run_status)
 
-    vaults_parser = subparsers.add_parser("vaults", help="List configured KnoArbor knowledge bases.")
+    vaults_parser = subparsers.add_parser("vaults", help=f"List configured {PRODUCT.name} knowledge bases.")
     vaults_subparsers = vaults_parser.add_subparsers(dest="vaults_command")
     vaults_list_parser = vaults_subparsers.add_parser("list", help="List configured vault profiles.")
     vaults_list_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
@@ -150,14 +150,6 @@ def build_parser() -> argparse.ArgumentParser:
     query_parser = subparsers.add_parser("query", help="Retrieve relevant wiki context for a question.")
     add_vault_argument(query_parser)
     query_parser.add_argument("query", help="Search query.")
-    query_parser.add_argument("--mode", choices=["quick", "balanced", "deep"], default=None)
-    query_parser.add_argument("--page-dir", action="append", dest="page_dirs", default=None, help="Limit search to one wiki directory. Can be repeated.")
-    query_parser.add_argument("--max-results", type=int, default=None)
-    query_parser.add_argument("--max-pages-to-read", type=int, default=None)
-    query_parser.add_argument("--max-excerpts-per-page", type=int, default=None)
-    query_parser.add_argument("--max-chars-per-excerpt", type=int, default=None)
-    query_parser.add_argument("--max-context-chars", type=int, default=None)
-    query_parser.add_argument("--include-related", action=argparse.BooleanOptionalAction, default=None)
     query_parser.add_argument("--record-query", action=argparse.BooleanOptionalAction, default=True)
     query_parser.add_argument("--write-report", action=argparse.BooleanOptionalAction, default=False)
     query_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
@@ -245,6 +237,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Start a recovery ingest run from a failed or partially failed ingest run.",
     )
+    ingest_parser.add_argument(
+        "--rebuild-materialization",
+        action="store_true",
+        help="Rebuild local source projections and the machine index without model calls.",
+    )
     ingest_parser.add_argument("--provider", default=None, help="Model provider name. Defaults to models.default_provider.")
     ingest_parser.add_argument("--max-tokens", type=int, default=None)
     ingest_parser.add_argument("--write", action=argparse.BooleanOptionalAction, default=False)
@@ -253,13 +250,13 @@ def build_parser() -> argparse.ArgumentParser:
     ingest_parser.add_argument(
         "--force-reprocess",
         action="store_true",
-        help="Ignore source checkpoints for this ingest run without deleting checkpoint state.",
+        help="Re-run semantic compilation and publish a new factual revision for unchanged input.",
     )
     ingest_parser.add_argument(
         "--follow",
         action=argparse.BooleanOptionalAction,
         default=None,
-        help="Run through the local queue and print progress events. Defaults to on unless --json is used.",
+        help="Print persisted progress events after the foreground operation. Defaults to on unless --json is used.",
     )
     ingest_parser.add_argument("--json", action="store_true", help="Print the full JSON response.")
     ingest_parser.set_defaults(handler=run_ingest)
@@ -277,8 +274,6 @@ def _add_lint_run_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--max-chars-per-page", type=int, default=None)
     parser.add_argument("--max-tokens", type=int, default=None)
     parser.add_argument("--include-related", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--apply-safe-fixes", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--apply-reviewed", action=argparse.BooleanOptionalAction, default=True, help="Apply approved semantic maintenance operations and rescan.")
     parser.add_argument("--write-report", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--append-ledger", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument(
@@ -316,7 +311,7 @@ def _add_dev_commands(subparsers: argparse._SubParsersAction[argparse.ArgumentPa
         "run-contract",
         help="Developer diagnostic: run one semantic contract with the configured model.",
     )
-    run_contract_parser.add_argument("contract", help="Semantic contract name, such as source_normalize or lint_diagnose.")
+    run_contract_parser.add_argument("contract", help="Semantic contract name, such as index_metadata_extract or lint_diagnose.")
     run_contract_parser.add_argument("--input", required=True, help="Path to a JSON input payload.")
     run_contract_parser.add_argument("--provider", default=None, help="Model provider name. Defaults to models.default_provider.")
     run_contract_parser.add_argument("--temperature", type=float, default=0.1)

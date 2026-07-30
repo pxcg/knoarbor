@@ -65,7 +65,6 @@ class IngestDocumentRunRequest(BaseModel):
     write_report: bool = True
     append_ledger: bool = True
     auto_scoped_lint: bool | None = None
-    auto_apply_safe_lint_fixes: bool | None = None
     scoped_lint_include_related: bool | None = None
 
 
@@ -82,7 +81,6 @@ class IngestExcerptRunRequest(BaseModel):
     write_report: bool = True
     append_ledger: bool = True
     auto_scoped_lint: bool | None = None
-    auto_apply_safe_lint_fixes: bool | None = None
     scoped_lint_include_related: bool | None = None
 
     @field_validator("text")
@@ -163,7 +161,6 @@ class UnifiedIngestRequest(BaseModel):
     recovery_of_run_id: str | None = None
     recovery_vault_path: str | None = None
     auto_scoped_lint: bool | None = None
-    auto_apply_safe_lint_fixes: bool | None = None
     scoped_lint_include_related: bool | None = None
 
     @model_validator(mode="after")
@@ -223,7 +220,6 @@ class UnifiedIngestRequest(BaseModel):
             write_report=self.write_report,
             append_ledger=self.append_ledger,
             auto_scoped_lint=self.auto_scoped_lint,
-            auto_apply_safe_lint_fixes=self.auto_apply_safe_lint_fixes,
             scoped_lint_include_related=self.scoped_lint_include_related,
         )
 
@@ -245,7 +241,6 @@ class UnifiedIngestRequest(BaseModel):
             write_report=self.write_report,
             append_ledger=self.append_ledger,
             auto_scoped_lint=self.auto_scoped_lint,
-            auto_apply_safe_lint_fixes=self.auto_apply_safe_lint_fixes,
             scoped_lint_include_related=self.scoped_lint_include_related,
         )
 
@@ -312,6 +307,7 @@ def build_excerpt_source_document(*, text: str, title: str | None = None, contex
             "title": display_title,
             "source_kind": "selected_excerpt",
             "source_app": source_app,
+            "selected_fragments": [clean_text],
             "excerpt_context": excerpt_context.model_dump(mode="json"),
             "excerpt_chars": len(clean_text),
             "excerpt_lines": len(clean_text.splitlines()),

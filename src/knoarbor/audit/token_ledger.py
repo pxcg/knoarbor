@@ -5,7 +5,7 @@ from pathlib import Path
 
 from knoarbor.audit.contracts import LEDGER_PATHS, LEDGER_SCHEMA_VERSIONS
 from knoarbor.audit.report_formatting import as_dict, as_list
-from knoarbor.storage.ledger import append_jsonl_records, read_jsonl_ledger
+from knoarbor.storage.ledger import append_jsonl_records, append_jsonl_records_with_file_lock, read_jsonl_ledger
 
 
 TOKEN_LEDGER_PATH = LEDGER_PATHS["token"]
@@ -23,8 +23,12 @@ def append_lint_token_records(vault_path: Path, record: dict[str, object]) -> No
     append_jsonl_records(vault_path, TOKEN_LEDGER_PATH, build_lint_token_records(record))
 
 
-def append_chat_token_records(vault_path: Path, record: dict[str, object]) -> None:
-    append_jsonl_records(vault_path, TOKEN_LEDGER_PATH, build_chat_token_records(record))
+def append_chat_token_records(vault_path: Path, record: dict[str, object], *, ledger_path: str = TOKEN_LEDGER_PATH, lock_path: Path | None = None) -> None:
+    records = build_chat_token_records(record)
+    if lock_path is not None:
+        append_jsonl_records_with_file_lock(vault_path, ledger_path, records, lock_path)
+        return
+    append_jsonl_records(vault_path, ledger_path, records)
 
 
 def read_token_analysis(vault_path: Path, *, limit: int | None = 5000) -> dict[str, object]:

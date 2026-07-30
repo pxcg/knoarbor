@@ -17,10 +17,31 @@ OpenAI-compatible runtimes such as vLLM and Ollama.
   `max_output_tokens`.
 - A user wants to apply detected capability values to `config.yaml` through an
   explicit action.
+- A user configures an image provider and wants to verify its real generation
+  contract without confusing that action with text-model metadata discovery.
 
 ## Requirements
 
+- OpenAI-compatible provider `base_url` represents the API root. It may contain
+  a vendor path such as `/compatible-mode/v1`; `/v1` is not mandatory.
+- The settings boundary accepts either the API root or an exact full
+  `/chat/completions` endpoint, removes only that exact endpoint suffix, and
+  persists one canonical API root without a trailing slash.
+- Provider URLs must be absolute HTTP(S) URLs without credentials, query
+  parameters, or fragments. Partial or misspelled endpoint suffixes are
+  rejected instead of guessed.
+- Model discovery and generation derive `/models` and `/chat/completions` from
+  the same canonical API root.
+- Image-provider settings keep endpoint path separate from the canonical base
+  URL and apply the same exact-suffix normalization for the supported image and
+  chat-image endpoints.
 - Model discovery reads provider metadata without making a generation call.
+- Text-model checks wait for any current provider-form save and then call only
+  model discovery. They do not repeat an already persisted save or wait for
+  global diagnostics, source scans, or unrelated provider refreshes.
+- Image providers use a separate, explicit smoke test because image endpoints
+  do not expose one common metadata contract. The smoke test performs one real
+  generation and may therefore take provider generation time and incur usage.
 - Provider credentials and API keys are never returned by diagnostics APIs.
 - Local unauthenticated providers are supported when `api_key` is empty.
 - Capability results are structured and can be consumed by API, CLI, UI, and
@@ -43,6 +64,8 @@ OpenAI-compatible runtimes such as vLLM and Ollama.
 - `GET /models/providers` returns configured providers without secrets.
 - `POST /models/discover` returns model IDs and detected context metadata when
   the endpoint supports discovery.
+- `POST /models/image-probe` performs one explicit image-generation smoke test
+  and returns bounded status metadata without returning generated image bytes.
 - Discovery responses include model existence, detected/effective context
   window, and suggested config values.
 - `POST /models/apply-capabilities` updates only allowed capability fields in
@@ -50,3 +73,5 @@ OpenAI-compatible runtimes such as vLLM and Ollama.
 - `GET /doctor` can continue using the shared model gateway health check.
 - Unit tests cover discovery, local unauthenticated providers, and config apply
   behavior.
+- Contract tests cover root URLs, trailing slashes, exact full endpoints,
+  vendor-prefixed roots, and rejected ambiguous URLs.

@@ -1,19 +1,29 @@
-import type { AppContext } from "../appContext";
+import { useCallback, useEffect, useState } from "react";
+
+import { getRun } from "../api/client";
+import type { RunAppContext } from "../appContext";
+import { ChatIngestTargetModal } from "../components/ChatIngestTargetModal";
+import { ExcerptIngestDialog } from "../components/ExcerptIngestDialog";
 import { LineIcon } from "../components/LineIcon";
 import { InlineHelp } from "../components/InlineHelp";
 import { ActiveRunsPanel } from "../components/runs/RunPanels";
+import { RunMonitorItem } from "../components/runs/RunMonitorItem";
+import { flowStages } from "../components/runs/RunPanelModel";
 import { sourceTitle } from "../sourceCatalog";
 import { LatestWorkflowReport } from "./run/LatestWorkflowReport";
-import { useRunLauncher } from "./run/useRunLauncher";
+import { useRunLauncher, type IngestPreparation } from "./run/useRunLauncher";
 
 type Props = {
-  context: AppContext;
+  active?: boolean;
+  context: RunAppContext;
   embedded?: boolean;
   mode: "ingest" | "lint";
 };
 
-export function RunPage({ context, embedded = false, mode }: Props) {
-  const launcher = useRunLauncher(context, mode);
+export function RunPage({ active = true, context, embedded = false, mode }: Props) {
+  const launcher = useRunLauncher(context, mode, active);
+  const [focusedRun, setFocusedRun] = useState<Awaited<ReturnType<typeof getRun>> | null>(null);
+  const [runNavigationError, setRunNavigationError] = useState<string | null>(null);
   const usesFileInput = launcher.localInputKind === "file";
   const usesFolderInput = launcher.localInputKind === "folder";
   const configuredInputScope = launcher.configuredInputScope;
@@ -24,6 +34,36 @@ export function RunPage({ context, embedded = false, mode }: Props) {
   const canRunConfiguredInput = launcher.configReady && (
     Boolean(configuredInputScope) && (configuredInputScope !== "knoarbor_chat" || Boolean(launcher.selectedChatSessionId))
   );
+
+  useEffect(() => {
+    setFocusedRun(null);
+    setRunNavigationError(null);
+  }, [context.activeVaultId]);
+
+  useEffect(() => {
+    const target = context.navigationTarget;
+    const targetMode = target?.kind === "run" && target.flow === "lint" ? "lint" : "ingest";
+    if (!active || target?.kind !== "run" || target.vaultId !== context.activeVaultId || targetMode !== mode) return;
+    let cancelled = false;
+    getRun(context.activeVaultSelector, target.runId)
+      .then((run) => {
+        if (cancelled) return;
+        setFocusedRun(run);
+        setRunNavigationError(null);
+        context.consumeNavigationTarget(target.requestId);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setFocusedRun(null);
+        setRunNavigationError(context.language === "zh" ? "目标运行记录不存在或已被删除。" : "The requested run does not exist or was deleted.");
+        context.consumeNavigationTarget(target.requestId);
+      });
+    return () => { cancelled = true; };
+  }, [active, context.activeVaultId, context.activeVaultSelector, context.consumeNavigationTarget, context.language, context.navigationTarget, mode]);
+
+  const retainFocusedTerminalRun = useCallback((run: Awaited<ReturnType<typeof getRun>>) => {
+    setFocusedRun((current) => current?.run_id === run.run_id ? run : current);
+  }, []);
 
   return (
     <section className={embedded ? "embedded-section" : "view active"}>
@@ -54,8 +94,8 @@ export function RunPage({ context, embedded = false, mode }: Props) {
                 <button
                   className="button primary import-card-run"
                   type="button"
-                  disabled={!canRunLocalInput}
-                  onClick={() => launcher.startIngest(usesFolderInput ? "folder" : "file")}
+                  disabled={!canRunLocalInput || launcher.ingestSubmitting}
+                  onClick={() => void launcher.startIngest(usesFolderInput ? "folder" : "file")}
                 >
                   {context.t("runIngest")}
                 </button>
@@ -124,8 +164,8 @@ export function RunPage({ context, embedded = false, mode }: Props) {
                 <button
                   className="button primary import-card-run"
                   type="button"
-                  disabled={!canRunConfiguredInput}
-                  onClick={() => launcher.startIngest(configuredInputScope)}
+                  disabled={!canRunConfiguredInput || launcher.ingestSubmitting}
+                  onClick={() => void launcher.startIngest(configuredInputScope)}
                 >
                   {context.t("runIngest")}
                 </button>
@@ -161,6 +201,31 @@ export function RunPage({ context, embedded = false, mode }: Props) {
                 </label>
               )}
             </section>
+
+            <section className="import-source-card custom-input-card">
+              <div className="import-source-card-top">
+                <div className="import-source-card-heading">
+                  <span className="import-source-icon">
+                    <LineIcon name="manual-input" />
+                  </span>
+                  <div>
+                    <strong>
+                      {context.t("customInputTitle")}
+                      <InlineHelp text={context.t("customInputCopy")} />
+                    </strong>
+                  </div>
+                </div>
+                <button
+                  className="button primary import-card-run"
+                  type="button"
+                  disabled={!launcher.configReady || !context.vaultOptions.some((vault) => !vault.virtual)}
+                  onClick={launcher.openCustomInput}
+                >
+                  {context.t("customInputOpen")}
+                </button>
+              </div>
+              <p className="panel-copy custom-input-card-copy">{context.t("customInputDescription")}</p>
+            </section>
           </div>
           <p className="panel-copy">{context.t("runIngestCopy")}</p>
         </article>}
@@ -177,29 +242,85 @@ export function RunPage({ context, embedded = false, mode }: Props) {
               {context.t("runLint")}
             </button>
           </div>
-          <div className="lint-mode-picker" role="radiogroup" aria-label={context.t("mode")}>
-            {[
-              { value: "deterministic", label: context.t("structuredMaintenance") },
-              { value: "semantic", label: context.t("semanticMaintenance") },
-            ].map((item) => (
-              <button
-                aria-checked={launcher.lintMode === item.value}
-                className={`lint-mode-option ${launcher.lintMode === item.value ? "active" : ""}`}
-                key={item.value}
-                onClick={() => launcher.setLintMode(item.value)}
-                role="radio"
-                type="button"
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
           {!launcher.configReady && <p className="panel-copy warning">{context.t("configRequired")}</p>}
         </article>}
       </div>
 
-      <ActiveRunsPanel context={context} flow={mode} includeRecoverable={mode === "ingest"} />
-      <LatestWorkflowReport context={context} mode={mode} />
+      {runNavigationError && <p className="settings-action-note warning" role="alert">{runNavigationError}</p>}
+      {launcher.launchError && !launcher.customInputDraft && <p className="settings-action-note warning" role="alert">{launcher.launchError}</p>}
+      {active && focusedRun && <RunMonitorItem context={context} onTerminal={retainFocusedTerminalRun} run={focusedRun} />}
+      {active && (
+        launcher.activePreparation
+          ? <IngestPreparationPanel context={context} preparation={launcher.activePreparation} />
+          : <ActiveRunsPanel context={context} excludeRunId={focusedRun?.run_id} flow={mode} includeRecoverable={mode === "ingest"} />
+      )}
+      {active && <LatestWorkflowReport context={context} mode={mode} />}
+      {mode === "ingest" && (
+        <>
+          <ChatIngestTargetModal
+            context={context}
+            isOpen={launcher.chatIngestOpen}
+            title={launcher.chatIngestTitle}
+            targetVaultId={launcher.chatIngestTargetVaultId}
+            submitting={launcher.chatIngestSubmitting}
+            onTitleChange={launcher.setChatIngestTitle}
+            onTargetVaultChange={launcher.setChatIngestTargetVaultId}
+            onCancel={() => !launcher.chatIngestSubmitting && launcher.setChatIngestOpen(false)}
+            onConfirm={() => void launcher.confirmChatSessionIngest()}
+          />
+          <ExcerptIngestDialog
+            context={context}
+            draft={launcher.customInputDraft}
+            error={launcher.launchError}
+            submitting={launcher.customInputSubmitting}
+            onChange={launcher.setCustomInputDraft}
+            onCancel={() => !launcher.customInputSubmitting && launcher.closeCustomInput()}
+            onConfirm={() => void launcher.confirmCustomInput()}
+          />
+        </>
+      )}
     </section>
+  );
+}
+
+function IngestPreparationPanel({ context, preparation }: { context: RunAppContext; preparation: IngestPreparation }) {
+  const messageKey = preparation.kind === "document"
+    ? "ingestPreparingDocument"
+    : "ingestPreparingFolder";
+  const stages = flowStages("ingest");
+  return (
+    <article className="panel run-monitor-panel" aria-live="polite">
+      <div className="panel-header compact">
+        <div>
+          <h2>{context.t("runMonitor")}</h2>
+          <p className="panel-copy">{context.t(messageKey)}</p>
+        </div>
+      </div>
+      <div className="run-flow-placeholder ingest-preparation-panel">
+        <section className="run-placeholder-flow">
+          <h3>{preparation.inputPath || context.t("importMaterials")}</h3>
+          <div className="run-stage-steps">
+            {stages.map((stage) => (
+              <span
+                className={`run-stage-step placeholder ${
+                  stage.key === "queued" || stage.key === "input"
+                    ? "done"
+                    : stage.key === "document_process"
+                    ? "active"
+                    : ""
+                }`}
+                key={stage.key}
+              >
+                <span />
+                <small>{context.t(stage.label)}</small>
+              </span>
+            ))}
+          </div>
+          <div className="progress-track indeterminate" role="progressbar" aria-label={context.t(messageKey)}>
+            <span />
+          </div>
+        </section>
+      </div>
+    </article>
   );
 }

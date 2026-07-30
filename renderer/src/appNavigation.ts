@@ -1,107 +1,156 @@
-import { useCallback, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
-import type { PendingChatSessionRequest } from "./appContext";
 import type { ViewName } from "./types";
+import type { RunRecord } from "./types";
+
+export type AppNavigationTarget =
+  | { kind: "wiki-page"; path: string; vaultId: string; requestId: number }
+  | { kind: "graph-page"; pageId: string; vaultId: string; requestId: number }
+  | { kind: "report"; path: string; vaultId: string; requestId: number }
+  | { kind: "run"; runId: string; vaultId: string; flow: RunRecord["flow"]; requestId: number }
+  | { kind: "chat-prompt"; prompt: string; vaultId: string; requestId: number }
+  | { kind: "chat-session"; sessionId: string | null; vaultId: string; requestId: number };
 
 type AppNavigationInput = {
+  activeView: ViewName;
   activeVaultId: string;
+  chatScopeVaultId: string;
   setActiveView: Dispatch<SetStateAction<ViewName>>;
+  setChatScopeVaultId: (value: string) => void;
   setSelectedVaultId: Dispatch<SetStateAction<string>>;
 };
 
-export function useAppNavigation({ activeVaultId, setActiveView, setSelectedVaultId }: AppNavigationInput) {
-  const [focusedPageId, setFocusedPageId] = useState<string | null>(null);
-  const [focusedWikiPath, setFocusedWikiPath] = useState<string | null>(null);
-  const [pendingChatPrompt, setPendingChatPrompt] = useState("");
-  const [pendingChatSessionRequest, setPendingChatSessionRequest] = useState<PendingChatSessionRequest | null>(null);
-  const [focusedReportPath, setFocusedReportPath] = useState<string | null>(null);
+export function useAppNavigation({
+  activeView,
+  activeVaultId,
+  chatScopeVaultId,
+  setActiveView,
+  setChatScopeVaultId,
+  setSelectedVaultId,
+}: AppNavigationInput) {
+  const [target, setTarget] = useState<AppNavigationTarget | null>(null);
+  const requestSequence = useRef(0);
+  const activeViewRef = useRef(activeView);
+  activeViewRef.current = activeView;
 
-  const clearTargets = useCallback(() => {
-    setFocusedPageId(null);
-    setFocusedWikiPath(null);
-    setFocusedReportPath(null);
+  const selectViewVault = useCallback((view: ViewName, vaultId?: string | null) => {
+    if (!vaultId || vaultId === "all" || view === "chat" || view === "query") return;
+    localStorage.setItem(pageVaultStorageKey(view), vaultId);
+    localStorage.setItem("knoarbor.workspaceVaultId", vaultId);
+    setSelectedVaultId(vaultId);
+  }, [setSelectedVaultId]);
+
+  const nextRequestId = useCallback(() => {
+    requestSequence.current += 1;
+    return requestSequence.current;
   }, []);
 
-  const selectVaultForNavigation = useCallback((vaultId?: string | null) => {
-    if (!vaultId || vaultId === activeVaultId) return;
-    localStorage.setItem("knoarbor.activeVaultId", vaultId);
-    localStorage.setItem("knoarbor.activeVaultId.userSet", "true");
+  const selectWorkspaceVault = useCallback((vaultId?: string | null) => {
+    if (!vaultId || vaultId === "all" || vaultId === activeVaultId) return;
+    localStorage.setItem("knoarbor.workspaceVaultId", vaultId);
     setSelectedVaultId(vaultId);
   }, [activeVaultId, setSelectedVaultId]);
 
+  const selectChatScope = useCallback((vaultId?: string | null) => {
+    if (!vaultId || vaultId === chatScopeVaultId) return;
+    localStorage.setItem("knoarbor.chatScopeVaultId", vaultId);
+    setChatScopeVaultId(vaultId);
+  }, [chatScopeVaultId, setChatScopeVaultId]);
+
+  const navigate = useCallback((view: ViewName) => {
+    setTarget(null);
+    const pageVaultId = storedPageVaultId(view) || activeVaultId;
+    selectViewVault(view, pageVaultId);
+    activeViewRef.current = view;
+    setActiveView(view);
+  }, [activeVaultId, selectViewVault, setActiveView]);
+
   const setActiveVaultId = useCallback((next: string) => {
-    localStorage.setItem("knoarbor.activeVaultId", next);
-    localStorage.setItem("knoarbor.activeVaultId.userSet", "true");
-    setSelectedVaultId(next);
-    clearTargets();
-  }, [clearTargets, setSelectedVaultId]);
+    if (!next || next === "all") return;
+    selectViewVault(activeViewRef.current, next);
+    setTarget(null);
+  }, [selectViewVault]);
 
   const openNewChat = useCallback(() => {
-    setPendingChatPrompt("");
-    clearTargets();
+    const vaultId = chatScopeVaultId || activeVaultId;
+    setTarget({ kind: "chat-session", sessionId: null, vaultId, requestId: nextRequestId() });
     setActiveView("chat");
-  }, [clearTargets, setActiveView]);
+  }, [activeVaultId, chatScopeVaultId, nextRequestId, setActiveView]);
 
-  const openPageInGraph = useCallback((pageId: string) => {
-    setFocusedPageId(pageId);
+  const openPageInGraph = useCallback((pageId: string, vaultId = activeVaultId) => {
+    selectViewVault("graph", vaultId);
+    selectWorkspaceVault(vaultId);
+    setTarget({ kind: "graph-page", pageId, vaultId, requestId: nextRequestId() });
     setActiveView("graph");
-  }, [setActiveView]);
+  }, [activeVaultId, nextRequestId, selectViewVault, selectWorkspaceVault, setActiveView]);
 
-  const openReport = useCallback((path: string) => {
-    setFocusedReportPath(path);
+  const openReport = useCallback((path: string, vaultId = activeVaultId) => {
+    selectViewVault("reports", vaultId);
+    selectWorkspaceVault(vaultId);
+    setTarget({ kind: "report", path, vaultId, requestId: nextRequestId() });
     setActiveView("reports");
-  }, [setActiveView]);
+  }, [activeVaultId, nextRequestId, selectViewVault, selectWorkspaceVault, setActiveView]);
+
+  const openRun = useCallback((runId: string, vaultId: string, flow: RunRecord["flow"]) => {
+    selectViewVault(flow === "lint" ? "lint" : "ingest", vaultId);
+    selectWorkspaceVault(vaultId);
+    setTarget({ kind: "run", runId, vaultId, flow, requestId: nextRequestId() });
+    setActiveView(flow === "lint" ? "lint" : "ingest");
+  }, [nextRequestId, selectViewVault, selectWorkspaceVault, setActiveView]);
 
   const openWikiPage = useCallback((path: string) => {
-    setFocusedWikiPath(path);
+    selectViewVault("wiki", activeVaultId);
+    setTarget({ kind: "wiki-page", path, vaultId: activeVaultId, requestId: nextRequestId() });
     setActiveView("wiki");
-  }, [setActiveView]);
+  }, [activeVaultId, nextRequestId, selectViewVault, setActiveView]);
 
   const openWikiPageInVault = useCallback((vaultId: string | null | undefined, path: string) => {
-    selectVaultForNavigation(vaultId);
-    setFocusedPageId(null);
-    setFocusedReportPath(null);
-    setFocusedWikiPath(path);
+    const targetVaultId = vaultId && vaultId !== "all" ? vaultId : activeVaultId;
+    selectViewVault("wiki", targetVaultId);
+    selectWorkspaceVault(targetVaultId);
+    setTarget({ kind: "wiki-page", path, vaultId: targetVaultId, requestId: nextRequestId() });
     setActiveView("wiki");
-  }, [selectVaultForNavigation, setActiveView]);
+  }, [activeVaultId, nextRequestId, selectViewVault, selectWorkspaceVault, setActiveView]);
 
   const openChatWithPrompt = useCallback((prompt: string, vaultId?: string | null) => {
-    selectVaultForNavigation(vaultId);
-    clearTargets();
-    setPendingChatPrompt(prompt);
+    const targetVaultId = vaultId || chatScopeVaultId || activeVaultId;
+    selectChatScope(targetVaultId);
+    setTarget({ kind: "chat-prompt", prompt, vaultId: targetVaultId, requestId: nextRequestId() });
     setActiveView("chat");
-  }, [clearTargets, selectVaultForNavigation, setActiveView]);
-
-  const clearPendingChatPrompt = useCallback(() => {
-    setPendingChatPrompt("");
-  }, []);
+  }, [activeVaultId, chatScopeVaultId, nextRequestId, selectChatScope, setActiveView]);
 
   const openChatSession = useCallback((sessionId: string | null, vaultId?: string | null) => {
-    selectVaultForNavigation(vaultId);
-    clearTargets();
-    setPendingChatSessionRequest({ sessionId, vaultId: vaultId || null, requestId: Date.now() });
+    const targetVaultId = vaultId || chatScopeVaultId || activeVaultId;
+    selectChatScope(targetVaultId);
+    setTarget({ kind: "chat-session", sessionId, vaultId: targetVaultId, requestId: nextRequestId() });
     setActiveView("chat");
-  }, [clearTargets, selectVaultForNavigation, setActiveView]);
+  }, [activeVaultId, chatScopeVaultId, nextRequestId, selectChatScope, setActiveView]);
 
-  const clearPendingChatSessionRequest = useCallback(() => {
-    setPendingChatSessionRequest(null);
+  const consumeTarget = useCallback((requestId: number) => {
+    setTarget((current) => current?.requestId === requestId ? null : current);
   }, []);
 
   return {
-    clearPendingChatPrompt,
-    clearPendingChatSessionRequest,
-    focusedPageId,
-    focusedReportPath,
-    focusedWikiPath,
+    consumeTarget,
+    navigate,
     openChatSession,
     openChatWithPrompt,
     openNewChat,
     openPageInGraph,
     openReport,
+    openRun,
     openWikiPage,
     openWikiPageInVault,
-    pendingChatPrompt,
-    pendingChatSessionRequest,
     setActiveVaultId,
+    target,
   };
+}
+
+export function pageVaultStorageKey(view: ViewName): string {
+  return `knoarbor.pageVaultId.${view}`;
+}
+
+export function storedPageVaultId(view: ViewName): string {
+  if (view === "chat" || view === "query") return "";
+  return localStorage.getItem(pageVaultStorageKey(view)) || "";
 }

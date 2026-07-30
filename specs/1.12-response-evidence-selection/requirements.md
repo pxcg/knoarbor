@@ -1,5 +1,10 @@
 # 1.12 Response Evidence Selection Requirements
 
+## Lifecycle
+
+Superseded by `1.38-semantic-indexed-raw-query`. This document records the
+historical page-level selector and owns no current implementation boundary.
+
 ## Problem
 
 KnoArbor retrieves maintained wiki pages, not raw chunks. A search result can
@@ -13,7 +18,7 @@ pages should stay out of the answer.
 - Add a deterministic page-level answer set selection layer after candidate
   retrieval and before evidence packaging.
 - Select a small, high-confidence set of answer-bearing pages.
-- Preserve source digest pages as provenance unless the query asks about
+- Preserve source record pages as provenance unless the query asks about
   sources.
 - Record why pages were selected or rejected.
 - Keep `/query`, `/chat`, skill, and UI consumers on the same page-role
@@ -32,7 +37,7 @@ pages should stay out of the answer.
 
 For "Agent Loop 是什么？", KnoArbor should choose the strongest maintained
 concept page as `primary_pages`, keep implementation pages as optional
-`supporting_pages`, and keep source digests as `source_pages`.
+`supporting_pages`, and keep source records as `source_pages`.
 
 ### Broad Question
 
@@ -42,7 +47,7 @@ pages that cover complementary evidence dimensions.
 
 ### Source Question
 
-For "Agent Loop 的来源是什么？", source digest pages can become the primary
+For "Agent Loop 的来源是什么？", source record pages can become the primary
 answer pages because the user asks about provenance.
 
 ### Noisy Candidate Set

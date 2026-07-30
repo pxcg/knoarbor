@@ -24,7 +24,7 @@ Use these examples to map user phrasing to the smallest useful operation:
 | --- | --- |
 | "我的 wiki 里有 Agent Loop 吗？" | `python3 scripts/knoarbor.py query "Agent Loop"` |
 | "用我的本地知识库解释 Agent Loop" | `python3 scripts/knoarbor.py query "Agent Loop 是什么"` |
-| "深入一点，比较 Agent Loop 和控制模式" | `python3 scripts/knoarbor.py query "Agent Loop 控制模式比较" --mode deep --max-results 8` |
+| "深入一点，比较 Agent Loop 和控制模式" | `python3 scripts/knoarbor.py query "Agent Loop 控制模式比较"` |
 | "列出 Agent Loop 相关页面" | `python3 scripts/knoarbor.py page list --contains "Agent Loop"` |
 | "打开刚才那个页面全文" | `python3 scripts/knoarbor.py --vault-id <result.vault_id> page read <result.path>` |
 | "这个页面有哪些关联？" | `python3 scripts/knoarbor.py --vault-id <result.vault_id> page relations <result.path>` |
@@ -37,8 +37,8 @@ Use these examples to map user phrasing to the smallest useful operation:
 | "同步 Codex/Claude 聊天记录" | `python3 scripts/knoarbor.py ingest connector codex claude_code` |
 | "KnoArbor 支持哪些资料来源？" | `python3 scripts/knoarbor.py sources catalog` |
 | "Codex 来源怎么配置？" | `python3 scripts/knoarbor.py --format json sources catalog --connector codex` |
-| "检查知识库有没有问题，不要修改" | `python3 scripts/knoarbor.py lint --mode deterministic --no-apply-safe-fixes --no-auto-apply-reviewed` |
-| "自动维护这个知识库" | `python3 scripts/knoarbor.py lint --mode semantic` |
+| "检查知识库有没有问题" | `python3 scripts/knoarbor.py lint --mode deterministic` |
+| "分析这个知识库的质量" | `python3 scripts/knoarbor.py lint --mode semantic` |
 | "刚才运行到哪了？" | `python3 scripts/knoarbor.py runs list` then `python3 scripts/knoarbor.py runs get RUN_ID` |
 | "为什么失败？看报告" | `python3 scripts/knoarbor.py report list` then `python3 scripts/knoarbor.py report read <report.path>` |
 | "这次写入了哪些页面？" | `python3 scripts/knoarbor.py report read <report.path>` |
@@ -54,7 +54,7 @@ to one vault per run.
 
 ```bash
 python3 scripts/knoarbor.py query "Agent Loop 是什么"
-python3 scripts/knoarbor.py query "Agent Loop 控制模式" --mode deep --max-results 8
+python3 scripts/knoarbor.py query "Agent Loop 控制模式"
 python3 scripts/knoarbor.py query "Agent Loop" --all-vaults
 python3 scripts/knoarbor.py query "Agent Loop" --query-vault-id personal --query-vault-id team
 python3 scripts/knoarbor.py page read Agent-Loop.md
@@ -62,11 +62,11 @@ python3 scripts/knoarbor.py page read Agent-Loop.md
 
 Progressive retrieval behavior:
 
-- Ordinary explanation: start with `balanced + compact`; answer from summaries,
-  key points, and excerpts if the evidence is sufficient.
-- Short lookup: keep result count small, usually 3-4.
-- Detailed analysis, design review, or comparison: use `deep + compact` before
-  reading full pages.
+- Ordinary explanation: use a compact query and answer only from selected raw
+  evidence when coverage is sufficient.
+- Short lookup: state the target precisely.
+- Detailed analysis, design review, or comparison: state every required
+  dimension in the query before reading full pages.
 - Broad summary or comparison: aggregate the strongest relevant results instead
   of forcing one page to represent the whole answer.
 - Multi-vault question: use `--all-vaults` when the user asks across local
@@ -85,7 +85,7 @@ Examples:
 python3 scripts/knoarbor.py query "Agent Loop 是什么"
 
 # Broad analysis: increase recall without loading full pages.
-python3 scripts/knoarbor.py query "Agent Loop 和控制模式的设计取舍" --mode deep --max-results 8
+python3 scripts/knoarbor.py query "Agent Loop 和控制模式的设计取舍"
 
 # User asks which pages exist.
 python3 scripts/knoarbor.py page list --contains "Agent Loop"
@@ -165,18 +165,15 @@ capabilities only; it does not scan local files and does not start ingest.
 ## Lint
 
 ```bash
-python3 scripts/knoarbor.py lint --mode deterministic --no-apply-safe-fixes --no-auto-apply-reviewed
 python3 scripts/knoarbor.py lint --mode deterministic
 python3 scripts/knoarbor.py lint --mode semantic
 python3 scripts/knoarbor.py lint --scope-page Agent-Loop-and-Control-Patterns.md
 python3 scripts/knoarbor.py --vault-id personal lint --mode semantic
 ```
 
-Use lint when the user asks to check, maintain, repair, or explain wiki quality.
-For "check" or "diagnose" wording, use `--no-apply-safe-fixes
---no-auto-apply-reviewed` to keep the run read-only. For "fix", "repair", or
-"maintain" wording, use the defaults so safe and reviewed changes can be
-applied.
+Use lint when the user asks to check, repair, or explain wiki quality. Semantic
+models produce evidence-backed findings; lint automatically executes approved
+repairs through ingest or materialization and records a post-repair scan.
 
 Like ingest, lint maintains one vault per run. Use global `--vault-id <id>` when
 the user names a configured knowledge base.

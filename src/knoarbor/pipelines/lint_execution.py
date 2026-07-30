@@ -2,311 +2,268 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from knoarbor.core.config import PrivacyConfig
-from knoarbor.core.errors import ModelOutputError
+from knoarbor.core.schemas.ingest_run import UnifiedIngestRequest
 from knoarbor.core.schemas.lint_candidates import MaintenanceCandidate, MaintenanceCandidates
-from knoarbor.core.schemas.lint_review import LintMaintenanceReview, LintMaintenanceReviewDecision
-from knoarbor.core.schemas.wiki_draft_batch import WikiDraftBatch
-from knoarbor.core.schemas.wiki_lint import LintRunRequest
-from knoarbor.core.schemas.wiki_operation import WikiOperationApplyRequest, WikiOperationInput
-from knoarbor.core.schemas.wiki_write import WikiDraftBatchWriteItem, WikiDraftBatchWriteRequest, WikiDraftBatchWriteResponse, WikiDraftInput
-from knoarbor.maintenance.provenance_refresh import ProvenanceRefreshExecutor, ProvenanceRefreshResult
-from knoarbor.pipelines.operation import WikiOperationPipeline
-from knoarbor.pipelines.write import WikiWritePipeline
-from knoarbor.storage.wiki_index import relative_wiki_path
+from knoarbor.core.schemas.lint_review import LintMaintenanceReview
+from knoarbor.core.schemas.sources import SourceDocument
+from knoarbor.core.schemas.wiki_lint import WikiLintFix, WikiLintIssue
+from knoarbor.storage.materialization import VaultMaterializer
+from knoarbor.storage.source_revisions import read_active_processing_records
+from knoarbor.storage.ingest_inputs import read_input_generation
+from knoarbor.runtime.transactional_ingest import TransactionalIngestStore
 
 
 class LintExecutionRouter:
-    """Routes approved lint maintenance decisions to concrete executors."""
+    """Execute approved repairs through the lifecycle that owns each artifact."""
 
     def __init__(
         self,
         *,
-        operation_pipeline: WikiOperationPipeline | None = None,
-        write_pipeline: WikiWritePipeline | None = None,
-        provenance_refresh: ProvenanceRefreshExecutor | None = None,
-        privacy_config: PrivacyConfig | None = None,
+        ingest: object | None = None,
+        materializer: VaultMaterializer | None = None,
+        **_: object,
     ) -> None:
-        self.privacy_config = privacy_config or PrivacyConfig()
-        self.operation_pipeline = operation_pipeline or WikiOperationPipeline(privacy_config=self.privacy_config)
-        self.write_pipeline = write_pipeline or WikiWritePipeline()
-        self.provenance_refresh = provenance_refresh or ProvenanceRefreshExecutor(self.write_pipeline)
+        self.ingest = ingest
+        self.materializer = materializer or VaultMaterializer()
 
-    def apply_wiki_operations(
-        self,
-        request: LintRunRequest,
-        candidates: MaintenanceCandidates,
-        review: LintMaintenanceReview,
-    ) -> list[dict[str, object]]:
-        operations = [
-            operation
-            for decision in _approved_decisions(review, "supported_by_wiki_operation")
-            if (operation := _candidate_to_wiki_operation(request, candidates, decision)) is not None
-        ]
-        if not operations:
-            return []
-        response = self.operation_pipeline.apply(
-            WikiOperationApplyRequest(
-                vault_path=request.vault_path,
-                operations=operations,
-            )
-        )
-        return [result.model_dump() for result in response.results]
-
-    def compile_reviewed_drafts(
-        self,
-        semantic_workflow: object,
-        request: LintRunRequest,
-        candidates: MaintenanceCandidates,
-        review: LintMaintenanceReview,
-    ) -> WikiDraftBatch | None:
-        approved = _supported_draft_write_decisions(candidates, review)
-        if not approved:
-            return None
-        approved_payload = [_approved_draft_payload(candidates, decision) for decision in approved]
-        payload = {
-            "approved_candidates": approved_payload,
-            "approved_operations": [item["review_decision"] for item in approved_payload],
-        }
-        draft_batch = semantic_workflow.compile_drafts(payload, max_tokens=request.max_tokens)
-        _validate_reviewed_draft_batch(draft_batch, candidates, approved)
-        return draft_batch
-
-    def write_drafts(self, request: LintRunRequest, draft_batch: WikiDraftBatch) -> WikiDraftBatchWriteResponse:
-        return self.write_pipeline.run(
-            WikiDraftBatchWriteRequest(
-                vault_path=request.vault_path,
-                drafts=[
-                    WikiDraftBatchWriteItem(
-                        wiki_draft=WikiDraftInput.model_validate(draft.model_dump()),
-                        write_action=draft.write_action,
-                        target_page=draft.target_page,
-                        source_file=draft.source_file,
-                        operation_index=draft.operation_index,
-                    )
-                    for draft in draft_batch.drafts
-                ],
-            )
-        )
-
-    def collect_queued_actions(
+    def build_repair_plan(
         self,
         candidates: MaintenanceCandidates,
         review: LintMaintenanceReview,
     ) -> list[dict[str, object]]:
-        """Collect approved report-only and refresh-request decisions.
-
-        These are intentional queue/report outputs, not failed executions. They
-        preserve medium-risk maintenance intent without mutating pages.
-        """
-
         queued: list[dict[str, object]] = []
         for decision in review.decisions:
-            if decision.decision != "approve":
+            if decision.decision != "approve" or decision.operation_index >= len(candidates.candidates):
                 continue
-            if decision.executor_fit not in {"supported_by_report_only", "supported_by_refresh_request"}:
+            queued.append(_governance_request(candidates.candidates[decision.operation_index], decision.model_dump()))
+        return queued
+
+    def normalize_candidates(self, candidates: MaintenanceCandidates) -> MaintenanceCandidates:
+        normalized: list[MaintenanceCandidate] = []
+        for candidate in candidates.candidates:
+            queue_type, _owner = _request_route(candidate)
+            normalized.append(
+                candidate.model_copy(
+                    update={
+                        "executor_hint": "governance_request",
+                        "recommended_action": candidate.recommended_action.model_copy(update={"action": queue_type}),
+                    }
+                )
+            )
+        return candidates.model_copy(update={"candidates": normalized})
+
+    def collect_deterministic_actions(
+        self,
+        issues: list[WikiLintIssue],
+        fixes: list[WikiLintFix],
+    ) -> list[dict[str, object]]:
+        issues_by_identity: dict[tuple[str, str], list[WikiLintIssue]] = {}
+        for issue in issues:
+            issues_by_identity.setdefault((issue.code, issue.path), []).append(issue)
+        queued: list[dict[str, object]] = []
+        seen: set[tuple[str, str, str]] = set()
+        for fix in fixes:
+            if fix.mode == "auto_applied" or not fix.action.endswith("_request") and fix.action != "report_only":
                 continue
-            if decision.operation_index >= len(candidates.candidates):
+            matching_issues = issues_by_identity.get((fix.issue_code, fix.path), [])
+            issue = matching_issues.pop(0) if matching_issues else None
+            queue_type, owner = _deterministic_route(fix.action)
+            identity = (queue_type, fix.path, fix.issue_code)
+            if identity in seen:
                 continue
-            candidate = candidates.candidates[decision.operation_index]
-            queue_type = "refresh_request" if decision.executor_fit == "supported_by_refresh_request" else "report_only"
+            seen.add(identity)
             queued.append(
                 {
-                    "operation_index": decision.operation_index,
+                    "operation_index": None,
                     "queue_type": queue_type,
-                    "action": candidate.recommended_action.action,
-                    "target_page": candidate.target_page,
-                    "issue_type": candidate.issue_type,
-                    "source": candidate.source,
-                    "risk_level": decision.risk_level,
-                    "confidence": min(candidate.confidence, decision.confidence),
-                    "reason": decision.reason,
-                    "evidence": [item.model_dump() for item in candidate.evidence],
-                    "expected_effect": candidate.expected_effect,
-                    "params": dict(candidate.recommended_action.params),
-                    "required_followups": list(decision.required_followups),
+                    "action": queue_type,
+                    "owner": owner,
+                    "target": fix.path,
+                    "source_record_id": None,
+                    "target_page": fix.path,
+                    "issue_type": fix.issue_code,
+                    "source": "deterministic",
+                    "risk_level": "safe" if queue_type.endswith("rebuild_request") else "low",
+                    "confidence": 1.0,
+                    "reason": issue.message if issue is not None else fix.description,
+                    "evidence": [issue.model_dump(mode="json")] if issue is not None else [],
+                    "expected_effect": fix.description,
+                    "required_followups": [],
                 }
             )
         return queued
 
-    def apply_refresh_requests(
+    def execute(
         self,
-        request: LintRunRequest,
-        queued_actions: list[dict[str, object]],
-    ) -> ProvenanceRefreshResult:
-        return self.provenance_refresh.apply(
-            vault_path=Path(request.vault_path).expanduser().resolve(),
-            queued_actions=queued_actions,
-        )
-
-    @staticmethod
-    def written_page_paths(request: LintRunRequest, response: WikiDraftBatchWriteResponse) -> list[str]:
-        vault_path = Path(request.vault_path).expanduser().resolve()
-        paths: list[str] = []
-        seen: set[str] = set()
-        for result in response.results:
-            path = relative_wiki_path(vault_path, Path(result.wiki_file_path))
-            if path in seen:
+        vault_path: str | Path,
+        actions: list[dict[str, object]],
+        *,
+        config_path: str | None,
+        vault_id: str | None,
+        provider: str | None,
+        max_tokens: int | None,
+    ) -> list[dict[str, object]]:
+        vault = Path(vault_path).expanduser().resolve()
+        records = read_active_processing_records(vault) or []
+        results: list[dict[str, object]] = []
+        seen_sources: set[str] = set()
+        rebuild_requested = False
+        for action in actions:
+            action_type = str(action.get("action") or "")
+            if action_type in {"index_rebuild_request", "projection_rebuild_request"}:
+                rebuild_requested = True
                 continue
-            seen.add(path)
-            paths.append(path)
-        return paths
-
-    @staticmethod
-    def written_page_details(request: LintRunRequest, response: WikiDraftBatchWriteResponse) -> list[dict[str, object]]:
-        vault_path = Path(request.vault_path).expanduser().resolve()
-        details: list[dict[str, object]] = []
-        seen: set[str] = set()
-        for result in response.results:
-            stats = dict(result.stats)
-            path = relative_wiki_path(vault_path, Path(result.wiki_file_path))
-            if path in seen:
+            if action_type != "reingest_request":
+                results.append(_execution_result(action, status="unresolved", error="No automatic owner workflow is defined."))
                 continue
-            seen.add(path)
-            details.append(
-                {
-                    "path": path,
-                    "created": bool(stats.get("created")),
-                    "write_action": stats.get("write_action"),
-                    "target_page": stats.get("target_page"),
-                    "operation_index": stats.get("operation_index"),
-                    "write_details": stats.get("write_details") if isinstance(stats.get("write_details"), dict) else {},
-                }
+            record = _resolve_source_record(records, action)
+            if record is None:
+                results.append(_execution_result(action, status="failed", error="The canonical source revision could not be resolved."))
+                continue
+            if record.raw_record_id in seen_sources:
+                results.append(_execution_result(action, status="deduplicated"))
+                continue
+            seen_sources.add(record.raw_record_id)
+            try:
+                ingest = self.ingest
+                if ingest is None:
+                    raise RuntimeError("The lint repair router has no injected ingest owner.")
+                run = ingest.start(
+                    UnifiedIngestRequest(
+                        kind="document",
+                        execution="direct",
+                        config_path=config_path,
+                        source_document=_load_source_document(vault, record),
+                        vault_path=str(vault),
+                        vault_id=vault_id,
+                        provider=provider,
+                        max_tokens=max_tokens,
+                        write=True,
+                        write_report=True,
+                        append_ledger=True,
+                        force_reprocess=True,
+                        auto_scoped_lint=False,
+                    ),
+                    foreground=True,
+                )
+                results.append(_execution_result(action, status="completed", run_id=run.run_id))
+            except Exception as exc:
+                results.append(_execution_result(action, status="failed", error=f"{type(exc).__name__}: {exc}"))
+        if rebuild_requested:
+            rebuild_action = next(
+                action for action in actions if action.get("action") in {"index_rebuild_request", "projection_rebuild_request"}
             )
-        return details
+            try:
+                state = self.materializer.reconcile(vault, force=True)
+                status = "completed" if state.get("phase") == "clean" else "failed"
+                error = None if status == "completed" else str(state.get("error") or "Materialization did not reach clean state.")
+                results.append(_execution_result(rebuild_action, status=status, error=error))
+            except Exception as exc:
+                results.append(_execution_result(rebuild_action, status="failed", error=f"{type(exc).__name__}: {exc}"))
+        return results
 
 
-_WIKI_OPERATION_ACTIONS = {
-    "rename_page",
-    "merge_pages",
-    "delete_page",
-    "replace_wikilink",
-    "normalize_wikilink",
-    "deduplicate_section_items",
-    "remove_adjacent_duplicate_headings",
-    "add_missing_section",
-    "redact_sensitive_text",
-}
-
-_SUPPORTED_DRAFT_WRITE_ACTIONS = {
-    "rewrite_section",
-    "improve_summary",
-    "remove_chatty_content",
-    "strengthen_provenance",
-}
-
-
-def _approved_decisions(review: LintMaintenanceReview, executor_fit: str) -> list[LintMaintenanceReviewDecision]:
-    return [
-        decision
-        for decision in review.decisions
-        if decision.decision == "approve" and decision.executor_fit == executor_fit
-    ]
-
-
-def _supported_draft_write_decisions(candidates: MaintenanceCandidates, review: LintMaintenanceReview) -> list[LintMaintenanceReviewDecision]:
-    decisions: list[LintMaintenanceReviewDecision] = []
-    for decision in _approved_decisions(review, "supported_by_draft_write"):
-        if decision.operation_index >= len(candidates.candidates):
-            continue
-        action = candidates.candidates[decision.operation_index].recommended_action.action
-        if action in _SUPPORTED_DRAFT_WRITE_ACTIONS:
-            decisions.append(decision)
-    return decisions
-
-
-def _approved_draft_payload(candidates: MaintenanceCandidates, decision: LintMaintenanceReviewDecision) -> dict[str, object]:
-    candidate = candidates.candidates[decision.operation_index]
+def _governance_request(candidate: MaintenanceCandidate, decision: dict[str, object]) -> dict[str, object]:
+    queue_type, owner = _request_route(candidate)
+    params = dict(candidate.recommended_action.params)
+    source_record_id = _optional_text(params.get("source_record_id"))
+    target = source_record_id or _optional_text(params.get("source_file")) or candidate.target_page
     return {
-        "operation_index": decision.operation_index,
-        "candidate": candidate.model_dump(),
-        "review_decision": decision.model_dump(),
+        "operation_index": decision.get("operation_index"),
+        "queue_type": queue_type,
+        "action": queue_type,
+        "owner": owner,
+        "target": target,
+        "source_record_id": source_record_id,
+        "target_page": candidate.target_page,
+        "issue_type": candidate.issue_type,
+        "source": candidate.source,
+        "risk_level": decision.get("risk_level"),
+        "confidence": min(candidate.confidence, float(decision.get("confidence") or 0.0)),
+        "reason": decision.get("reason") or candidate.expected_effect,
+        "evidence": [item.model_dump() for item in candidate.evidence],
+        "expected_effect": candidate.expected_effect,
+        "required_followups": list(decision.get("required_followups") or []),
     }
 
 
-def _validate_reviewed_draft_batch(
-    draft_batch: WikiDraftBatch,
-    candidates: MaintenanceCandidates,
-    approved: list[LintMaintenanceReviewDecision],
-) -> None:
-    approved_indexes = {decision.operation_index for decision in approved}
-    for draft in draft_batch.drafts:
-        if draft.operation_index not in approved_indexes:
-            raise ModelOutputError(f"Lint draft compile returned unapproved operation_index {draft.operation_index}.")
-        candidate = candidates.candidates[draft.operation_index]
-        if candidate.executor_hint != "draft_write":
-            raise ModelOutputError(f"Lint draft compile returned draft for non-draft candidate {candidate.candidate_id}.")
-        if candidate.recommended_action.action not in _SUPPORTED_DRAFT_WRITE_ACTIONS:
-            raise ModelOutputError(f"Lint draft compile returned unsupported action {candidate.recommended_action.action}.")
-        if draft.write_action not in {"update", "merge"}:
-            raise ModelOutputError("Lint draft compile can only update or merge existing wiki pages.")
-        if draft.target_page != candidate.target_page:
-            raise ModelOutputError(
-                f"Lint draft target {draft.target_page or '<none>'} does not match approved candidate {candidate.target_page}."
-            )
-        if not draft.patches:
-            raise ModelOutputError("Lint draft compile must return local patches for approved lint draft writes.")
+def _request_route(candidate: MaintenanceCandidate) -> tuple[str, str]:
+    issue = candidate.issue_type.lower()
+    action = candidate.recommended_action.action.lower()
+    source = candidate.source.lower()
+    if "index" in issue or "index" in action:
+        return "index_rebuild_request", "index_publication"
+    if source in {"provenance", "freshness"} or any(term in issue for term in ("source", "claim", "atom", "relation", "evidence", "provenance")):
+        return "reingest_request", "ingest"
+    if source == "quality":
+        return "reingest_request", "ingest"
+    return "report_only", "user"
 
 
-def _candidate_to_wiki_operation(
-    request: LintRunRequest,
-    candidates: MaintenanceCandidates,
-    decision: LintMaintenanceReviewDecision,
-) -> WikiOperationInput | None:
-    if decision.operation_index >= len(candidates.candidates):
-        return None
-    candidate = candidates.candidates[decision.operation_index]
-    if candidate.executor_hint != "deterministic_wiki_operation":
-        return None
-    action = candidate.recommended_action.action
-    if action not in _WIKI_OPERATION_ACTIONS:
-        return None
-    return _build_wiki_operation(request, candidate, decision, action)
-
-
-def _build_wiki_operation(
-    request: LintRunRequest,
-    candidate: MaintenanceCandidate,
-    decision: LintMaintenanceReviewDecision,
-    action: str,
-) -> WikiOperationInput:
-    params = candidate.recommended_action.params
-    source_file = _optional_str(params.get("source_file"))
-    return WikiOperationInput(
-        operation_id=candidate.candidate_id,
-        action=action,
-        target_page=candidate.target_page,
-        reason=decision.reason,
-        risk_level=decision.risk_level,
-        confidence=min(candidate.confidence, decision.confidence),
-        expected_effect=candidate.expected_effect,
-        before_hash=_optional_str(params.get("before_hash")),
-        new_path=_optional_str(params.get("new_path")),
-        new_title=_optional_str(params.get("new_title")),
-        old_target=_optional_str(params.get("old_target")),
-        new_target=_optional_str(params.get("new_target")),
-        link_text=_optional_str(params.get("link_text")),
-        section=_optional_str(params.get("section")),
-        section_content=_optional_str(params.get("section_content")),
-        source_file=source_file,
-        source_pages=_string_list(params.get("source_pages")),
-        frontmatter={str(key): str(value) for key, value in _dict(params.get("frontmatter")).items()},
-        archive_sources=bool(params.get("archive_sources", True)),
-    )
-
-
-def _optional_str(value: object) -> str | None:
-    if not isinstance(value, str):
-        return None
-    text = value.strip()
+def _optional_text(value: object) -> str | None:
+    text = str(value or "").strip()
     return text or None
 
 
-def _string_list(value: object) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    return [str(item).strip() for item in value if str(item).strip()]
+def _deterministic_route(action: str) -> tuple[str, str]:
+    if action == "reingest_request":
+        return action, "ingest"
+    if action == "index_rebuild_request":
+        return action, "index_publication"
+    if action == "projection_rebuild_request":
+        return action, "projection_publication"
+    return "report_only", "user"
 
 
-def _dict(value: object) -> dict[object, object]:
-    return value if isinstance(value, dict) else {}
+def _resolve_source_record(records, action: dict[str, object]):
+    source_record_id = _optional_text(action.get("source_record_id"))
+    target_page = _optional_text(action.get("target_page"))
+    target = _optional_text(action.get("target"))
+    for record in records:
+        if source_record_id and record.source_record_id == source_record_id:
+            return record
+        if target == record.raw_record_id or target == record.source.raw_path:
+            return record
+        if target_page and target_page in record.page_paths:
+            return record
+    return None
+
+
+def _load_source_document(vault: Path, record) -> SourceDocument:
+    if not record.revision_id:
+        raise RuntimeError("The active source record has no committed revision identity.")
+    store = TransactionalIngestStore(vault)
+    revision = store.revision_manifest(record.revision_id)
+    task_id = str(revision.get("task_id") or "")
+    if not task_id:
+        raise RuntimeError("The active source revision has no owning ingest task.")
+    command = store.command_for_task(task_id)
+    generation = read_input_generation(vault, command.generation_id)
+    matches = [
+        document
+        for document in generation.documents
+        if document.source_id == record.source.source_id
+        and document.fingerprint.content_hash == record.source.content_hash
+    ]
+    if len(matches) != 1:
+        raise RuntimeError("The immutable input generation does not contain exactly one matching source document.")
+    return matches[0]
+
+
+def _execution_result(
+    action: dict[str, object],
+    *,
+    status: str,
+    run_id: str | None = None,
+    error: str | None = None,
+) -> dict[str, object]:
+    return {
+        "action": action.get("action"),
+        "owner": action.get("owner"),
+        "target": action.get("target"),
+        "target_page": action.get("target_page"),
+        "issue_type": action.get("issue_type"),
+        "status": status,
+        "run_id": run_id,
+        "error": error,
+    }

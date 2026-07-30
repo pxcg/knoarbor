@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Partially Superseded by [ADR 0004](0004-ingest-factual-authority.md). The durable
+knowledge-boundary and page-publication portions are replaced; the decision to
+use evidence-backed semantic atoms remains accepted.
 
 ## Context
 
@@ -49,14 +51,14 @@ The accepted page model is:
 - `Entities`: important entities explicitly involved in claims and relations.
 - `Evidence`: claim-to-source trace with source, range, basis, and confidence.
 - `Attachments`: compact references to parsed figures or files when present.
-- `Source`: source digests, raw source references, and evidence pointers.
+- `Source`: source records, raw source references, and evidence pointers.
 
 `Synthesis` may remain because KnoArbor is a wiki, not a raw knowledge graph.
 It is a derived reading layer and must not be treated as the only source of
 truth. Major factual statements in synthesis should map to selected atoms or
 direct source evidence.
 
-Source digest pages are provenance and audit views. They describe what a raw
+Source record pages are provenance and audit views. They describe what a raw
 source or source segment contributed, which evidence was extracted, and which
 wiki pages or atoms were affected. They are source audit pages rather than
 maintained wiki knowledge pages.
@@ -118,7 +120,9 @@ but ingest output should be evidence-backed pages and atoms.
 
 ## Verification And Follow-Up
 
-The owning spec is `specs/1.13-knowledge-atom-ingest/`.
+Current implementation ownership is split between
+`specs/1.26-raw-grounded-ingest-chain/` and
+`specs/1.27-deterministic-entity-identity/`.
 
 Follow-up work should verify:
 
@@ -126,7 +130,7 @@ Follow-up work should verify:
   relations;
 - generated pages expose claims, relations, and synthesis as separate sections;
 - synthesis does not introduce unsupported major factual statements;
-- source digests remain provenance views and are separate from maintained wiki
+- source records remain provenance views and are separate from maintained wiki
   knowledge pages;
 - short excerpt ingest creates compact knowledge artifacts or claim updates;
 - lint can report unsupported claims, orphan atoms, contradictions, and stale

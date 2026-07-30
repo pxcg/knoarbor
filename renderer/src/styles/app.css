@@ -6,35 +6,90 @@
 @import "./knowledge.css";
 @import "./runs.css";
 @import "./overview.css";
-@import "./sources.css";
 @import "./query.css";
 @import "./reports.css";
+@import "./theme.css";
+
+.app-route {
+  display: contents;
+}
+
+.app-route[hidden] {
+  display: none;
+}
+
+.page-vault-switcher-control {
+  align-items: center;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: 17px minmax(0, auto);
+  height: 38px;
+  padding: 0 8px 0 11px;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.page-vault-switcher-control:hover,
+.page-vault-switcher-control:focus-within {
+  background: var(--surface);
+  border-color: rgba(15, 143, 116, 0.32);
+}
+
+.page-vault-switcher-control svg {
+  fill: none;
+  height: 17px;
+  stroke: var(--muted-strong);
+  stroke-width: 1.8;
+  width: 17px;
+}
+
+.page-vault-switcher {
+  appearance: auto;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 720;
+  height: 36px;
+  max-width: 180px;
+  min-width: 96px;
+  padding: 0 4px 0 9px;
+}
+
+* {
+  scrollbar-color: transparent transparent !important;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-thumb {
+  background: transparent !important;
+}
+
+html.is-scrolling * {
+  scrollbar-color: rgba(71, 86, 79, 0.32) transparent !important;
+}
+
+html.is-scrolling *::-webkit-scrollbar-thumb {
+  background: rgba(71, 86, 79, 0.32) !important;
+  border-radius: 999px;
+}
 
 
 .panel-copy.warning {
 .danger-text {
   color: var(--danger);
-}
-
-.notice {
-  align-items: center;
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
-  background: #ffffff;
-  border-radius: 8px;
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
-  padding: 12px 14px;
-  margin-bottom: 18px;
-}
-
-.notice span {
-  min-width: 0;
-}
-
-.notice.error {
-  border-left-color: var(--danger);
 }
 
 .metric-grid {
@@ -84,7 +139,7 @@
 .knowledge-header {
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface);
   box-shadow: var(--shadow-soft);
   display: grid;
   gap: 14px;
@@ -281,9 +336,15 @@
 }
 
 .segmented-control button.active {
-  background: #ffffff;
+  background: var(--surface);
   color: var(--text);
   box-shadow: 0 1px 4px rgba(21, 32, 51, 0.08);
+}
+
+.segmented-control button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .segmented-control.compact button {
@@ -308,23 +369,23 @@
 }
 
 .metric-card.tone-teal {
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .metric-card.tone-blue {
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .metric-card.tone-amber {
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .metric-card.tone-violet {
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .metric-card.tone-rose {
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .metric-label {
@@ -472,7 +533,7 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
-  background: #ffffff;
+  background: var(--surface);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -485,7 +546,7 @@
 
 .checkbox-field.compact {
   margin-bottom: 14px;
-  background: #ffffff;
+  background: var(--surface);
   font-weight: 650;
 }
 
@@ -509,7 +570,7 @@
   border-radius: 8px;
   padding: 16px;
   color: var(--muted);
-  background: #ffffff;
+  background: var(--surface);
   font-size: 13px;
 }
 
@@ -527,7 +588,7 @@
   gap: 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--muted-strong);
   padding: 14px 16px;
 }
@@ -596,7 +657,7 @@ textarea {
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--text);
 }
 
@@ -675,7 +736,7 @@ textarea {
 }
 
 .output.light {
-  background: #ffffff;
+  background: var(--surface);
   color: var(--text);
   border: 1px solid var(--border);
   white-space: pre-wrap;
@@ -700,7 +761,7 @@ textarea {
 }
 
 .output.output-idle {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px dashed var(--border-strong);
   color: var(--muted-strong);
   min-height: 92px;
@@ -757,7 +818,6 @@ textarea {
 
   .metric-grid,
   .panel-grid,
-  .action-grid,
   .next-steps-panel,
   .next-step-grid,
   .settings-card-grid,
@@ -787,11 +847,6 @@ textarea {
   .run-status-meta {
     align-items: flex-start;
     justify-items: start;
-  }
-
-  .source-grid,
-  .source-grid .product-card-body {
-    grid-template-columns: 1fr;
   }
 
   .provider-workspace,
@@ -828,8 +883,7 @@ textarea {
   .graph-actions,
   .graph-filter,
   .graph-search,
-  .report-type-grid,
-  .source-flow {
+  .report-type-grid {
     width: 100%;
     grid-template-columns: 1fr;
   }

@@ -156,7 +156,7 @@ def _extract_explicit_memory(text: str) -> str:
         if not match:
             continue
         content = match.group("content").strip(" ：:。.")
-        return content[:500]
+        return content
     return ""
 
 

@@ -2,6 +2,36 @@
 
 本文列出当前测试门禁及其边界。目标是在不触碰用户运行时数据的前提下，让本地检查可预测。
 
+## 默认改动验证
+
+先运行 changed-file 规划器：
+
+```bash
+uv run python scripts/plan-affected-validation.py
+```
+
+当脏工作区同时包含多个任务时，应显式传入本任务文件，避免无关改动扩大验证范围：
+
+```bash
+uv run python scripts/plan-affected-validation.py --paths path/to/owner.py tests/test_owner.py
+```
+
+它输出基于路径的风险下限、可以机械确定的命令，以及仍需人工选择的 owner/direct-consumer
+tests。检查公开、持久、语义、生命周期、打包或发布依赖闭包后，风险只能上调。可以使用
+`--run` 执行机械子集，再补充该依赖闭包真正需要的 focused tests。
+
+R3 不自动要求全量单元测试、`dev-check.sh`、桌面打包或真实模型测试。只有改动影响到
+对应门禁，或进入发布/全链验收节点时才升级。
+
+对于 Initiative，affected planner 为固定方法门禁目录提供依据，但不负责宣告完成。
+`project-development-harness.py baseline` 冻结工作区并执行基线组合；
+`run-gates --phase integration` 把 integration 绑定到同一组固定检查；`acceptance` 以相同
+稳定 gate identity 重跑，并强制检查 `gate-delta` 与 `scope`。选中的 full-chain 或
+live-model gate 只通过 `record-external-gate` 记录结果、证据 ID 和 SHA-256 digest，绝不保存
+原始输出。完全相同的既有失败继续可见但不归因于本次
+Initiative；新增或变化的硬门禁失败会阻断验收，软门禁失败必须记录 owner、确认和到期/
+移除条件。
+
 ## 本地单元测试
 
 ```bash
@@ -22,7 +52,7 @@ uv run --extra dev python -m unittest discover -s tests
 
 ```bash
 cd renderer
-npm install
+npm ci
 npm run check:i18n
 npm run build
 npm run test:e2e
@@ -33,12 +63,12 @@ npm run test:e2e
 - 中英文 UI 翻译 key 一致性；
 - TypeScript 构建；
 - Vite production bundle；
-- 针对打包后开发者控制台的导航冒烟；
+- 针对打包后 FastAPI 控制台的导航冒烟；
 - 基础 UI/API 连接。
 
-Renderer 构建输出保留在 `renderer/dist/`，并在桌面打包时复制到 `desktop/resources/renderer/`；不要提交 `renderer/node_modules/`、`renderer/dist/` 或准备好的桌面资源。
+renderer 产物属于本地构建输出；不要提交 `renderer/node_modules/` 或 `renderer/dist/`。
 
-## 开发门禁
+## 广覆盖开发门禁
 
 ```bash
 scripts/dev-check.sh
@@ -49,18 +79,23 @@ scripts/dev-check.sh
 - 前端构建；
 - 前端依赖安全扫描；
 - Playwright UI 冒烟；
+- 桌面端类型/构建、更新仓库契约和生产依赖安全扫描；
 - Ruff Python lint；
-- 本地 Markdown 文档链接检查；
+- 架构依赖与循环门禁；
+- 文档治理与本地 Markdown 链接检查；
 - Python 单元测试；
 - 使用临时 config 和临时 vault 的 CLI 诊断；
 - Python 包构建。
 
-该脚本不得写入维护者真实的 `vaults/`、`config.yaml` 或 `.env`。
+该脚本不得写入维护者真实的 `vaults/`、`config.yaml` 或 `.env`。它是广覆盖集成门禁，
+不是每个本地改动的默认命令。
 
 ## 单项质量门禁
 
 ```bash
 uv run --extra dev ruff check src tests scripts
+uv run python scripts/check-architecture.py
+uv run python scripts/check-doc-governance.py
 uv run python scripts/check-doc-links.py
 cd renderer && npm run check:i18n
 ```
@@ -91,7 +126,13 @@ scripts/release-check.sh
 - 发布就绪检查；
 - 干净克隆 smoke。
 
-干净克隆 smoke 只在临时 clone 内写入。
+干净克隆 smoke 会检出候选的精确 commit，并且只在临时 clone 内写入。
+
+## 持续集成
+
+推送到 `KnoArbor` 或面向该分支的合并请求会运行 Python lint/tests、架构与文档治理、
+renderer build/Playwright、桌面契约和包构建。`knoarbor-v*` 标签只有在该精确标签上的
+`release-check.sh` 通过后，才允许构建可发布桌面产物。
 
 ## 真实模型冒烟
 
@@ -100,15 +141,30 @@ set -a && source .env && set +a
 scripts/live-release-candidate-smoke.sh
 ```
 
+必需环境变量为 `KNOARBOR_LIVE_MODEL_API_KEY`、
+`KNOARBOR_LIVE_MODEL_BASE_URL` 和 `KNOARBOR_LIVE_MODEL_NAME`。
+
 覆盖范围：
 
 - 临时 Markdown ingest；
 - 临时 Codex 会话 ingest；
 - 结构维护；
 - 查询；
+- 一条带已解析引用的 Raw-grounded Chat 回答；
+- 一条由可信 no-match 进入、具有明确 provenance 且没有本地引用的通用知识回答；
 - 非 Markdown 缺少预处理器的负向检查。
 
 该测试会调用真实模型供应商，因此不放入默认发布门禁。它必须使用临时 vault 和临时 config。
+
+## 长期真实资料基准
+
+真实资料质量评估是可选流程，必须使用独立的本地基准知识库和可丢弃的执行知识库。
+来源身份与人工复核的预期 evidence 应保持稳定，但产品生成的 Raw、投影、索引、
+会话和报告不得成为 fixture 事实权威。
+
+Raw/span 忠实度、错误 vault 泄漏、无支持的 grounded 命题和错误的通用知识路由
+属于硬失败。检索、回答覆盖、延迟、token 和存储必须分别报告，不能用总分掩盖关键
+失败。私有语料和供应商凭据不得提交到公开仓库。
 
 ## 人工发布审查
 

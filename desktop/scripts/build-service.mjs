@@ -20,7 +20,7 @@ const args = [
   "--python",
   process.env.KNOARBOR_DESKTOP_PYTHON_VERSION || "3.13",
   "--with",
-  "pyinstaller==6.11.1",
+  "pyinstaller==6.16.0",
   "pyinstaller",
   "--clean",
   "--noconfirm",

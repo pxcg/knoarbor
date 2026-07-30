@@ -1,17 +1,14 @@
 import { useEffect } from "react";
 
-import type { AppNotice } from "../appContext";
 import { onDesktopCommand, openDesktopLogs, restartDesktopService } from "./desktopBridge";
 
 type DesktopCommandHandlers = {
   onNewChat: () => void;
   onOpenSettings: () => void;
   refreshAll: () => Promise<boolean>;
-  setNotice: (notice: AppNotice | null) => void;
-  t: (key: string) => string;
 };
 
-export function useDesktopCommands({ onNewChat, onOpenSettings, refreshAll, setNotice, t }: DesktopCommandHandlers) {
+export function useDesktopCommands({ onNewChat, onOpenSettings, refreshAll }: DesktopCommandHandlers) {
   useEffect(() => {
     return onDesktopCommand((command) => {
       if (command === "settings.open") {
@@ -23,7 +20,6 @@ export function useDesktopCommands({ onNewChat, onOpenSettings, refreshAll, setN
         return;
       }
       if (command === "service.restart") {
-        setNotice({ message: t("serviceRestarting") });
         void restartDesktopService().then(() => refreshAll());
         return;
       }
@@ -31,5 +27,5 @@ export function useDesktopCommands({ onNewChat, onOpenSettings, refreshAll, setN
         void openDesktopLogs();
       }
     });
-  }, [onNewChat, onOpenSettings, refreshAll, setNotice, t]);
+  }, [onNewChat, onOpenSettings, refreshAll]);
 }

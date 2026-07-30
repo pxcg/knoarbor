@@ -4,10 +4,10 @@ import json
 import unittest
 
 from knoarbor.core.config import IngestSegmentationConfig
-from knoarbor.core.schemas.knowledge_extract import CompileContext, ContentUnit, KnowledgeExtract, KnowledgeSource
+from knoarbor.core.schemas.ingest_run import build_excerpt_source_document
 from knoarbor.core.schemas.sources import SourceContent, SourceDocument, SourceFingerprint, SourceOrigin
 from knoarbor.pipelines.source_segmentation import SourceSegmenter
-from knoarbor.core.source_unitization import SourceUnitizer, apply_source_units_to_extract, attach_source_unitization
+from knoarbor.core.source_unitization import SourceUnitizer, attach_source_unitization
 
 
 class SourceUnitizationTests(unittest.TestCase):
@@ -35,6 +35,46 @@ class SourceUnitizationTests(unittest.TestCase):
 
         self.assertEqual([unit.title for unit in unitization.units], ["主从式协作", "对等式协作"])
         self.assertEqual(unitization.units[0].structural_path, ["协作模式", "主从式协作"])
+        self.assertTrue(unitization.units[0].content.startswith("## 协作模式\n\n### 主从式协作"))
+        self.assertNotIn("## 协作模式", unitization.units[1].content)
+
+    def test_heading_only_sibling_is_not_attached_to_next_section(self) -> None:
+        document = make_document(
+            source_type="markdown",
+            text="## Empty sibling\n\n## Populated sibling\n\nSupported evidence.",
+        )
+
+        unitization = SourceUnitizer().unitize(document)
+
+        self.assertEqual([unit.title for unit in unitization.units], ["Populated sibling"])
+        self.assertEqual(unitization.units[0].content, "## Populated sibling\n\nSupported evidence.")
+
+    def test_ordinal_only_heading_is_coalesced_with_same_level_title(self) -> None:
+        document = make_document(
+            source_type="markdown",
+            text=(
+                "# 1.\n\n"
+                "# Change and inequality in healthy longevity\n\n"
+                "Supported evidence.\n\n"
+                "## 1.1 Global trends\n\n"
+                "More evidence."
+            ),
+        )
+
+        unitization = SourceUnitizer().unitize(document)
+
+        self.assertEqual(
+            [unit.title for unit in unitization.units],
+            [
+                "1. Change and inequality in healthy longevity",
+                "1.1 Global trends",
+            ],
+        )
+        self.assertEqual(
+            unitization.units[0].structural_path,
+            ["1. Change and inequality in healthy longevity"],
+        )
+        self.assertTrue(unitization.units[0].content.startswith("# 1."))
 
     def test_chat_unitization_preserves_complete_turn_groups(self) -> None:
         payload = {
@@ -60,7 +100,7 @@ class SourceUnitizationTests(unittest.TestCase):
         self.assertNotIn("internal", unitization.units[0].content)
         self.assertNotIn("noise", "\n".join(unit.content for unit in unitization.units))
 
-    def test_apply_source_units_overrides_model_unit_boundaries(self) -> None:
+    def test_attach_source_unitization_persists_deterministic_units(self) -> None:
         document = attach_source_unitization(
             make_document(
                 source_type="markdown",
@@ -68,22 +108,11 @@ class SourceUnitizationTests(unittest.TestCase):
                 attachments=[{"name": "figure-1.png", "relative_path": "images/figure-1.png"}],
             )
         )
-        model_extract = KnowledgeExtract(
-            source=KnowledgeSource(source_type="markdown", source_app="markdown", source_id="source-1", source_path="raw/inbox/notes/source.md", title="A2A"),
-            content_units=[
-                ContentUnit(index=0, unit_type="note", role="note", title="Model Unit", content=document.content.text),
-            ],
-            compile_context=CompileContext(primary_content=document.content.text, latest_unit_indexes=[0]),
-            warnings=["model_warning"],
-        )
+        unitization = document.metadata["source_unitization"]
 
-        extract = apply_source_units_to_extract(document, model_extract)
-
-        self.assertEqual([unit.title for unit in extract.content_units], ["A2A", "Agent Card"])
-        self.assertEqual(extract.compile_context.latest_unit_indexes, [0, 1])
-        self.assertIn("model_warning", extract.warnings)
-        self.assertEqual(extract.content_units[0].metadata["source_unitization_rule"], "markdown_heading")
-        self.assertEqual(extract.attachments[0]["name"], "figure-1.png")
+        self.assertEqual([unit["title"] for unit in unitization["units"]], ["A2A", "Agent Card"])
+        self.assertEqual(unitization["units"][0]["rule"], "markdown_heading")
+        self.assertEqual(document.content.attachments[0]["name"], "figure-1.png")
 
     def test_public_summary_omits_unit_content(self) -> None:
         unitization = SourceUnitizer().unitize(
@@ -99,6 +128,41 @@ class SourceUnitizationTests(unittest.TestCase):
         self.assertIn("content_chars", dumped)
         self.assertNotIn("content\":", dumped)
         self.assertNotIn("secret-token-should-not-be-logged", dumped)
+
+    def test_source_unit_title_preserves_complete_semantic_text(self) -> None:
+        sentence = "完整语义标题" * 30
+        unitization = SourceUnitizer().unitize(make_document(source_type="excerpt", text=sentence))
+
+        self.assertEqual(unitization.units[0].title, sentence)
+
+    def test_selected_excerpt_uses_explicit_title_and_unwrapped_evidence(self) -> None:
+        document = build_excerpt_source_document(text="北极光来自高层大气发光。", title="北极光摘要")
+
+        unitization = SourceUnitizer().unitize(document)
+
+        self.assertEqual(unitization.units[0].title, "北极光摘要")
+        self.assertEqual(unitization.units[0].content, "北极光来自高层大气发光。")
+        self.assertEqual(unitization.units[0].structural_path, ["北极光摘要"])
+
+    def test_knoarbor_chat_prefers_normalized_messages_over_aggregate_turns(self) -> None:
+        payload = {
+            "messages": [
+                {"raw_index": 0, "role": "user", "content": "北极光如何形成？"},
+                {"raw_index": 1, "role": "assistant", "content": "带电粒子与高层大气碰撞发光。"},
+            ],
+            "turns": [
+                {"index": 0, "user": "北极光如何形成？", "assistant": "带电粒子与高层大气碰撞发光。"},
+            ],
+        }
+        document = make_document(source_type="knoarbor_chat", text=json.dumps(payload, ensure_ascii=False), fmt="json")
+
+        unitization = SourceUnitizer().unitize(document)
+
+        self.assertEqual(unitization.rule, "chat_turn_group")
+        self.assertEqual(len(unitization.units), 1)
+        self.assertEqual(unitization.units[0].title, "北极光如何形成？")
+        self.assertEqual(unitization.units[0].raw_indexes, [0, 1])
+        self.assertNotIn('"messages"', unitization.units[0].content)
 
     def test_parsed_document_sections_become_source_units(self) -> None:
         document = SourceDocument(

@@ -11,7 +11,7 @@ from knoarbor.core.config import KnoArborConfig, ModelProviderConfig, default_co
 from knoarbor.core.schemas.doctor import DoctorCheck, DoctorReport, DoctorStatus
 from knoarbor.core.wiki_schema import is_index_excluded_file
 from knoarbor.storage.vault_layout import wiki_root
-from knoarbor.storage.wiki_paths import content_root, source_digest_root
+from knoarbor.storage.wiki_paths import content_root, source_record_root
 from knoarbor.storage.wiki_index import machine_index_dir
 from knoarbor.runtime.run_monitor import list_runs
 from knoarbor.semantic.llm import ModelGateway, ProviderHealthCheck, is_local_or_private_model_endpoint
@@ -150,11 +150,11 @@ class DoctorService:
         required = ["log.md"]
         missing = [f"wiki/{name}" for name in required if not (wiki_root(vault) / name).exists()]
         index_dir = machine_index_dir(vault)
+        if not (vault / ".knoarbor" / "index" / "CURRENT").is_file():
+            missing.append(".knoarbor/index/CURRENT")
         for name in ("manifest.json", "graph_index.json"):
             if not (index_dir / name).exists():
-                missing.append(f".knoarbor/index/{name}")
-        if not (vault / ".knoarborignore").exists():
-            missing.append(".knoarborignore")
+                missing.append(f"current machine-index generation/{name}")
         checks.append(
             DoctorCheck(
                 name="vault.structure",
@@ -163,7 +163,7 @@ class DoctorService:
                 details={
                     "missing": missing,
                     "required": [f"wiki/{name}" for name in required]
-                    + [".knoarbor/index/manifest.json", ".knoarbor/index/graph_index.json", ".knoarborignore"],
+                    + [".knoarbor/index/CURRENT", "current generation manifest", "current generation graph index"],
                 },
             )
         )
@@ -176,7 +176,7 @@ class DoctorService:
         page_root = content_root(vault)
         counts = {
             "pages": len([path for path in page_root.glob("*.md") if path.is_file() and not is_index_excluded_file(path.name)]),
-            "sources": len([path for path in source_digest_root(vault).glob("*.md") if path.is_file()]),
+            "sources": len([path for path in source_record_root(vault).glob("*.md") if path.is_file()]),
         }
         page_count = sum(counts.values())
         return [

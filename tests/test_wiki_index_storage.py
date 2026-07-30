@@ -8,7 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from knoarbor.storage import ensure_machine_index, index_entry, is_machine_index_stale, machine_index_dir, update_index, wiki_link_for_path
+from knoarbor.storage.materialization import VaultMaterializer
+from knoarbor.storage.wiki_index import ensure_machine_index, index_entry, is_machine_index_stale, machine_index_dir, wiki_link_for_path
 
 
 class WikiIndexStorageTests(unittest.TestCase):
@@ -22,7 +23,7 @@ class WikiIndexStorageTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            update_index(vault)
+            VaultMaterializer().reconcile(vault, force=True)
             manifest = json.loads((machine_index_dir(vault) / "manifest.json").read_text(encoding="utf-8"))
             graph = json.loads((machine_index_dir(vault) / "graph_index.json").read_text(encoding="utf-8"))
             pages = json.loads((machine_index_dir(vault) / "pages.json").read_text(encoding="utf-8"))
@@ -48,7 +49,7 @@ class WikiIndexStorageTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            update_index(vault)
+            VaultMaterializer().reconcile(vault, force=True)
             pages = json.loads((machine_index_dir(vault) / "pages.json").read_text(encoding="utf-8"))
             search = json.loads((machine_index_dir(vault) / "search.json").read_text(encoding="utf-8"))
 
@@ -69,7 +70,7 @@ class WikiIndexStorageTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            update_index(vault)
+            VaultMaterializer().reconcile(vault, force=True)
             links = json.loads((machine_index_dir(vault) / "links.json").read_text(encoding="utf-8"))
             sources = json.loads((machine_index_dir(vault) / "sources.json").read_text(encoding="utf-8"))
 
@@ -92,7 +93,7 @@ class WikiIndexStorageTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            update_index(vault)
+            VaultMaterializer().reconcile(vault, force=True)
             graph = json.loads((machine_index_dir(vault) / "graph_index.json").read_text(encoding="utf-8"))
 
         nodes = {node["id"]: node for node in graph["nodes"]}
@@ -111,6 +112,43 @@ class WikiIndexStorageTests(unittest.TestCase):
         self.assertEqual(graph["sources"][0]["source"], "sources/Agent-Loop-Source.md")
         self.assertEqual(graph["sources"][0]["pages"], ["Agent-Loop.md"])
 
+    def test_graph_index_uses_wikilink_display_text_for_entity_rows_with_suffixes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            (vault / "wiki" / "pages").mkdir(parents=True)
+            (vault / "wiki" / "pages" / "A2A.md").write_text(
+                "# A2A\n\n"
+                "## Entities\n\n"
+                "- [[A2A]] (aliases: Agent-to-Agent)\n"
+                "- [[concepts/Agent Card|Agent Card]] (aliases: 智能体名片)\n",
+                encoding="utf-8",
+            )
+
+            VaultMaterializer().reconcile(vault, force=True)
+            pages = json.loads((machine_index_dir(vault) / "pages.json").read_text(encoding="utf-8"))
+            graph = json.loads((machine_index_dir(vault) / "graph_index.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(pages["pages"][0]["entities"], ["A2A", "Agent Card"])
+        self.assertIn("A2A", {node["id"] for node in graph["nodes"]})
+        self.assertIn("Agent Card", {node["id"] for node in graph["nodes"]})
+
+    def test_graph_index_keeps_all_entity_rows_for_long_projection_pages(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vault = Path(tmp_dir)
+            (vault / "wiki" / "pages").mkdir(parents=True)
+            entity_lines = "\n".join(f"- [[Entity {index:02d}]]" for index in range(1, 31))
+            (vault / "wiki" / "pages" / "Long.md").write_text(
+                f"# Long\n\n## Entities\n\n{entity_lines}\n",
+                encoding="utf-8",
+            )
+
+            VaultMaterializer().reconcile(vault, force=True)
+            pages = json.loads((machine_index_dir(vault) / "pages.json").read_text(encoding="utf-8"))
+            graph = json.loads((machine_index_dir(vault) / "graph_index.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(len(pages["pages"][0]["entities"]), 30)
+        self.assertIn("Entity 30", {node["id"] for node in graph["nodes"]})
+
     def test_machine_index_emits_page_identity_fields_for_unified_pages(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault = Path(tmp_dir)
@@ -124,7 +162,7 @@ class WikiIndexStorageTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            update_index(vault)
+            VaultMaterializer().reconcile(vault, force=True)
             pages = json.loads((machine_index_dir(vault) / "pages.json").read_text(encoding="utf-8"))
             records = {record["path"]: record for record in pages["pages"]}
 
@@ -148,11 +186,11 @@ class WikiIndexStorageTests(unittest.TestCase):
                 encoding="utf-8",
             )
             (sources / "Agent-Loop-Source.md").write_text(
-                "# Agent Loop Source\n\n## Summary\n\nSource digest for agent loop notes.\n",
+                "# Agent Loop Source\n\n## Summary\n\nSource record for agent loop notes.\n",
                 encoding="utf-8",
             )
 
-            update_index(vault)
+            VaultMaterializer().reconcile(vault, force=True)
             pages_index = json.loads((machine_index_dir(vault) / "pages.json").read_text(encoding="utf-8"))
             indexed_paths = {record["path"] for record in pages_index["pages"]}
 
@@ -166,12 +204,13 @@ class WikiIndexStorageTests(unittest.TestCase):
             (vault / "wiki" / "pages").mkdir(parents=True)
             (vault / "wiki" / "pages" / "Agent.md").write_text("# Agent\n", encoding="utf-8")
 
-            update_index(vault)
+            VaultMaterializer().reconcile(vault, force=True)
             self.assertFalse(is_machine_index_stale(vault))
             (vault / "wiki" / "pages" / "Agent.md").write_text("# Agent\n\n## Summary\n\nUpdated.", encoding="utf-8")
 
             self.assertTrue(is_machine_index_stale(vault))
-            ensure_machine_index(vault)
+            self.assertFalse(ensure_machine_index(vault))
+            VaultMaterializer().reconcile(vault, force=True)
             pages = json.loads((machine_index_dir(vault) / "pages.json").read_text(encoding="utf-8"))
 
         self.assertEqual(pages["pages"][0]["summary"], "Updated.")
@@ -185,7 +224,7 @@ class WikiIndexStorageTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            update_index(vault)
+            VaultMaterializer().reconcile(vault, force=True)
             pages = json.loads((machine_index_dir(vault) / "pages.json").read_text(encoding="utf-8"))
             indexed_paths = {record["path"] for record in pages["pages"]}
 

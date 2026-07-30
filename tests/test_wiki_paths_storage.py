@@ -7,9 +7,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from knoarbor.storage import (
+from knoarbor.storage.wiki_paths import (
     available_title_path,
-    normalize_source_digest_title,
+    normalize_source_record_title,
     normalize_wiki_page_path,
     resolve_existing_by_hash,
     resolve_wiki_page,
@@ -49,10 +49,10 @@ class WikiPathsStorageTests(unittest.TestCase):
         self.assertEqual(slugify_title("LLM-Wiki.md"), "LLM-Wiki")
         self.assertEqual(slugify_title("Architecture.markdown"), "Architecture")
 
-    def test_normalize_source_digest_title_is_source_scoped(self) -> None:
-        self.assertEqual(normalize_source_digest_title("LLM-Wiki.md"), "LLM-Wiki Source Digest")
-        self.assertEqual(normalize_source_digest_title("Agent Source"), "Agent Source Digest")
-        self.assertEqual(normalize_source_digest_title("MiniMind 笔记源"), "MiniMind 笔记源")
+    def test_normalize_source_record_title_is_source_scoped(self) -> None:
+        self.assertEqual(normalize_source_record_title("LLM-Wiki.md"), "LLM-Wiki Source Record")
+        self.assertEqual(normalize_source_record_title("Agent Source"), "Agent Source Record")
+        self.assertEqual(normalize_source_record_title("MiniMind 笔记源"), "MiniMind 笔记源")
 
 
 if __name__ == "__main__":

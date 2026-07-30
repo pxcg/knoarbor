@@ -4,8 +4,12 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from knoarbor.storage.wiki_index import ensure_log, update_machine_index
+from knoarbor.runtime import vault_write_lock
+from knoarbor.storage.materialization import VaultMaterializer
+from knoarbor.storage.wiki_index import ensure_log
+from knoarbor.storage.vault_identity import ensure_vault_identity
 from knoarbor.storage.vault_layout import (
+    ARTIFACTS_ROOT_DIR,
     RAW_ROOT_DIR,
     WIKI_PAGES_DIR,
     WIKI_ROOT_DIR,
@@ -20,8 +24,13 @@ class WikiInitResult(BaseModel):
     existing_paths: list[str] = Field(default_factory=list)
 
 
-def init_wiki_vault(vault_path: Path, *, force: bool = False) -> WikiInitResult:
+def init_wiki_vault(vault_path: Path) -> WikiInitResult:
     vault_path = vault_path.expanduser().resolve()
+    with vault_write_lock(vault_path):
+        return _init_wiki_vault_locked(vault_path)
+
+
+def _init_wiki_vault_locked(vault_path: Path) -> WikiInitResult:
     created: list[str] = []
     existing: list[str] = []
 
@@ -31,16 +40,9 @@ def init_wiki_vault(vault_path: Path, *, force: bool = False) -> WikiInitResult:
     _ensure_directory(vault_path, WIKI_ROOT_DIR, created, existing)
     _ensure_directory(vault_path, f"{WIKI_ROOT_DIR}/{WIKI_PAGES_DIR}", created, existing)
     _ensure_directory(vault_path, f"{WIKI_ROOT_DIR}/{WIKI_SOURCES_DIR}", created, existing)
-    _write_file(
-        vault_path,
-        ".knoarborignore",
-        _ignore_template(),
-        created,
-        existing,
-        force=force,
-    )
     ensure_log(vault_path)
-    update_machine_index(vault_path)
+    ensure_vault_identity(vault_path)
+    VaultMaterializer().reconcile(vault_path, force=True)
 
     for relative in ("log.md",):
         display = f"{WIKI_ROOT_DIR}/{relative}"
@@ -70,6 +72,8 @@ def _initial_directories() -> tuple[str, ...]:
         "raw/derived/metadata",
         "raw/derived/metadata/documents",
         "raw/derived/metadata/sources",
+        ARTIFACTS_ROOT_DIR,
+        "artifacts/chat",
         "maintenance",
         "maintenance/reports",
         "maintenance/reports/ingest",
@@ -80,16 +84,17 @@ def _initial_directories() -> tuple[str, ...]:
         ".knoarbor",
         ".knoarbor/index",
         ".knoarbor/ledgers",
-        ".knoarbor/checkpoints",
         ".knoarbor/runs",
-        ".knoarbor/queue",
         ".knoarbor/locks",
         ".knoarbor/logs",
+        ".knoarbor/tmp",
         ".knoarbor/chat/sessions",
     )
 
 
-def _ensure_directory(vault_path: Path, relative: str, created: list[str], existing: list[str], *, display_prefix: str | None = None) -> None:
+def _ensure_directory(
+    vault_path: Path, relative: str, created: list[str], existing: list[str], *, display_prefix: str | None = None
+) -> None:
     path = vault_path / relative
     display = f"{display_prefix}/{relative}" if display_prefix else relative
     if path.exists():
@@ -97,42 +102,3 @@ def _ensure_directory(vault_path: Path, relative: str, created: list[str], exist
         return
     path.mkdir(parents=True, exist_ok=True)
     created.append(display)
-
-
-def _write_file(
-    vault_path: Path,
-    relative: str,
-    content: str,
-    created: list[str],
-    existing: list[str],
-    *,
-    force: bool,
-    display_prefix: str | None = None,
-) -> None:
-    path = vault_path / relative
-    display = f"{display_prefix}/{relative}" if display_prefix else relative
-    if path.exists() and not force:
-        existing.append(display)
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-    created.append(display)
-
-
-def _ignore_template() -> str:
-    return """# Gitignore-style patterns for KnoArbor source discovery.
-# Patterns are evaluated against source paths before ingest.
-
-.DS_Store
-*.tmp
-*.key
-*.pem
-*.secret
-.env
-.env.*
-node_modules/
-__pycache__/
-
-# Add private folders below.
-# confidential/
-"""

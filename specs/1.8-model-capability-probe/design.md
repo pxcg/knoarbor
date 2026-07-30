@@ -17,6 +17,7 @@ in `services/model_probe.py`.
 - `GET /models/providers`
 - `POST /models/discover`
 - `POST /models/apply-capabilities`
+- `POST /models/image-probe`
 
 The API uses provider names from `config.yaml` by default. Requests may also
 carry an inline provider config for one-off checks later, but the first
@@ -37,6 +38,38 @@ Discovery returns:
 
 Discovery failures are reported as structured results; they do not crash the
 entire diagnostics request unless the input config is invalid.
+
+The settings UI persists edited provider fields through its existing immediate
+save behavior. A provider check waits for the latest in-flight settings save,
+then reads that persisted configuration; it does not issue a second,
+check-specific save. The check remains isolated from global configuration
+diagnostics, source catalog refreshes, and MinerU readiness checks.
+
+## Provider URL Boundary
+
+`core.config` owns deterministic provider URL normalization so form writes,
+YAML loads, model discovery, and generation consume the same value. For an
+OpenAI-compatible provider it:
+
+1. parses one absolute HTTP(S) URL;
+2. rejects embedded credentials, query parameters, and fragments;
+3. removes trailing slashes;
+4. removes one exact `/chat/completions` suffix when present;
+5. rejects partial completion suffixes instead of guessing.
+
+The canonical value remains `base_url`. The adapters append `/models` or
+`/chat/completions`. They never independently repair or reinterpret the path.
+Image provider normalization also separates an exact supported endpoint suffix
+from `base_url` into `endpoint_path`.
+
+## Image Provider Smoke Test
+
+Image-generation providers use either an images endpoint or a chat-completions
+image contract. There is no shared metadata operation that proves both
+contracts, so `POST /models/image-probe` performs one explicit real generation.
+It returns availability, elapsed time, image count, MIME types, and a bounded
+error classification. It never returns generated URLs, base64 content, API
+keys, or raw provider payloads.
 
 ## Recommendations
 
@@ -69,7 +102,12 @@ It does not update API keys, base URLs, or model names.
 - Running a full ingest sample during every readiness check: too costly for a
   settings page and duplicates live smoke tests.
 - Sending generation requests during settings checks: unnecessary for basic
-  provider readiness and surprising for hosted providers.
+  text-provider readiness and surprising for hosted text providers. Image
+  generation is the exception and is exposed as a separately labelled,
+  explicit smoke test.
+- Refreshing global diagnostics and source catalogs after a provider check:
+  unrelated work makes a sub-second metadata request appear slow and blurs
+  error ownership.
 - Silently applying detected context values during discovery: surprising config
   mutation and poor auditability.
 - Branching main workflows by vendor name: model-specific behavior belongs

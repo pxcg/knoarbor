@@ -6,14 +6,14 @@ from knoarbor.core.errors import PolicyRejection
 
 
 # Physical write-location directories for AI-writable wiki content.
-# ``sources`` holds source digest audit pages; the unified ``pages`` namespace
+# ``sources`` holds source record audit pages; the unified ``pages`` namespace
 # holds flat knowledge pages.
-SOURCE_DIGEST_DIR = "sources"
+SOURCE_RECORD_DIR = "sources"
 UNIFIED_KNOWLEDGE_PAGE_DIR = "pages"
 
 # Directories that may contain AI-writable content. ``sources`` is the source
 # digest root; flat files under ``pages`` are the unified namespace.
-CONTENT_PAGE_DIRS = (SOURCE_DIGEST_DIR, UNIFIED_KNOWLEDGE_PAGE_DIR)
+CONTENT_PAGE_DIRS = (SOURCE_RECORD_DIR, UNIFIED_KNOWLEDGE_PAGE_DIR)
 SYSTEM_PAGE_DIRS = ("maintenance",)
 AI_WRITABLE_DIRS = set(CONTENT_PAGE_DIRS)
 
@@ -37,7 +37,7 @@ def normalize_page_dir(value: str | None) -> str:
         raise PolicyRejection("page_dir is required")
     normalized = value.strip().lower().replace(" ", "_")
     aliases = {
-        "source": SOURCE_DIGEST_DIR,
+        "source": SOURCE_RECORD_DIR,
         "page": UNIFIED_KNOWLEDGE_PAGE_DIR,
     }
     normalized = aliases.get(normalized, normalized)

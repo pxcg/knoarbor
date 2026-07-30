@@ -13,28 +13,51 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.entrypoints.api import create_app
 from knoarbor.storage.wiki_init import init_wiki_vault
+from knoarbor.storage.materialization import VaultMaterializer
 from knoarbor.storage.vault_layout import raw_derived_asset_images_root
-from knoarbor.storage.wiki_paths import content_root, source_digest_root
+from knoarbor.storage.wiki_paths import content_root, source_record_root
 
 
 class UiApiTests(unittest.TestCase):
+    def test_desktop_mode_does_not_serve_static_ui(self) -> None:
+        with patch.dict("os.environ", {"KNOARBOR_DESKTOP": "1"}):
+            client = TestClient(create_app())
+
+        self.assertEqual(client.get("/ui").status_code, 404)
+        self.assertEqual(client.get("/ui/assets/index.js").status_code, 404)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            response = client.get(
+                "/config/diagnostics",
+                params={"config_path": str(Path(tmp_dir) / "config.yaml")},
+            )
+
+        self.assertEqual(response.status_code, 200)
+
     def test_ui_assets_are_served(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            renderer_dist = Path(tmp_dir) / "dist"
-            assets_dir = renderer_dist / "assets"
-            assets_dir.mkdir(parents=True)
-            (renderer_dist / "index.html").write_text(
-                '<!doctype html><title>KnoArbor Console</title><link href="/ui/assets/index.css" rel="stylesheet"><script type="module" src="/ui/assets/index.js"></script>',
+            ui_root = Path(tmp_dir)
+            assets = ui_root / "assets"
+            assets.mkdir()
+            (assets / "index.js").write_text("console.log('KnoArbor');\n", encoding="utf-8")
+            (assets / "index.css").write_text(":root { color-scheme: light; }\n", encoding="utf-8")
+            (ui_root / "index.html").write_text(
+                '<title>KnoArbor Console</title>'
+                '<link rel="stylesheet" href="/ui/assets/index.css">'
+                '<script src="/ui/assets/index.js"></script>',
                 encoding="utf-8",
             )
-            (assets_dir / "index.css").write_text("body{}", encoding="utf-8")
-            (assets_dir / "index.js").write_text("console.log('ok')", encoding="utf-8")
             for root_asset in ("favicon.ico", "site.webmanifest", "knoarbor-logo.svg"):
-                (renderer_dist / root_asset).write_text(root_asset, encoding="utf-8")
+                (ui_root / root_asset).write_text(root_asset, encoding="utf-8")
 
-            with patch.dict("os.environ", {"KNOARBOR_RENDERER_DIST": str(renderer_dist)}):
+            with patch.dict(
+                "os.environ",
+                {
+                    "KNOARBOR_DESKTOP": "",
+                    "KNOARBOR_RENDERER_DIST": str(ui_root),
+                },
+                clear=False,
+            ):
                 client = TestClient(create_app())
-
                 index = client.get("/ui")
 
                 self.assertEqual(index.status_code, 200)
@@ -49,21 +72,6 @@ class UiApiTests(unittest.TestCase):
                 for root_asset in ("favicon.ico", "site.webmanifest", "knoarbor-logo.svg"):
                     asset = client.get(f"/ui/{root_asset}")
                     self.assertEqual(asset.status_code, 200)
-
-    def test_desktop_mode_does_not_serve_static_ui(self) -> None:
-        with patch.dict("os.environ", {"KNOARBOR_DESKTOP": "1"}):
-            client = TestClient(create_app())
-
-        self.assertEqual(client.get("/ui").status_code, 404)
-        self.assertEqual(client.get("/ui/assets/index.js").status_code, 404)
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            response = client.get(
-                "/config/diagnostics",
-                params={"config_path": str(Path(tmp_dir) / "config.yaml")},
-            )
-
-        self.assertEqual(response.status_code, 200)
 
     def test_vault_assets_read_raw_derived_asset_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -83,6 +91,45 @@ class UiApiTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.content, b"fake-png")
 
+            encoded_response = client.get(
+                "/vault-assets/images%2Ffigure.png",
+                params={"vault_path": str(vault_path)},
+            )
+
+            self.assertEqual(encoded_response.status_code, 200)
+            self.assertEqual(encoded_response.content, b"fake-png")
+
+            artifact_path = vault_path / "artifacts" / "chat" / "chat-demo" / "images" / "generated.png"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_bytes(b"fake-artifact")
+            artifact_response = client.get(
+                "/vault-assets/artifacts%2Fchat%2Fchat-demo%2Fimages%2Fgenerated.png",
+                params={"vault_path": str(vault_path)},
+            )
+
+            self.assertEqual(artifact_response.status_code, 200)
+            self.assertEqual(artifact_response.content, b"fake-artifact")
+
+            hidden_runtime = vault_path / ".knoarbor" / "chat" / "sessions" / "chat_demo.json"
+            hidden_runtime.parent.mkdir(parents=True, exist_ok=True)
+            hidden_runtime.write_text("{}", encoding="utf-8")
+            hidden_response = client.get(
+                "/vault-assets/.knoarbor%2Fchat%2Fsessions%2Fchat_demo.json",
+                params={"vault_path": str(vault_path)},
+            )
+
+            self.assertNotEqual(hidden_response.status_code, 200)
+
+            raw_input = vault_path / "raw" / "inbox" / "documents" / "source.png"
+            raw_input.parent.mkdir(parents=True, exist_ok=True)
+            raw_input.write_bytes(b"raw")
+            raw_response = client.get(
+                "/vault-assets/raw%2Finbox%2Fdocuments%2Fsource.png",
+                params={"vault_path": str(vault_path)},
+            )
+
+            self.assertNotEqual(raw_response.status_code, 200)
+
     def test_ui_config_can_validate_and_save_local_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             config_path = Path(tmp_dir) / "config.yaml"
@@ -91,12 +138,12 @@ class UiApiTests(unittest.TestCase):
 vault:
   path: {vault_path.as_posix()}
 models:
-  default_provider: deepseek
+  default_provider: custom
   providers:
-    deepseek:
-      base_url: https://api.deepseek.com
+    custom:
+      base_url: https://api.example.com/v1
       api_key: test-key
-      model: deepseek-chat
+      model: example-chat
 """
             client = TestClient(create_app())
 
@@ -104,7 +151,7 @@ models:
 
             self.assertEqual(response.status_code, 200)
             self.assertTrue(config_path.exists())
-            self.assertEqual(response.json()["summary"]["default_provider"], "deepseek")
+            self.assertEqual(response.json()["summary"]["default_provider"], "custom")
             self.assertEqual(response.json()["summary"]["vault_path"], str(vault_path.resolve()))
 
     def test_ui_config_resolves_relative_vault_from_config_location(self) -> None:
@@ -136,7 +183,7 @@ models:
                 "/config/form",
                 json={
                     "config_path": str(config_path),
-                    "project_name": "KnoArbor",
+                    "project_name": "default",
                     "vault_path": str(vault_path),
                     "server_host": "127.0.0.1",
                     "server_port": 8000,
@@ -182,7 +229,7 @@ models:
                 "/config/form",
                 json={
                     "config_path": str(config_path),
-                    "project_name": "KnoArbor",
+                    "project_name": "default",
                     "vault_path": str(vault_path),
                     "server_host": "127.0.0.1",
                     "server_port": 8000,
@@ -221,6 +268,52 @@ models:
             self.assertEqual(payload["image_default_provider"], "sensenova")
             self.assertEqual(payload["image_providers"][0]["adapter"], "sensenova_image")
             self.assertEqual(payload["image_providers"][0]["resolution"], "2720*1536")
+
+    def test_ui_config_form_defaults_openai_chat_image_endpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "config.yaml"
+            vault_path = Path(tmp_dir) / "vaults" / "default"
+            client = TestClient(create_app())
+
+            response = client.put(
+                "/config/form",
+                json={
+                    "config_path": str(config_path),
+                    "project_name": "default",
+                    "vault_path": str(vault_path),
+                    "server_host": "127.0.0.1",
+                    "server_port": 8000,
+                    "default_provider": "",
+                    "default_max_tokens": 30000,
+                    "request_timeout_seconds": 600,
+                    "providers": [],
+                    "image_default_provider": "local-chat-image",
+                    "image_request_timeout_seconds": 120,
+                    "image_providers": [
+                        {
+                            "name": "local-chat-image",
+                            "adapter": "openai_chat_image",
+                            "base_url": "https://text2image.local/v1",
+                            "endpoint_path": "",
+                            "api_key": "test-key",
+                            "model": "SenseNova-U1-8B",
+                            "tls_ca_file": "",
+                            "resolution": "",
+                            "num_inference_steps": 20,
+                            "guidance": 4,
+                            "extra_body": {},
+                        }
+                    ],
+                },
+            )
+
+            self.assertEqual(response.status_code, 200)
+            form_response = client.get("/config/form", params={"config_path": str(config_path)})
+
+        self.assertEqual(form_response.status_code, 200)
+        payload = form_response.json()
+        self.assertEqual(payload["image_providers"][0]["adapter"], "openai_chat_image")
+        self.assertEqual(payload["image_providers"][0]["endpoint_path"], "/chat/completions")
 
     def test_ui_config_marks_local_model_provider_ready_without_api_key(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -318,7 +411,7 @@ models:
                 "/config/form",
                 json={
                     "config_path": str(config_path),
-                    "project_name": "KnoArbor",
+                    "project_name": "default",
                     "vault_path": str(vault_path),
                     "server_host": "127.0.0.1",
                     "server_port": 8000,
@@ -328,14 +421,14 @@ models:
                     "providers": [],
                     "codex_enabled": True,
                     "codex_sessions_dir": str(external_sessions),
-                    "codex_raw_output_dir": str(vault_path / "raw" / "normalized" / "chats"),
+                    "codex_raw_output_dir": str(vault_path / "raw" / "inbox" / "chats"),
                     "markdown_enabled": True,
                     "markdown_roots": [str(vault_path / "raw" / "inbox" / "notes")],
                     "markdown_raw_output_dir": str(vault_path / "raw" / "inbox" / "notes"),
                     "mineru_enabled": True,
                     "mineru_endpoint": "http://127.0.0.1:30000",
                     "mineru_input_dir": str(vault_path / "raw" / "inbox" / "documents"),
-                    "mineru_output_dir": str(vault_path / "raw" / "normalized" / "markdown"),
+                    "mineru_output_dir": str(vault_path / "raw" / "derived" / "markdown"),
                 },
             )
 
@@ -358,7 +451,7 @@ models:
                 "/config/form",
                 json={
                     "config_path": str(config_path),
-                    "project_name": "KnoArbor",
+                    "project_name": "default",
                     "vault_path": str(root / "vaults" / "all"),
                     "server_host": "127.0.0.1",
                     "server_port": 8000,
@@ -371,7 +464,7 @@ models:
                     "mineru_enabled": True,
                     "mineru_endpoint": "http://127.0.0.1:18000/file_parse",
                     "mineru_input_dir": str(root / "vaults" / "all" / "raw" / "documents" / "originals"),
-                    "mineru_backend": "hybrid-engine",
+                    "mineru_backend": "hybrid-auto-engine",
                     "mineru_parse_method": "ocr",
                     "mineru_timeout_seconds": 900,
                     "mineru_patterns": ["*.pdf", "*.docx"],
@@ -394,33 +487,34 @@ models:
 
             self.assertEqual(response.status_code, 200)
             saved = config_path.read_text(encoding="utf-8")
-            self.assertIn("mode: auto", saved)
+            self.assertIn("mode: ocr", saved)
             self.assertIn("timeout_seconds: 900", saved)
-            self.assertIn("backend: pipeline", saved)
-            self.assertIn("return_middle_json: false", saved)
-            self.assertIn("lang_list: ch,en", saved)
+            self.assertIn("backend: hybrid-auto-engine", saved)
+            self.assertIn("return_middle_json: true", saved)
+            self.assertIn("- ch", saved)
+            self.assertIn("- en", saved)
             self.assertIn("formula_enable: true", saved)
             self.assertIn("table_enable: false", saved)
-            self.assertNotIn("server_url: http://127.0.0.1:30000", saved)
-            self.assertIn("start_page_id: 0", saved)
-            self.assertIn("end_page_id: 99999", saved)
+            self.assertIn("server_url: http://127.0.0.1:30000", saved)
+            self.assertIn("start_page_id: 1", saved)
+            self.assertIn("end_page_id: 9", saved)
             self.assertIn("custom_flag: 'on'", saved)
 
             form_response = client.get("/config/form", params={"config_path": str(config_path)})
             self.assertEqual(form_response.status_code, 200)
             payload = form_response.json()
-            self.assertEqual(payload["mineru_backend"], "pipeline")
-            self.assertEqual(payload["mineru_parse_method"], "auto")
+            self.assertEqual(payload["mineru_backend"], "hybrid-auto-engine")
+            self.assertEqual(payload["mineru_parse_method"], "ocr")
             self.assertEqual(payload["mineru_timeout_seconds"], 900)
-            self.assertEqual(payload["mineru_patterns"], ["*.pdf", "*.docx", "*.pptx", "*.ppt", "*.xlsx", "*.xls", "*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"])
-            self.assertTrue(payload["mineru_recursive"])
-            self.assertFalse(payload["mineru_return_middle_json"])
+            self.assertEqual(payload["mineru_patterns"], ["*.pdf", "*.docx"])
+            self.assertFalse(payload["mineru_recursive"])
+            self.assertTrue(payload["mineru_return_middle_json"])
             self.assertEqual(payload["mineru_lang_list"], "ch,en")
             self.assertTrue(payload["mineru_formula_enable"])
             self.assertFalse(payload["mineru_table_enable"])
-            self.assertEqual(payload["mineru_server_url"], "")
-            self.assertEqual(payload["mineru_start_page_id"], 0)
-            self.assertEqual(payload["mineru_end_page_id"], 99999)
+            self.assertEqual(payload["mineru_server_url"], "http://127.0.0.1:30000")
+            self.assertEqual(payload["mineru_start_page_id"], 1)
+            self.assertEqual(payload["mineru_end_page_id"], 9)
             self.assertIn("custom_flag", payload["mineru_extra_fields_json"])
 
     def test_ui_config_form_enables_mineru_when_endpoint_is_configured(self) -> None:
@@ -433,7 +527,7 @@ models:
                 "/config/form",
                 json={
                     "config_path": str(config_path),
-                    "project_name": "KnoArbor",
+                    "project_name": "default",
                     "vault_path": str(root / "vaults" / "default"),
                     "server_host": "127.0.0.1",
                     "server_port": 8000,
@@ -454,6 +548,13 @@ models:
             form_response = client.get("/config/form", params={"config_path": str(config_path)})
             self.assertEqual(form_response.status_code, 200)
             self.assertTrue(form_response.json()["mineru_enabled"])
+            with patch("knoarbor.services.ui_config.probe_mineru_endpoint", return_value=(True, "health ready (3)")):
+                diagnostics_response = client.get("/config/diagnostics", params={"config_path": str(config_path)})
+            self.assertEqual(diagnostics_response.status_code, 200)
+            mineru = next(item for item in diagnostics_response.json()["processors"] if item["name"] == "mineru")
+            self.assertTrue(mineru["ok"])
+            self.assertEqual(mineru["code"], "ready")
+            self.assertIn("health ready", mineru["detail"])
 
     def test_ui_config_form_does_not_persist_default_chat_session_dirs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -465,7 +566,7 @@ models:
                 "/config/form",
                 json={
                     "config_path": str(config_path),
-                    "project_name": "KnoArbor",
+                    "project_name": "default",
                     "vault_path": str(root / "vaults" / "all"),
                     "server_host": "127.0.0.1",
                     "server_port": 8000,
@@ -615,14 +716,14 @@ connectors: {{}}
                 "/config",
                 json={
                     "config_path": str(config_path),
-                    "content": "vault:\n  path: ./vaults/all\nmodels:\n  providers:\n    x:\n      api_key: sk-testsecret123456\n",
+                    "content": "vault:\n  path: ./vaults/all\nmodels:\n  providers:\n    x:\n      api_key: fake-redacted-value\n",
                 },
             )
 
             self.assertEqual(response.status_code, 200)
             self.assertTrue(config_path.exists())
             self.assertEqual(response.json()["summary"]["provider_count"], 1)
-            self.assertNotIn("sk-testsecret123456", str(response.json()["summary"]))
+            self.assertNotIn("fake-redacted-value", str(response.json()["summary"]))
 
     def test_ui_status_returns_vault_counts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -634,6 +735,7 @@ connectors: {{}}
             )
             (vault_path / "raw" / "notes").mkdir(parents=True, exist_ok=True)
             (vault_path / "raw" / "notes" / "unit.md").write_text("# Unit", encoding="utf-8")
+            VaultMaterializer().reconcile(vault_path, force=True)
             client = TestClient(create_app())
 
             response = client.get("/vaults/status", params={"vault_path": str(vault_path)})
@@ -649,19 +751,20 @@ connectors: {{}}
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault_path = Path(tmp_dir) / "vaults" / "all"
             init_wiki_vault(vault_path)
-            source_path = source_digest_root(vault_path) / "Source.md"
+            source_path = source_record_root(vault_path) / "Source.md"
             concept_path = content_root(vault_path) / "Agent-Loop.md"
             source_path.write_text(
-                "---\nrole: source_digest\n---\n# Source\n\n## Source Identity\n\n- Raw source: raw/inbox/notes/source.md\n- Content hash: test\n\n## Source Units\n\n- U1: Agent loop source notes.\n\n## Contribution Map\n\n- [[Agent-Loop|Agent Loop]]: source support\n\n## Raw Source\n\n- raw/inbox/notes/source.md\n",
+                "---\nrole: source_record\n---\n# Source\n\n## Source Identity\n\n- Raw source: raw/inbox/notes/source.md\n- Content hash: test\n\n## Source Units\n\n- U1: Agent loop source notes.\n\n## Contribution Map\n\n- [[Agent-Loop|Agent Loop]]: source support\n\n## Raw Source\n\n- raw/inbox/notes/source.md\n",
                 encoding="utf-8",
             )
             concept_path.write_text(
                 "---\nrole: knowledge_page\n---\n# Agent Loop\n\n## Summary\n\nAgent loop summary.\n",
                 encoding="utf-8",
             )
+            VaultMaterializer().reconcile(vault_path, force=True)
             client = TestClient(create_app())
 
-            response = client.get("/wiki/graph", params={"vault_path": str(vault_path), "view": "page"})
+            response = client.get("/wiki/graph", params={"vault_path": str(vault_path)})
 
             self.assertEqual(response.status_code, 200)
             payload = response.json()
@@ -670,12 +773,13 @@ connectors: {{}}
             self.assertEqual(payload["stats"]["edge_count"], 0)
             self.assertEqual(payload["stats"]["orphan_count"], 1)
             self.assertNotIn("sources", payload["stats"]["directory_counts"])
-            self.assertNotIn("source_digest", payload["stats"]["role_counts"])
+            self.assertNotIn("source_record", payload["stats"]["role_counts"])
             self.assertEqual(payload["stats"]["role_counts"]["knowledge_page"], 1)
             self.assertFalse(any(node["id"] == "sources/Source.md" for node in payload["nodes"]))
             self.assertEqual(payload["stats"]["entity_counts"], {})
+            self.assertEqual(payload["nodes"][0]["id"], "Agent-Loop.md")
 
-    def test_ui_graph_defaults_to_page_graph(self) -> None:
+    def test_ui_graph_returns_page_links(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             vault_path = Path(tmp_dir) / "vaults" / "default"
             init_wiki_vault(vault_path)
@@ -687,19 +791,18 @@ connectors: {{}}
                 "---\nrole: knowledge_page\n---\n# Tool Call\n\n## Summary\n\nA tool call page.\n",
                 encoding="utf-8",
             )
+            VaultMaterializer().reconcile(vault_path, force=True)
             client = TestClient(create_app())
 
-            default_response = client.get("/wiki/graph", params={"vault_path": str(vault_path)})
-            explicit_response = client.get("/wiki/graph", params={"vault_path": str(vault_path), "view": "page"})
+            response = client.get("/wiki/graph", params={"vault_path": str(vault_path)})
 
-            self.assertEqual(default_response.status_code, 200)
-            self.assertEqual(explicit_response.status_code, 200)
-            for payload in (default_response.json(), explicit_response.json()):
-                self.assertEqual(payload["graph_kind"], "page")
-                self.assertEqual(payload["stats"]["page_count"], 2)
-                self.assertEqual(payload["stats"]["edge_count"], 1)
-                self.assertEqual({node["id"] for node in payload["nodes"]}, {"Agent-Loop.md", "Tool-Call.md"})
-                self.assertEqual(payload["edges"][0]["kind"], "wikilink")
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertEqual(payload["graph_kind"], "page")
+            self.assertEqual(payload["stats"]["page_count"], 2)
+            self.assertEqual(payload["stats"]["edge_count"], 1)
+            self.assertEqual({node["id"] for node in payload["nodes"]}, {"Agent-Loop.md", "Tool-Call.md"})
+            self.assertEqual(payload["edges"][0]["kind"], "wikilink")
 
 
 if __name__ == "__main__":

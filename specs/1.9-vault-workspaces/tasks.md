@@ -9,3 +9,9 @@
 - [x] Cover API, CLI, and skill helper behavior with tests.
 - [x] Continue UI consolidation so every page uses the selected vault ID as the
       primary workspace selector.
+- [x] Separate the concrete renderer workspace vault from Chat's all-vault
+      retrieval scope.
+- [x] Expose one shared page-local vault switcher on every vault-scoped page.
+- [x] Verify cross-page destination identities include the vault ID.
+- [x] Remove Reports' nested vault filter and reject identity-less report/run
+      citation navigation.

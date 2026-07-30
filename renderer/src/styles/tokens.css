@@ -45,7 +45,7 @@
 }
 
 .token-stat-card {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   display: grid;
@@ -88,7 +88,7 @@
 }
 
 .token-flow-card {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   display: grid;
@@ -147,7 +147,7 @@
 }
 
 .token-page .data-table th {
-  background: #f8fafc;
+  background: var(--surface-subtle);
 }
 
 .token-flow-header {

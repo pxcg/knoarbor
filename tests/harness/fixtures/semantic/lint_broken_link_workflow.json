@@ -11,7 +11,7 @@
             "ref": "Agent.md"
           }
         ],
-        "executor_hint": "deterministic_wiki_operation",
+        "executor_hint": "governance_request",
         "expected_effect": "Fix broken link.",
         "issue_type": "broken_link",
         "recommended_action": {
@@ -39,7 +39,7 @@
       {
         "atom_ids": [],
         "attachments": [],
-        "canonical_path": "sources/Agent-Source-Digest.md",
+        "canonical_path": "sources/Agent-Source-Record.md",
         "claims": [],
         "confidence": 0.8,
         "entities": [],
@@ -49,15 +49,15 @@
         "operation_index": 0,
         "page_dir": "sources",
         "patches": [],
-        "question": "Source digest",
+        "question": "Source record",
         "relations": [],
-        "source_digest_ids": [],
         "source_file": "raw/inbox/notes/Agent.md",
-        "summary": "Source digest for Agent notes.",
+        "source_record_ids": [],
+        "summary": "Source record for Agent notes.",
         "synthesis": "This source describes Agent Loop.",
         "target_page": null,
-        "title": "Agent Source Digest",
-        "unresolved_items": [],
+        "title": "Agent Source Record",
+        "ambiguities": [],
         "write_action": "create"
       }
     ],
@@ -71,7 +71,7 @@
         "constraints": [],
         "correctness": "correct",
         "decision": "approve",
-        "executor_fit": "supported_by_wiki_operation",
+        "executor_fit": "supported_by_governance_request",
         "necessity": "necessary",
         "operation_index": 0,
         "reason": "The operation is explicit and supported.",

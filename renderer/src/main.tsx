@@ -3,11 +3,14 @@ import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { App } from "./App";
+import { applyStoredAppearanceMode } from "./appPreferences";
 import { getDesktopEnvironment, isDesktopApp } from "./desktop/desktopBridge";
 import { productIdentity } from "./product";
+import "katex/dist/katex.min.css";
 import "./styles/app.css";
 
 document.title = `${productIdentity.name} Console`;
+applyStoredAppearanceMode();
 
 if (isDesktopApp()) {
   document.documentElement.classList.add("desktop-shell");

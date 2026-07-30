@@ -1,375 +1,321 @@
 # Contracts
 
-This document is the entry point for KnoArbor's frozen contracts. It records the
-stable boundaries that code, prompts, UI, API, tests, and documentation share.
+This document is the index of KnoArbor's stable cross-layer contracts. It
+defines shared authority and data-flow boundaries. Detailed public HTTP, UI,
+report, and provenance rules belong to their linked owner documents.
 
-Feature specs may explain why a design exists. This document states the current
-runtime contract.
+## Contract Owners
 
-## Contract Layers
+| Contract | Owner |
+| --- | --- |
+| Public HTTP compatibility | [API Compatibility](API_COMPATIBILITY.md) and [API Reference](API.md) |
+| CLI behavior | [CLI Reference](CLI.md) |
+| UI surfaces and adapters | [UI Contract](UI_CONTRACT.md) |
+| Reports, ledgers, and failure artifacts | [Report Contract](REPORT_CONTRACT.md) |
+| Source, evidence, and factual authority | [Provenance](PROVENANCE_DESIGN.md) and [ADR 0004](adr/0004-ingest-factual-authority.md) |
+| Vault paths | `storage.vault_layout` and specification 1.17 |
+| Ingest runtime | specification 1.37 |
+| Ingest semantic chain | specifications 1.26 and 1.27 |
+| Query retrieval and evidence resolution | specification 1.38 and ADR 0003 |
 
-| Layer | Frozen contract | Owner |
-| --- | --- | --- |
-| Vault layout | `vaults/<id>/raw`, `wiki`, `maintenance`, `.knoarbor` | `storage.vault_layout` |
-| Wiki page | `wiki/pages/*.md` frontmatter and body sections | `core.wiki_schema`, `semantic.wiki_render` |
-| Source digest | `wiki/sources/*.md` audit sections | `core.schemas.source_digest`, `semantic.source_digest` |
-| Raw attachments | `raw/derived/assets/**` plus `raw/derived/metadata/**` metadata | `core.attachments`, document processors |
-| Machine index | `.knoarbor/index/manifest.json`, `graph_index.json` | `storage.wiki_index`, `retrieval.graph_index` |
-| Ingest flow | source input to checkpoint commit stage objects | `pipelines.ingest*`, `semantic.*` |
-| Query flow | graph-first recall, BM25 rerank, answer-set response | `pipelines.query`, `retrieval.*` |
-| Chat flow | tool trace, evidence pack, answer, citation resolver | `services.chat_*` |
-| Reports and ledgers | human reports, machine ledgers, failure artifacts, token ledger | `audit.*`, `storage.ledger` |
-| Public API | method-aware stable local HTTP API | `entrypoints.api_contract`, `docs/API_COMPATIBILITY.md` |
-| UI contract | display surfaces and UI-only adapters | `docs/UI_CONTRACT.md`, `renderer/src` |
+Feature specs explain implementation intent. This document and its linked
+contract owners describe the current supported boundary.
 
-## Vault Layout
+## Vault Contract
 
-The supported runtime layout is:
+The desktop product root contains `config.yaml`, `vaults/`, `state/`, `logs/`,
+`cache/`, and `tmp/`. Its only runtime endpoint is `state/endpoint.json`;
+top-level or home-directory `.knoarbor` runtime authorities are invalid.
 
 ```text
-vaults/<id>/
-  raw/
-    inbox/
-      documents/
-      notes/
-      chats/
-      media/
-    derived/
-      markdown/
-      excerpts/
-      assets/
-        images/
-        tables/
-        pages/
-        media/
-      metadata/
-        documents/
-        sources/
-  wiki/
-    pages/
-    sources/
-  maintenance/
-    reports/
-      ingest/
-      lint/
-      query/
-      run-failure/
-    archives/
+vault/
+  raw/                    source-faithful inputs and deterministic derivatives
+  wiki/pages/             authored pages and readable source projections
+  artifacts/              user-visible generated files
+  maintenance/reports/    human-readable workflow reports
   .knoarbor/
-    index/
-    ledgers/
-    checkpoints/
-    runs/
-    queue/
-    locks/
-    logs/
-    chat/
-      sessions/
+    ingest.sqlite         transactional ingest and active-head authority
+    facts/                immutable four-file factual source revisions
+    ingest_inputs/        immutable admitted workflow inputs
+    index/                rebuildable machine-index generations
+    ledgers/              append-only machine audit
+    runs/                 run presentation and events
+    locks/ logs/          local coordination and diagnostics
 ```
 
-`raw/` stores source-faithful material and parsed assets. `wiki/` stores
-human-facing Markdown knowledge and source audit pages. `maintenance/` stores
-human-readable workflow reports. `.knoarbor/` stores machine runtime state.
+Paths are vault-relative in persisted and public payloads. Raw source material
+is not overwritten by model workflows. Runtime vault content, local config, and
+credentials are excluded from source control.
 
-## Wiki Page Contract
+## Factual Authority
 
-Knowledge pages live in `wiki/pages/*.md`.
+Published ingest facts are the active source/session heads in
+`.knoarbor/ingest.sqlite` plus their reachable immutable generations under
+`.knoarbor/facts/`.
 
-Frontmatter fields:
+A factual revision contains:
 
-- `created`
-- `updated`
-- `content_hash`
+- a structured source processing record and stable source units;
+- evidence-backed entities, claims, and relations;
+- source/revision identities and integrity metadata;
+- source-level synthesis used for semantic location.
 
-Body sections:
+`wiki/pages/*.md` projections and `.knoarbor/index/` are rebuildable views. They
+do not become alternate factual authorities. Legacy `wiki/sources/*.md` pages
+remain readable but are not required by current ingest.
 
-```md
-## Summary
-## Claims
-## Entities
-## Relations
-## Evidence
-## Synthesis
-## Attachments
-```
+## Evidence Contract
 
-Section meanings:
+Raw evidence and source units are factual answer material. Each persisted
+evidence span identifies its source record, revision, source unit, excerpt, and
+integrity information. Model-local array positions are transient extraction
+references and do not survive factual compilation.
 
-- `Summary`: compact human preview of the maintained page.
-- `Claims`: numbered maintained statements, using `C1`, `C2`, and so on.
-- `Entities`: knowledge objects mentioned by the page.
-- `Relations`: claim-backed triples with `Subject | Predicate | Object | Based on`.
-- `Evidence`: claim-level support with `Claim | Source | Range | Basis | Confidence`.
-- `Synthesis`: readable integration derived from claims, relations, and evidence.
-- `Attachments`: readable rich-asset references with `Topic | Description`.
+Claim extraction returns a normalized claim together with the smallest
+sufficient verbatim quote from each supporting source unit. Compilation
+validates that every quote occurs in its source unit, maps it to the original
+source substring, and computes its character range and integrity hash. Repeated
+or overlapping quotes are valid; repeated text maps to its first source
+occurrence. Missing quotes reject extraction, and evidence never widens to the
+complete source unit. Persisted spans may deduplicate excerpt text and
+deterministically hydrate it from that unit and character range.
 
-Claims are the center of the page. Entities, relations, evidence, synthesis,
-and attachments exist to explain, connect, support, and present the claims.
+Entities, claims, and relations carry evidence. Relations also reference their
+supporting claim identities. Wiki pages and atom summaries may locate facts but
+are not promoted to raw evidence.
 
-## Source Digest Contract
+## Page Contracts
 
-Source digests live in `wiki/sources/*.md`.
+Two page forms share `wiki/pages/`:
 
-Body sections:
+- authored/maintained pages use the claims-first sections defined by the Wiki
+  schema and renderer;
+- deterministic source projections carry `schema_version`, `projection_kind`,
+  `not_fact_material`, and source/revision identities, with readable
+  `Synthesis`, `Claims`, `Entities`, and `Relations` sections.
 
-```md
-## Source Identity
-## Audit Summary
-## Source Units
-## Contribution Map
-## Unresolved / Rejected
-## Attachments
-## Raw Source
-```
+Page type is expressed by metadata and structure, not physical type
+directories. Projection rendering is model-free and rebuildable.
 
-Section meanings:
+## Attachment Contract
 
-- `Source Identity`: connector, raw pointer, digest ids, atom ids, and content hash.
-- `Audit Summary`: processing facts for this source or source segment.
-- `Source Units`: stable evidence units derived from source unitization.
-- `Contribution Map`: accepted or pending source contributions and target pages.
-- `Unresolved / Rejected`: warnings, rejected material, and unresolved material.
-- `Attachments`: readable audit projection of source attachments.
-- `Raw Source`: pointer back to raw material and content hash.
+Source attachments and deterministic processor outputs live under
+`raw/derived/assets/**`; their path, hash, MIME, coordinate, and parser metadata
+live under `raw/derived/metadata/**` or structured source records. User-visible
+chat artifacts live under `artifacts/chat/**` with manifests.
 
-Source digests are source-oriented audit pages. They record what a raw source
-contributed to maintained wiki pages.
-
-Attachment table:
-
-```md
-| Attachment | Type | Topic | Description | Source Range | Status |
-```
-
-Visible source digest attachment rows are compact audit pointers. Asset paths,
-hashes, MIME types, parser metadata, OCR/VLM raw output, coordinates, and
-binary data live in raw sidecars and assets.
-
-## Raw Attachment Contract
-
-Raw assets live under `raw/derived/assets/**`.
-
-Attachment sidecars use `knoarbor.attachments.v1`:
-
-```json
-{
-  "schema_version": "knoarbor.attachments.v1",
-  "source": "raw/derived/markdown/example.md",
-  "attachments": [
-    {
-      "attachment_type": "image",
-      "name": "figure.jpg",
-      "description": "Figure caption or model-produced summary.",
-      "relative_path": "raw/derived/assets/images/figure.jpg",
-      "mime_type": "image/jpeg",
-      "content_hash": "sha256...",
-      "metadata": {
-        "page_idx": 0,
-        "bbox": [0, 0, 100, 100],
-        "parser": "mineru"
-      }
-    }
-  ]
-}
-```
-
-Sidecars preserve parser-specific detail. Wiki pages and source digests render
-readable projections of that data.
+Public page and API references use validated vault-relative paths. Asset
+serving is constrained to the selected vault and rejects traversal.
 
 ## Machine Index Contract
 
-The frozen machine index files are:
+`.knoarbor/index/` contains versioned page, graph, source, link, and retrieval
+views. A complete generation is verified before `CURRENT` is atomically
+published. Readers use one generation snapshot. Deleting machine indexes does
+not delete factual knowledge. The same verified retrieval SQLite contains the
+lexical documents and canonical-entity relation adjacency; each published
+relation edge must retain complete supporting-claim closure to active facts.
+Derived locator storage keeps parent Raw rerank text once per evidence identity
+and does not duplicate complete immutable semantic evidence. A Query batch
+verifies one snapshot per selected vault and shares it across expressions and
+active reads.
+
+## Ingest Contract
 
 ```text
-.knoarbor/index/
-  manifest.json
-  graph_index.json
+source request
+  -> immutable input generation
+  -> SourceDocument normalization
+  -> source unitization and conditional segmentation
+  -> schema-constrained semantic extraction
+  -> deterministic validation, merge, and entity linking
+  -> immutable factual revision and active-head commit
+  -> deterministic Wiki and machine-index materialization
+  -> report and ledger
 ```
 
-`manifest.json` records index state:
+The model generates semantic candidates. Code owns reference validation,
+evidence, IDs, hashes, paths, linking, publication, projection, diagnostics,
+and recovery.
 
-- `schema_version`
-- `generated_at`
-- `vault_path`
-- `wiki_hash`
-- `graph_index_hash`
-- `page_count`
-- `source_count`
-- `node_count`
-- `edge_count`
+Semantic metadata preserves source language at the content-unit boundary.
+Chinese and English units in one source may produce Chinese and English
+entities, claims, predicates, and locator topics together; a document-level
+language hint never forces output-wide translation. This is an extraction
+prompt requirement, not a deterministic ingest gate; publication does not use
+script-ratio language detection to reject grounded metadata.
 
-`graph_index.json` locates what to read:
+Factual commit and materialization health are separately observable. Semantic
+recovery reuses the immutable command/input under a new attempt. Projection
+rebuild reads committed facts and never calls a model.
 
-- `nodes[]`: knowledge objects with `id`, `pages`, `aliases`, and `summary`.
-- `edges[]`: claim-backed triples with `source`, `predicate`, `target`, `page`, and `claim`.
-- `sources[]`: source digest to raw and page contribution mappings.
+## Raw Revision Edit Contract
 
-Additional index files such as `pages.json`, `links.json`, `sources.json`, and
-`search.json` are internal derived caches. They can be rebuilt from the wiki and
-are not the public index contract.
+A Raw edit never mutates the active factual revision in place. It creates a new
+immutable source document with the same source identity and submits it through
+the standard queued ingest coordinator. The normal model extraction, quality
+gate, factual publication, projection, index, report, cancellation, and recovery
+contracts therefore apply.
 
-## Ingest Flow Contract
+The request carries the revision that opened the editor. Publication rejects a
+stale parent instead of replacing a newer active head. A successful ingest
+creates fresh synthesis, claims, entities, relations, and evidence from the
+revised Raw material; projection overrides from an older Raw revision are not
+carried forward.
 
-The ingest flow is:
+## Query Contract
+
+Query is model-free:
 
 ```text
-Source Input
-  -> Source Segmentation
-  -> Segment-level Semantic Extraction
-  -> Source-level Aggregation
-  -> Candidate Retrieval / Page Planning
-  -> Draft Assembly
-  -> Review / Write Gate
-  -> Write / Index / Scoped Lint
-  -> Report / Checkpoint Commit
+query -> immutable active Claim/Entity/Relation + Raw-window recall
+      -> fusion -> active evidence resolution -> evidence reads
 ```
 
-Key stage objects:
+Claims and edges provide structured recall; Raw locator windows independently
+recover extraction misses. Both channels resolve to complete active source
+units through one evidence owner. Synthesis and projection pages are locator
+metadata, not answer facts. `wiki_query.v4` returns typed QueryOutcome,
+vault-scoped evidence handles, separate evidence reads, channel status, gaps,
+warnings, stats, and trace.
+Query itself remains model-free. Chat may supply a validated document/chapter
+`region_id` and `group_id`; Query resolves the region to active source record
+and source unit membership, then runs every expression through its ordinary
+channels.
+Region membership can filter that expression's candidates but cannot
+manufacture a claim, candidate, citation, or relevance decision.
+FTS5 match and field-weighted BM25 own lexical eligibility and channel order;
+weighted reciprocal-rank fusion orders parent Raw identities. Query batch
+retains the first 12 fused parents per region group, deduplicates them by
+vault-scoped Raw identity, and retains the first 16 parents globally before
+exact-span structural selection. These are retrieval result windows, not
+confidence thresholds, context-character budgets, or user settings.
+Literal and rewritten expressions are alternatives inside a group: a parent
+keeps its best rank contribution rather than receiving additive votes for
+matching both. Source images enter Chat only when the selected Raw unit
+references them, and one attachment is emitted once per answer packet.
+Relation atoms use the same atom/claim lexical channel and resolve through their batch-local `source_claim_ids`; Query exposes no graph traversal or relation-path response.
 
-- `SourceDocument`
-- `SourceSegmentBatch`
-- `KnowledgeExtract`
-- `SourceDigest`
-- `KnowledgeAtomBatch`
-- `WikiPagePlan`
-- `WikiDraftBatch`
-- `IngestDraftReview`
-- `VaultWriteResult`
-- ingest report and checkpoint commit metadata
+## Chat Contract
 
-Stable observation steps:
+Chat reads one locator-only document/top-level-chapter outline derived from
+active source processing and atom records. Each document node includes its
+complete source-level synthesis so the optional dialogue-aware Retrieval
+Planner can recognize a relevant document even when its headings use different
+wording. The planner selects exact visible regions and writes one standalone
+regional expression, then Chat sends it together with the unchanged question
+in one shared region group through one Query-owned batch. Empty or unavailable
+planning sends one unscoped unchanged query. Scope membership
+cannot seed or authorize Raw. Apart from the document-level synthesis locator,
+the outline contains no Raw, individual Claim/Entity/Relation row, attachment,
+internal revision/evidence identity, or projection content and never becomes
+factual material. Returned evidence separates
+locator pages from `raw_evidence` and `source_unit` factual material.
+Code enumerates exact active-Raw sentence and structural-line support spans.
+Grounded synthesis selects their request-local IDs, and code owns the resulting
+answer-bearing citation spans and order. Retrieval match spans and
+`citation_pages` remain locator context. The reference resolver validates and
+renumbers only these code-issued public citations. One public marker represents
+one selected Raw source unit. Its locator keeps every exact selected range;
+overlapping or touching ranges may collapse, while disjoint ranges remain
+separate and are never widened into one enclosing range. Persisted Chat
+citations remain locator-only. Preview resolves all answer-selected text on
+demand from the cited immutable source unit and keeps that text transient.
+Source-unit-local offsets never slice the complete Raw document, and an
+unavailable locator cannot manufacture a highlight.
 
-```text
-input
-segment
-normalize_agent
-atom_agent
-retrieval
-plan_agent
-draft_agent
-review_agent
-write_gate
-write
-```
+Chat prepares one complete evidence projection for Answer Decision. That model
+receives reader-facing source labels, support text and IDs, call-local visual
+references, source-authored image captions, processor-extracted visual
+content, typed retrieval outcome, and advertised capabilities. Code keeps
+filenames, durable attachment and revision identities, character offsets,
+filesystem paths, retrieval scores, duplicate citation projections, and
+attachment Markdown outside the model payload.
 
-Stable observation event types:
+Answer Decision returns exactly `mode`, `spans`, `visuals`, `gap`, and
+`generated_image_prompt`. `mode` is `raw`, `general`, or `gap`. Raw decisions contain
+one or more current support-span IDs and optional source-visual references;
+general and gap modes contain no Raw references. A Raw decision may include a
+partial gap. A general decision may identify an unsupported remainder, and a
+gap decision requires a concise gap. Image generation remains available in any
+mode only for explicit create-new intent and provider capability. A non-null
+prompt is both authorization and provider input; a separate Boolean is not
+returned. Code validates support authorization, uniqueness, visual ownership,
+mode invariants, explicit image intent, provider capability, and prompt safety,
+then invokes the provider before composition.
 
-- `ingest_step_started`
-- `ingest_step_finished`
-- `ingest_step_skipped`
+Code persists successful generated output and maps it to request-local
+generated-visual references. It reports `not_requested`, `failed`, or
+`available` to Response Composer without exposing provider URLs, stored paths,
+artifact identities, or image Markdown. Code also maps validated Raw selections
+to request-local material IDs. Each
+material contains one code-owned reader-facing source label, exact selected Raw
+texts in source order, and selected visual semantics. Response Composer
+receives the original question, substantive dialogue-only history with
+code-rendered citations and images removed, the validated mode and gap, and the
+generated-image result. It does not receive support IDs, unselected Raw or
+images, Query metadata, provider URLs, paths, offsets, or durable identities.
 
-These observation names are runtime contract names. UI labels, translated copy,
-and report prose are presentation details derived from these names.
+Response Composer returns ordered text, source-visual, and successful
+generated-visual items plus optional partial-gap Markdown. A text item may
+use natural multi-block Markdown; its selected-material mapping applies to the
+whole item. Every selected material must support at least one text item, every
+selected source visual must appear exactly once after text using its owner
+material, and every successful generated visual must appear exactly once at a
+composer-selected position. Code rejects transport
+identities and standalone citation-like markers in reader-facing prose without
+rejecting ordinary code, syntax examples, formulas, index notation, or
+technical paths. It expands
+material IDs to retained support spans, injects adjacent public citation
+markers for Raw mode, and renders stored source/generated-image Markdown at the validated
+item positions. General output has no
+local citations or source visuals. Gap output has no answer items. Mixed
+authority is rejected.
 
-## Query Flow Contract
+Answer prose follows the latest user's language composition. Chinese, English,
+and genuinely mixed requests may keep their respective form, while
+source-written names, technical terms, code, formulas, and direct quotations
+remain unchanged unless translation is explicitly requested.
 
-Query is model-free. It returns selected wiki evidence, not a final natural
-language answer.
+Every Raw-grounded answer exposes source-image semantics only to Answer
+Decision when a current Raw caption or extracted content exists. A selected
+visual is mandatory input to Response Composer and must be placed exactly once
+as a typed source-visual item in an owner-adjacent single or contiguous visual
+group. Model-authored image Markdown is invalid. Unknown, repeated,
+non-owner-adjacent, cross-Raw, unselected, and empty-semantic visuals do not
+render.
+Answer Decision may return a non-null `generated_image_prompt` only when the
+latest user intent semantically and explicitly requests creation of a new
+image. Code runs that request before Response Composer, which places every
+successful generated visual. A source-image request does not authorize a
+generated replacement. Generated images carry a code-owned visible label that
+they are not knowledge-base evidence.
+Raw-linked images without a source caption or extracted content remain stored
+but absent from model semantic context and final Chat image output.
 
-Retrieval shape:
+Chat does not receive arbitrary shell, browser, filesystem, or network tools
+and does not write Wiki Markdown directly.
 
-```text
-query
-  -> graph/index recall
-  -> BM25 rerank inside candidates
-  -> primary/supporting/source page selection
-  -> context package
-```
+Answer Decision is the sole semantic owner of whether current Raw supports the
+original request, stable general knowledge is appropriate, or local evidence
+is missing. Candidate and trustworthy no-match outcomes both continue through
+Answer Decision and Response Composer. Typed index, integrity, timeout,
+cancellation, and resource failures remain code-owned terminals. Code derives
+provenance from the validated decision and does not use a no-match gate or
+local-evidence keyword router. Session mutations use stable
+request/message/turn identities plus
+compare-and-swap `session_revision`; selected ingest uses `turn_ids`, never
+array positions.
 
-Graph index locates pages. Markdown pages explain.
+## Operational Contracts
 
-Response schema:
-
-- `schema_version`: `wiki_query.v1`
-- `results`: ranked retrieval candidates returned to the caller.
-- `primary_pages`: answer-bearing maintained pages.
-- `supporting_pages`: maintained pages that add complementary evidence.
-- `source_pages`: source digest pages used for provenance.
-- `answer_scope`: deterministic description of the query breadth and vault scope.
-- `answer_set`: stable page-role plan for answer construction.
-- `evidence_coverage`: deterministic coverage signal for gaps and confidence.
-- `context_pack`: model-facing text package for callers that need a prompt-ready
-  evidence block.
-
-`results` may include candidates outside the final answer set. `answer_set`
-records which pages shape the answer. `source_pages` support provenance and
-source-focused questions.
-
-## Chat Flow Contract
-
-Chat is the answer layer:
-
-```text
-user message
-  -> tool plan
-  -> query/read/reuse tools
-  -> evidence pack
-  -> answer model
-  -> reference resolver
-  -> rendered answer and citations
-```
-
-The evidence pack is the answer model's factual input. Public citations are
-resolved from tool trace and evidence pack records, then normalized for display.
-
-Evidence pack schema:
-
-- `schema_version`: `chat_evidence_pack.v1`
-- `primary_pages`
-- `supporting_pages`
-- `source_pages`
-- `citation_pages`
-- `further_results`
-- `answer_scope`
-- `answer_set`
-- `evidence_coverage`
-
-`citation_pages` is the model-visible reference order. `further_results` is
-navigation material. The reference resolver produces the public citation list:
-
-- explicit inline references such as `[1]` select pages from `citation_pages`;
-- sparse references are renumbered for display;
-- navigation-only `list_wiki_pages` results stay out of public citations unless
-  the answer explicitly references them;
-- `hidden_evidence_count` records evidence pages that were observed but not
-  displayed as public citations.
-
-## Report And Ledger Contract
-
-Reports and ledgers are recorded in [`REPORT_CONTRACT.md`](REPORT_CONTRACT.md).
-
-The short boundary is:
-
-- `maintenance/reports/**` stores human-readable Markdown reports.
-- `.knoarbor/ledgers/**` stores append-only machine records.
-- `.knoarbor/runs/**`, `queue/**`, `locks/**`, and `logs/**` store runtime
-  lifecycle state.
-- token analysis is derived from `token_ledger.v1` records and historical flow
-  ledgers.
-
-Failure artifacts use `run_failure_record.v1` and keep flow, stage, request
-summary, error code, retryability, and hint together.
-
-## Public API Contract
-
-Public API stability is recorded in `docs/API_COMPATIBILITY.md` and the
-machine-readable contract in `src/knoarbor/entrypoints/api_contract.py`.
-
-The public API contract is method-aware: method, path, request shape, response
-shape, and error envelope belong together.
-
-The Python-hosted `/ui` static console is a transition-period developer surface.
-Renderer runtime data uses the same method-aware business-local API contract as
-the rest of the local service, including `/vaults/status`, `/wiki/graph`,
-`/tokens`, and `/vault-assets/*`.
-
-## UI Contract
-
-The UI contract is recorded in `docs/UI_CONTRACT.md`.
-
-Public product surfaces:
-
-- Chat: conversation, selected vault scope, evidence-backed answers, citations.
-- Flows: run status, ingest, lint, query, reports, token analysis.
-- Knowledge: maintained pages and graph views.
-- Settings: vaults, inputs, preprocessing, models, runtime, diagnostics.
+- Stable error codes and response envelopes are documented in
+  [Error Codes](ERROR_CODES.md) and [API Compatibility](API_COMPATIBILITY.md).
+- Stable report and ledger schemas are documented in
+  [Report Contract](REPORT_CONTRACT.md).
+- UI adapters display service decisions and do not recreate workflow policy;
+  see [UI Contract](UI_CONTRACT.md).
+- Ingest observation stages are `input`, `document_process`,
+  `source_unitize`, `index_metadata_agent`, `index_metadata_validation`, `index_write`,
+  `projection`, and `report`.
+- Runtime events and diagnostics are operational audit, not knowledge facts.

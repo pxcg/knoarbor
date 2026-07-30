@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.core.config import ModelProviderConfig
 from knoarbor.core.errors import ExternalServiceError
-from knoarbor.core.schemas.knowledge_extract import KnowledgeExtract
+from knoarbor.core.schemas.lint_candidates import MaintenanceCandidates
 from knoarbor.semantic import (
     ChatCompletionRequest,
     ModelGateway,
@@ -24,6 +24,7 @@ from knoarbor.semantic import (
     load_semantic_contract,
     parse_contract_output,
 )
+from knoarbor.semantic.runner import SemanticRunFailed
 from tests.harness.llm import ScriptedChatClient
 
 
@@ -48,10 +49,10 @@ class FakeHTTPResponse:
                 "choices": [
                     {
                         "message": {
-                            "content": '{"output":{"schema_version":"knowledge_extract.v1"}}',
+                            "content": '{"output":{"schema_version":"maintenance_candidates.v1","summary":"No candidates.","candidates":[],"warnings":[]}}',
                         }
                     }
-                ]
+                ],
             }
         ).encode("utf-8")
 
@@ -76,97 +77,45 @@ class FakeOpenAIStreamResponse:
 
 class SemanticRunnerTests(unittest.TestCase):
     def test_parse_contract_output_requires_top_level_output(self) -> None:
-        contract = load_semantic_contract("source_normalize")
+        contract = load_semantic_contract("lint_diagnose")
 
         parsed = parse_contract_output(
             contract,
             """
             {
               "output": {
-                "schema_version": "knowledge_extract.v1",
-                "source": {
-                  "source_type": "markdown",
-                  "source_app": "unit",
-                  "source_id": "unit:1",
-                  "source_path": "raw/inbox/notes/unit.md",
-                  "title": "Unit",
-                  "created_at": null,
-                  "updated_at": null
-                },
-                "content_units": [
-                  {
-                    "index": 0,
-                    "unit_type": "note",
-                    "role": "note",
-                    "title": "Unit",
-                    "content": "Unit note.",
-                    "timestamp": null,
-                    "is_primary": true,
-                    "metadata": {}
-                  }
-                ],
-                "compile_context": {
-                  "primary_content": "Unit note.",
-                  "supporting_evidence": [],
-                  "links": [],
-                  "latest_unit_indexes": [0]
-                },
-                "confidence": 0.9,
+                "schema_version": "maintenance_candidates.v1",
+                "candidates": [],
+                "summary": "Unit",
                 "warnings": []
               }
             }
             """,
         )
 
-        self.assertIsInstance(parsed, KnowledgeExtract)
-        self.assertEqual(parsed.source.title, "Unit")
+        self.assertIsInstance(parsed, MaintenanceCandidates)
+        self.assertEqual(parsed.summary, "Unit")
 
     def test_parse_contract_output_accepts_schema_root_payload(self) -> None:
-        contract = load_semantic_contract("source_normalize")
+        contract = load_semantic_contract("lint_diagnose")
 
         parsed = parse_contract_output(
             contract,
             """
             {
-              "schema_version": "knowledge_extract.v1",
-              "source": {
-                "source_type": "markdown",
-                "source_app": "unit",
-                "source_id": "unit:1",
-                "source_path": "raw/inbox/notes/unit.md",
-                "title": "Schema Root",
-                "created_at": null,
-                "updated_at": null
-              },
-              "content_units": [
-                {
-                  "index": 0,
-                  "unit_type": "note",
-                  "role": "note",
-                  "title": "Schema Root",
-                  "content": "Schema root note.",
-                  "timestamp": null,
-                  "is_primary": true,
-                  "metadata": {}
-                }
-              ],
-              "compile_context": {
-                "primary_content": "Schema root note.",
-                "supporting_evidence": [],
-                "links": [],
-                "latest_unit_indexes": [0]
-              },
-              "confidence": 0.9,
+              "schema_version": "maintenance_candidates.v1",
+              "candidates": [],
+              "summary": "Schema Root",
               "warnings": []
             }
             """,
         )
 
-        self.assertIsInstance(parsed, KnowledgeExtract)
-        self.assertEqual(parsed.source.title, "Schema Root")
+        self.assertIsInstance(parsed, MaintenanceCandidates)
+        self.assertEqual(parsed.summary, "Schema Root")
 
     def test_parse_contract_output_rejects_unrelated_json_object(self) -> None:
-        contract = load_semantic_contract("source_normalize")
+        contract = load_semantic_contract("lint_diagnose")
 
         with self.assertRaises(ValueError):
             parse_contract_output(contract, '{"schema_version": "unknown.v1"}')
@@ -175,64 +124,38 @@ class SemanticRunnerTests(unittest.TestCase):
         content = """
         {
           "output": {
-            "schema_version": "knowledge_extract.v1",
-            "source": {
-              "source_type": "markdown",
-              "source_app": "unit",
-              "source_id": "unit:2",
-              "source_path": "raw/inbox/notes/unit.md",
-              "title": "Runner Unit",
-              "created_at": null,
-              "updated_at": null
-            },
-            "content_units": [
-              {
-                "index": 0,
-                "unit_type": "note",
-                "role": "note",
-                "title": "Runner Unit",
-                "content": "Runner note.",
-                "timestamp": null,
-                "is_primary": true,
-                "metadata": {}
-              }
-            ],
-            "compile_context": {
-              "primary_content": "Runner note.",
-              "supporting_evidence": [],
-              "links": [],
-              "latest_unit_indexes": [0]
-            },
-            "confidence": 0.9,
+            "schema_version": "maintenance_candidates.v1",
+            "candidates": [],
+            "summary": "Runner Unit",
             "warnings": []
           }
         }
         """
         client = ScriptedChatClient.single(content)
-        result = SemanticRunner(client).run("source_normalize", {"source_document": {"title": "Runner Unit"}})
+        result = SemanticRunner(client).run("lint_diagnose", {"scan": {"title": "Runner Unit"}})
 
         self.assertEqual(result.provider, "fake")
-        self.assertEqual(result.schema_version, "knowledge_extract.v1")
+        self.assertEqual(result.schema_version, "maintenance_candidates.v1")
         self.assertIsNotNone(client.last_request)
         assert client.last_request is not None
         self.assertEqual(client.last_request.messages[0].role, "system")
         self.assertIn("semantic contract executor", client.last_request.messages[0].content)
         self.assertIn("Contract instructions:", client.last_request.messages[1].content)
         self.assertIn("Stable contract execution preamble", client.last_request.messages[1].content)
-        self.assertIn("source_document", client.last_request.messages[2].content)
+        self.assertIn("scan", client.last_request.messages[2].content)
         self.assertGreater(result.metrics["prompt_stable_chars"], 0)
         self.assertGreater(result.metrics["prompt_dynamic_chars"], 0)
         self.assertEqual(result.metrics["prompt_stable_message_count"], 2)
         self.assertEqual(result.metrics["prompt_dynamic_message_count"], 1)
-        self.assertEqual(result.metrics["payload_top_field"], "source_document")
+        self.assertEqual(result.metrics["payload_top_field"], "scan")
         self.assertGreater(result.metrics["payload_char_total"], 0)
-        self.assertIn("source_document", result.metrics["payload_char_breakdown"])
+        self.assertIn("scan", result.metrics["payload_char_breakdown"])
 
     def test_semantic_prompt_package_keeps_payload_out_of_stable_prefix(self) -> None:
-        contract = load_semantic_contract("source_normalize")
+        contract = load_semantic_contract("lint_diagnose")
 
-        first = build_semantic_prompt_package(contract, {"source_document": {"title": "First Payload"}})
-        second = build_semantic_prompt_package(contract, {"source_document": {"title": "Second Payload"}})
+        first = build_semantic_prompt_package(contract, {"scan": {"title": "First Payload"}})
+        second = build_semantic_prompt_package(contract, {"scan": {"title": "Second Payload"}})
 
         self.assertEqual(first.messages[0].content, second.messages[0].content)
         self.assertEqual(first.messages[1].content, second.messages[1].content)
@@ -246,35 +169,9 @@ class SemanticRunnerTests(unittest.TestCase):
         valid = """
         {
           "output": {
-            "schema_version": "knowledge_extract.v1",
-            "source": {
-              "source_type": "markdown",
-              "source_app": "unit",
-              "source_id": "unit:retry",
-              "source_path": "raw/inbox/notes/unit.md",
-              "title": "Retry Unit",
-              "created_at": null,
-              "updated_at": null
-            },
-            "content_units": [
-              {
-                "index": 0,
-                "unit_type": "note",
-                "role": "note",
-                "title": "Retry Unit",
-                "content": "Retry note.",
-                "timestamp": null,
-                "is_primary": true,
-                "metadata": {}
-              }
-            ],
-            "compile_context": {
-              "primary_content": "Retry note.",
-              "supporting_evidence": [],
-              "links": [],
-              "latest_unit_indexes": [0]
-            },
-            "confidence": 0.9,
+            "schema_version": "maintenance_candidates.v1",
+            "candidates": [],
+            "summary": "Retry Unit",
             "warnings": []
           }
         }
@@ -282,10 +179,10 @@ class SemanticRunnerTests(unittest.TestCase):
         client = ScriptedChatClient([ExternalServiceError("temporary provider failure"), valid])
         runner = SemanticRunner(client, retry_policy=SemanticRetryPolicy(max_attempts=2, backoff_seconds=0))
 
-        result = runner.run("source_normalize", {"source_document": {"title": "Retry Unit"}})
+        result = runner.run("lint_diagnose", {"scan": {"title": "Retry Unit"}})
 
         self.assertEqual(client.calls, 2)
-        self.assertEqual(result.output.source.title, "Retry Unit")
+        self.assertEqual(result.output.summary, "Retry Unit")
         self.assertEqual(len(runner.history), 2)
         self.assertEqual(runner.history[0].metrics.get("error_type"), "ExternalServiceError")
         self.assertEqual(runner.history[0].metrics.get("error_code"), "KA-EXT-001")
@@ -303,43 +200,28 @@ class SemanticRunnerTests(unittest.TestCase):
         )
 
         with self.assertRaises(ExternalServiceError):
-            runner.run("source_normalize", {"source_document": {"title": "Retry Unit"}})
+            runner.run("lint_diagnose", {"scan": {"title": "Retry Unit"}})
 
         self.assertEqual(client.calls, 1)
+
+    def test_semantic_runner_exposes_terminal_failure_metrics_without_history_lookup(self) -> None:
+        client = ScriptedChatClient([ExternalServiceError("temporary provider failure")])
+        runner = SemanticRunner(client, retry_policy=SemanticRetryPolicy(max_attempts=1, backoff_seconds=0))
+
+        with self.assertRaises(SemanticRunFailed) as raised:
+            runner.run_with_failure("lint_diagnose", {"scan": {"title": "Failure metrics"}})
+
+        self.assertIsInstance(raised.exception.cause, ExternalServiceError)
+        self.assertEqual(raised.exception.failure.metrics["error_type"], "ExternalServiceError")
+        self.assertEqual(raised.exception.failure.metrics["error_code"], "KA-EXT-001")
 
     def test_semantic_runner_retries_invalid_structured_output(self) -> None:
         valid = """
         {
           "output": {
-            "schema_version": "knowledge_extract.v1",
-            "source": {
-              "source_type": "markdown",
-              "source_app": "unit",
-              "source_id": "unit:json-retry",
-              "source_path": "raw/inbox/notes/unit.md",
-              "title": "JSON Retry Unit",
-              "created_at": null,
-              "updated_at": null
-            },
-            "content_units": [
-              {
-                "index": 0,
-                "unit_type": "note",
-                "role": "note",
-                "title": "JSON Retry Unit",
-                "content": "JSON retry note.",
-                "timestamp": null,
-                "is_primary": true,
-                "metadata": {}
-              }
-            ],
-            "compile_context": {
-              "primary_content": "JSON retry note.",
-              "supporting_evidence": [],
-              "links": [],
-              "latest_unit_indexes": [0]
-            },
-            "confidence": 0.9,
+            "schema_version": "maintenance_candidates.v1",
+            "candidates": [],
+            "summary": "JSON Retry Unit",
             "warnings": []
           }
         }
@@ -347,10 +229,10 @@ class SemanticRunnerTests(unittest.TestCase):
         client = ScriptedChatClient(["not-json", valid])
         runner = SemanticRunner(client, retry_policy=SemanticRetryPolicy(max_attempts=2, backoff_seconds=0))
 
-        result = runner.run("source_normalize", {"source_document": {"title": "JSON Retry Unit"}})
+        result = runner.run("lint_diagnose", {"scan": {"title": "JSON Retry Unit"}})
 
         self.assertEqual(client.calls, 2)
-        self.assertEqual(result.output.source.title, "JSON Retry Unit")
+        self.assertEqual(result.output.summary, "JSON Retry Unit")
         self.assertEqual(runner.history[0].metrics.get("error_type"), "ModelOutputError")
         self.assertEqual(runner.history[0].metrics.get("error_code"), "KA-MODEL-001")
 
@@ -549,6 +431,28 @@ class SemanticRunnerTests(unittest.TestCase):
             client.complete(ChatCompletionRequest(messages=[{"role": "user", "content": "hello"}]))
 
         self.assertEqual(captured_payload["response_format"], {"type": "json_object"})
+
+    def test_openai_compatible_client_applies_explicit_non_thinking_body(self) -> None:
+        client = OpenAICompatibleChatClient.from_config(
+            "deepseek",
+            ModelProviderConfig(
+                base_url="https://api.example.test",
+                api_key="test-key",
+                model="deepseek-v4-flash",
+                extra_body={"thinking": {"type": "disabled"}},
+            ),
+        )
+        captured_payload: dict[str, object] = {}
+
+        def fake_urlopen(request, **_kwargs):
+            nonlocal captured_payload
+            captured_payload = json.loads(request.data.decode("utf-8"))
+            return FakeHTTPResponse()
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            client.complete(ChatCompletionRequest(messages=[{"role": "user", "content": "hello"}]))
+
+        self.assertEqual(captured_payload["thinking"], {"type": "disabled"})
 
     def test_openai_compatible_client_merges_multiple_system_messages(self) -> None:
         client = OpenAICompatibleChatClient(

@@ -1,23 +1,23 @@
 import { rerunFailedRun } from "../../api/client";
-import type { AppContext } from "../../appContext";
+import type { RunAppContext } from "../../appContext";
 import type { RunRecord } from "../../types";
 import { canRecoverRun, currentStageLabel, dedupeRuns, reportPathForRun } from "./RunPanelModel";
 import { RunFlowPlaceholder } from "./RunMonitorDetails";
 import { RunMonitorItem } from "./RunMonitorItem";
 
-export { RunPreflight } from "./RunPreflight";
-
 export function ActiveRunsPanel({
   context,
+  excludeRunId,
   flow,
   includeRecoverable = false,
 }: {
-  context: AppContext;
+  context: RunAppContext;
+  excludeRunId?: string;
   flow?: RunRecord["flow"];
   includeRecoverable?: boolean;
 }) {
   const recoverableRecent = context.recentRuns.filter((run) => canRecoverRun(run) && (!flow || run.flow === flow));
-  const runs = dedupeRuns(context.activeRuns.filter((run) => !flow || run.flow === flow));
+  const runs = dedupeRuns(context.activeRuns.filter((run) => (!flow || run.flow === flow) && run.run_id !== excludeRunId));
   if (!runs.length) {
     return (
       <>
@@ -30,7 +30,7 @@ export function ActiveRunsPanel({
           </div>
           <RunFlowPlaceholder context={context} flow={flow} />
         </article>
-        {includeRecoverable && recoverableRecent.length ? <RecoverableRunsPanel context={context} runs={recoverableRecent.slice(0, 4)} /> : null}
+        {includeRecoverable && recoverableRecent.length ? <RecoverableRunsPanel context={context} runs={recoverableRecent} /> : null}
       </>
     );
   }
@@ -51,17 +51,15 @@ export function ActiveRunsPanel({
   );
 }
 
-function RecoverableRunsPanel({ context, runs }: { context: AppContext; runs: RunRecord[] }) {
+function RecoverableRunsPanel({ context, runs }: { context: RunAppContext; runs: RunRecord[] }) {
   async function recoverRun(runId: string) {
     try {
       await rerunFailedRun(context.activeVaultSelector, runId, {
         config_path: context.configPath,
       });
-      context.setNotice({ message: context.t("rerunStarted") });
       await context.loadVaultState();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      context.setNotice({ message, error: true });
+      console.error("Run recovery failed", error);
     }
   }
   return (
@@ -86,7 +84,7 @@ function RecoverableRunsPanel({ context, runs }: { context: AppContext; runs: Ru
               </div>
               <div>
                 {reportPath && (
-                  <button className="button secondary small-button" onClick={() => context.openReport(reportPath)} type="button">
+                  <button className="button secondary small-button" onClick={() => context.openReport(reportPath, context.activeVaultId)} type="button">
                     {context.t("viewReport")}
                   </button>
                 )}

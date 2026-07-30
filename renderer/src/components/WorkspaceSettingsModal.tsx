@@ -1,5 +1,5 @@
-import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
+import { Dialog } from "./Dialog";
 
 type WorkspaceSettingsModalProps = {
   children: ReactNode;
@@ -9,28 +9,16 @@ type WorkspaceSettingsModalProps = {
 };
 
 export function WorkspaceSettingsModal({ children, isOpen, t, onClose }: WorkspaceSettingsModalProps) {
-  if (!isOpen) return null;
-  return createPortal(
-    <div
-      className="settings-modal-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+  return (
+    <Dialog
+      closeLabel={t("close")}
+      eyebrow={t("workspaceSettingsEyebrow")}
+      isOpen={isOpen}
+      onClose={onClose}
+      title={t("workspaceSettings")}
+      titleId="workspace-settings-title"
     >
-      <section className="settings-modal" role="dialog" aria-modal="true" aria-labelledby="workspace-settings-title">
-        <header className="settings-modal-header">
-          <div>
-            <p className="eyebrow">{t("workspaceSettingsEyebrow")}</p>
-            <h2 id="workspace-settings-title">{t("workspaceSettings")}</h2>
-          </div>
-          <button className="icon-button subtle settings-modal-close" type="button" onClick={onClose} aria-label={t("close")}>
-            ×
-          </button>
-        </header>
-        <div className="settings-modal-content">{children}</div>
-      </section>
-    </div>,
-    document.body,
+      {children}
+    </Dialog>
   );
 }

@@ -1,19 +1,19 @@
 # 安装部署
 
-KnoArbor 是桌面端优先的本地知识引擎，底层由 Python runtime 服务承载。公开发布包是普通用户的默认路径；源码安装仍是贡献者和希望直接运行本地服务 API 的用户的参考路径。
+KnoArbor 是本地优先的 Python 服务，并提供内置管理界面和桌面端壳。公开发布包是桌面用户最简单的路径；源码安装仍是贡献者和希望直接运行本地服务的用户的参考路径。
 
 ## 环境要求
 
 - Python 3.12
 - `uv`
 - 一个模型供应商，可以是 OpenAI 兼容端点或 Ollama 原生端点
-- 可选：只有在重新构建桌面 renderer 时才需要 Node.js 20+
+- 可选：只有在重新构建前端时才需要 Node.js 20+
 
 ## 本地安装
 
 ```bash
-git clone https://github.com/pxcg/knoarbor.git
-cd knoarbor
+git clone https://github.com/pxcg/KnoArbor.git
+cd KnoArbor
 uv sync
 uv run knoar first-run --vault ./vaults/default
 ```
@@ -33,19 +33,18 @@ cp config.example.yaml config.yaml
 uv run knoar doctor
 ```
 
-为源码开发启动服务：
+启动服务：
 
 ```bash
 uv run knoar serve
 ```
 
-服务会打印当前本地 API 和开发者控制台地址。如果 `8000` 已被占用，KnoArbor 会选择下一个
-可用本地端口，并把运行端点写入 `.knoarbor/endpoint.json` 和
-`~/.knoarbor/endpoint.json`。
+服务会打印当前 UI 和 API 地址。如果 `8000` 已被占用，KnoArbor 会选择下一个
+可用本地端口，并把运行端点只写入产品目录中的 `state/endpoint.json`。
 
 ## 验证安装
 
-源码开发时可以打开开发者控制台：
+打开界面：
 
 ```text
 http://127.0.0.1:8000
@@ -73,12 +72,8 @@ OpenRouter、LM Studio、vLLM 和其他 OpenAI 兼容端点都使用同一种 pr
 
 ```yaml
 models:
-  default_provider: deepseek
-  providers:
-    deepseek:
-      base_url: https://api.deepseek.com
-      api_key:
-      model: deepseek-v4-flash
+  default_provider:
+  providers: {}
 ```
 
 Ollama 或 vLLM 等本地端点可以留空 `api_key`。启动本地模型端点后，
@@ -117,15 +112,15 @@ cd /path/to/MinerU
 
 然后将 `document_processing.mineru.endpoint` 配置为
 `http://127.0.0.1:18000/file_parse`。如果 MinerU 写出了图片资源，KnoArbor 会
-把它们记录为 Markdown sidecar 附件，并在 source digest 审计页中展示。
+把它们记录为 Markdown sidecar 附件，并在可读 source projection 中展示。
 
 聊天来源默认路径如 `~/.codex/sessions`、`~/.claude/projects` 和
 `~/.hermes/sessions` 会展开到当前用户主目录。Windows 下对应路径通常位于
 `%USERPROFILE%`，例如 `C:\Users\Alice\.codex\sessions`。
 
-## 重新构建 renderer
+## 重新构建前端
 
-仓库已经包含构建后的 renderer 资源。只有修改桌面 renderer 时才需要重新构建：
+仓库已经包含构建后的 UI 资源。只有修改前端时才需要重新构建：
 
 ```bash
 cd renderer
@@ -134,7 +129,8 @@ npm run build
 cd ..
 ```
 
-构建结果写入 `renderer/dist/`。源码开发时 Python 开发者控制台读取该目录；桌面打包会把它复制到 `desktop/resources/renderer/`。
+构建结果写入 `renderer/dist`。直接运行桌面打包命令时也会先执行这一步，避免
+使用历史构建产物。
 
 ## 常用检查
 

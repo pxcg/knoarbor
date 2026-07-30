@@ -9,11 +9,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from knoarbor.core.checkpoints import session_unit_raw_index
-from knoarbor.core.schemas.knowledge_extract import ContentUnit, ContentUnitRole, ContentUnitType, KnowledgeExtract
 from knoarbor.core.schemas.sources import SourceDocument
 
 
+SourceUnitType = Literal["conversation_turn", "note", "section", "excerpt", "evidence"]
+SourceUnitRole = Literal["user", "assistant", "note", "excerpt", "evidence"]
 SourceUnitizationRule = Literal[
     "markdown_heading",
     "parsed_document_structure",
@@ -30,6 +30,16 @@ SourceUnitizationRule = Literal[
 ]
 
 
+def session_unit_raw_index(unit: Any, fallback: int) -> int:
+    if isinstance(unit, dict):
+        value = unit.get("raw_index")
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+    return fallback
+
+
 class SourceUnitRange(BaseModel):
     from_index: int | None = None
     to_index: int | None = None
@@ -37,8 +47,8 @@ class SourceUnitRange(BaseModel):
 
 class SourceUnit(BaseModel):
     index: int = Field(..., ge=0)
-    unit_type: ContentUnitType
-    role: ContentUnitRole
+    unit_type: SourceUnitType
+    role: SourceUnitRole
     title: str | None = None
     content: str = ""
     source_range: SourceUnitRange = Field(default_factory=SourceUnitRange)
@@ -131,25 +141,28 @@ class SourceUnitizer:
             return self._table_units(document)
         if document.content.format == "html" or document.source_type in {"html", "web"}:
             return self._html_units(document)
-        if _looks_like_code(document):
-            return self._code_units(document)
         if document.source_type == "document" and document.content.sections:
             return self._section_units(document)
         if document.content.format == "markdown" or document.source_type in {"markdown", "document"}:
             return self._markdown_units(document)
+        if _looks_like_code(document):
+            return self._code_units(document)
         return self._paragraph_units(document)
 
     def _excerpt_units(self, document: SourceDocument) -> SourceUnitizationResult:
-        fragments = _selected_fragments(document)
-        if not fragments:
+        selected_fragments = _selected_fragments(document)
+        fragments = selected_fragments
+        if not selected_fragments:
             fragments = [document.content.text]
+        selected_title = str(document.metadata.get("title") or "").strip() if selected_fragments else ""
         units = [
             SourceUnit(
                 index=index,
                 unit_type="excerpt",
                 role="excerpt",
-                title=_unit_title(fragment, fallback=f"Excerpt {index + 1}"),
+                title=selected_title if selected_title and len(fragments) == 1 else _unit_title(fragment, fallback=f"Excerpt {index + 1}"),
                 content=fragment.strip(),
+                structural_path=[selected_title] if selected_title else [],
                 rule="selected_excerpt",
                 metadata={"selection_index": index},
             )
@@ -215,7 +228,8 @@ class SourceUnitizer:
 
     def _markdown_units(self, document: SourceDocument) -> SourceUnitizationResult:
         blocks = _markdown_heading_blocks(document.content.text)
-        if len(blocks) <= 1:
+        has_heading_block = any(isinstance(block.metadata, dict) and "heading_level" in block.metadata for block in blocks)
+        if not has_heading_block:
             paragraph_result = self._paragraph_units(document, fallback_for="markdown_heading")
             paragraph_result.rule = "markdown_heading"
             paragraph_result.fallback_rule = "paragraph_group"
@@ -319,52 +333,6 @@ def source_unitization_from_document(document: SourceDocument) -> SourceUnitizat
     return SourceUnitizer().unitize(document)
 
 
-def apply_source_units_to_extract(document: SourceDocument, extract: KnowledgeExtract) -> KnowledgeExtract:
-    """Make model-normalized extracts respect deterministic source units."""
-
-    unitization = source_unitization_from_document(document)
-    if not unitization.units:
-        return extract.model_copy(update={"attachments": list(document.content.attachments)})
-    units = [
-        ContentUnit(
-            index=index,
-            unit_type=unit.unit_type,
-            role=unit.role,
-            title=unit.title,
-            content=unit.content,
-            timestamp=None,
-            is_primary=True,
-            metadata={
-                **unit.metadata,
-                "source_unitization_rule": unit.rule,
-                "source_range": unit.source_range.model_dump(),
-                "raw_indexes": list(unit.raw_indexes),
-                "structural_path": list(unit.structural_path),
-            },
-        )
-        for index, unit in enumerate(unitization.units)
-        if unit.content.strip()
-    ]
-    if not units:
-        return extract
-    primary_content = "\n\n".join(unit.content for unit in units if unit.content.strip())
-    latest_indexes = [unit.index for unit in units]
-    warnings = _dedupe([*extract.warnings, *unitization.warnings])
-    return extract.model_copy(
-        update={
-            "content_units": units,
-            "compile_context": extract.compile_context.model_copy(
-                update={
-                    "primary_content": primary_content,
-                    "latest_unit_indexes": latest_indexes,
-                }
-            ),
-            "attachments": list(document.content.attachments),
-            "warnings": warnings,
-        }
-    )
-
-
 def _result(
     document: SourceDocument,
     rule: SourceUnitizationRule,
@@ -421,7 +389,7 @@ def _json_object(text: str) -> dict[str, Any] | None:
 
 
 def _session_messages(payload: dict[str, Any]) -> tuple[str | None, list[Any] | None]:
-    for key in ("turns", "messages"):
+    for key in ("messages", "turns"):
         value = payload.get(key)
         if isinstance(value, list):
             return key, value
@@ -486,23 +454,49 @@ def _markdown_heading_blocks(text: str) -> list[_TextBlock]:
     if matches[0].start() > 0 and text[: matches[0].start()].strip():
         blocks.append(_TextBlock(title="Preamble", text=text[: matches[0].start()].strip(), structural_path=("Preamble",)))
     heading_stack: list[tuple[int, str]] = []
+    pending_parent_start: int | None = None
+    pending_parent_level: int | None = None
+    pending_parent_title: str | None = None
     for index, match in enumerate(matches):
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
         level = len(match.group(1))
         title = match.group(2).strip()
+        coalesced_ordinal: str | None = None
+        if pending_parent_level is not None and level <= pending_parent_level:
+            if (
+                level == pending_parent_level
+                and pending_parent_title is not None
+                and _heading_is_ordinal_only(pending_parent_title)
+                and not _heading_is_ordinal_only(title)
+            ):
+                coalesced_ordinal = pending_parent_title
+            else:
+                pending_parent_start = None
+            pending_parent_title = None
+            pending_parent_level = None
+        if coalesced_ordinal is not None:
+            title = f"{coalesced_ordinal} {title}"
         heading_stack = [(existing_level, existing_title) for existing_level, existing_title in heading_stack if existing_level < level]
         heading_stack.append((level, title))
         block_text = text[match.start() : end].strip()
         if _heading_body_is_empty(block_text):
+            if pending_parent_start is None:
+                pending_parent_start = match.start()
+                pending_parent_level = level
+                pending_parent_title = title
             continue
+        block_start = pending_parent_start if pending_parent_start is not None else match.start()
         blocks.append(
             _TextBlock(
                 title=title,
-                text=block_text,
+                text=text[block_start:end].strip(),
                 structural_path=tuple(stack_title for _, stack_title in heading_stack),
                 metadata={"heading_level": level},
             )
         )
+        pending_parent_start = None
+        pending_parent_level = None
+        pending_parent_title = None
     return blocks or [_TextBlock(title=None, text=text)]
 
 
@@ -512,6 +506,16 @@ def _heading_body_is_empty(block_text: str) -> bool:
         return True
     body = "\n".join(lines[1:]).strip()
     return not body
+
+
+def _heading_is_ordinal_only(value: str) -> bool:
+    text = re.sub(r"\s+", " ", value).strip()
+    return bool(
+        re.fullmatch(r"\d+(?:\.\d+)*\.?", text)
+        or re.fullmatch(r"[IVXLCDM]+\.?", text, flags=re.IGNORECASE)
+        or re.fullmatch(r"(?:chapter|section|part)\s+\d+(?:\.\d+)*", text, flags=re.IGNORECASE)
+        or re.fullmatch(r"第\s*[0-9一二三四五六七八九十百]+\s*[章节部分篇]", text)
+    )
 
 
 def _section_metadata(section: dict[str, Any]) -> dict[str, object]:
@@ -621,7 +625,7 @@ def _unit_title(text: str, *, fallback: str) -> str:
     compact = " ".join(text.split())
     if not compact:
         return fallback
-    return compact[:80]
+    return compact
 
 
 def _dedupe(values: list[str]) -> list[str]:

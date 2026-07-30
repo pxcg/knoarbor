@@ -1,47 +1,65 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { deletePage, getPage, updatePage, type PageDetail, type PageSummary } from "../api/client";
-import type { AppContext } from "../appContext";
+import { deletePage, getPage, updatePage, updateRawPage, type PageDetail, type PageSummary, type ProjectionEdit, type ProjectionEditorState, type RawRevisionEdit } from "../api/client";
+import { isApiNotFound } from "../api/http";
+import type { WikiAppContext } from "../appContext";
 import { DelayedTooltip } from "../components/DelayedTooltip";
+import { DeleteConfirmationDialog } from "../components/DeleteConfirmationDialog";
 import { LoadingBlock } from "../components/LoadingBlock";
+import { AsyncMarkdownPreview } from "../components/AsyncMarkdownPreview";
+import { canRevealDesktopPath, revealDesktopPath } from "../desktop/desktopBridge";
 import { queryKeys } from "../queryKeys";
+import { userFacingError } from "../userFacingError";
 import { filterWikiPages, relatedPagesByEntities, searchWikiPages, type RelatedPage } from "./wiki/WikiModel";
 import { WikiStructuredPreview } from "./wiki/WikiStructuredPreview";
+import { ProjectionEditor } from "./wiki/ProjectionEditor";
+import { RawRevisionEditor } from "./wiki/RawRevisionEditor";
 
-type Props = {
-  context: AppContext;
-  focusedPagePath?: string | null;
-};
+type Props = { active: boolean; context: WikiAppContext };
 
-export function WikiPage({ context, focusedPagePath = null }: Props) {
-  const [selectedPath, setSelectedPath] = useState<string | null>(focusedPagePath);
+export function WikiPage({ active, context }: Props) {
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<PageDetail | null>(null);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [editContent, setEditContent] = useState("");
+  const [projectionEdit, setProjectionEdit] = useState<ProjectionEditorState | null>(null);
+  const [rawEditing, setRawEditing] = useState(false);
+  const [rawEditContent, setRawEditContent] = useState("");
   const [deleteConfirming, setDeleteConfirming] = useState(false);
   const [highlightTerm, setHighlightTerm] = useState<string | null>(null);
+  const [contentView, setContentView] = useState<"raw" | "wiki">("raw");
+  const [operationError, setOperationError] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
   const vaultId = context.activeVaultId || "default";
 
   const editMutation = useMutation({
+    onMutate: () => setOperationError(null),
     mutationFn: async () => {
-      if (!selectedPath || !editContent.trim()) throw new Error("No page selected or content empty");
-      return updatePage(context.activeVaultSelector, selectedPath, editContent);
+      if (!selectedPath || !projectionEdit) throw new Error("No editable projection selected");
+      const edit: ProjectionEdit = {
+        schema_version: "projection_edit.v1",
+        base_revision_id: projectionEdit.base_revision_id,
+        synthesis: projectionEdit.synthesis,
+        claims: projectionEdit.claims.map(({ id, claim }) => ({ id, claim })),
+        entities: projectionEdit.entities,
+        relations: projectionEdit.relations,
+      };
+      return updatePage(context.activeVaultSelector, selectedPath, edit);
     },
     onSuccess: (detail) => {
       setSelectedDetail(detail);
+      setProjectionEdit(null);
       setEditing(false);
       queryClient.invalidateQueries({ queryKey: queryKeys.pages(vaultId) });
-      context.setNotice({ message: `Page saved: ${detail.path}` });
     },
-    onError: (error) => context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true }),
+    onError: (error) => setOperationError(userFacingError(error instanceof Error ? error.message : String(error), context.language)),
   });
 
   const deleteMutation = useMutation({
+    onMutate: () => setOperationError(null),
     mutationFn: async () => {
       if (!selectedPath) throw new Error("No page selected");
       return deletePage(context.activeVaultSelector, selectedPath);
@@ -50,10 +68,34 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
       setDeleteConfirming(false);
       setSelectedPath(null);
       setSelectedDetail(null);
+      queryClient.setQueryData(queryKeys.pages(vaultId), (current: { vault_path: string; pages: PageSummary[] } | undefined) =>
+        current ? { ...current, pages: current.pages.filter((page) => page.path !== result.path) } : current,
+      );
       queryClient.invalidateQueries({ queryKey: queryKeys.pages(vaultId) });
-      context.setNotice({ message: `Page archived: ${result.path}` });
     },
-    onError: (error) => context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true }),
+    onError: (error) => setOperationError(userFacingError(error instanceof Error ? error.message : String(error), context.language)),
+  });
+
+  const rawEditMutation = useMutation({
+    onMutate: () => setOperationError(null),
+    mutationFn: async () => {
+      if (!selectedPath || !selectedDetail?.editable_raw) throw new Error("No editable raw material selected");
+      const edit: RawRevisionEdit = {
+        schema_version: "raw_revision_edit.v1",
+        base_revision_id: selectedDetail.editable_raw.base_revision_id,
+        content: rawEditContent,
+      };
+      return updateRawPage(context.activeVaultSelector, selectedPath, edit);
+    },
+    onSuccess: (response) => {
+      setRawEditing(false);
+      setRawEditContent("");
+      setSelectedDetail(null);
+      void context.loadVaultState(undefined, { activeRuns: true, recentRuns: true });
+      if (response.run_id) context.openRun(response.run_id, context.activeVaultId, response.flow);
+      else context.navigate("ingest");
+    },
+    onError: (error) => setOperationError(userFacingError(error instanceof Error ? error.message : String(error), context.language)),
   });
 
   const wikiPages = useMemo(() => filterWikiPages(context.pages), [context.pages]);
@@ -65,20 +107,21 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
   }, [selectedDetail, wikiPages]);
 
   useEffect(() => {
-    if (focusedPagePath) setSelectedPath(focusedPagePath);
-  }, [focusedPagePath]);
-
-  useEffect(() => {
     if (!highlightTerm) return;
     const timer = window.setTimeout(() => setHighlightTerm(null), 3200);
     return () => window.clearTimeout(timer);
   }, [highlightTerm]);
 
   useEffect(() => {
+    setContentView(selectedDetail?.default_view === "raw" && selectedDetail.raw_content ? "raw" : "wiki");
+  }, [selectedDetail]);
+
+  useEffect(() => {
     setSelectedDetail(null);
     setHighlightTerm(null);
-    if (!focusedPagePath) setSelectedPath(null);
-  }, [context.activeVaultId, focusedPagePath]);
+    setOperationError(null);
+    setSelectedPath(null);
+  }, [context.activeVaultId]);
 
   useEffect(() => {
     if (selectedPath && filteredPages.some((page) => page.path === selectedPath)) return;
@@ -90,10 +133,45 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
   }, [filteredPages, selectedPath]);
 
   useEffect(() => {
+    if (!active) return;
+    const target = context.navigationTarget;
+    if (target?.kind !== "wiki-page" || target.vaultId !== context.activeVaultId) return;
+    let cancelled = false;
+    setLoading(true);
+    setOperationError(null);
+    getPage(context.activeVaultSelector, target.path)
+      .then((detail) => {
+        if (cancelled) return;
+        setSelectedPath(detail.path);
+        setSelectedDetail(detail);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setOperationError(
+          isApiNotFound(error)
+            ? (context.language === "zh" ? "目标知识页面不存在或已被删除。" : "The requested knowledge page does not exist or was deleted.")
+            : userFacingError(error, context.language),
+        );
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+        context.consumeNavigationTarget(target.requestId);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [active, context.activeVaultId, context.activeVaultSelector, context.consumeNavigationTarget, context.language, context.navigationTarget]);
+
+  useEffect(() => {
+    if (!active) return;
+    const target = context.navigationTarget;
+    if (target?.kind === "wiki-page" && target.vaultId === context.activeVaultId) return;
     if (!selectedPath) {
       setSelectedDetail(null);
       return;
     }
+    if (selectedDetail?.path === selectedPath) return;
     let cancelled = false;
     setLoading(true);
     getPage(context.activeVaultSelector, selectedPath)
@@ -101,7 +179,7 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
         if (!cancelled) setSelectedDetail(detail);
       })
       .catch((error) => {
-        if (!cancelled) context.setNotice({ message: error instanceof Error ? error.message : String(error), error: true });
+        if (!cancelled) setOperationError(userFacingError(error instanceof Error ? error.message : String(error), context.language));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -109,7 +187,7 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [context.activeVaultSelector, context.setNotice, selectedPath]);
+  }, [active, context.activeVaultId, context.activeVaultSelector, context.language, context.navigationTarget, selectedDetail?.path, selectedPath]);
 
   return (
     <section className="view active">
@@ -126,7 +204,10 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
           <div className="page-list wiki-page-list">
             {filteredPages.length ? (
               filteredPages.map((page) => (
-                <WikiPageRow key={page.path} page={page} active={selectedPath === page.path} onClick={() => setSelectedPath(page.path)} />
+                <WikiPageRow key={page.path} page={page} active={selectedPath === page.path} onClick={() => {
+                  if (context.navigationTarget?.kind === "wiki-page") context.consumeNavigationTarget(context.navigationTarget.requestId);
+                  setSelectedPath(page.path);
+                }} />
               ))
             ) : wikiPages.length === 0 ? (
               <article className="result-item">
@@ -145,86 +226,117 @@ export function WikiPage({ context, focusedPagePath = null }: Props) {
           <div className="panel-header">
             <div>
               <h2>{selectedDetail?.summary.title || context.t("wikiPagePreview")}</h2>
-              <p className="panel-copy">{selectedDetail?.path || context.t("wikiNoSelection")}</p>
             </div>
             {selectedDetail && (
-              <div className="button-row compact-row">
+              <div className="wiki-preview-actions">
                 <button className="button secondary" type="button" onClick={() => askAboutPage(context, selectedDetail)}>{context.t("askInChat")}</button>
+                <button
+                  className="button secondary"
+                  type="button"
+                  disabled={contentView === "wiki" && !selectedDetail.raw_content}
+                  onClick={() => setContentView(contentView === "raw" ? "wiki" : "raw")}
+                >
+                  {contentView === "raw" ? context.t("wikiShowExtraction") : context.t("wikiShowRaw")}
+                </button>
+                {selectedDetail.original_source_path && canRevealDesktopPath() ? (
+                  <button className="button secondary" type="button" onClick={() => void revealDesktopPath(selectedDetail.original_source_path || "")}>{context.t("showInFolder")}</button>
+                ) : null}
                 <button className="button secondary" type="button" onClick={() => context.openPageInGraph(selectedDetail.path)}>{context.t("openInGraph")}</button>
-                <button className="button secondary" type="button" onClick={() => { setEditContent(selectedDetail.content); setEditing(true); }}>Edit</button>
-                <button className="button danger" type="button" onClick={() => setDeleteConfirming(true)}>Delete</button>
+                {contentView === "wiki" && selectedDetail.editable_projection ? (
+                  <button className="button secondary" type="button" onClick={() => { setProjectionEdit(structuredClone(selectedDetail.editable_projection!)); setEditing(true); }}>
+                    {context.language === "zh" ? "编辑知识" : "Edit knowledge"}
+                  </button>
+                ) : null}
+                {contentView === "raw" && selectedDetail.editable_raw ? (
+                  <button className="button secondary" type="button" onClick={() => { setRawEditContent(selectedDetail.editable_raw!.content); setRawEditing(true); setOperationError(null); }}>
+                    {context.language === "zh" ? "修订原文" : "Revise Raw"}
+                  </button>
+                ) : null}
+                <button className="button danger" type="button" onClick={() => { setOperationError(null); setDeleteConfirming(true); }}>Delete</button>
               </div>
             )}
           </div>
+          {operationError ? <p className="settings-action-note warning" role="alert">{operationError}</p> : null}
           {loading && <LoadingBlock title={context.t("wikiPageLoading")} copy={context.t("wikiPageLoadingCopy")} />}
           {!loading && selectedDetail ? (
             <>
-              <WikiStructuredPreview
-                detail={selectedDetail}
-                context={context}
-                highlightTerm={highlightTerm}
-                onHighlightTerm={setHighlightTerm}
-              />
-              <RelatedPagesSection title={context.t("relatedWikiPages")} pages={relatedPages} onOpen={context.openWikiPage} emptyText={context.t("none")} />
+              {contentView === "raw" && selectedDetail.raw_content ? (
+                <AsyncMarkdownPreview
+                  content={selectedDetail.raw_content}
+                  className="wiki-markdown-preview wiki-raw-preview"
+                  vaultPath={context.vaultPath}
+                  highlightTerm={highlightTerm}
+                  scrollToHighlight
+                />
+              ) : (
+                <>
+                  <WikiStructuredPreview
+                    detail={selectedDetail}
+                    context={context}
+                    highlightTerm={highlightTerm}
+                    onHighlightTerm={setHighlightTerm}
+                    onOpenEvidence={(term) => {
+                      setHighlightTerm(term);
+                      setContentView("raw");
+                    }}
+                  />
+                  <RelatedPagesSection title={context.t("relatedWikiPages")} pages={relatedPages} onOpen={context.openWikiPage} emptyText={context.t("none")} />
+                </>
+              )}
             </>
           ) : null}
         </aside>
       </div>
 
-      {editing && selectedDetail && (
-        <div className="settings-modal-backdrop" onClick={() => setEditing(false)}>
-          <section className="settings-modal wiki-edit-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-            <header className="settings-modal-header">
-              <h2>Edit: {selectedDetail.summary.title}</h2>
-              <button className="icon-button subtle settings-modal-close" type="button" onClick={() => setEditing(false)}>✕</button>
-            </header>
-            <div className="settings-modal-content wiki-edit-content">
-              <textarea
-                className="wiki-page-editor"
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                spellCheck={false}
-              />
-            </div>
-            <div className="wiki-edit-actions">
-              <button className="button secondary" type="button" onClick={() => setEditing(false)}>Cancel</button>
-              <button
-                className="button primary"
-                type="button"
-                disabled={editMutation.isPending || !editContent.trim()}
-                onClick={() => editMutation.mutate()}
-              >
-                {editMutation.isPending ? "Saving..." : "Save"}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
+      {editing && projectionEdit ? (
+        <ProjectionEditor
+          edit={projectionEdit}
+          error={operationError}
+          language={context.language}
+          pending={editMutation.isPending}
+          onCancel={() => { if (!editMutation.isPending) { setEditing(false); setProjectionEdit(null); } }}
+          onChange={setProjectionEdit}
+          onSave={() => editMutation.mutate()}
+        />
+      ) : null}
 
-      {deleteConfirming && selectedDetail && (
-        <div className="settings-modal-backdrop" onClick={() => setDeleteConfirming(false)}>
-          <section className="settings-modal wiki-delete-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-            <header className="settings-modal-header">
-              <h2>Archive Page</h2>
-              <button className="icon-button subtle settings-modal-close" type="button" onClick={() => setDeleteConfirming(false)}>✕</button>
-            </header>
-            <div className="settings-modal-content">
-              <p>Archive <strong>{selectedDetail.path}</strong> to deleted_pages? The page can be restored from the maintenance directory.</p>
-            </div>
-            <div className="wiki-edit-actions">
-              <button className="button secondary" type="button" onClick={() => setDeleteConfirming(false)}>Cancel</button>
-              <button
-                className="button danger"
-                type="button"
-                disabled={deleteMutation.isPending}
-                onClick={() => deleteMutation.mutate()}
-              >
-                {deleteMutation.isPending ? "Archiving..." : "Archive"}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
+      {rawEditing && selectedDetail?.editable_raw ? (
+        <RawRevisionEditor
+          state={selectedDetail.editable_raw}
+          content={rawEditContent}
+          error={operationError}
+          language={context.language}
+          pending={rawEditMutation.isPending}
+          onCancel={() => { if (!rawEditMutation.isPending) { setRawEditing(false); setRawEditContent(""); setOperationError(null); } }}
+          onChange={setRawEditContent}
+          onSave={() => rawEditMutation.mutate()}
+        />
+      ) : null}
+
+      <DeleteConfirmationDialog
+        cancelLabel={context.t("cancel")}
+        closeLabel={context.t("close")}
+        confirmLabel={context.language === "zh" ? "删除" : "Delete"}
+        error={deleteConfirming ? operationError : null}
+        isOpen={deleteConfirming && Boolean(selectedDetail)}
+        pending={deleteMutation.isPending}
+        pendingLabel={context.language === "zh" ? "正在删除..." : "Deleting..."}
+        title={context.language === "zh" ? "删除页面" : "Delete page"}
+        onCancel={() => {
+          if (deleteMutation.isPending) return;
+          setDeleteConfirming(false);
+          setOperationError(null);
+        }}
+        onConfirm={() => deleteMutation.mutate()}
+      >
+        {selectedDetail ? (
+          <p>
+            {context.language === "zh"
+              ? <>删除 <strong>{selectedDetail.summary.title}</strong>？对应的原文、提取结果以及检索和图谱数据都会一并删除。</>
+              : <>Delete <strong>{selectedDetail.summary.title}</strong>? Its raw material, extraction results, search data, and graph data will also be removed.</>}
+          </p>
+        ) : null}
+      </DeleteConfirmationDialog>
     </section>
   );
 }
@@ -241,9 +353,9 @@ function WikiPageRow({ page, active, onClick }: { page: PageSummary; active: boo
   );
 }
 
-function askAboutPage(context: AppContext, detail: PageDetail) {
+function askAboutPage(context: WikiAppContext, detail: PageDetail) {
   const title = detail.summary.title || detail.path;
-  context.openChatWithPrompt(`请阅读并解释「${title}」（${detail.path}），并回答我的后续问题。`, context.activeVaultId);
+  context.openChatWithPrompt(`请基于「${title}」（${detail.path}）对应的 raw 原文材料回答，并把 Wiki 页面只作为检索定位参考。`, context.activeVaultId);
 }
 
 function RelatedPagesSection({
@@ -266,7 +378,7 @@ function RelatedPagesSection({
             <button className="wiki-related-page" type="button" key={page.path} onClick={() => onOpen(page.path)}>
               <strong>{page.title}</strong>
               <code>{page.path}</code>
-              <small>{sharedEntities.slice(0, 4).join(" / ")}</small>
+              <small>{sharedEntities.join(" / ")}</small>
             </button>
           ))}
         </div>

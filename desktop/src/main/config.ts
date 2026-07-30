@@ -1,17 +1,21 @@
 import { app } from "electron";
 import {
-  cpSync,
+  closeSync,
   existsSync,
+  fsyncSync,
   mkdirSync,
+  openSync,
   renameSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { desktopProduct, productEnv } from "./product.js";
 
 const DEFAULT_HOST = "127.0.0.1";
-const PRODUCT_APP_DATA_DIR = "KnoArbor";
-const LEGACY_APP_DATA_PARTS = ["@knoarbor", "desktop"];
+let configuredProductDataRoot: string | undefined;
 
 export type DesktopAppServerConfig =
   | {
@@ -24,10 +28,10 @@ export type DesktopAppServerConfig =
       host: string;
       mode: "managed";
       port: number;
-      rendererAssetsRoot: string;
       serviceCommand: string;
       serviceArgs: string[];
       serviceCwd: string;
+      rendererAssetsRoot: string;
     };
 
 export type DesktopAppConfig = {
@@ -37,50 +41,50 @@ export type DesktopAppConfig = {
 };
 
 export function resolveDesktopAppConfig(): DesktopAppConfig {
+  const appServer = resolveAppServerConfig();
   return {
-    appServer: resolveAppServerConfig(),
-    appUserModelId: "com.knoarbor.desktop",
-    rendererAssetsRoot: resolveRendererAssetsRoot(),
+    appServer,
+    appUserModelId: desktopProduct.appUserModelId,
+    rendererAssetsRoot:
+      appServer.mode === "managed" ? appServer.rendererAssetsRoot : resolveRendererAssetsRoot(),
   };
 }
 
-export function configureDesktopUserDataPath(): string {
-  const override = process.env.KNOARBOR_DESKTOP_APP_DATA_ROOT?.trim();
-  if (override) {
-    app.setPath("userData", override);
-    return override;
-  }
-
-  const appDataRoot = app.getPath("appData");
-  const targetRoot = join(appDataRoot, PRODUCT_APP_DATA_DIR);
-  const legacyRoot = join(appDataRoot, ...LEGACY_APP_DATA_PARTS);
-  migrateLegacyUserData(legacyRoot, targetRoot);
-  app.setPath("userData", targetRoot);
-  return targetRoot;
+export function configureDesktopDataPaths(): string {
+  const override = productEnv("DESKTOP_APP_DATA_ROOT");
+  const productRoot = override || defaultProductDataRoot();
+  const stateRoot = join(productRoot, "state");
+  const cacheRoot = join(productRoot, "cache");
+  mkdirSync(join(stateRoot, "electron"), { recursive: true });
+  mkdirSync(cacheRoot, { recursive: true });
+  app.setPath("userData", join(stateRoot, "electron"));
+  app.setPath("sessionData", join(stateRoot, "electron"));
+  configuredProductDataRoot = productRoot;
+  return productRoot;
 }
 
 function resolveAppServerConfig(): DesktopAppServerConfig {
-  const externalUrl = process.env.KNOARBOR_DESKTOP_APP_SERVER_URL?.trim();
+  const externalUrl = productEnv("DESKTOP_APP_SERVER_URL");
   if (externalUrl) {
     return { mode: "external", url: externalUrl };
   }
 
   const appDataRoot =
-    process.env.KNOARBOR_DESKTOP_APP_DATA_ROOT?.trim() || app.getPath("userData");
+    productEnv("DESKTOP_APP_DATA_ROOT") || configuredProductDataRoot || defaultProductDataRoot();
   const configPath = resolveConfigPath(
-    process.env.KNOARBOR_CONFIG_PATH?.trim(),
+    productEnv("CONFIG_PATH"),
     appDataRoot,
   );
   return {
     appDataRoot,
     configPath,
-    host: process.env.KNOARBOR_DESKTOP_APP_SERVER_HOST ?? DEFAULT_HOST,
+    host: productEnv("DESKTOP_APP_SERVER_HOST") ?? DEFAULT_HOST,
     mode: "managed",
-    port: readPort(process.env.KNOARBOR_DESKTOP_APP_SERVER_PORT),
+    port: readPort(productEnv("DESKTOP_APP_SERVER_PORT")),
     serviceArgs: readServiceArgs(app.isPackaged),
     serviceCommand: resolveServiceCommand(app.isPackaged),
     serviceCwd:
-      process.env.KNOARBOR_DESKTOP_SERVICE_CWD?.trim() ||
+      productEnv("DESKTOP_SERVICE_CWD") ||
       (app.isPackaged ? appDataRoot : findRepoRootFromDesktopRoot()),
     rendererAssetsRoot: resolveRendererAssetsRoot(),
   };
@@ -89,40 +93,72 @@ function resolveAppServerConfig(): DesktopAppServerConfig {
 function resolveRendererAssetsRoot(): string {
   return app.isPackaged
     ? join(process.resourcesPath, "renderer")
-    : join(findDesktopRoot(), "resources", "renderer");
+    : join(findRepoRootFromDesktopRoot(), "renderer", "dist");
 }
 
 export function ensureDesktopBootstrapConfig(config: DesktopAppServerConfig): void {
   if (config.mode !== "managed") return;
+  for (const directory of ["logs", "state", "cache", "tmp"]) {
+    mkdirSync(join(config.appDataRoot, directory), { recursive: true });
+  }
   const defaultVaultRoot = join(config.appDataRoot, "vaults", "default");
   createDesktopVaultLayout(defaultVaultRoot);
   mkdirSync(dirname(config.configPath), { recursive: true });
   if (existsSync(config.configPath)) return;
-  writeFileSync(
+  writePrivateFileAtomic(
     config.configPath,
     desktopDefaultConfigYaml({
       host: config.host,
       port: config.port || 0,
       vaultPath: defaultVaultRoot,
     }),
-    "utf-8",
   );
+}
+
+export function writePrivateFileAtomic(path: string, content: string): void {
+  mkdirSync(dirname(path), { recursive: true });
+  const temporary = `${path}.${process.pid}.${Date.now()}.tmp`;
+  let descriptor: number | undefined;
+  try {
+    descriptor = openSync(temporary, "wx", 0o600);
+    writeFileSync(descriptor, content, "utf-8");
+    fsyncSync(descriptor);
+    closeSync(descriptor);
+    descriptor = undefined;
+    renameSync(temporary, path);
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+    if (existsSync(temporary)) unlinkSync(temporary);
+  }
+}
+
+function defaultProductDataRoot(): string {
+  if (process.platform === "win32") {
+    const localAppData = process.env.LOCALAPPDATA?.trim();
+    return join(localAppData || app.getPath("appData"), desktopProduct.appDataDir);
+  }
+  if (process.platform === "linux") {
+    const dataHome = process.env.XDG_DATA_HOME?.trim() || join(homedir(), ".local", "share");
+    return join(dataHome, desktopProduct.appDataDir);
+  }
+  return join(app.getPath("appData"), desktopProduct.appDataDir);
 }
 
 function createDesktopVaultLayout(vaultRoot: string): void {
   const directories = [
     "raw/inbox/documents",
+    "raw/inbox/chats",
     "raw/inbox/media",
     "raw/inbox/notes",
-    "raw/normalized/chats",
-    "raw/normalized/excerpts",
-    "raw/normalized/markdown",
-    "raw/assets/images",
-    "raw/assets/media",
-    "raw/assets/pages",
-    "raw/assets/tables",
-    "raw/sidecars/documents",
-    "raw/sidecars/sources",
+    "raw/derived/markdown",
+    "raw/derived/excerpts",
+    "raw/derived/assets/images",
+    "raw/derived/assets/media",
+    "raw/derived/assets/pages",
+    "raw/derived/assets/tables",
+    "raw/derived/metadata/documents",
+    "raw/derived/metadata/sources",
+    "artifacts/chat",
     "wiki/pages",
     "wiki/sources",
     "maintenance/reports/ingest",
@@ -134,9 +170,9 @@ function createDesktopVaultLayout(vaultRoot: string): void {
     ".knoarbor/ledgers",
     ".knoarbor/checkpoints",
     ".knoarbor/runs",
-    ".knoarbor/queue",
     ".knoarbor/locks",
     ".knoarbor/logs",
+    ".knoarbor/tmp",
     ".knoarbor/chat/sessions",
   ];
   for (const directory of directories) {
@@ -152,20 +188,20 @@ function desktopDefaultConfigYaml(input: {
   const port = input.port > 0 ? input.port : 8000;
   const vaultPath = pathRelativeToConfigDir(input.vaultPath);
   const vaultRelative = (relativePath: string): string => `${vaultPath}/${relativePath}`;
-  return `# KnoArbor Desktop local configuration.
+  return `# ${desktopProduct.name} Desktop local configuration.
 # Model providers use direct API key fields in the settings page.
 
 project:
-  name: My Knowledge Base
+  name: ${desktopProduct.defaultVaultName}
   host_project_root: .
 
-config_version: 1
+config_version: 3
 
 vaults:
   default: default
   profiles:
     default:
-      name: My Knowledge Base
+      name: ${desktopProduct.defaultVaultName}
       path: ${quoteYamlString(vaultPath)}
 
 vault:
@@ -176,7 +212,7 @@ server:
   port: ${port}
 
 models:
-  default_provider: deepseek
+  default_provider:
   default_max_tokens: 30000
   request_timeout_seconds: 600
   retry:
@@ -184,24 +220,14 @@ models:
     max_attempts: 2
     backoff_seconds: 2
     retry_on_invalid_output: true
-  providers:
-    deepseek:
-      adapter: openai_compatible
-      base_url: https://api.deepseek.com
-      api_key:
-      model: deepseek-v4-flash
-      json_mode: true
-      tls_ca_file:
-      context_window:
-      max_output_tokens:
-      extra_body: {}
+  providers: {}
 
 document_processing:
   mineru:
     enabled: false
     endpoint: http://127.0.0.1:18000/file_parse
     input_dir: ${quoteYamlString(vaultRelative("raw/inbox/documents"))}
-    output_dir: ${quoteYamlString(vaultRelative("raw/normalized/markdown"))}
+    output_dir: ${quoteYamlString(vaultRelative("raw/derived/markdown"))}
     recursive: true
     patterns:
       - "*.pdf"
@@ -235,7 +261,7 @@ connectors:
     settings:
       roots:
         - ${quoteYamlString(vaultRelative("raw/inbox/notes"))}
-        - ${quoteYamlString(vaultRelative("raw/normalized/markdown"))}
+        - ${quoteYamlString(vaultRelative("raw/derived/markdown"))}
       recursive: true
       raw_output_dir: ${quoteYamlString(vaultRelative("raw/inbox/notes"))}
       preserve_relative_paths: true
@@ -245,26 +271,26 @@ connectors:
       sessions_dir: ~/.codex/sessions
       pattern: "rollout-*.jsonl"
       recursive: true
-      raw_output_dir: ${quoteYamlString(vaultRelative("raw/normalized/chats"))}
+      raw_output_dir: ${quoteYamlString(vaultRelative("raw/inbox/chats"))}
   hermes:
     enabled: false
     settings:
       sessions_dir: ~/.hermes/sessions
-      raw_output_dir: ${quoteYamlString(vaultRelative("raw/normalized/chats"))}
+      raw_output_dir: ${quoteYamlString(vaultRelative("raw/inbox/chats"))}
   openclaw:
     enabled: false
     settings:
       sessions_dir: ~/.openclaw/agents/main/sessions
       pattern: "*.jsonl"
       recursive: false
-      raw_output_dir: ${quoteYamlString(vaultRelative("raw/normalized/chats"))}
+      raw_output_dir: ${quoteYamlString(vaultRelative("raw/inbox/chats"))}
   claude_code:
     enabled: false
     settings:
       sessions_dir: ~/.claude/projects
       pattern: "*.jsonl"
       recursive: true
-      raw_output_dir: ${quoteYamlString(vaultRelative("raw/normalized/chats"))}
+      raw_output_dir: ${quoteYamlString(vaultRelative("raw/inbox/chats"))}
   generic_chat:
     enabled: false
     settings:
@@ -274,17 +300,7 @@ connectors:
         - "*.sqlite"
         - "*.db"
       recursive: true
-      raw_output_dir: ${quoteYamlString(vaultRelative("raw/normalized/chats"))}
-
-query:
-  mode: balanced
-  max_results: 6
-  max_pages_to_read: 10
-  max_excerpts_per_page: 3
-  max_chars_per_excerpt: 800
-  max_context_chars: 8000
-  page_dirs: []
-  include_related: true
+      raw_output_dir: ${quoteYamlString(vaultRelative("raw/inbox/chats"))}
 
 memory:
   enabled: true
@@ -301,22 +317,13 @@ chat:
     append_ledger: true
 
 ingest:
-  candidate_limit: 8
-  materialized_page_limit: 8
-  max_chars_per_materialized_page: 6000
   auto_scoped_lint: true
-  auto_apply_safe_lint_fixes: true
   segmentation:
     enabled: true
     max_chars_per_segment: 18000
     soft_chars_per_segment: 12000
     max_segments_per_source: 20
     min_segment_chars: 1000
-  recovery:
-    enabled: true
-    execution_ledger_path: .knoarbor/ledgers/ingest_execution.jsonl
-  concurrency:
-    max_concurrent_sources: 1
 
 lint:
   default_scope: latest-ingest
@@ -338,32 +345,6 @@ privacy:
 `;
 }
 
-function migrateLegacyUserData(legacyRoot: string, targetRoot: string): void {
-  if (!existsSync(legacyRoot) || legacyRoot === targetRoot) return;
-  if (!existsSync(targetRoot)) {
-    mkdirSync(dirname(targetRoot), { recursive: true });
-    try {
-      renameSync(legacyRoot, targetRoot);
-      return;
-    } catch {
-      mkdirSync(targetRoot, { recursive: true });
-    }
-  }
-
-  for (const entry of [
-    "config.yaml",
-    "vaults",
-    ".knoarbor",
-    "state",
-    "logs",
-  ]) {
-    const source = join(legacyRoot, entry);
-    const target = join(targetRoot, entry);
-    if (!existsSync(source) || existsSync(target)) continue;
-    cpSync(source, target, { recursive: true, force: false });
-  }
-}
-
 function quoteYamlString(value: string): string {
   return JSON.stringify(value);
 }
@@ -380,7 +361,7 @@ function relativePathFromRootToAppData(path: string): string {
 }
 
 function resolveServiceCommand(isPackaged: boolean): string {
-  const explicit = process.env.KNOARBOR_DESKTOP_SERVICE_COMMAND?.trim();
+  const explicit = productEnv("DESKTOP_SERVICE_COMMAND");
   if (explicit) return explicit;
   if (!isPackaged) return "uv";
   const executable = process.platform === "win32" ? "knoar-service.exe" : "knoar-service";
@@ -388,7 +369,7 @@ function resolveServiceCommand(isPackaged: boolean): string {
 }
 
 function readServiceArgs(isPackaged: boolean): string[] {
-  const raw = process.env.KNOARBOR_DESKTOP_SERVICE_ARGS?.trim();
+  const raw = productEnv("DESKTOP_SERVICE_ARGS");
   if (raw) {
     return raw.split(/\s+/).filter(Boolean);
   }

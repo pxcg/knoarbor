@@ -7,6 +7,10 @@ The change is accepted when:
 - Desktop settings save does not call `/config` or `/config/form` from renderer `fetch`.
 - Browser mode still saves through the existing HTTP API.
 - CI-style lint and tests pass.
+- Removing a non-active vault persists the remaining profiles without invoking
+  a directory-delete bridge or changing files below the removed path.
+- A failed validation or replacement leaves the previous complete config
+  readable, and successful writes retain current-user-only permissions.
 
 Verified locally:
 

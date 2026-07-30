@@ -1,5 +1,9 @@
 # 1.12 Response Evidence Selection Tasks
 
+## Lifecycle
+
+Superseded by `1.38-semantic-indexed-raw-query`; no tasks remain active.
+
 ## P0 Selector Contract
 
 - [x] Add rejected candidate schema.

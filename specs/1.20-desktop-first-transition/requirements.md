@@ -16,6 +16,15 @@ This is a development-stage transition. We do not need to preserve the old web-p
 6. Rename or remove `/ui/api/*` contracts that are not truly UI-specific.
 7. Keep the renderer browser-sandboxed: no Node integration and no direct filesystem access.
 8. Simplify documentation, release, and build flows around desktop packages.
+9. Establish one current desktop persistence layout before the first supported
+   release; unpublished endpoint and runtime-layout variants are removed rather
+   than migrated.
+10. Desktop shutdown must wait for its managed Python service to exit. Windows
+    uninstall and replacement must stop a surviving managed service owned by
+    the current installation before removing application files.
+11. Interactive Windows uninstall defaults to preserving product data and lets
+    the user explicitly remove the local product-data root. External vaults are
+    never deleted by the installer.
 
 ## Non-Goals
 
@@ -41,6 +50,9 @@ This is a development-stage transition. We do not need to preserve the old web-p
 4. Local HTTP remains loopback-only and is treated as an internal desktop runtime API.
 5. Any new IPC capability must be explicitly categorized as local configuration, OS/native, app lifecycle, or desktop diagnostics.
 6. Any attempt to IPC-wrap business APIs requires a new SDD and must justify why HTTP cannot satisfy the requirement.
+7. Electron profile state is rooted under product `state/`, Electron session
+   caches are rooted under product `cache/`, and neither becomes an alternate
+   application-data authority.
 
 ## Acceptance Criteria
 
@@ -51,3 +63,8 @@ This is a development-stage transition. We do not need to preserve the old web-p
 5. Renderer remains sandbox-compatible and imports no Electron or Node modules outside the desktop bridge boundary.
 6. Desktop build and release workflows produce the primary user artifacts.
 7. Tests cover IPC contracts, Python local service APIs, renderer build, and desktop packaging smoke paths.
+8. Windows reinstall and version upgrade replace the existing installation
+   under its stable GUID without requiring a separate manual uninstall.
+9. Windows uninstall preserves application data by default, terminates only the
+   managed service executable under the current installation directory, and
+   leaves no process that blocks installation of the next version.

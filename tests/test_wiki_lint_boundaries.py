@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from knoarbor.maintenance.lint_collection import collect_pages
 from knoarbor.maintenance.wiki_lint import lint_vault
-from knoarbor.storage import update_index
+from knoarbor.storage.materialization import VaultMaterializer
 
 
 class WikiLintBoundaryTests(unittest.TestCase):
@@ -22,7 +22,7 @@ class WikiLintBoundaryTests(unittest.TestCase):
                 "# Lint Run Report\n\nRuntime maintenance artifact.",
                 encoding="utf-8",
             )
-            update_index(vault)
+            VaultMaterializer().reconcile(vault, force=True)
 
             issues, stats = lint_vault(vault)
 
@@ -44,7 +44,7 @@ class WikiLintBoundaryTests(unittest.TestCase):
                 "## Synthesis\n\nAgent loop answer.\n\n",
                 encoding="utf-8",
             )
-            update_index(vault)
+            VaultMaterializer().reconcile(vault, force=True)
 
             pages = collect_pages(vault)
             issues, stats = lint_vault(vault)

@@ -7,14 +7,10 @@ from typing import Any
 
 from knoarbor.audit.reports import write_maintenance_report
 from knoarbor.core.config import PrivacyConfig
-from knoarbor.core.schemas.wiki_operation import WikiOperationInput
 from knoarbor.core.schemas.wiki_lint import WikiLintCandidatePage, WikiLintFix, WikiLintIssue, WikiScanPage
-from knoarbor.maintenance.wiki_operations import apply_wiki_operation
 from knoarbor.maintenance.lint_candidates import scan_page, score_lint_candidate
 from knoarbor.maintenance.lint_collection import collect_pages, filter_lint_scope
 from knoarbor.maintenance.lint_scanners import lint_collected_pages
-from knoarbor.storage import update_index
-from knoarbor.storage.vault_layout import ledger_relative_path
 
 
 def lint_vault(
@@ -73,12 +69,12 @@ def select_lint_candidates(
     stats = {
         **scan_stats,
         "candidate_count": len(candidates),
-        "returned_candidate_count": min(len(candidates), max_candidates),
+        "returned_candidate_count": min(len(candidates), max_candidates) if max_candidates else len(candidates),
         "candidate_mode": mode,
     }
     warnings: list[str] = []
     warnings.append("Semantic candidates are deterministic routing hints; model review decides whether maintenance is needed.")
-    return candidates[:max_candidates], stats, warnings
+    return candidates[:max_candidates] if max_candidates else candidates, stats, warnings
 
 
 def build_fix_plan(issues: list[WikiLintIssue]) -> list[WikiLintFix]:
@@ -86,44 +82,6 @@ def build_fix_plan(issues: list[WikiLintIssue]) -> list[WikiLintFix]:
     for issue in issues:
         fixes.append(_fix_for_issue(issue))
     return fixes
-
-
-def apply_safe_fixes(
-    vault_path: Path,
-    issues: list[WikiLintIssue],
-    *,
-    ledger_path: str = ledger_relative_path("lint_safe_fixes"),
-    privacy_config: PrivacyConfig | None = None,
-) -> list[WikiLintFix]:
-    fixes = build_fix_plan(issues)
-    needs_index_rebuild = any(fix.action == "rebuild_index" and fix.mode == "safe_auto" for fix in fixes)
-    applied: list[WikiLintFix] = []
-    if needs_index_rebuild:
-        update_index(vault_path)
-        applied.append(
-            WikiLintFix(
-                issue_code="index_coverage",
-                path=".knoarbor/index",
-                action="rebuild_index",
-                mode="auto_applied",
-                description="Rebuilt machine graph index from current wiki pages.",
-            )
-        )
-    for index, issue in enumerate(issues):
-        operation = _safe_operation_for_issue(issue, index)
-        if operation is None:
-            continue
-        result = apply_wiki_operation(vault_path, operation, ledger_path, privacy_config=privacy_config)
-        applied.append(
-            WikiLintFix(
-                issue_code=issue.code,
-                path=result.output_page or issue.path,
-                action=result.action,
-                mode="auto_applied",
-                description=f"Applied safe deterministic wiki operation `{result.action}`.",
-            )
-        )
-    return applied
 
 
 def render_lint_report(issues: list[WikiLintIssue], stats: dict[str, Any], fixes: list[WikiLintFix] | None = None) -> str:
@@ -179,7 +137,7 @@ def _fix_for_issue(issue: WikiLintIssue) -> WikiLintFix:
             path=issue.path,
             action="rebuild_index",
             mode="safe_auto",
-            description="Rebuild machine graph index from current wiki pages.",
+            description="Rebuild the derived machine index through the publication lifecycle.",
         )
     if issue.code == "unexpected_markdown_location":
         return WikiLintFix(
@@ -217,7 +175,7 @@ def _fix_for_issue(issue: WikiLintIssue) -> WikiLintFix:
         return WikiLintFix(
             issue_code=issue.code,
             path=issue.path,
-            action="repair_frontmatter",
+            action="projection_rebuild_request",
             mode="manual",
             description="Repair page identity metadata before rerunning lint.",
         )
@@ -225,7 +183,7 @@ def _fix_for_issue(issue: WikiLintIssue) -> WikiLintFix:
         return WikiLintFix(
             issue_code=issue.code,
             path=issue.path,
-            action="add_missing_section",
+            action="projection_rebuild_request",
             mode="manual",
             description="Add the missing standard section through reviewed deterministic wiki operation.",
         )
@@ -248,47 +206,55 @@ def _fix_for_issue(issue: WikiLintIssue) -> WikiLintFix:
     if issue.code in {
         "missing_raw_source",
         "source_without_knowledge_links",
-        "knowledge_without_source_digest",
-        "knowledge_missing_source_digest_link",
+        "knowledge_without_source_record",
+        "knowledge_missing_source_record_link",
     }:
         return WikiLintFix(
             issue_code=issue.code,
             path=issue.path,
-            action="repair_source_provenance",
+            action="reingest_request",
             mode="manual",
-            description="Review source provenance and connect the source digest to generated knowledge pages.",
+            description="Review source provenance and connect the source record to generated knowledge pages.",
         )
     if issue.code == "privacy_sensitive_content":
         return WikiLintFix(
             issue_code=issue.code,
             path=issue.path,
-            action="redact_sensitive_text",
-            mode="safe_auto",
-            description="Redact configured secrets, local identities, and sensitive platform identifiers from the generated page.",
+            action="report_only",
+            mode="manual",
+            description="Report sensitive material to the owning source lifecycle without rewriting a projection.",
         )
     if issue.code == "duplicate_section_item":
         return WikiLintFix(
             issue_code=issue.code,
             path=issue.path,
-            action="deduplicate_section_items",
-            mode="safe_auto",
-            description="Remove duplicate list items from the affected section.",
+            action="projection_rebuild_request",
+            mode="manual",
+            description="Rebuild the generated projection from canonical facts.",
         )
     if issue.code == "adjacent_duplicate_heading":
         return WikiLintFix(
             issue_code=issue.code,
             path=issue.path,
-            action="remove_adjacent_duplicate_headings",
-            mode="safe_auto",
-            description="Remove adjacent duplicate Markdown heading lines that have no content between them.",
+            action="projection_rebuild_request",
+            mode="manual",
+            description="Rebuild the generated projection from canonical facts.",
         )
-    if issue.code.startswith("atom_"):
+    if issue.code.startswith(("atom_", "canonical_", "evidence_")):
         return WikiLintFix(
             issue_code=issue.code,
             path=issue.path,
-            action="repair_atom_trace",
+            action="reingest_request",
             mode="manual",
             description="Rerun ingest or semantic maintenance so page metadata and the atom index agree.",
+        )
+    if issue.code.startswith("projection_"):
+        return WikiLintFix(
+            issue_code=issue.code,
+            path=issue.path,
+            action="projection_rebuild_request",
+            mode="manual",
+            description="Rebuild the generated projection from the active canonical source revision.",
         )
     return WikiLintFix(
         issue_code=issue.code,
@@ -297,35 +263,6 @@ def _fix_for_issue(issue: WikiLintIssue) -> WikiLintFix:
         mode="manual",
         description="Review this lint issue manually.",
     )
-
-
-def _safe_operation_for_issue(issue: WikiLintIssue, index: int) -> WikiOperationInput | None:
-    action: str | None = None
-    section: str | None = None
-    if issue.code == "adjacent_duplicate_heading":
-        action = "remove_adjacent_duplicate_headings"
-    elif issue.code == "duplicate_section_item":
-        action = "deduplicate_section_items"
-        raw_section = issue.details.get("section")
-        section = raw_section if isinstance(raw_section, str) and raw_section.strip() else None
-    elif issue.code == "privacy_sensitive_content":
-        action = "redact_sensitive_text"
-
-    if action is None:
-        return None
-
-    return WikiOperationInput(
-        operation_id=f"deterministic:{index}:{issue.code}:{issue.path}",
-        action=action,
-        target_page=issue.path,
-        reason=issue.message,
-        risk_level="safe",
-        confidence=1.0,
-        expected_effect="Apply a deterministic, idempotent maintenance fix without changing page intent.",
-        section=section,
-    )
-
-
 def _format_details(details: dict[str, Any]) -> str:
     if not details:
         return ""

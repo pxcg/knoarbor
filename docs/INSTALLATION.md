@@ -1,22 +1,22 @@
 # Installation
 
-KnoArbor is a desktop-first local knowledge engine backed by a Python runtime
-service. Public release builds are the normal path for end users; source
-installation remains the reference path for contributors and for users who want
-to run the local service API directly.
+KnoArbor is a local-first Python service with a bundled management UI and a
+desktop shell. Public release builds are the easiest path for desktop users;
+source installation remains the reference path for contributors and for users
+who want to run the local service directly.
 
 ## Requirements
 
 - Python 3.12
 - `uv`
 - One model provider, either OpenAI-compatible or native Ollama
-- Optional: Node.js 20+ only when rebuilding the desktop renderer from source
+- Optional: Node.js 20+ only when rebuilding the web UI from source
 
 ## Local Installation
 
 ```bash
-git clone https://github.com/pxcg/knoarbor.git
-cd knoarbor
+git clone https://github.com/pxcg/KnoArbor.git
+cd KnoArbor
 uv sync
 uv run knoar first-run --vault ./vaults/default
 ```
@@ -36,20 +36,19 @@ Run a read-only readiness check:
 uv run knoar doctor
 ```
 
-Start the service for source development:
+Start the service:
 
 ```bash
 uv run knoar serve
 ```
 
-The server prints the active local API and developer-console addresses. If port
-`8000` is already in use, KnoArbor selects the next available local port and
-writes the runtime endpoint to `.knoarbor/endpoint.json` and
-`~/.knoarbor/endpoint.json`.
+The server prints the active UI and API addresses. If port `8000` is already in
+use, KnoArbor selects the next available local port and writes the runtime
+endpoint to the single product state record `state/endpoint.json`.
 
 ## Verify The Installation
 
-For source development, open the developer console:
+Open the UI:
 
 ```text
 http://127.0.0.1:8000
@@ -73,18 +72,14 @@ support is disabled.
 ## Model Providers
 
 Model providers are configured in `config.yaml`.
-DeepSeek, OpenAI, OpenRouter, LM Studio, vLLM, and other OpenAI-compatible
-endpoints can use the same provider shape. Ollama can either use its OpenAI
+Start with an empty provider list, then add vLLM, Ollama, or a custom
+OpenAI-compatible endpoint in Settings. Ollama can either use its OpenAI
 compatibility layer or KnoArbor's native `adapter: ollama`:
 
 ```yaml
 models:
-  default_provider: deepseek
-  providers:
-    deepseek:
-      base_url: https://api.deepseek.com
-      api_key:
-      model: deepseek-v4-flash
+  default_provider:
+  providers: {}
 ```
 
 Local providers such as Ollama or vLLM may leave `api_key` empty. Run
@@ -125,18 +120,18 @@ cd /path/to/MinerU
 
 Configure `document_processing.mineru.endpoint` as
 `http://127.0.0.1:18000/file_parse`. If MinerU writes image assets, KnoArbor
-records them as Markdown-sidecar attachments and exposes them in the source
-digest audit page.
+records them as Markdown-sidecar attachments and exposes them through source
+record metadata.
 
 Chat source defaults such as `~/.codex/sessions`, `~/.claude/projects`, and
 `~/.hermes/sessions` expand to the current user's home directory. On Windows,
 the equivalent resolved paths are under `%USERPROFILE%`, for example
 `C:\Users\Alice\.codex\sessions`.
 
-## Rebuilding The Renderer
+## Rebuilding The UI
 
-The repository ships built renderer assets. Rebuild them only when changing the
-desktop renderer:
+The repository ships built UI assets. Rebuild them only when changing the
+frontend:
 
 ```bash
 cd renderer
@@ -145,9 +140,7 @@ npm run build
 cd ..
 ```
 
-The build writes assets to `renderer/dist/`. The Python developer console reads
-that directory in source checkouts, and the desktop package copies it into
-`desktop/resources/renderer/`.
+The build writes assets into `renderer/dist`; desktop packaging reads that directory directly.
 
 ## Common Checks
 

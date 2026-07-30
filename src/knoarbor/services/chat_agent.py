@@ -4,50 +4,77 @@ import json
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import Any, Callable
+from uuid import uuid4
 
 from pydantic import ValidationError
 
 from knoarbor.audit.token_ledger import current_timestamp
 from knoarbor.core.config import ModelRetryConfig, default_config_path, load_config
-from knoarbor.core.errors import ModelOutputError, UserInputError
+from knoarbor.core.errors import ExternalServiceError, ModelOutputError, StorageConflict, UserInputError
 from knoarbor.core.schemas.chat import (
     ChatAnswerDraft,
+    ChatAnswerMode,
+    ChatAnswerProvenance,
     ChatEvent,
     ChatMessageItem,
+    ChatRetrievalPlan,
     ChatRequest,
     ChatResponse,
     ChatRunLink,
     ChatSessionRecord,
-    ChatTopicAnchor,
     ChatToolPlan,
     ChatToolTraceItem,
 )
 from knoarbor.core.schemas.memory import MemoryCandidate, MemoryRecord
-from knoarbor.services.chat_answer import ChatAnswerSynthesizer, messages_chars, parse_json_object
-from knoarbor.services.chat_context import ChatContextEngine, latest_user_text, memory_target, session_target
+from knoarbor.services.chat_answer import (
+    messages_chars,
+    parse_json_object,
+)
+from knoarbor.services.chat_answer_decision import ChatAnswerDecisionService
+from knoarbor.services.chat_answer_router import (
+    ChatFinalizationState,
+    finalize_chat_outcome,
+)
+from knoarbor.services.chat_context import (
+    ChatContextEngine,
+    latest_user_text,
+    memory_target,
+    session_dialogue_context,
+    session_target,
+)
+from knoarbor.services.chat_dependencies import ChatAgentDependencies
+from knoarbor.services.chat_execution_safety import ChatExecutionSafety, ChatExecutionSafetyExceeded
+from knoarbor.services.chat_generated_images import delete_chat_request_artifacts
 from knoarbor.services.chat_model_call import run_chat_model_call
 from knoarbor.services.chat_persistence import ChatPersistenceCoordinator
-from knoarbor.services.chat_reference_resolver import answer_cleanup_citations, clean_answer_citation_paths, resolve_answer_presentation
-from knoarbor.services.chat_retrieval_policy import ChatPlanAdjustment, ChatRetrievalPolicy
-from knoarbor.services.chat_topic_anchor import ChatTopicAnchorBuilder, update_anchor_after_evidence, update_anchor_answer_type
+from knoarbor.services.chat_reference_resolver import (
+    ChatAnswerPresentation,
+    answer_cleanup_citations,
+    clean_answer_citation_paths,
+    resolve_answer_presentation,
+)
+from knoarbor.services.chat_response_composer import (
+    RESPONSE_COMPOSER_PROMPT,
+    ChatGeneratedImageState,
+    ChatGeneratedVisual,
+    ChatResponseComposer,
+)
 from knoarbor.services.chat_tools import ChatToolExecutor
+from knoarbor.core.vault_selection import resolve_vault_group
 from knoarbor.runtime import runtime_logger
+from knoarbor.runtime.local_operations import OperationCancellationToken
+from knoarbor.retrieval.corpus_catalog import build_active_corpus_catalog
 from knoarbor.semantic.contracts import load_prompt
 from knoarbor.semantic.llm import ChatClient, ChatCompletionRequest, ChatMessage, ModelGateway
 
-if TYPE_CHECKING:
-    from knoarbor.services import ApplicationServices
-
-
-ANSWER_SYNTHESIS_PROMPT = load_prompt("wiki_chat_answer.md")
-TOOL_PLAN_PROMPT = load_prompt("wiki_chat_tool_plan.md")
+RETRIEVAL_PLANNER_PROMPT = load_prompt("wiki_chat_retrieval_planner.md")
 LOGGER = runtime_logger(__name__)
 
 
 @dataclass
 class ChatAgentService:
-    """Bounded KnoArbor chat agent over existing wiki/runtime services."""
+    """Bounded product chat agent over existing wiki/runtime services."""
 
     client_factory: Callable[[ChatRequest], ChatClient] | None = None
     context_engine: ChatContextEngine = field(default_factory=ChatContextEngine)
@@ -56,15 +83,34 @@ class ChatAgentService:
     def chat(
         self,
         request: ChatRequest,
-        services: ApplicationServices,
+        services: ChatAgentDependencies,
         *,
         event_callback: Callable[[ChatEvent], None] | None = None,
+        cancellation: OperationCancellationToken | None = None,
+        replacement_turn_id: str | None = None,
     ) -> ChatResponse:
+        if cancellation is not None:
+            cancellation.raise_if_stopped()
         started = time.perf_counter()
         client = self.client_factory(request) if self.client_factory else _client_from_request(request)
-        chat_target = session_target(request)
+        chat_target = session_target(
+            config_path=request.config_path,
+            vault_path=request.vault_path,
+            vault_id=request.vault_id,
+            all_vaults=request.all_vaults,
+        )
         resolved_request = request.model_copy(update={"vault_path": str(chat_target.path), "vault_id": chat_target.vault_id})
-        existing_session = services.chat_sessions.load_existing(chat_target.path, resolved_request.session_id)
+        existing_session = services.chat_sessions.load_existing(
+            chat_target.path, resolved_request.session_id, sessions_dir=chat_target.sessions_dir
+        )
+        if resolved_request.session_id is not None and existing_session is None:
+            raise UserInputError(f"Chat session does not exist: {resolved_request.session_id}")
+        if existing_session is not None and resolved_request.expected_session_revision != existing_session.session_revision:
+            raise StorageConflict(
+                f"Chat session revision changed: expected {resolved_request.expected_session_revision}, "
+                f"current {existing_session.session_revision}."
+            )
+        context_session = _retry_context_session(existing_session, replacement_turn_id)
         chat_id = resolved_request.session_id or (existing_session.session_id if existing_session else None)
         if chat_id is None:
             chat_id = services.chat_sessions.new_session_id()
@@ -72,15 +118,14 @@ class ChatAgentService:
             resolved_request,
             services,
             chat_id=chat_id,
-            existing_session=existing_session,
-            system_prompt=ANSWER_SYNTHESIS_PROMPT,
+            existing_session=context_session,
+            system_prompt=RESPONSE_COMPOSER_PROMPT,
         )
-        effective_request = resolved_request.model_copy(update={"messages": context.conversation_messages, "session_id": chat_id})
-        topic_anchor = ChatTopicAnchorBuilder().build(
-            latest_user_text(context.conversation_messages),
-            existing_session=existing_session,
-        )
+        effective_request = resolved_request.model_copy(update={"session_id": chat_id})
         runtime_config = load_config(Path(request.config_path).expanduser().resolve() if request.config_path else default_config_path())
+        safety = ChatExecutionSafety(
+            max_wall_seconds=runtime_config.models.request_timeout_seconds,
+        )
         loop = _ChatLoop(
             request=effective_request,
             current_messages=context.conversation_messages,
@@ -88,15 +133,27 @@ class ChatAgentService:
             client=client,
             chat_id=chat_id,
             initial_messages=context.model_messages,
-            existing_session=existing_session,
-            topic_anchor=topic_anchor,
+            existing_session=context_session,
             model_retry=runtime_config.models.retry,
-            response_style=runtime_config.chat.response_style,
             memory_used=context.memory_used,
             warnings=context.warnings,
             event_callback=event_callback,
+            cancellation=cancellation,
+            safety=safety,
         )
-        response = loop.run()
+        try:
+            response = loop.run()
+        except ChatExecutionSafetyExceeded as exc:
+            response = loop.resource_exhausted(exc)
+        except Exception:
+            delete_chat_request_artifacts(chat_target.path, chat_id, resolved_request.request_id)
+            raise
+        if cancellation is not None:
+            try:
+                cancellation.raise_if_stopped()
+            except Exception:
+                delete_chat_request_artifacts(chat_target.path, chat_id, resolved_request.request_id)
+                raise
         response.stats.update(
             {
                 "chat_id": response.session_id,
@@ -108,29 +165,37 @@ class ChatAgentService:
                 "session_vault_name": chat_target.vault_name,
             }
         )
-        return self.persistence.persist_response(
-            services,
-            chat_target=chat_target,
-            request=resolved_request,
-            response=response,
-            request_messages=context.conversation_messages,
-            call_records=loop.call_records,
-        )
+        try:
+            persisted = self.persistence.persist_response(
+                services,
+                chat_target=chat_target,
+                request=resolved_request,
+                response=response,
+                request_messages=context.conversation_messages,
+                call_records=loop.call_records,
+                raise_if_cancelled=cancellation.raise_if_stopped if cancellation is not None else None,
+                replacement_turn_id=replacement_turn_id,
+            )
+        except Exception:
+            delete_chat_request_artifacts(chat_target.path, chat_id, resolved_request.request_id)
+            raise
+        if cancellation is not None:
+            cancellation.raise_if_stopped()
+        return persisted if request.include_trace else persisted.model_copy(update={"tool_trace": []})
 
 
 @dataclass
 class _ChatLoop:
     request: ChatRequest
     current_messages: list[ChatMessageItem]
-    services: ApplicationServices
+    services: ChatAgentDependencies
     client: ChatClient
     chat_id: str
     initial_messages: list[ChatMessage]
     existing_session: ChatSessionRecord | None = None
-    topic_anchor: ChatTopicAnchor | None = None
     model_retry: ModelRetryConfig = field(default_factory=ModelRetryConfig)
-    response_style: str = "balanced"
-    answer_synthesizer: ChatAnswerSynthesizer = field(default_factory=ChatAnswerSynthesizer)
+    answer_decider: ChatAnswerDecisionService = field(default_factory=ChatAnswerDecisionService)
+    response_composer: ChatResponseComposer = field(default_factory=ChatResponseComposer)
     trace: list[ChatToolTraceItem] = field(default_factory=list)
     events: list[ChatEvent] = field(default_factory=list)
     run_links: list[ChatRunLink] = field(default_factory=list)
@@ -141,160 +206,540 @@ class _ChatLoop:
     memory_used: list[MemoryRecord] = field(default_factory=list)
     memory_candidates: list[MemoryCandidate] = field(default_factory=list)
     memory_writes: list[MemoryRecord] = field(default_factory=list)
-    retrieval_policy: ChatRetrievalPolicy = field(default_factory=ChatRetrievalPolicy)
-    plan_adjustments: list[ChatPlanAdjustment] = field(default_factory=list)
     event_callback: Callable[[ChatEvent], None] | None = None
+    cancellation: OperationCancellationToken | None = None
+    safety: ChatExecutionSafety | None = None
+    terminal_query_outcome: str = "not_applicable"
+    last_final_draft: ChatAnswerDraft | None = None
+    last_final_mode: ChatAnswerMode | None = None
 
     def run(self) -> ChatResponse:
+        self._raise_if_stopped()
         self._event("chat_started", message="Chat request started.")
         query = latest_user_text(self.current_messages)
         executor = ChatToolExecutor(
             request=self.request,
             services=self.services,
-            existing_session=self.existing_session,
             event_callback=self._tool_event,
+            raise_if_stopped=self._raise_if_stopped,
+            before_tool_call=self.safety.before_tool_call if self.safety is not None else None,
+            observe_tool_result=self.safety.observe_tool_result if self.safety is not None else None,
         )
-        observations: list[ChatToolTraceItem] = []
-        plans: list[ChatToolPlan] = []
-        executed_signatures: set[str] = set()
-        stop_reason = "max_turns"
-        max_evidence_rounds = max(1, self.request.max_turns - 1)
-        evidence_round = 0
-        for evidence_round in range(1, max_evidence_rounds + 1):
-            plan = self._plan_tools(query, observations=observations, turn=evidence_round)
-            plans.append(plan)
-            if _plan_is_finish(plan):
-                if observations or _query_allows_direct_answer(query):
-                    stop_reason = "planner_finished"
-                    break
-                plan = ChatToolPlan(
-                    tool_calls=[{"name": "query_wiki", "arguments": {"query": query, "mode": "balanced", "max_results": 6}}],
-                    reason="Planner tried to finish without evidence; KnoArbor requires wiki evidence for knowledge questions.",
-                    confidence=min(plan.confidence, 0.5),
+        answer_turn = 1
+        direct_capability = _direct_capability(query)
+        if direct_capability is not None:
+            direct_observations: list[ChatToolTraceItem] = []
+            if direct_capability == "list_vaults":
+                direct_plan = ChatToolPlan(
+                    tool_calls=[{"name": direct_capability, "arguments": {}}],
+                    reason="Execute an explicitly requested product capability.",
+                    confidence=1.0,
                 )
-                plans[-1] = plan
-            executable_plan = _executable_plan(plan)
-            if not executable_plan.tool_calls:
-                stop_reason = "no_executable_tools"
-                break
-            signatures = [_tool_signature(call.name, call.arguments) for call in executable_plan.tool_calls]
-            if all(signature in executed_signatures for signature in signatures):
-                stop_reason = "repeated_tool_plan"
-                break
-            executed_signatures.update(signatures)
-            round_observations = executor.execute(executable_plan, query)
-            observations.extend(round_observations)
-            self.trace.extend(round_observations)
-            if _plan_contains_direct_answer(executable_plan):
-                stop_reason = "direct_answer"
-                break
-            if _plan_contains_generated_image(round_observations):
-                stop_reason = "image_generated"
-                break
-            if self.retrieval_policy.assess_evidence(round_observations, query=query).sufficient:
-                stop_reason = "evidence_sufficient"
-                break
-        if self.topic_anchor is not None:
-            self.topic_anchor = update_anchor_answer_type(update_anchor_after_evidence(self.topic_anchor, observations), observations)
-        answer_turn = evidence_round + 1
-        self._event("model_call_started", message="Calling chat answer model.", turn=answer_turn, payload={"phase": "answer"})
-        answer_result = self.answer_synthesizer.synthesize(
-            client=self.client,
-            request=self.request,
-            initial_messages=self.initial_messages,
-            current_messages=self.current_messages,
-            existing_session=self.existing_session,
-            topic_anchor=self.topic_anchor,
-            observations=observations,
-            turn=answer_turn,
-            max_tokens=_max_tokens(self.request),
-            retry=self.model_retry,
-            response_style=self.response_style,
-            token_callback=self._answer_delta_callback(answer_turn) if self.event_callback else None,
-        )
-        self.model_calls += 1
-        _merge_usage(self.total_usage, answer_result.completion.usage)
-        self._event(
-            "model_call_finished",
-            message="Chat answer model call finished.",
-            turn=answer_turn,
-            payload={"usage": answer_result.completion.usage, "elapsed_seconds": answer_result.completion.elapsed_seconds},
-        )
-        self.call_records.append(answer_result.call_record)
-        response = self._answer_response(answer_result.draft, turns=answer_turn)
-        response.stats["retrieval_strategy"] = "model_planned_tools"
-        response.stats["tool_plan"] = plans[0].model_dump() if plans else {}
-        response.stats["tool_plans"] = [plan.model_dump() for plan in plans]
-        response.stats["evidence_rounds"] = len(plans)
-        response.stats["evidence_stop_reason"] = stop_reason
-        response.stats["plan_adjustments"] = [adjustment.__dict__ for adjustment in self.plan_adjustments]
-        if self.topic_anchor is not None:
-            response.stats["topic_anchor"] = self.topic_anchor.model_dump(mode="json")
+                direct_observations = executor.execute(direct_plan, query)
+                self.trace.extend(direct_observations)
+                for observation in direct_observations:
+                    _merge_usage(self.total_usage, _tool_usage(observation))
+                if any(item.status == "error" for item in direct_observations):
+                    raise RuntimeError(f"Direct Chat capability failed: {direct_capability}.")
+            provenance = ChatAnswerProvenance(
+                mode="direct_capability",
+                query_outcome="not_applicable",
+                chat_outcome="direct",
+            )
+            response = self._answer_response(
+                ChatAnswerDraft(answer=_direct_capability_answer(query, direct_capability, direct_observations)),
+                turns=answer_turn,
+                provenance=provenance,
+                allow_citations=False,
+            )
+            response.stats["retrieval_strategy"] = "direct_capability"
+            return response
+
+        if self.safety is not None:
+            self.safety.ensure_tool_capacity()
+        retrieval_plans: list[ChatRetrievalPlan] = []
+        query_directions: list[tuple[str, str | None, str]] = []
+        retrieval_attempts = 0
+
+        def execute_batch(
+            directions: list[tuple[str, str | None, str]],
+        ) -> tuple[list[ChatToolTraceItem], dict[str, Any], str]:
+            nonlocal retrieval_attempts
+            retrieval_attempts += 1
+            query_expressions = [
+                {
+                    "query_id": f"q{index}",
+                    "query": expression,
+                    **({"region_id": region_id} if region_id is not None else {}),
+                    "group_id": group_id,
+                }
+                for index, (expression, region_id, group_id) in enumerate(
+                    directions,
+                    start=1,
+                )
+            ]
+            batch_plan = ChatToolPlan(
+                tool_calls=[
+                    {
+                        "name": "retrieve_knowledge_batch",
+                        "arguments": {
+                            "query_expressions": query_expressions,
+                        },
+                    }
+                ],
+                reason="Execute one Query-owned batch retrieval and Active Raw evidence assembly.",
+                confidence=1.0,
+            )
+            batch_items = executor.execute(batch_plan, query)
+            if not batch_items or any(item.status == "error" for item in batch_items):
+                return batch_items, {}, "integrity_error"
+            result = batch_items[0].result
+            return batch_items, result, str(result.get("status") or "integrity_error")
+
+        try:
+            retrieval_plan, corpus_catalog = self._plan_retrieval(
+                query,
+                turn=1,
+            )
+        except (ExternalServiceError, ModelOutputError, RuntimeError):
+            self.warnings.append("retrieval_planner_unavailable")
+        else:
+            retrieval_plans.append(retrieval_plan)
+            query_directions.extend(
+                _retrieval_search_directions(
+                    query=query,
+                    plan=retrieval_plan,
+                )
+            )
+        if not query_directions:
+            query_directions.append((query, None, "region_unscoped"))
+
+        batch_observations, batch_result, query_outcome = execute_batch(query_directions)
+        self.trace.extend(batch_observations)
+        self.terminal_query_outcome = query_outcome
+
+        evidence_ids = [
+            str(item.get("evidence_id"))
+            for item in batch_result.get("raw_evidence", [])
+            if isinstance(item, dict) and item.get("evidence_id")
+        ]
+
+        if query_outcome in {"candidates", "no_match"}:
+            answer_turn = 2
+            answer_result = self._compose_answer(
+                batch_observations,
+                evidence_ids,
+                query_outcome,
+                answer_turn,
+                executor=executor,
+                query=query,
+                image_generation_available=executor.has_tool("generate_image"),
+            )
+            if answer_result.has_supported_answer:
+                answer_mode = "knowledge_grounded_with_gap" if answer_result.has_gap else "knowledge_grounded"
+                chat_outcome = finalize_chat_outcome(
+                    ChatFinalizationState(
+                        query_outcomes=("candidates",),
+                        has_supported_answer=True,
+                        has_gap=answer_result.has_gap,
+                    )
+                )
+                source_path = "local_knowledge"
+            elif answer_result.has_general_answer:
+                answer_mode = "general_knowledge"
+                chat_outcome = "no_match" if query_outcome == "no_match" else "planning_exhausted"
+                source_path = "model_general"
+            else:
+                answer_mode = "knowledge_gap"
+                chat_outcome = "no_match" if query_outcome == "no_match" else "planning_exhausted"
+                source_path = "knowledge_gap"
+            self._select_answer_source(source_path, answer_turn)
+            final_draft = answer_result.draft
+            if self.event_callback:
+                self._answer_delta_callback(answer_turn)(final_draft.answer)
+            provenance = ChatAnswerProvenance(
+                mode=answer_mode,
+                query_outcome=query_outcome,
+                chat_outcome=chat_outcome,
+            )
+            response = self._answer_response(
+                final_draft,
+                turns=answer_turn,
+                provenance=provenance,
+                allow_citations=answer_result.has_supported_answer,
+            )
+        elif query_outcome == "resource_exhausted":
+            chat_outcome = finalize_chat_outcome(
+                ChatFinalizationState(
+                    query_outcomes=("resource_exhausted",),
+                    all_searches_exhausted=False,
+                    stop_reason="resource_exhausted",
+                )
+            )
+            provenance = ChatAnswerProvenance(
+                mode="knowledge_gap",
+                query_outcome="resource_exhausted",
+                chat_outcome=chat_outcome,
+            )
+            response = self._answer_response(
+                ChatAnswerDraft(answer="本次知识检索触及资源安全边界；这不代表知识库中没有相关内容。请缩小问题范围后重试。"),
+                turns=answer_turn,
+                provenance=provenance,
+                allow_citations=False,
+            )
+        else:
+            chat_outcome = (
+                "integrity_error" if query_outcome == "integrity_error" else ("cancelled" if query_outcome == "cancelled" else "tool_error")
+            )
+            provenance = ChatAnswerProvenance(
+                mode="knowledge_gap",
+                query_outcome=query_outcome,  # type: ignore[arg-type]
+                chat_outcome=chat_outcome,
+            )
+            response = self._answer_response(
+                ChatAnswerDraft(answer=_retrieval_failure_answer(query_outcome)),
+                turns=answer_turn,
+                provenance=provenance,
+                allow_citations=False,
+            )
+
+        response.stats["retrieval_strategy"] = "query_owned_batch_raw"
+        response.stats["query_outcome"] = query_outcome
+        response.stats["chat_outcome"] = response.answer_provenance.chat_outcome
+        response.stats["answer_mode"] = response.answer_provenance.mode
+        response.stats["retrieval_planning"] = [plan.model_dump(mode="json") for plan in retrieval_plans]
+        response.stats["retrieval_attempts"] = retrieval_attempts
+        response.stats["retrieval_batch"] = {
+            key: batch_result.get(key)
+            for key in (
+                "status",
+                "query_expressions",
+                "query_results",
+                "group_results",
+                "selected_evidence_ids",
+                "evidence_query_ids",
+                "candidate_count",
+                "global_eligible_candidate_count",
+                "global_result_window",
+                "selected_content_chars",
+                "evidence_packet_chars",
+                "evidence_packet_reduction_ratio",
+                "raw_read_rounds",
+                "raw_read_count",
+                "search_elapsed_ms",
+                "raw_read_elapsed_ms",
+                "batch_elapsed_ms",
+                "warnings",
+            )
+            if key in batch_result
+        }
         return response
 
-    def _plan_tools(self, query: str, *, observations: list[ChatToolTraceItem], turn: int) -> ChatToolPlan:
-        messages = _tool_plan_messages(self.initial_messages, self.existing_session, observations, query=query, topic_anchor=self.topic_anchor)
+    def _raise_if_stopped(self) -> None:
+        if self.cancellation is not None:
+            self.cancellation.raise_if_stopped()
+        if self.safety is not None:
+            self.safety.check()
+
+    def resource_exhausted(self, exc: ChatExecutionSafetyExceeded) -> ChatResponse:
+        grounded = self.last_final_mode in {
+            "knowledge_grounded",
+            "knowledge_grounded_with_gap",
+        }
+        completed = self.last_final_draft is not None
+        chat_outcome = finalize_chat_outcome(
+            ChatFinalizationState(
+                query_outcomes=(),
+                stop_reason="resource_exhausted",
+            )
+        )
+        provenance = ChatAnswerProvenance(
+            mode=(self.last_final_mode if completed and self.last_final_mode is not None else "knowledge_gap"),
+            query_outcome=("candidates" if completed or self.terminal_query_outcome == "candidates" else "resource_exhausted"),
+            chat_outcome=chat_outcome,
+        )
+        draft = self.last_final_draft or ChatAnswerDraft(answer="本轮检索达到资源安全边界，未进入通用知识回答。可以缩小问题范围后继续。")
+        self.warnings.append(f"chat_execution_safety:{exc.reason}")
+        response = self._answer_response(
+            draft,
+            turns=max(1, self.model_calls + 1),
+            provenance=provenance,
+            allow_citations=grounded,
+        )
+        response.stats["execution_safety"] = exc.usage
+        response.stats["query_outcome"] = provenance.query_outcome
+        response.stats["chat_outcome"] = provenance.chat_outcome
+        response.stats["answer_mode"] = provenance.mode
+        return response
+
+    def _select_answer_source(self, source_path: str, turn: int) -> None:
+        self._event(
+            "answer_source_selected",
+            message="Chat answer source path selected.",
+            turn=turn,
+            payload={
+                "source_path": source_path,
+                "provisional": False,
+            },
+        )
+
+    def _plan_retrieval(
+        self,
+        query: str,
+        *,
+        turn: int,
+    ) -> tuple[ChatRetrievalPlan, dict[str, object]]:
+        corpus_catalog = build_active_corpus_catalog(
+            resolve_vault_group(
+                vault_path=self.request.vault_path,
+                vault_id=self.request.vault_id,
+                vault_ids=self.request.vault_ids,
+                all_vaults=self.request.all_vaults,
+                config_path=self.request.config_path,
+            )
+        )
+        messages = _retrieval_planning_messages(
+            self.existing_session,
+            query=query,
+            corpus_catalog=corpus_catalog,
+        )
         prompt_chars = messages_chars(messages)
-        self._event("model_call_started", message="Calling chat tool planner.", turn=turn, payload={"phase": "tool_plan"})
+        self._event(
+            "model_call_started",
+            message="Calling retrieval planner.",
+            turn=turn,
+            payload={"phase": "retrieval_planner"},
+        )
+        validated: dict[str, ChatRetrievalPlan] = {}
+
+        def validate_completion(completion) -> None:
+            parsed = _parse_retrieval_plan(completion.content)
+            catalog_entries = _corpus_catalog_entries(corpus_catalog)
+            allowed_ids = set(catalog_entries)
+            unknown = [search.region_id for search in parsed.searches if search.region_id not in allowed_ids]
+            if unknown:
+                raise ModelOutputError("Retrieval planner returned unknown region IDs: " + ", ".join(unknown))
+            validated["plan"] = parsed
+
         call = run_chat_model_call(
             client=self.client,
             request=ChatCompletionRequest(
                 messages=messages,
                 temperature=0,
-                max_tokens=min(_max_tokens(self.request) or 4096, 4096),
+                max_tokens=_max_tokens(self.request),
             ),
             retry=self.model_retry,
-            phase="tool_plan",
+            phase="retrieval_planner",
             turn=turn,
             prompt_chars=prompt_chars,
+            raise_if_cancelled=self._raise_if_stopped,
+            before_model_call=self.safety.before_model_call if self.safety is not None else None,
+            completion_validator=validate_completion,
         )
         completion = call.completion
         self.model_calls += 1
         _merge_usage(self.total_usage, completion.usage)
         self._event(
             "model_call_finished",
-            message="Chat tool planner finished.",
+            message="Retrieval planner finished.",
             turn=turn,
             payload={"usage": completion.usage, "elapsed_seconds": completion.elapsed_seconds},
         )
         self.call_records.append(call.call_record)
-        plan = _parse_tool_plan(completion.content)
-        if not plan.tool_calls:
-            return ChatToolPlan(tool_calls=[{"name": "query_wiki", "arguments": {"query": query}}], reason="Planner returned no action.", confidence=0.0)
-        guarded = _guard_tool_plan(plan, query)
-        adjusted, adjustment = self.retrieval_policy.adjust_plan(
-            guarded,
-            query=query,
+        return validated["plan"], corpus_catalog
+
+    def _compose_answer(
+        self,
+        observations: list[ChatToolTraceItem],
+        evidence_ids: list[str],
+        retrieval_outcome: str,
+        turn: int,
+        *,
+        executor: ChatToolExecutor,
+        query: str,
+        image_generation_available: bool,
+    ):
+        self._event(
+            "model_call_started",
+            message="Calling Chat Answer Decision model.",
+            turn=turn,
+            payload={"phase": "answer", "semantic_phase": "answer_decision"},
+        )
+        decision_result = self.answer_decider.decide(
+            client=self.client,
+            current_messages=self.current_messages,
+            model_context_messages=_answer_context_messages(self.initial_messages),
             existing_session=self.existing_session,
             observations=observations,
+            evidence_ids=evidence_ids,
+            retrieval_outcome=retrieval_outcome,
+            image_generation_available=image_generation_available,
+            turn=turn,
+            max_tokens=_max_tokens(self.request),
+            retry=self.model_retry,
+            raise_if_cancelled=self._raise_if_stopped,
+            before_model_call=self.safety.before_model_call if self.safety is not None else None,
         )
-        if adjustment:
-            self.plan_adjustments.append(adjustment)
-        return adjusted
+        self._record_model_stage(
+            completion=decision_result.completion,
+            call_record=decision_result.call_record,
+            turn=turn,
+            phase="answer_decision",
+        )
+        generated_image = self._generate_requested_image(
+            decision_result.decision.generated_image_prompt,
+            executor,
+            query=query,
+        )
+        self._event(
+            "model_call_started",
+            message="Calling Chat Response Composer.",
+            turn=turn,
+            payload={"phase": "answer", "semantic_phase": "response_composer"},
+        )
+        result = self.response_composer.compose(
+            client=self.client,
+            current_messages=self.current_messages,
+            model_context_messages=_answer_context_messages(self.initial_messages),
+            existing_session=self.existing_session,
+            decision_result=decision_result,
+            generated_image=generated_image,
+            turn=turn,
+            max_tokens=_max_tokens(self.request),
+            retry=self.model_retry,
+            raise_if_cancelled=self._raise_if_stopped,
+            before_model_call=self.safety.before_model_call if self.safety is not None else None,
+        )
+        self._record_model_stage(
+            completion=result.completion,
+            call_record=result.call_record,
+            turn=turn,
+            phase="response_composer",
+        )
+        self.last_final_draft = result.draft
+        self.last_final_mode = (
+            "knowledge_grounded_with_gap"
+            if result.has_supported_answer and result.has_gap
+            else "knowledge_grounded"
+            if result.has_supported_answer
+            else "general_knowledge"
+            if result.has_general_answer
+            else "knowledge_gap"
+        )
+        return result
 
-    def _answer_response(self, draft: ChatAnswerDraft, turns: int) -> ChatResponse:
-        presentation = resolve_answer_presentation(draft.citations, self.trace, answer=draft.answer)
+    def _generate_requested_image(
+        self,
+        prompt: str | None,
+        executor: ChatToolExecutor,
+        *,
+        query: str,
+    ) -> ChatGeneratedImageState:
+        if prompt is None:
+            return ChatGeneratedImageState(status="not_requested")
+        plan = ChatToolPlan(
+            tool_calls=[
+                {
+                    "name": "generate_image",
+                    "arguments": {"prompt": prompt},
+                }
+            ],
+            reason="Generate one decision-authorized visual before final response composition.",
+            confidence=1.0,
+        )
+        generated = executor.execute(plan, query)
+        self.trace.extend(generated)
+        successful = [item for item in generated if item.status == "ok"]
+        for observation in successful:
+            _merge_usage(self.total_usage, _tool_usage(observation))
+        if not successful:
+            delete_chat_request_artifacts(
+                self.request.vault_path,
+                self.chat_id,
+                self.request.request_id,
+            )
+            self.warnings.append("optional_image_generation_failed")
+            return ChatGeneratedImageState(status="failed")
+        visuals = _generated_visuals(
+            successful,
+            prompt=prompt,
+            query=query,
+        )
+        if not visuals:
+            delete_chat_request_artifacts(
+                self.request.vault_path,
+                self.chat_id,
+                self.request.request_id,
+            )
+            self.warnings.append("optional_image_generation_empty")
+            return ChatGeneratedImageState(status="failed")
+        return ChatGeneratedImageState(
+            status="available",
+            visuals=visuals,
+        )
+
+    def _record_model_stage(
+        self,
+        *,
+        completion,
+        call_record: dict[str, object],
+        turn: int,
+        phase: str,
+    ) -> None:
+        self.model_calls += 1
+        _merge_usage(self.total_usage, completion.usage)
+        self._event(
+            "model_call_finished",
+            message="Chat semantic model call finished.",
+            turn=turn,
+            payload={
+                "phase": "answer",
+                "semantic_phase": phase,
+                "usage": completion.usage,
+                "elapsed_seconds": completion.elapsed_seconds,
+            },
+        )
+        self.call_records.append(call_record)
+
+    def _answer_response(
+        self,
+        draft: ChatAnswerDraft,
+        turns: int,
+        *,
+        provenance: ChatAnswerProvenance,
+        allow_citations: bool = True,
+    ) -> ChatResponse:
+        presentation = (
+            resolve_answer_presentation(draft.citations, self.trace, answer=draft.answer)
+            if allow_citations
+            else ChatAnswerPresentation(answer=draft.answer, citations=[])
+        )
         answer = clean_answer_citation_paths(
             presentation.answer,
             answer_cleanup_citations(self.trace, presentation.citations),
             latest_user_text=latest_user_text(self.current_messages),
         )
         self._capture_memory()
-        self._event("final_answer_ready", message="Final chat answer is ready.", turn=turns, payload={"citation_count": len(presentation.citations)})
+        self._event(
+            "final_answer_ready", message="Final chat answer is ready.", turn=turns, payload={"citation_count": len(presentation.citations)}
+        )
         return ChatResponse(
+            request_id=self.request.request_id,
+            execution_id=self.request.execution_id,
             session_id=self.request.session_id,
+            session_revision=(self.existing_session.session_revision if self.existing_session else 0) + 1,
+            turn_id=f"turn_{uuid4().hex}",
             answer=answer,
-            messages=[*self.request.messages, ChatMessageItem(role="assistant", content=answer)],
+            answer_provenance=provenance,
             citations=presentation.citations,
             hidden_evidence_count=presentation.hidden_evidence_count,
             citation_warnings=presentation.warnings,
-            tool_trace=self.trace if self.request.include_trace else [],
+            tool_trace=self.trace,
             events=self.events,
             run_links=self.run_links,
             memory_used=self.memory_used,
             memory_candidates=self.memory_candidates,
             memory_writes=self.memory_writes,
-            topic_anchor=self.topic_anchor,
             stats=self._stats(turns),
             warnings=[*self.warnings, *presentation.warnings],
         )
@@ -319,9 +764,9 @@ class _ChatLoop:
             "memory_candidates": len(self.memory_candidates),
             "memory_writes": len(self.memory_writes),
             "usage": dict(self.total_usage),
+            "model_phases": _model_phase_stats(self.call_records),
             "total_tokens": self.total_usage.get("total_tokens", 0),
-            "topic_anchor": self.topic_anchor.model_dump(mode="json") if self.topic_anchor is not None else None,
-            "response_style": self.response_style,
+            "execution_safety": self.safety.payload() if self.safety is not None else {},
         }
 
     def _capture_memory(self) -> None:
@@ -375,6 +820,7 @@ class _ChatLoop:
     def _tool_event(self, event_type: str, message: str, tool: str | None, turn: int | None, status: str | None) -> None:
         self._event(event_type, message=message, tool=tool, turn=turn, status=status)
 
+
 def _client_from_request(request: ChatRequest) -> ChatClient:
     config = load_config(Path(request.config_path).expanduser().resolve() if request.config_path else default_config_path())
     provider = request.provider or config.models.default_provider
@@ -384,6 +830,24 @@ def _client_from_request(request: ChatRequest) -> ChatClient:
     if provider_config is None:
         raise UserInputError(f"Unknown model provider: {provider}")
     return ModelGateway.from_config(provider, provider_config, timeout_seconds=config.models.request_timeout_seconds)
+
+
+def _retry_context_session(
+    existing_session: ChatSessionRecord | None,
+    replacement_turn_id: str | None,
+) -> ChatSessionRecord | None:
+    if existing_session is None or replacement_turn_id is None:
+        return existing_session
+    if not existing_session.turns or existing_session.turns[-1].turn_id != replacement_turn_id:
+        raise StorageConflict("Chat retry target changed before execution.")
+    target = existing_session.turns[-1]
+    removed_message_ids = {target.user_message.message_id, target.assistant_message.message_id}
+    return existing_session.model_copy(
+        update={
+            "messages": [message for message in existing_session.messages if message.message_id not in removed_message_ids],
+            "turns": existing_session.turns[:-1],
+        }
+    )
 
 
 def _max_tokens(request: ChatRequest) -> int | None:
@@ -413,209 +877,165 @@ def _event_elapsed(payload: dict[str, Any] | None) -> str:
     return str(payload.get("elapsed_seconds"))
 
 
-def _parse_tool_plan(content: str) -> ChatToolPlan:
-    payload = parse_json_object(content)
-    try:
-        return ChatToolPlan.model_validate(payload)
-    except (ValidationError, ValueError) as exc:
-        raise ModelOutputError(f"Chat tool planner returned invalid JSON: {exc}") from exc
+def _answer_context_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Preserve recalled user memory without forwarding workspace identities."""
 
-
-def _tool_plan_messages(
-    initial_messages: list[ChatMessage],
-    existing_session: ChatSessionRecord | None,
-    observations: list[ChatToolTraceItem] | None = None,
-    *,
-    query: str,
-    topic_anchor: ChatTopicAnchor | None = None,
-) -> list[ChatMessage]:
-    planning_state = {
-        "latest_user_message": query,
-        "topic_anchor": topic_anchor.model_dump(mode="json") if topic_anchor is not None else {},
-        "recent_user_messages": _recent_user_messages(initial_messages),
-        "recent_turns": _planner_recent_turns(existing_session),
-        "workspace_context": _workspace_planning_context(initial_messages),
-        "prior_evidence_context": _prior_evidence_context(existing_session),
-        "current_turn_evidence_context": _current_evidence_context(observations or [], query=query),
-    }
     return [
-        ChatMessage(role="system", content=TOOL_PLAN_PROMPT),
-        ChatMessage(role="user", content=json.dumps({"planning_state": planning_state}, ensure_ascii=False)),
+        message.model_copy(update={"role": "user"})
+        for message in messages
+        if message.role == "system" and message.content.startswith("<knoarbor-memory-context>")
     ]
 
 
-def _recent_user_messages(messages: list[ChatMessage]) -> list[str]:
-    return _unique_strings([message.content for message in messages if message.role == "user"])[-6:]
-
-
-def _planner_recent_turns(existing_session: ChatSessionRecord | None) -> list[dict[str, object]]:
-    if existing_session is None:
-        return []
-    turns = []
-    for turn in existing_session.turns[-4:]:
-        answer_paths, source_paths = _turn_evidence_page_roles(turn.tool_trace)
-        turns.append(
+def _model_phase_stats(call_records: list[dict[str, object]]) -> list[dict[str, object]]:
+    phases: dict[str, dict[str, object]] = {}
+    for call in call_records:
+        phase = str(call.get("phase") or "unknown")
+        item = phases.setdefault(
+            phase,
             {
-                "index": turn.index,
-                "user_message": _compact_text(turn.user_message.content, 500),
-                "citation_paths": [citation.path for citation in turn.citations if citation.path],
-                "answer_page_paths": answer_paths,
-                "source_page_paths": source_paths,
-                "tool_summaries": _unique_strings([item.summary for item in turn.tool_trace if item.summary])[-4:],
-            }
+                "phase": phase,
+                "calls": 0,
+                "prompt_tokens": 0,
+                "prompt_cached_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "prompt_chars": 0,
+                "elapsed_seconds": 0.0,
+            },
         )
-    return turns
+        item["calls"] = int(item["calls"]) + 1
+        for key in ("prompt_tokens", "prompt_cached_tokens", "completion_tokens", "total_tokens", "prompt_chars"):
+            item[key] = int(item[key]) + int(call.get(key) or 0)
+        item["elapsed_seconds"] = float(item["elapsed_seconds"]) + float(call.get("elapsed_seconds") or 0)
+    for item in phases.values():
+        prompt_tokens = int(item["prompt_tokens"])
+        item["prompt_cache_rate"] = int(item["prompt_cached_tokens"]) / prompt_tokens if prompt_tokens else None
+        item["elapsed_seconds"] = round(float(item["elapsed_seconds"]), 3)
+    return list(phases.values())
 
 
-def _turn_evidence_page_roles(trace: list[ChatToolTraceItem]) -> tuple[list[str], list[str]]:
-    answer_page_paths: list[str] = []
-    source_page_paths: list[str] = []
-    for item in trace:
-        tool_answer_paths, tool_source_paths = _evidence_page_roles(item.result.get("evidence_pack"))
-        answer_page_paths.extend(tool_answer_paths)
-        source_page_paths.extend(tool_source_paths)
-        if item.tool == "read_wiki_page" and item.result.get("path"):
-            path = str(item.result["path"])
-            if _is_source_page_payload(item.result):
-                source_page_paths.append(path)
-            else:
-                answer_page_paths.append(path)
-    return _unique_strings(answer_page_paths), _unique_strings(source_page_paths)
+def _parse_retrieval_plan(content: str) -> ChatRetrievalPlan:
+    payload = parse_json_object(content)
+    try:
+        return ChatRetrievalPlan.model_validate(payload)
+    except (ValidationError, ValueError) as exc:
+        raise ModelOutputError(f"Retrieval planner returned invalid JSON: {exc}") from exc
 
 
-def _plan_contains_generated_image(observations: list[ChatToolTraceItem]) -> bool:
-    return any(item.tool == "generate_image" and item.status == "ok" and item.result.get("images") for item in observations)
-
-
-def _compact_text(text: str, max_chars: int) -> str:
-    cleaned = " ".join(text.split())
-    if len(cleaned) <= max_chars:
-        return cleaned
-    return cleaned[: max(0, max_chars - 1)].rstrip() + "…"
-
-
-def _workspace_planning_context(messages: list[ChatMessage]) -> dict[str, object]:
-    for message in messages:
-        if message.role != "system" or not message.content.startswith("Workspace context:"):
-            continue
-        _, _, raw = message.content.partition("\n")
-        try:
-            payload = json.loads(raw)
-        except json.JSONDecodeError:
-            return {}
-        return payload if isinstance(payload, dict) else {}
-    return {}
-
-
-def _guard_tool_plan(plan: ChatToolPlan, query: str) -> ChatToolPlan:
-    if not plan.tool_calls:
-        return plan
-    if any(call.name not in {"answer_directly", "finish_answer"} for call in plan.tool_calls):
-        return plan
-    return plan
-
-
-def _plan_is_finish(plan: ChatToolPlan) -> bool:
-    return bool(plan.tool_calls) and all(call.name == "finish_answer" for call in plan.tool_calls)
-
-
-def _plan_contains_direct_answer(plan: ChatToolPlan) -> bool:
-    return any(call.name == "answer_directly" for call in plan.tool_calls)
-
-
-def _executable_plan(plan: ChatToolPlan) -> ChatToolPlan:
-    return plan.model_copy(update={"tool_calls": [call for call in plan.tool_calls if call.name != "finish_answer"]})
-
-
-def _tool_signature(name: str, arguments: dict[str, Any]) -> str:
-    return json.dumps({"name": name, "arguments": arguments}, ensure_ascii=False, sort_keys=True)
-
-
-def _current_evidence_context(observations: list[ChatToolTraceItem], *, query: str = "") -> dict[str, object]:
-    if not observations:
-        return {}
-    assessment = ChatRetrievalPolicy().assess_evidence(observations, query=query or _latest_observation_query(observations))
-    items = []
-    primary_paths: list[str] = []
-    coverage_statuses: list[str] = []
-    recommended_actions: list[str] = []
-    missing_dimensions: list[str] = []
-    executed_queries: list[str] = []
-    failed_tools: list[str] = []
-    for item in observations[-6:]:
-        pack = item.result.get("evidence_pack")
-        coverage = pack.get("evidence_coverage") if isinstance(pack, dict) and isinstance(pack.get("evidence_coverage"), dict) else {}
-        item_primary_paths = [str(page.get("path")) for page in pack.get("primary_pages", []) if page.get("path")] if isinstance(pack, dict) else []
-        if isinstance(pack, dict) and pack.get("primary_page") and isinstance(pack.get("primary_page"), dict) and pack["primary_page"].get("path"):
-            item_primary_paths.append(str(pack["primary_page"]["path"]))
-        primary_paths.extend(item_primary_paths)
-        if item.status == "error":
-            failed_tools.append(item.tool)
-        if isinstance(coverage, dict) and coverage.get("status"):
-            coverage_statuses.append(str(coverage["status"]))
-        if isinstance(coverage, dict):
-            missing_dimensions.extend(str(dimension) for dimension in coverage.get("missing_dimensions", []) if str(dimension).strip())
-        if isinstance(pack, dict) and pack.get("recommended_action"):
-            recommended_actions.append(str(pack["recommended_action"]))
-        if item.tool == "query_wiki" and item.arguments.get("query"):
-            executed_queries.append(str(item.arguments["query"]))
-        items.append(
-            {
-                "tool": item.tool,
-                "status": item.status,
-                "summary": item.summary,
-                "arguments": item.arguments,
-                "citation_paths": [citation.path for citation in item.citations if citation.path],
-                "recommended_action": pack.get("recommended_action") if isinstance(pack, dict) else None,
-                "coverage_status": coverage.get("status") if isinstance(coverage, dict) else None,
-                "primary_paths": item_primary_paths,
-            }
-        )
-    return {
-        "summary": {
-            "has_primary_page": bool(primary_paths),
-            "primary_paths": _unique_strings(primary_paths),
-            "coverage_statuses": _unique_strings(coverage_statuses),
-            "recommended_actions": _unique_strings(recommended_actions),
-            "missing_dimensions": _unique_strings(missing_dimensions),
-            "executed_queries": _unique_strings(executed_queries),
-            "failed_tools": _unique_strings(failed_tools),
-            "needs_more_evidence": not assessment.sufficient,
-            "evidence_assessment_reason": assessment.reason,
-            "recommended_next_step": assessment.recommended_next_step,
-        },
-        "observations": items,
+def _retrieval_planning_messages(
+    existing_session: ChatSessionRecord | None,
+    *,
+    query: str,
+    corpus_catalog: dict[str, object],
+) -> list[ChatMessage]:
+    planning_state = {
+        "active_corpus_outline": corpus_catalog,
+        "conversation_context": session_dialogue_context(existing_session),
+        "latest_user_message": query,
     }
+    return [
+        ChatMessage(role="system", content=RETRIEVAL_PLANNER_PROMPT),
+        ChatMessage(
+            role="user",
+            content=json.dumps(
+                {"planning_state": planning_state},
+                ensure_ascii=False,
+            ),
+        ),
+    ]
 
 
-def _latest_observation_query(observations: list[ChatToolTraceItem]) -> str:
-    for item in reversed(observations):
-        if item.arguments.get("query"):
-            return str(item.arguments["query"])
-    return ""
+@dataclass(frozen=True)
+class _CorpusCatalogEntry:
+    region_id: str
+    language_hint: str
 
 
-def _unique_strings(values: list[str]) -> list[str]:
-    seen: set[str] = set()
-    output: list[str] = []
-    for value in values:
-        if value in seen:
+def _corpus_catalog_entries(
+    corpus_catalog: dict[str, object],
+) -> dict[str, _CorpusCatalogEntry]:
+    output: dict[str, _CorpusCatalogEntry] = {}
+    vaults = corpus_catalog.get("vaults", [])
+    if not isinstance(vaults, list):
+        return output
+    for vault in vaults:
+        if not isinstance(vault, dict):
             continue
-        seen.add(value)
-        output.append(value)
+        documents = vault.get("documents", [])
+        if not isinstance(documents, list):
+            continue
+        for document in documents:
+            if not isinstance(document, dict):
+                continue
+            regions = [
+                (
+                    str(document.get("region_id") or "").strip(),
+                    str(document.get("language_hint") or "unknown").strip(),
+                )
+            ]
+            sections = document.get("sections", [])
+            if isinstance(sections, list):
+                regions.extend(
+                    (
+                        str(section.get("region_id") or "").strip(),
+                        str(section.get("language_hint") or document.get("language_hint") or "unknown").strip(),
+                    )
+                    for section in sections
+                    if isinstance(section, dict)
+                )
+            for region_id, language_hint in regions:
+                if region_id:
+                    output[region_id] = _CorpusCatalogEntry(
+                        region_id=region_id,
+                        language_hint=language_hint,
+                    )
     return output
 
 
-def _query_allows_direct_answer(query: str) -> bool:
+def _retrieval_search_directions(
+    *,
+    query: str,
+    plan: ChatRetrievalPlan,
+) -> list[tuple[str, str, str]]:
+    """Compile literal and model-authored variants into one group per region."""
+
+    directions: list[tuple[str, str, str]] = []
+    for search in plan.searches:
+        group_id = f"region:{search.region_id}"
+        directions.append((query, search.region_id, group_id))
+        if _normalized_query(search.search_query) != _normalized_query(query):
+            directions.append((search.search_query, search.region_id, group_id))
+    return directions
+
+
+def _normalized_query(value: str) -> str:
+    return " ".join(value.casefold().split())
+
+
+def _text_language(value: str) -> str:
+    cjk = sum(1 for char in value if "\u3400" <= char <= "\u9fff")
+    latin = sum(1 for char in value if char.isascii() and char.isalpha())
+    if cjk >= 2 and cjk >= latin * 0.25:
+        return "zh"
+    if latin:
+        return "en"
+    return "source"
+
+
+def _direct_capability(query: str) -> str | None:
     text = query.strip().lower()
     if not text:
-        return True
-    direct_phrases = {
+        return "help"
+    if text in {
         "hi",
         "hello",
         "hey",
         "你好",
         "您好",
+    }:
+        return "greeting"
+    if text in {
         "你是谁",
         "你能做什么",
         "你可以做什么",
@@ -623,93 +1043,87 @@ def _query_allows_direct_answer(query: str) -> bool:
         "帮助",
         "怎么用",
         "如何使用",
-    }
-    if text in direct_phrases:
-        return True
-    ui_terms = ("按钮", "页面", "界面", "设置", "菜单", "sidebar", "ui", "interface")
-    return any(term in text for term in ui_terms) and not any(term in text for term in ("是什么", "原理", "架构", "区别", "对比", "流程", "机制"))
+    }:
+        return "help"
+    if any(term in text for term in ("有哪些知识库", "知识库列表", "列出知识库", "list vaults", "list knowledge bases")):
+        return "list_vaults"
+    return None
 
 
-def _prior_evidence_context(existing_session: ChatSessionRecord | None) -> dict[str, object]:
-    if existing_session is None:
-        return {}
-    recent_turns = existing_session.turns[-4:]
-    turn_citations = [citation for turn in recent_turns for citation in turn.citations]
-    citations = [citation.model_dump(mode="json") for citation in (turn_citations or existing_session.citations)[:8]]
-    reusable_tools = []
-    answer_page_paths: list[str] = []
-    source_page_paths: list[str] = []
-    trace_items = [item for turn in recent_turns for item in turn.tool_trace] or existing_session.tool_trace
-    for item in trace_items[-4:]:
-        if item.status != "ok":
-            continue
-        if item.tool not in {"query_wiki", "search_wiki", "read_wiki_page", "reuse_context"}:
-            continue
-        pack = item.result.get("evidence_pack")
-        tool_answer_paths, tool_source_paths = _evidence_page_roles(pack)
-        answer_page_paths.extend(tool_answer_paths)
-        source_page_paths.extend(tool_source_paths)
-        reusable_tools.append(
-            {
-                "tool": item.tool,
-                "summary": item.summary,
-                "arguments": item.arguments,
-                "citation_paths": [citation.path for citation in item.citations if citation.path],
-                "has_evidence_pack": isinstance(item.result.get("evidence_pack"), dict),
-                "answer_page_paths": tool_answer_paths,
-                "source_page_paths": tool_source_paths,
-            }
-        )
-    return {
-        "session_id": existing_session.session_id,
-        "citations": citations,
-        "answer_page_paths": _unique_strings(answer_page_paths),
-        "source_page_paths": _unique_strings(source_page_paths),
-        "preferred_read_pages": _unique_strings(answer_page_paths),
-        "reusable_tools": reusable_tools,
-    }
+def _knowledge_gap_answer(
+    chat_outcome: str,
+    *,
+    calibration_pending: bool = False,
+    local_evidence_required: bool = False,
+) -> str:
+    if chat_outcome == "needs_clarification":
+        return "这个问题包含尚未解析的指代，请明确你指的是哪个对象或前文内容。"
+    if chat_outcome == "planning_exhausted":
+        return "本轮检索没有形成可验证的回答依据，也不足以确认知识库确实无相关内容。请换一种更具体的问法。"
+    if calibration_pending:
+        return "当前知识库中没有找到相关材料；通用知识扩展尚未通过检索无匹配质量校准，因此本轮没有调用模型的通用知识。"
+    if local_evidence_required:
+        return "当前知识库中没有找到可支持该说法的内容，因此无法确认，也不能把模型的通用知识当作文档结论。"
+    return "当前知识库中没有找到与这个问题相关的材料。"
 
 
-def _evidence_page_roles(pack: object) -> tuple[list[str], list[str]]:
-    if not isinstance(pack, dict):
-        return [], []
-    answer_paths: list[str] = []
-    source_paths: list[str] = []
-    for key in ("primary_pages", "supporting_pages"):
-        pages = pack.get(key) if isinstance(pack.get(key), list) else []
-        for page in pages:
-            if not isinstance(page, dict) or not page.get("path"):
-                continue
-            path = str(page["path"])
-            if _is_source_page_payload(page):
-                source_paths.append(path)
-            else:
-                answer_paths.append(path)
-    primary_page = pack.get("primary_page")
-    if isinstance(primary_page, dict) and primary_page.get("path"):
-        path = str(primary_page["path"])
-        if _is_source_page_payload(primary_page):
-            source_paths.append(path)
-        else:
-            answer_paths.append(path)
-    pages = pack.get("source_pages") if isinstance(pack.get("source_pages"), list) else []
-    for page in pages:
-        if isinstance(page, dict) and page.get("path"):
-            source_paths.append(str(page["path"]))
-    return _unique_strings(answer_paths), _unique_strings(source_paths)
+def _retrieval_failure_answer(query_outcome: str) -> str:
+    if query_outcome == "index_unavailable":
+        return "当前知识检索快照不可用，无法安全判断知识库中是否存在相关内容；本轮未转入通用知识回答。"
+    if query_outcome == "integrity_error":
+        return "知识检索结果未通过完整性校验，本轮未生成知识回答，也未转入通用知识回答。"
+    if query_outcome == "cancelled":
+        return "本轮知识检索已取消。"
+    return "本轮知识检索请求无效或作用域不可用，未生成知识回答。"
 
 
-def _is_source_page_payload(page: dict[str, object]) -> bool:
-    page_role = str(page.get("page_role") or "")
-    answer_role = str(page.get("role") or "")
-    path = str(page.get("path") or "")
-    return (
-        answer_role == "source"
-        or page_role == "source_digest"
-        or path.startswith("sources/")
+def _direct_capability_answer(_query: str, capability: str, observations: list[ChatToolTraceItem]) -> str:
+    if capability == "greeting":
+        return "你好，我是 KnoArbor。你可以询问知识库内容，也可以在允许模型扩展时询问知识库之外的一般问题。"
+    if capability == "list_vaults":
+        vaults = observations[0].result.get("vaults", []) if observations else []
+        labels = [
+            str(item.get("name") or item.get("vault_id"))
+            for item in vaults
+            if isinstance(item, dict) and (item.get("name") or item.get("vault_id"))
+        ]
+        return f"当前配置了 {len(labels)} 个知识库：{'、'.join(labels)}。" if labels else "当前没有配置可用的知识库。"
+    return "我可以帮助你检索 KnoArbor 中的知识、查看引用来源，并说明当前界面与设置的使用方式。"
+
+
+def _generated_visuals(
+    observations: list[ChatToolTraceItem],
+    *,
+    prompt: str,
+    query: str,
+) -> tuple[ChatGeneratedVisual, ...]:
+    provenance_label = (
+        "**本轮生成图片（非知识库证据）**" if _text_language(query) == "zh" else "**Generated this turn (not knowledge-base evidence)**"
     )
+    visuals: list[ChatGeneratedVisual] = []
+    for observation in observations:
+        if observation.tool != "generate_image":
+            continue
+        for image in observation.result.get("images", []):
+            if not isinstance(image, dict) or not image.get("markdown"):
+                continue
+            visuals.append(
+                ChatGeneratedVisual(
+                    visual_ref=f"generated_visual_{len(visuals) + 1}",
+                    description=prompt,
+                    markdown=(provenance_label + "\n\n" + str(image["markdown"])),
+                )
+            )
+    return tuple(visuals)
 
 
 def _merge_usage(target: dict[str, int], usage: dict[str, int]) -> None:
     for key, value in usage.items():
         target[key] = target.get(key, 0) + int(value)
+
+
+def _tool_usage(observation: ChatToolTraceItem) -> dict[str, int]:
+    usage = observation.result.get("usage")
+    if not isinstance(usage, dict):
+        return {}
+    return {str(key): int(value) for key, value in usage.items() if isinstance(value, int) and not isinstance(value, bool)}

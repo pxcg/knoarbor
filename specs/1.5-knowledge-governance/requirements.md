@@ -2,74 +2,69 @@
 
 ## Problem
 
-KnoArbor can already scan and maintain wiki pages, but long-term autonomous
-maintenance needs stronger governance: clear risk levels, evidence, before/after
-diffs, repeated-issue tracking, quality metrics, and trustworthy repair paths.
+Ingest now owns raw-derived canonical facts, knowledge atoms, evidence identity,
+indexes, and page projection. The former lint workflow still treated generated
+wiki pages as independently editable knowledge: it could ask a model to rewrite
+sections, merge content, and create provenance pages. Those writes can diverge
+from canonical facts and create a second knowledge authority.
 
-The 1.5 line should evolve lint from structural repair into continuous
-knowledge governance.
+Lint must govern integrity without becoming another ingest or editor.
 
 ## Goals
 
-- Preserve autonomous safe repairs.
-- Keep complex repairs behind semantic review and explicit executor support.
-- Track unresolved, deferred, and repeatedly rejected issues.
-- Improve before/after reporting for every applied change.
-- Expand quality criteria for factuality, completeness, clarity, relevance,
-  redundancy, freshness, and source grounding.
-- Keep maintenance inspectable through reports and ledgers.
+- Verify raw, source records, canonical facts, knowledge atoms, evidence,
+  indexes, and projections as one dependency chain.
+- Automatically route deterministic derived-state defects to their owning
+  rebuild workflow and execute the repair.
+- Represent canonical semantic defects as reingest requests.
+- Represent index and projection drift as rebuild requests.
+- Keep semantic diagnosis read-only and evidence-bound.
+- Preserve reports, ledgers, risk, confidence, evidence, and requested action.
 
 ## Non-Goals
 
-- Do not require manual approval for every safe operation.
-- Do not allow the model to mutate files directly.
-- Do not make lint fetch current web facts by default.
-- Do not merge/split/delete pages without explicit executor and verification.
+- Model-authored page rewrites, summaries, claims, entities, or relations.
+- Direct lint mutation of canonical facts or raw material.
+- Source-record reconstruction from page text or path aliases.
+- Page merge, split, or deletion based on semantic similarity.
+- External fact checking or automatic freshness claims.
+- Multiple user-facing lint modes with different correctness semantics.
+
+## Acceptance Criteria
+
+- A lint run always performs the same deterministic integrity scan.
+- Optional semantic diagnosis classifies evidence-backed quality findings but
+  writes no knowledge or projection content.
+- Every repair-plan action is one of `reingest_request`, `index_rebuild_request`,
+  `projection_rebuild_request`, or `report_only`.
+- Direct page draft compilation and provenance refresh execution are absent
+  from the active maintenance path.
+- Generated pages remain projections of ingest-owned canonical state.
+- Editing a source projection publishes a canonical revision through the
+  transactional fact store and rematerializes the page and indexes.
+- Projection editing cannot alter source identity, raw evidence, attachments,
+  or claim evidence mappings.
+- Later raw ingest carries forward only fields explicitly marked by the active
+  user-edit revision.
+- Reports clearly separate detected issues, repair plans, execution results,
+  post-repair findings, and unresolved failures.
 
 ## User Scenarios
 
-### Run Fully Automatic Maintenance
+### Check Knowledge Health
 
-As a user, I can run lint and let safe operations execute without manually
-approving each item.
+The user runs lint and receives integrity findings spanning raw-to-projection
+references, rather than only Markdown style findings.
 
-Acceptance criteria:
+### Repair Derived Drift
 
-- Safe operations have deterministic or reviewed support.
-- Every write has a report entry, reason, and verification result.
-- Failed operations are reported and recoverable.
+When an index or projection can be reconstructed from canonical state, lint
+automatically invokes the established materialization path and verifies the
+result with a rescan.
 
-### Understand A Change
+### Handle Semantic Extraction Problems
 
-As a user, I can inspect what lint changed and why.
-
-Acceptance criteria:
-
-- Reports show target pages, action names, reasons, before/after diffs, and
-  verification outcomes.
-- UI can render the same report data without reimplementing lint logic.
-
-### Track Repeated Issues
-
-As a maintainer, I can see whether an issue keeps returning.
-
-Acceptance criteria:
-
-- Lint reports include unresolved/repeated issue signals.
-- Repeated rejections are not silently retried forever.
-
-## Current Status
-
-Implemented:
-
-- Deterministic scan and safe fixes.
-- Semantic diagnose/review/draft paths.
-- Operation verification.
-- Lint reports and run records.
-- Some before/after operation evidence.
-
-Still in scope for 1.5:
-
-- Strengthen quality governance and repeated issue tracking.
-- Make diff/report presentation more complete and consistent.
-- Freeze maintenance operation taxonomy and executor boundaries.
+When claims, entities, relations, synthesis, or evidence mapping appear weak or
+inconsistent, lint resolves the committed source revision and automatically
+forces reingest. The ingest workflow remains the only producer of replacement
+knowledge.

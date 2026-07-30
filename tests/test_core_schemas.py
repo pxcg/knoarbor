@@ -9,8 +9,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from pydantic import ValidationError
 
 from knoarbor.core.schemas import (
-    KnowledgeEvent,
-    KnowledgeExtract,
     MaintenanceScope,
     SourceDocument,
     SourceRef,
@@ -20,9 +18,6 @@ from knoarbor.core.schemas import (
 
 
 class CoreSchemaTests(unittest.TestCase):
-    def test_knowledge_extract_exported_from_core_schemas(self) -> None:
-        self.assertEqual(KnowledgeExtract.model_fields["schema_version"].default, "knowledge_extract.v1")
-
     def test_source_ref_requires_stable_identity_fields(self) -> None:
         source_ref = SourceRef(
             source_id="markdown:file:notes/a",
@@ -70,6 +65,7 @@ class CoreSchemaTests(unittest.TestCase):
         self.assertTrue(document.origin.raw_path.startswith("raw/excerpts/"))
         self.assertIn("## Selected Excerpt", document.content.text)
         self.assertEqual(document.metadata["source_kind"], "selected_excerpt")
+        self.assertEqual(document.metadata["selected_fragments"], ["知识不是记忆的堆积，而是关系的生长。"])
 
     def test_unified_ingest_excerpt_builds_document_request(self) -> None:
         request = UnifiedIngestRequest(
@@ -103,20 +99,13 @@ class CoreSchemaTests(unittest.TestCase):
                 fingerprint={"content_hash": "hash", "connector_version": "x@1"},
             )
 
-    def test_event_and_scope_contracts_are_explicit(self) -> None:
-        event = KnowledgeEvent(
-            event_id="evt_1",
-            run_id="run_1",
-            event_type="source.discovered",
-            created_at="2026-05-17T00:00:00Z",
-        )
+    def test_scope_contract_is_explicit(self) -> None:
         scope = MaintenanceScope(
             scope_id="scope_1",
             trigger="ingest",
             source={"kind": "latest_ingest", "run_id": "run_1"},
         )
 
-        self.assertEqual(event.schema_version, "knowledge_event.v1")
         self.assertEqual(scope.schema_version, "maintenance_scope.v1")
 
 

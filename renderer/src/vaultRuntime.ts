@@ -1,6 +1,5 @@
 import type { ConfigSummary, VaultListResponse, VaultSelector } from "./api/client";
-import type { ReportSummary, UiStatusResponse } from "./api/client";
-import type { RunRecord } from "./types";
+import { productIdentity } from "./product";
 
 export type VaultOption = {
   id: string;
@@ -10,21 +9,30 @@ export type VaultOption = {
   virtual?: boolean;
 };
 
-export type VaultOverview = {
-  vault: VaultOption;
-  status: UiStatusResponse | null;
-  activeRuns: RunRecord[];
-  recentRuns: RunRecord[];
-  reports: ReportSummary[];
-  error?: string | null;
-};
+const LEGACY_DEFAULT_VAULT_NAMES = new Set(["KnoArbor Knowledge Base", "My Knowledge Base", "KnoArbor Knowledge Base"]);
+
+export function readableVaultName(id: string | undefined, name: string | undefined): string {
+  const candidate = (name || "").trim();
+  if ((id || "").toLowerCase() === "default" && (!candidate || LEGACY_DEFAULT_VAULT_NAMES.has(candidate))) {
+    return productIdentity.defaultVaultName;
+  }
+  return candidate || id || productIdentity.defaultVaultName;
+}
+
+export function vaultIdSlug(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
 export function buildVaultOptions(summary: ConfigSummary, registry?: VaultListResponse | null): VaultOption[] {
   const registryVaults = registry?.vaults?.filter((vault) => vault.id && vault.path) || [];
   if (registryVaults.length) {
     return withVirtualAllVault(registryVaults.map((vault) => ({
       id: vault.id,
-      name: vault.name || vault.id,
+      name: readableVaultName(vault.id, vault.name),
       path: vault.path,
       exists: vault.exists,
     })));
@@ -33,14 +41,14 @@ export function buildVaultOptions(summary: ConfigSummary, registry?: VaultListRe
   if (configured.length) {
     return withVirtualAllVault(configured.map((vault) => ({
       id: vault.id,
-      name: vault.name || vault.id,
+      name: readableVaultName(vault.id, vault.name),
       path: vault.path,
     })));
   }
   return [
     {
       id: summary.vault_id || "default",
-      name: summary.vault_name || summary.project_name || "KnoArbor",
+      name: readableVaultName(summary.vault_id || "default", summary.vault_name || summary.project_name),
       path: summary.vault_path || "./vaults/default",
     },
   ];
@@ -53,16 +61,21 @@ export function resolveActiveVault(options: VaultOption[], preferredId: string, 
     options.find((vault) => vault.id === summary.vault_id) ||
     options[0] || {
       id: summary.vault_id || "default",
-      name: summary.vault_name || summary.project_name || "KnoArbor",
+      name: readableVaultName(summary.vault_id || "default", summary.vault_name || summary.project_name),
       path: summary.vault_path || "./vaults/default",
     }
   );
 }
 
-export function nextValidVaultId(options: VaultOption[], preferredId: string, summary: ConfigSummary): string {
+export function nextValidWorkspaceVaultId(options: VaultOption[], preferredId: string, summary: ConfigSummary): string {
+  const concrete = concreteVaultOptions(options);
+  if (concrete.some((vault) => vault.id === preferredId)) return preferredId;
+  return concrete.find((vault) => vault.id === summary.vault_id)?.id || concrete[0]?.id || "default";
+}
+
+export function nextValidChatScopeVaultId(options: VaultOption[], preferredId: string, workspaceVaultId: string): string {
   if (options.some((vault) => vault.id === preferredId)) return preferredId;
-  if (!preferredId) return options.find((vault) => vault.id === "all")?.id || summary.vault_id || options[0]?.id || "default";
-  return summary.vault_id || options[0]?.id || "default";
+  return options.find((vault) => vault.id === "all")?.id || workspaceVaultId || options[0]?.id || "default";
 }
 
 export function buildVaultSelector(configPath: string | null, vault: VaultOption): VaultSelector {
@@ -81,12 +94,6 @@ export function buildVaultSelector(configPath: string | null, vault: VaultOption
 
 export function concreteVaultOptions(options: VaultOption[]): VaultOption[] {
   return options.filter((vault) => !vault.virtual);
-}
-
-export function readableVaultName(id: string, name?: string): string {
-  if (name?.trim()) return name.trim();
-  if (id === "all") return "All vaults";
-  return id || "KnoArbor";
 }
 
 export function resolveConcreteVault(options: VaultOption[], preferredId: string, summary: ConfigSummary): VaultOption {

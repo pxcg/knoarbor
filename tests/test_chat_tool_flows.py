@@ -1,148 +1,480 @@
 from __future__ import annotations
 
-import json
 import tempfile
 import unittest
 from pathlib import Path
 
-from knoarbor.core.schemas.chat import ChatMessageItem, ChatRequest
-from knoarbor.services.chat_agent import ChatAgentService
-from tests.helpers.chat_fakes import FakeChatClient, FakeServices
+from knoarbor.core.schemas.chat import ChatMessageItem, ChatRequest, ChatToolPlan
+from knoarbor.core.schemas.image_generation import GeneratedImage, ImageGenerationResponse
+from knoarbor.core.errors import ModelOutputError
+from knoarbor.services.chat_agent import ChatAgentService, _direct_capability
+from knoarbor.services.chat_tool_context import ChatToolContext
+from knoarbor.services.chat_tools import ChatToolExecutor
+from knoarbor.storage.vault_layout import chat_artifacts_root
+from tests.helpers.chat_fakes import (
+    FakeChatClient,
+    FakeChatKnowledge,
+    FakeServices,
+    chat_answer_fixture,
+)
 
 
 class ChatToolFlowTest(unittest.TestCase):
-    def test_virtual_all_vault_is_passed_as_multi_vault_search(self) -> None:
-        client = FakeChatClient(
-            [
-                {"answer": "Agent Loop 是推理、行动和观察的循环。", "citations": []},
-            ]
-        )
-        services = FakeServices()
-        service = ChatAgentService(client_factory=lambda _request: client)
-        service.chat(
-            ChatRequest(messages=[ChatMessageItem(role="user", content="Agent Loop 是什么？")], vault_id="all", append_ledger=False),
-            services,  # type: ignore[arg-type]
-        )
+    def test_tool_context_does_not_carry_chat_session_state(self) -> None:
+        self.assertNotIn("existing_session", ChatToolContext.__dataclass_fields__)
 
-        self.assertTrue(services.wiki_search.requests[0].all_vaults)
-        self.assertIsNone(services.wiki_search.requests[0].vault_id)
-
-    def test_chat_can_list_wiki_pages(self) -> None:
-        client = FakeChatClient(
-            [
-                {
-                    "tool_calls": [{"name": "list_wiki_pages", "arguments": {"query": "Agent", "max_results": 10}}],
-                    "reason": "user asks for available pages",
-                    "confidence": 0.9,
-                },
-                {"answer": "当前有 Agent Loop 页面。", "citations": []},
-            ]
-        )
-        services = FakeServices()
-        response = ChatAgentService(client_factory=lambda _request: client).chat(
-            ChatRequest(messages=[ChatMessageItem(role="user", content="Agent 相关页面有哪些？")], vault_path="/tmp/vault", append_ledger=False),
-            services,  # type: ignore[arg-type]
+    def test_chat_registry_exposes_only_batch_retrieval(self) -> None:
+        executor = ChatToolExecutor(
+            request=ChatRequest(
+                message=ChatMessageItem(role="user", content="问题"),
+                vault_path="/tmp/vault",
+                append_ledger=False,
+            ),
+            services=FakeServices(),  # type: ignore[arg-type]
         )
 
-        self.assertEqual(services.wiki_pages.list_calls, 1)
-        self.assertEqual(response.tool_trace[0].tool, "list_wiki_pages")
-        self.assertEqual(response.tool_trace[0].result["returned_pages"], 2)
-        self.assertEqual(response.tool_trace[0].result["pages"][0]["path"], "Agent-Loop.md")
-        self.assertEqual(response.citations, [])
-        self.assertEqual(response.hidden_evidence_count, 2)
-        self.assertIn('"pages"', client.requests[-1].messages[-1].content)
+        self.assertTrue(executor.has_tool("retrieve_knowledge_batch"))
+        self.assertFalse(executor.has_tool("search_knowledge"))
+        self.assertFalse(executor.has_tool("read_evidence"))
 
-    def test_chat_can_inspect_wiki_relations(self) -> None:
-        client = FakeChatClient(
-            [
-                {
-                    "tool_calls": [{"name": "inspect_wiki_relations", "arguments": {"page_path": "Agent-Loop.md"}}],
-                    "reason": "user asks for page relationships",
-                    "confidence": 0.9,
-                },
-                {"answer": "Agent Loop 关联 OpenClaw 和 Agent Engineering。", "citations": []},
-            ]
-        )
-        services = FakeServices()
-        response = ChatAgentService(client_factory=lambda _request: client).chat(
-            ChatRequest(messages=[ChatMessageItem(role="user", content="Agent Loop 这个页面和哪些页面有关？")], vault_path="/tmp/vault", append_ledger=False),
-            services,  # type: ignore[arg-type]
-        )
+    def test_image_capability_fails_when_provider_output_cannot_be_persisted(self) -> None:
+        class EmptyImageGeneration:
+            def is_available(self, config_path=None):
+                return True
 
-        self.assertEqual(services.wiki_pages.link_paths, ["Agent-Loop.md"])
-        self.assertEqual(response.tool_trace[0].tool, "inspect_wiki_relations")
-        self.assertEqual(response.tool_trace[0].result["outgoing_pages"][0]["target_path"], "OpenClaw.md")
-        self.assertEqual(response.citations, [])
-        self.assertEqual(response.hidden_evidence_count, 2)
-        self.assertIn('"outgoing_pages"', client.requests[-1].messages[-1].content)
+            def generate(self, request, *, config_path=None, provider_name=None):
+                return ImageGenerationResponse(
+                    provider="test",
+                    model="image-test",
+                    prompt=request.prompt,
+                    images=[GeneratedImage()],
+                )
 
-    def test_chat_can_list_vaults(self) -> None:
-        client = FakeChatClient(
-            [
-                {
-                    "tool_calls": [{"name": "list_vaults", "arguments": {}}],
-                    "reason": "user asks for configured vaults",
-                    "confidence": 0.9,
-                },
-                {"answer": "当前有 Agent Engineering 和 RAG Notes。", "citations": []},
-            ]
-        )
-        response = ChatAgentService(client_factory=lambda _request: client).chat(
-            ChatRequest(messages=[ChatMessageItem(role="user", content="我现在有哪些知识库？")], vault_path="/tmp/vault", append_ledger=False),
-            FakeServices(),  # type: ignore[arg-type]
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            services = FakeServices()
+            services.image_generation = EmptyImageGeneration()  # type: ignore[assignment]
+            response = ChatAgentService(
+                client_factory=lambda _request: FakeChatClient(
+                    [
+                        chat_answer_fixture(
+                            answer="我会生成一张树的图片。",
+                            generated_image_prompt="A green tree",
+                        ),
+                    ]
+                )
+            ).chat(
+                ChatRequest(
+                    message=ChatMessageItem(role="user", content="请生成一张树的图片"),
+                    vault_path=tmp,
+                    append_ledger=False,
+                ),
+                services,  # type: ignore[arg-type]
+            )
+            self.assertIn("optional_image_generation_failed", response.warnings)
+            self.assertFalse(chat_artifacts_root(Path(tmp)).exists())
 
-        self.assertEqual(response.tool_trace[0].tool, "list_vaults")
-        self.assertEqual(response.tool_trace[0].result["default_vault_id"], "agent-engineering")
-        self.assertEqual(response.tool_trace[0].result["vaults"][0]["name"], "Agent Engineering")
-        self.assertIn('"vaults"', client.requests[-1].messages[-1].content)
+    def test_generated_image_trace_never_persists_provider_url(self) -> None:
+        class SignedUrlImageGeneration:
+            def is_available(self, config_path=None):
+                return True
 
-    def test_generate_image_uses_provider_defaults_for_runtime_parameters(self) -> None:
-        client = FakeChatClient(
-            [
-                {
-                    "tool_calls": [
-                        {
-                            "name": "generate_image",
-                            "arguments": {
-                                "prompt": "A clean product illustration",
-                                "resolution": "1024x1024",
-                                "num_inference_steps": 30,
-                                "guidance": 7.5,
-                            },
-                        }
+            def generate(self, request, *, config_path=None, provider_name=None):
+                return ImageGenerationResponse(
+                    provider="test",
+                    model="image-test",
+                    prompt=request.prompt,
+                    images=[
+                        GeneratedImage(
+                            url="https://provider.invalid/image.png?secret=signed-token",
+                            b64_json="ZmFrZS1wbmc=",
+                            mime_type="image/png",
+                        )
                     ],
-                    "reason": "user asked to create an image",
-                    "confidence": 0.9,
-                },
-                {"answer": "已生成图片。", "citations": []},
+                )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            services = FakeServices()
+            services.image_generation = SignedUrlImageGeneration()  # type: ignore[assignment]
+            response = ChatAgentService(
+                client_factory=lambda _request: FakeChatClient(
+                    [
+                        chat_answer_fixture(
+                            answer="我会生成一张树的图片。",
+                            generated_image_prompt="A green tree",
+                        ),
+                    ]
+                )
+            ).chat(
+                ChatRequest(
+                    message=ChatMessageItem(role="user", content="请生成一张树的图片"),
+                    vault_path=tmp,
+                    append_ledger=False,
+                ),
+                services,  # type: ignore[arg-type]
+            )
+
+        self.assertNotIn("signed-token", response.model_dump_json())
+        self.assertNotIn("original_src", response.model_dump_json())
+
+    def test_image_intent_never_bypasses_answer_decision_and_composer(self) -> None:
+        for request in ("请生成一张绿色树形知识图谱图片", "画一幅山水图", "create an image of a tree"):
+            with self.subTest(request=request):
+                self.assertIsNone(_direct_capability(request))
+        for question in ("如何生成图片？", "为什么不能生成图片？", "how does image generation work?"):
+            with self.subTest(question=question):
+                self.assertIsNone(_direct_capability(question))
+
+    def test_model_routed_generated_image_is_labeled_and_counts_usage(self) -> None:
+        services = FakeServices()
+        with tempfile.TemporaryDirectory() as tmp:
+            response = ChatAgentService(
+                client_factory=lambda _request: FakeChatClient(
+                    [
+                        chat_answer_fixture(
+                            answer="已按要求创建图片。",
+                            generated_image_prompt="A green sapling",
+                        ),
+                    ]
+                )
+            ).chat(
+                ChatRequest(
+                    message=ChatMessageItem(role="user", content="请生成一张绿色树苗图片"),
+                    vault_path=tmp,
+                    append_ledger=False,
+                ),
+                services,  # type: ignore[arg-type]
+            )
+
+        self.assertIn("本轮生成图片", response.answer)
+        self.assertEqual(response.stats["total_tokens"], 46)
+
+    def test_image_tool_is_absent_when_provider_capability_is_unavailable(self) -> None:
+        services = FakeServices()
+        services.image_generation.available = False
+        executor = ChatToolExecutor(
+            request=ChatRequest(
+                message=ChatMessageItem(role="user", content="请画一棵树"),
+                vault_path="/tmp/vault",
+                append_ledger=False,
+            ),
+            services=services,  # type: ignore[arg-type]
+        )
+
+        self.assertFalse(executor.has_tool("generate_image"))
+        trace = executor.execute(
+            ChatToolPlan(tool_calls=[{"name": "generate_image", "arguments": {"prompt": "tree"}}]),
+            "请画一棵树",
+        )
+        self.assertEqual(trace[0].status, "error")
+        self.assertIn("Unknown Chat tool", trace[0].summary)
+
+    def test_answer_decision_can_request_one_auxiliary_image(self) -> None:
+        client = FakeChatClient(
+            [
+                chat_answer_fixture(
+                    answer="Agent Loop 是推理、行动和观察的循环。",
+                    spans=["sp_1_1"],
+                    generated_image_prompt=("A concise cycle diagram of reasoning, action, and observation"),
+                ),
             ]
         )
         services = FakeServices()
         with tempfile.TemporaryDirectory() as tmp:
             response = ChatAgentService(client_factory=lambda _request: client).chat(
-                ChatRequest(messages=[ChatMessageItem(role="user", content="生成一张产品说明图")], vault_path=tmp, append_ledger=False),
+                ChatRequest(
+                    message=ChatMessageItem(role="user", content="解释 Agent Loop，最好用图辅助"),
+                    vault_path=tmp,
+                    append_ledger=False,
+                ),
                 services,  # type: ignore[arg-type]
             )
 
-        self.assertEqual(response.tool_trace[0].tool, "generate_image")
-        image_request = services.image_generation.requests[0]
-        self.assertIsNone(image_request.resolution)
-        self.assertIsNone(image_request.num_inference_steps)
-        self.assertIsNone(image_request.guidance)
+        self.assertEqual(
+            [item.tool for item in response.tool_trace],
+            [
+                "retrieve_knowledge_batch",
+                "generate_image",
+            ],
+        )
+        self.assertIn("![Generated image 1]", response.answer)
+        self.assertIn("本轮生成图片（非知识库证据）", response.answer)
+        self.assertEqual(len(services.image_generation.requests), 1)
+        self.assertEqual(response.stats["total_tokens"], 46)
+        answer_state = client.requests[-2].messages[-1].content
+        self.assertIn(
+            '"runtime_capabilities": {"generate_image": true}',
+            answer_state,
+        )
+        composer_state = client.requests[-1].messages[-1].content
+        self.assertIn('"visual_ref": "generated_visual_1"', composer_state)
+        self.assertIn(
+            '"description": "A concise cycle diagram of reasoning, action, and observation"',
+            composer_state,
+        )
+        for private_field in (
+            "stored_path",
+            "manifest_path",
+            "vault-assets",
+            "![Generated image",
+        ):
+            self.assertNotIn(private_field, composer_state)
 
-    def test_generate_image_persists_when_request_uses_vault_id(self) -> None:
+    def test_explicit_source_image_request_cannot_be_replaced_by_generation(
+        self,
+    ) -> None:
         client = FakeChatClient(
             [
-                {
-                    "tool_calls": [{"name": "generate_image", "arguments": {"prompt": "A clean product illustration"}}],
-                    "reason": "user asked to create an image",
-                    "confidence": 0.9,
-                },
-                {"answer": "已生成图片。", "citations": []},
+                chat_answer_fixture(
+                    answer="Agent Loop 是推理、行动和观察的循环。",
+                    spans=["sp_1_1"],
+                    gap="匹配的文档原图",
+                    gap_markdown="当前证据没有提供匹配的文档原图。",
+                ),
             ]
         )
         services = FakeServices()
+        with tempfile.TemporaryDirectory() as tmp:
+            response = ChatAgentService(client_factory=lambda _request: client).chat(
+                ChatRequest(
+                    message=ChatMessageItem(
+                        role="user",
+                        content="展示文档原图，并解释 Agent Loop。",
+                    ),
+                    vault_path=tmp,
+                    append_ledger=False,
+                ),
+                services,  # type: ignore[arg-type]
+            )
+
+        self.assertEqual(
+            [item.tool for item in response.tool_trace],
+            ["retrieve_knowledge_batch"],
+        )
+        self.assertEqual(services.image_generation.requests, [])
+        decision_state = client.requests[-2].messages[-1].content
+        composer_state = client.requests[-1].messages[-1].content
+        self.assertIn(
+            '"runtime_capabilities": {"generate_image": true}',
+            decision_state,
+        )
+        self.assertIn(
+            '"generated_image": {"status": "not_requested", "visuals": []}',
+            composer_state,
+        )
+        self.assertNotIn("source_attachments_requested", composer_state)
+
+    def test_requested_source_attachment_is_rendered_from_selected_raw(
+        self,
+    ) -> None:
+        class SourceImageKnowledge(FakeChatKnowledge):
+            def read_evidence(self, context, arguments):
+                observation = super().read_evidence(context, arguments)
+                observation.result["raw_evidence"][0]["attachments"] = [
+                    {
+                        "attachment_id": "att:agent-loop",
+                        "attachment_type": "image",
+                        "topic": "Agent Loop",
+                        "markdown_src": "![Agent Loop](/vault-assets/agent-loop.png)",
+                    }
+                ]
+                return observation
+
+        client = FakeChatClient(
+            [
+                chat_answer_fixture(
+                    answer="Agent Loop 是推理、行动和观察的循环。",
+                    spans=["sp_1_1"],
+                    visuals=["visual_1_1"],
+                ),
+            ]
+        )
+        services = FakeServices()
+        services.chat_knowledge = SourceImageKnowledge()
+        response = ChatAgentService(client_factory=lambda _request: client).chat(
+            ChatRequest(
+                message=ChatMessageItem(
+                    role="user",
+                    content="展示文档原图，并解释 Agent Loop。",
+                ),
+                vault_path="/tmp/vault",
+                append_ledger=False,
+            ),
+            services,  # type: ignore[arg-type]
+        )
+
+        self.assertIn(
+            "![Agent Loop](/vault-assets/agent-loop.png)",
+            response.answer,
+        )
+        self.assertEqual(services.image_generation.requests, [])
+
+    def test_composer_renders_selected_raw_attachment_without_keyword_gate(
+        self,
+    ) -> None:
+        class SourceImageKnowledge(FakeChatKnowledge):
+            def read_evidence(self, context, arguments):
+                observation = super().read_evidence(context, arguments)
+                observation.result["raw_evidence"][0]["attachments"] = [
+                    {
+                        "attachment_id": "att:agent-loop",
+                        "attachment_type": "image",
+                        "topic": "Agent Loop",
+                        "description": "Cycle of reasoning, action, and observation.",
+                        "markdown_src": "![Agent Loop](/vault-assets/agent-loop.png)",
+                    }
+                ]
+                return observation
+
+        client = FakeChatClient(
+            [
+                chat_answer_fixture(
+                    answer="Agent Loop 是推理、行动和观察的循环。",
+                    spans=["sp_1_1"],
+                    visuals=["visual_1_1"],
+                ),
+            ]
+        )
+        services = FakeServices()
+        services.chat_knowledge = SourceImageKnowledge()
+        response = ChatAgentService(client_factory=lambda _request: client).chat(
+            ChatRequest(
+                message=ChatMessageItem(
+                    role="user",
+                    content="解释 Agent Loop 的工作方式。",
+                ),
+                vault_path="/tmp/vault",
+                append_ledger=False,
+            ),
+            services,  # type: ignore[arg-type]
+        )
+
+        answer_state = client.requests[-1].messages[-1].content
+        self.assertNotIn('"attachment_id": "att:agent-loop"', answer_state)
+        self.assertIn('"visual_ref": "visual_1_1"', answer_state)
+        self.assertIn(
+            "![Agent Loop](/vault-assets/agent-loop.png)",
+            response.answer,
+        )
+
+    def test_optional_image_failure_preserves_grounded_text_answer(self) -> None:
+        class FailingImageGeneration:
+            def is_available(self, config_path=None):
+                return True
+
+            def generate(self, request, *, config_path=None, provider_name=None):
+                raise RuntimeError("image provider offline")
+
+        client = FakeChatClient(
+            [
+                chat_answer_fixture(
+                    answer="Agent Loop 是推理、行动和观察的循环。",
+                    spans=["sp_1_1"],
+                    generated_image_prompt="Agent Loop cycle diagram",
+                ),
+            ]
+        )
+        services = FakeServices()
+        services.image_generation = FailingImageGeneration()  # type: ignore[assignment]
+        response = ChatAgentService(client_factory=lambda _request: client).chat(
+            ChatRequest(
+                message=ChatMessageItem(role="user", content="解释 Agent Loop，最好用图辅助"),
+                vault_path="/tmp/vault",
+                append_ledger=False,
+            ),
+            services,  # type: ignore[arg-type]
+        )
+
+        self.assertIn("Agent Loop 是推理、行动和观察的循环", response.answer)
+        self.assertNotIn("![Generated image", response.answer)
+        self.assertEqual(response.tool_trace[-1].tool, "generate_image")
+        self.assertEqual(response.tool_trace[-1].status, "error")
+        self.assertIn("optional_image_generation_failed", response.warnings)
+        composer_state = client.requests[-1].messages[-1].content
+        self.assertIn(
+            '"generated_image": {"status": "failed", "visuals": []}',
+            composer_state,
+        )
+
+    def test_general_mode_can_request_one_auxiliary_image(self) -> None:
+        client = FakeChatClient(
+            [
+                {"selected_region_ids": []},
+                chat_answer_fixture(
+                    answer="这里是一段场景说明。",
+                    generated_image_prompt="A calm mountain landscape at sunrise",
+                ),
+            ]
+        )
+        services = FakeServices()
+        services.chat_knowledge.query_status = "no_match"
+        with tempfile.TemporaryDirectory() as tmp:
+            response = ChatAgentService(
+                client_factory=lambda _request: client,
+            ).chat(
+                ChatRequest(
+                    message=ChatMessageItem(role="user", content="描述一个适合做插画的日出山景"),
+                    vault_path=tmp,
+                    append_ledger=False,
+                ),
+                services,  # type: ignore[arg-type]
+            )
+
+        self.assertEqual(response.answer_provenance.mode, "general_knowledge")
+        self.assertEqual(response.tool_trace[-1].tool, "generate_image")
+        self.assertIn("![Generated image 1]", response.answer)
+        general_state = client.requests[-1].messages[-1].content
+        self.assertIn(
+            '"generated_image": {"status": "available"',
+            general_state,
+        )
+        self.assertIn('"conversation_context": []', general_state)
+        self.assertNotIn("bounded_conversation_turns", general_state)
+
+    def test_unavailable_image_capability_is_not_advertised_to_decision(self) -> None:
+        client = FakeChatClient(
+            [
+                {"selected_region_ids": []},
+                chat_answer_fixture(answer="纯文本回答。"),
+            ]
+        )
+        services = FakeServices()
+        services.chat_knowledge.query_status = "no_match"
+        services.image_generation.available = False
+        response = ChatAgentService(
+            client_factory=lambda _request: client,
+        ).chat(
+            ChatRequest(
+                message=ChatMessageItem(role="user", content="解释一个知识库之外的普通概念"),
+                vault_path="/tmp/vault",
+                append_ledger=False,
+            ),
+            services,  # type: ignore[arg-type]
+        )
+
+        self.assertEqual(response.answer, "纯文本回答。")
+        self.assertNotIn("generate_image", [item.tool for item in response.tool_trace])
+        general_state = client.requests[-1].messages[-1].content
+        self.assertIn(
+            '"generated_image": {"status": "not_requested", "visuals": []}',
+            general_state,
+        )
+
+    def test_general_mode_rejects_image_proposal_when_capability_is_unavailable(self) -> None:
+        client = FakeChatClient(
+            [
+                {"selected_region_ids": []},
+                {
+                    "mode": "general",
+                    "spans": [],
+                    "visuals": [],
+                    "gap": None,
+                    "generated_image_prompt": "Draw a simple illustration.",
+                },
+            ]
+        )
+        services = FakeServices()
+        services.chat_knowledge.query_status = "no_match"
+        services.image_generation.available = False
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             vault = root / "vault"
@@ -150,193 +482,131 @@ class ChatToolFlowTest(unittest.TestCase):
             config = root / "config.yaml"
             config.write_text(
                 f"""
-project:
-  name: Test
 vault:
   path: {vault}
-vaults:
-  default: default
-  profiles:
-    default:
-      name: Default
-      path: {vault}
 models:
-  providers: {{}}
-image_generation:
-  providers: {{}}
+  retry:
+    enabled: true
+    max_attempts: 1
+    backoff_seconds: 0
+    retry_on_invalid_output: true
 """,
                 encoding="utf-8",
             )
+            with self.assertRaisesRegex(ModelOutputError, "unavailable image generation"):
+                ChatAgentService(
+                    client_factory=lambda _request: client,
+                ).chat(
+                    ChatRequest(
+                        message=ChatMessageItem(role="user", content="解释一个知识库之外的普通概念"),
+                        config_path=str(config),
+                        vault_path=str(vault),
+                        append_ledger=False,
+                    ),
+                    services,  # type: ignore[arg-type]
+                )
 
-            response = ChatAgentService(client_factory=lambda _request: client).chat(
+    def test_candidate_retrieval_can_resolve_to_general(self) -> None:
+        client = FakeChatClient(
+            [
+                chat_answer_fixture(answer="Alpha 和 Beta 的通用解释。"),
+            ]
+        )
+
+        services = FakeServices()
+        response = ChatAgentService(client_factory=lambda _request: client).chat(
+            ChatRequest(
+                message=ChatMessageItem(role="user", content="Alpha 和 Beta 分别如何工作？"),
+                vault_path="/tmp/vault",
+                append_ledger=False,
+            ),
+            services,  # type: ignore[arg-type]
+        )
+
+        self.assertEqual(response.answer, "Alpha 和 Beta 的通用解释。")
+        self.assertEqual(response.answer_provenance.mode, "general_knowledge")
+        self.assertEqual(
+            response.answer_provenance.chat_outcome,
+            "planning_exhausted",
+        )
+        self.assertEqual(response.citations, [])
+        self.assertEqual(response.stats["model_calls"], 3)
+        self.assertEqual(
+            [item["query"] for item in response.stats["retrieval_batch"]["query_expressions"]],
+            ["Alpha 和 Beta 分别如何工作？"],
+        )
+        navigator_states = [
+            request.messages[-1].content for request in client.requests if "retrieval planner" in request.messages[0].content.lower()
+        ]
+        self.assertEqual(len(navigator_states), 1)
+        self.assertEqual(len(client.requests), 3)
+
+    def test_vault_inventory_is_direct_capability(self) -> None:
+        response = ChatAgentService(client_factory=lambda _request: FakeChatClient([])).chat(
+            ChatRequest(
+                message=ChatMessageItem(role="user", content="有哪些知识库？"),
+                vault_path="/tmp/vault",
+                append_ledger=False,
+            ),
+            FakeServices(),  # type: ignore[arg-type]
+        )
+        self.assertEqual(response.answer_provenance.mode, "direct_capability")
+        self.assertEqual([item.tool for item in response.tool_trace], ["list_vaults"])
+        self.assertIn("Agent Engineering", response.answer)
+        self.assertIn("RAG Notes", response.answer)
+
+    def test_ui_word_does_not_bypass_factual_retrieval(self) -> None:
+        client = FakeChatClient(
+            [
+                chat_answer_fixture(
+                    answer="Agent Loop 是推理、行动和观察的循环。",
+                    spans=["sp_1_1"],
+                ),
+            ]
+        )
+        response = ChatAgentService(client_factory=lambda _request: client).chat(
+            ChatRequest(
+                message=ChatMessageItem(role="user", content="删除按钮为什么这样设计？"),
+                vault_path="/tmp/vault",
+                append_ledger=False,
+            ),
+            FakeServices(),  # type: ignore[arg-type]
+        )
+        self.assertEqual(response.answer_provenance.mode, "knowledge_grounded")
+        self.assertEqual([item.tool for item in response.tool_trace], ["retrieve_knowledge_batch"])
+
+    def test_multi_vault_scope_keeps_general_mode_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "vault-a").mkdir()
+            (root / "vault-b").mkdir()
+            config = root / "config.yaml"
+            config.write_text(
+                "config_version: 3\nvaults:\n  default: a\n  profiles:\n    a:\n      name: A\n      path: ./vault-a\n    b:\n      name: B\n      path: ./vault-b\n",
+                encoding="utf-8",
+            )
+            services = FakeServices()
+            services.chat_knowledge.query_status = "no_match"
+            response = ChatAgentService(
+                client_factory=lambda _request: FakeChatClient(
+                    [
+                        {
+                            "selected_region_ids": [],
+                        },
+                        chat_answer_fixture(answer="通用回答。"),
+                    ]
+                )
+            ).chat(
                 ChatRequest(
-                    messages=[ChatMessageItem(role="user", content="生成一张产品说明图")],
+                    message=ChatMessageItem(role="user", content="问题"),
                     config_path=str(config),
-                    vault_id="default",
+                    all_vaults=True,
                     append_ledger=False,
                 ),
                 services,  # type: ignore[arg-type]
             )
-
-            image = response.tool_trace[0].result["images"][0]
-            self.assertTrue(str(image["src"]).startswith("raw/derived/assets/images/generated/chat/"))
-            self.assertIsNotNone(image["stored_path"])
-            self.assertTrue(Path(str(image["stored_path"])).exists())
-            self.assertEqual(Path(str(image["stored_path"])).read_bytes(), b"fake-png")
-
-    def test_complex_agent_design_chat_uses_query_read_links_list_and_reuse(self) -> None:
-        client = FakeChatClient(
-            [
-                {
-                    "tool_calls": [
-                        {
-                            "name": "query_wiki",
-                            "arguments": {
-                                "query": "Agent Loop multi-agent orchestration memory architecture",
-                                "mode": "deep",
-                                "max_results": 8,
-                            },
-                        }
-                    ],
-                    "reason": "start from the broad architecture topic",
-                    "confidence": 0.9,
-                },
-                {
-                    "answer": "Agent Loop 架构需要把循环控制、记忆和编排分层处理。",
-                    "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}],
-                },
-                {
-                    "tool_calls": [
-                        {
-                            "name": "read_wiki_page",
-                            "arguments": {"page_path": "Session-Memory-Architecture-for-Agent-Loops.md"},
-                        }
-                    ],
-                    "reason": "follow-up asks for memory details from a known supporting page",
-                    "confidence": 0.9,
-                },
-                {
-                    "answer": "记忆层应覆盖短期会话、压缩摘要和可恢复状态。",
-                    "citations": [
-                        {
-                            "kind": "page",
-                            "path": "Session-Memory-Architecture-for-Agent-Loops.md",
-                            "title": "Session Memory Architecture for Agent Loops",
-                        }
-                    ],
-                },
-                {
-                    "tool_calls": [
-                        {
-                            "name": "inspect_wiki_relations",
-                            "arguments": {"page_path": "Agent-Loop.md"},
-                        }
-                    ],
-                    "reason": "user asks for related implementation pages",
-                    "confidence": 0.9,
-                },
-                {
-                    "answer": "Agent Loop 页面关联 OpenClaw 和 Agent Engineering，可作为实现参考。",
-                    "citations": [{"kind": "page", "path": "OpenClaw.md", "title": "OpenClaw"}],
-                },
-                {
-                    "tool_calls": [
-                        {
-                            "name": "list_wiki_pages",
-                            "arguments": {"query": "Agent", "max_results": 20},
-                        }
-                    ],
-                    "reason": "user asks for available agent pages before final synthesis",
-                    "confidence": 0.9,
-                },
-                {
-                    "answer": "可参考 Agent Loop 与 OpenClaw 两类页面组织方案。",
-                    "citations": [{"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"}],
-                },
-                {
-                    "tool_calls": [
-                        {
-                            "name": "query_wiki",
-                            "arguments": {"query": "agent architecture design document", "mode": "deep", "max_results": 8},
-                        }
-                    ],
-                    "reason": "model attempted a broad final search",
-                    "confidence": 0.8,
-                },
-                {
-                    "answer": "最终方案应分为入口层、循环控制层、工具层、记忆层和治理层，并基于前面页面证据综合。",
-                    "citations": [
-                        {"kind": "page", "path": "Agent-Loop.md", "title": "Agent Loop"},
-                        {
-                            "kind": "page",
-                            "path": "Session-Memory-Architecture-for-Agent-Loops.md",
-                            "title": "Session Memory Architecture for Agent Loops",
-                        },
-                    ],
-                },
-            ]
-        )
-        service = ChatAgentService(client_factory=lambda _request: client)
-        with tempfile.TemporaryDirectory() as tmp:
-            services = FakeServices()
-            first = service.chat(
-                ChatRequest(messages=[ChatMessageItem(role="user", content="基于我的 Agent 相关页面，设计一个生产级工程 Agent 架构。")], vault_path=tmp, append_ledger=False),
-                services,  # type: ignore[arg-type]
-            )
-            second = service.chat(
-                ChatRequest(session_id=first.session_id, messages=[ChatMessageItem(role="user", content="继续展开它的会话记忆和上下文管理。")], vault_path=tmp, append_ledger=False),
-                services,  # type: ignore[arg-type]
-            )
-            third = service.chat(
-                ChatRequest(session_id=first.session_id, messages=[ChatMessageItem(role="user", content="Agent Loop 页面还关联哪些实现页面？")], vault_path=tmp, append_ledger=False),
-                services,  # type: ignore[arg-type]
-            )
-            fourth = service.chat(
-                ChatRequest(session_id=first.session_id, messages=[ChatMessageItem(role="user", content="列出还能参考的 Agent 相关页面。")], vault_path=tmp, append_ledger=False),
-                services,  # type: ignore[arg-type]
-            )
-            fifth = service.chat(
-                ChatRequest(session_id=first.session_id, messages=[ChatMessageItem(role="user", content="最后，把前面内容整理成一份工程 Agent 技术设计方案。")], vault_path=tmp, append_ledger=False),
-                services,  # type: ignore[arg-type]
-            )
-
-        self.assertEqual(first.tool_trace[0].tool, "query_wiki")
-        self.assertEqual(first.tool_trace[0].arguments["mode"], "deep")
-        self.assertEqual(second.tool_trace[0].tool, "read_wiki_page")
-        self.assertEqual(services.wiki_pages.read_paths, ["Session-Memory-Architecture-for-Agent-Loops.md"])
-        self.assertEqual(third.tool_trace[0].tool, "inspect_wiki_relations")
-        self.assertEqual(services.wiki_pages.link_paths, ["Agent-Loop.md"])
-        self.assertEqual(fourth.tool_trace[0].tool, "list_wiki_pages")
-        self.assertEqual(services.wiki_pages.list_calls, 2)
-        self.assertEqual(fifth.tool_trace[0].tool, "reuse_context")
-        self.assertEqual(fifth.stats["tool_plan"]["tool_calls"][0]["name"], "reuse_context")
-        self.assertEqual(fifth.stats["plan_adjustments"][0]["kind"], "context_synthesis_reuse")
-        self.assertEqual([request.query for request in services.wiki_search.requests], ["Agent Loop multi-agent orchestration memory architecture"])
-        self.assertIn('"kind": "session_evidence"', client.requests[-1].messages[-1].content)
-        self.assertIn("Session-Memory-Architecture-for-Agent-Loops.md", client.requests[-1].messages[-1].content)
-        self.assertIn("入口层、循环控制层、工具层、记忆层和治理层", fifth.answer)
-        self.assertEqual(
-            [citation.path for citation in fifth.citations],
-            [
-                "Agent-Loop.md",
-                "Session-Memory-Architecture-for-Agent-Loops.md",
-                "sources/Agent-Loop-Source.md",
-            ],
-        )
-        planner_requests = [request for request in client.requests if "KnoArbor Chat Tool Planner" in request.messages[0].content]
-        self.assertTrue(planner_requests)
-        for planner_request in planner_requests:
-            planner_payload = "\n".join(message.content for message in planner_request.messages)
-            self.assertIn("planning_state", planner_payload)
-            self.assertNotIn("可参考 Agent Loop 与 OpenClaw 两类页面组织方案", planner_payload)
-            self.assertNotIn("最终方案应分为入口层、循环控制层、工具层、记忆层和治理层", planner_payload)
-        answer_requests = [request for request in client.requests if "knowledge assistant" in request.messages[0].content.lower()]
-        self.assertTrue(answer_requests)
-        for answer_request in answer_requests:
-            answer_payload = "\n".join(message.content for message in answer_request.messages)
-            self.assertIn("answer_state", answer_payload)
-        final_answer_state = json.loads(answer_requests[-1].messages[-1].content)["answer_state"]
-        self.assertIn("可参考 Agent Loop 与 OpenClaw 两类页面组织方案", json.dumps(final_answer_state["conversation_context"], ensure_ascii=False))
+        self.assertEqual(response.answer_provenance.mode, "general_knowledge")
+        self.assertEqual(response.stats["session_vault_id"], "all")
 
 
 if __name__ == "__main__":

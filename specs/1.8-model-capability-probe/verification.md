@@ -16,6 +16,10 @@ Expected coverage:
 - discovery parses OpenAI-compatible `/models` metadata;
 - Ollama context metadata can be detected from `/api/show`;
 - apply endpoint updates only allowed provider fields.
+- root and exact full endpoint inputs resolve to one canonical base URL;
+- partial completion paths, URL credentials, queries, and fragments fail before
+  discovery or generation;
+- discovery and completion append their paths exactly once.
 
 ## Manual Checks
 
@@ -29,7 +33,8 @@ curl -X POST http://127.0.0.1:8000/models/discover \
   -d '{"provider":"vllm"}'
 ```
 
-For hosted providers, load `API key field` first so `api_key` resolves.
+For hosted providers, configure `api_key` directly in the isolated test
+`config.yaml`.
 
 ## Release Gate
 

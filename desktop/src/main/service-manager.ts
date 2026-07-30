@@ -1,17 +1,20 @@
 import log from "electron-log/main";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, renameSync, statSync, unlinkSync } from "node:fs";
 import { createServer } from "node:net";
-import { dirname, isAbsolute, join } from "node:path";
-import type { DesktopAppServerConfig } from "./config.js";
+import { isAbsolute, join } from "node:path";
+import { writePrivateFileAtomic, type DesktopAppServerConfig } from "./config.js";
+import { waitForHealth } from "./health-probe.js";
+import { desktopProduct } from "./product.js";
 import type { DesktopServiceState } from "../preload/types.js";
 
 type StateListener = (state: DesktopServiceState) => void;
 
 const STARTUP_TIMEOUT_MS = 30_000;
-const HEALTH_POLL_INTERVAL_MS = 350;
 const STOP_TIMEOUT_MS = 5_000;
 const RECENT_OUTPUT_LIMIT = 40;
+const SERVICE_LOG_MAX_BYTES = 2_000_000;
+const SERVICE_LOG_BACKUP_COUNT = 5;
 
 export class DesktopServiceManager {
   private child?: ChildProcessWithoutNullStreams;
@@ -37,15 +40,15 @@ export class DesktopServiceManager {
         startedAt,
         status: "starting",
       });
-      const healthy = await waitForHealth(`${config.url}/health`, STARTUP_TIMEOUT_MS);
+      const health = await waitForHealth(`${config.url}/health`, STARTUP_TIMEOUT_MS);
       this.setState({
         endpoint: config.url,
-        lastError: healthy
+        lastError: health.healthy
           ? undefined
-          : `External KnoArbor service is not healthy: ${config.url}`,
+          : `External ${desktopProduct.name} service is not healthy: ${config.url}. ${health.lastError}`,
         mode: "external",
         startedAt,
-        status: healthy ? "healthy" : "failed",
+        status: health.healthy ? "healthy" : "failed",
       });
       return this.state;
     }
@@ -83,13 +86,12 @@ export class DesktopServiceManager {
 
     const port = config.port || (await findAvailablePort(config.host));
     const endpoint = `http://${config.host}:${port}`;
-    const appDataRoot = dirname(config.configPath);
+    const appDataRoot = config.appDataRoot;
     const logDir = join(appDataRoot, "logs");
     const stateDir = join(appDataRoot, "state");
     const logPath = join(logDir, "service.log");
     mkdirSync(logDir, { recursive: true });
     mkdirSync(stateDir, { recursive: true });
-    const logStream = createWriteStream(logPath, { flags: "a" });
     const args = [
       ...config.serviceArgs,
       "--config",
@@ -106,6 +108,7 @@ export class DesktopServiceManager {
       KNOARBOR_DESKTOP: "1",
       KNOARBOR_LOG_DIR: logDir,
       KNOARBOR_STATE_DIR: stateDir,
+      KNOARBOR_RUNTIME_DIR: stateDir,
     };
 
     this.recentOutput = [];
@@ -122,7 +125,7 @@ export class DesktopServiceManager {
       stateDir,
       status: "starting",
     });
-    log.info("Starting KnoArbor managed service", {
+    log.info(`Starting ${desktopProduct.name} managed service`, {
       args,
       configPath: config.configPath,
       endpoint,
@@ -140,16 +143,15 @@ export class DesktopServiceManager {
 
     child.stdout.on("data", (chunk: Buffer) => {
       const text = chunk.toString();
-      logStream.write(text);
+      appendBoundedServiceLog(logPath, text);
       this.recordOutput(text);
     });
     child.stderr.on("data", (chunk: Buffer) => {
       const text = chunk.toString();
-      logStream.write(text);
+      appendBoundedServiceLog(logPath, text);
       this.recordOutput(text);
     });
     child.on("error", (error) => {
-      logStream.end();
       this.child = undefined;
       this.setState({
         ...this.state,
@@ -159,11 +161,14 @@ export class DesktopServiceManager {
       });
     });
     child.on("exit", (code, signal) => {
-      logStream.end();
       if (this.state.status === "stopping" || this.state.status === "stopped") {
         this.child = undefined;
         return;
       }
+      log.error(`${desktopProduct.name} managed service exited unexpectedly`, {
+        code,
+        signal,
+      });
       this.child = undefined;
       this.setState({
         ...this.state,
@@ -175,13 +180,17 @@ export class DesktopServiceManager {
       });
     });
 
-    const healthy = await waitForHealth(`${endpoint}/health`, STARTUP_TIMEOUT_MS);
-    if (!healthy) {
+    const health = await waitForHealth(`${endpoint}/health`, STARTUP_TIMEOUT_MS);
+    if (!health.healthy) {
       await this.stop();
+      log.error(`${desktopProduct.name} managed service health probe failed`, {
+        endpoint,
+        error: health.lastError,
+      });
       this.setState({
         ...this.state,
         endpoint,
-        lastError: `Service did not become healthy within ${STARTUP_TIMEOUT_MS}ms. Recent output: ${this.recentOutput.join(" | ")}`,
+        lastError: `Service did not become healthy within ${STARTUP_TIMEOUT_MS}ms. ${health.lastError} Recent output: ${this.recentOutput.join(" | ")}`,
         lastOutput: this.recentOutput,
         logDir,
         logPath,
@@ -193,7 +202,7 @@ export class DesktopServiceManager {
       return this.state;
     }
 
-    writeFileSync(
+    writePrivateFileAtomic(
       join(stateDir, "service.json"),
       JSON.stringify(
         {
@@ -207,7 +216,6 @@ export class DesktopServiceManager {
         null,
         2,
       ),
-      "utf-8",
     );
     this.setState({
       configPath: config.configPath,
@@ -243,11 +251,20 @@ export class DesktopServiceManager {
       return this.state;
     }
     this.setState({ ...this.state, status: "stopping" });
-    if (child && !child.killed) {
+    if (child && !hasExited(child)) {
       child.kill("SIGTERM");
       await waitForExit(child, STOP_TIMEOUT_MS);
-      if (!child.killed && child.exitCode === null) {
+      if (!hasExited(child)) {
         child.kill("SIGKILL");
+        await waitForExit(child, STOP_TIMEOUT_MS);
+      }
+      if (!hasExited(child)) {
+        this.setState({
+          ...this.state,
+          lastError: "Local service did not stop after termination was requested.",
+          status: "failed",
+        });
+        return this.state;
       }
     }
     this.child = undefined;
@@ -272,6 +289,24 @@ export class DesktopServiceManager {
   }
 }
 
+function appendBoundedServiceLog(path: string, text: string): void {
+  let data = Buffer.from(text, "utf-8");
+  if (data.length > SERVICE_LOG_MAX_BYTES) {
+    data = data.subarray(data.length - SERVICE_LOG_MAX_BYTES);
+  }
+  const currentSize = existsSync(path) ? statSync(path).size : 0;
+  if (currentSize + data.length > SERVICE_LOG_MAX_BYTES) {
+    for (let index = SERVICE_LOG_BACKUP_COUNT; index >= 1; index -= 1) {
+      const source = index === 1 ? path : `${path}.${index - 1}`;
+      const target = `${path}.${index}`;
+      if (!existsSync(source)) continue;
+      if (existsSync(target)) unlinkSync(target);
+      renameSync(source, target);
+    }
+  }
+  appendFileSync(path, data, { mode: 0o600 });
+}
+
 async function findAvailablePort(host: string): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = createServer();
@@ -289,29 +324,19 @@ async function findAvailablePort(host: string): Promise<number> {
   });
 }
 
-async function waitForHealth(url: string, timeoutMs: number): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) return true;
-    } catch {
-      // Service is still starting.
-    }
-    await delay(HEALTH_POLL_INTERVAL_MS);
-  }
-  return false;
-}
-
 async function waitForExit(
   child: ChildProcessWithoutNullStreams,
   timeoutMs: number,
 ): Promise<void> {
-  if (child.exitCode !== null) return;
+  if (hasExited(child)) return;
   await Promise.race([
     new Promise<void>((resolve) => child.once("exit", () => resolve())),
     delay(timeoutMs),
   ]);
+}
+
+function hasExited(child: ChildProcessWithoutNullStreams): boolean {
+  return child.exitCode !== null || child.signalCode !== null;
 }
 
 function delay(ms: number): Promise<void> {

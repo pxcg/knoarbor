@@ -3,12 +3,14 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass
+from threading import Lock
 from typing import Any
 
 from pydantic import BaseModel, Field
 from pydantic import ValidationError
 
 from knoarbor.core.errors import KnoArborError, ModelOutputError, error_info
+from knoarbor.product import PRODUCT
 
 from knoarbor.semantic.contracts import SemanticContract, load_semantic_contract
 from knoarbor.semantic.llm import ChatClient, ChatCompletionRequest, ChatMessage
@@ -16,7 +18,7 @@ from knoarbor.runtime import RunReporter
 
 
 SEMANTIC_EXECUTOR_SYSTEM_PROMPT = (
-    "You are KnoArbor's semantic contract executor. "
+    f"You are {PRODUCT.name}'s semantic contract executor. "
     "Follow the stable contract instructions in the next message exactly, "
     "then apply them to the dynamic payload. Return only the required JSON."
 )
@@ -55,6 +57,15 @@ class SemanticRunFailure:
     metrics: dict[str, object]
 
 
+class SemanticRunFailed(Exception):
+    """A semantic execution failure with the metrics produced for that call."""
+
+    def __init__(self, failure: SemanticRunFailure, cause: Exception) -> None:
+        super().__init__(str(cause))
+        self.failure = failure
+        self.cause = cause
+
+
 @dataclass(frozen=True)
 class SemanticPromptPackage:
     """Prompt package with a stable cacheable prefix and dynamic payload tail."""
@@ -70,7 +81,19 @@ class SemanticRunner:
     def __init__(self, client: ChatClient, retry_policy: SemanticRetryPolicy | None = None) -> None:
         self.client = client
         self.retry_policy = retry_policy or SemanticRetryPolicy()
-        self.history: list[SemanticRunResult | SemanticRunFailure] = []
+        self._history: list[SemanticRunResult | SemanticRunFailure] = []
+        self._history_lock = Lock()
+
+    @property
+    def history(self) -> list[SemanticRunResult | SemanticRunFailure]:
+        """Return a stable observability snapshot, never the mutable journal."""
+
+        with self._history_lock:
+            return list(self._history)
+
+    def _record_history(self, entry: SemanticRunResult | SemanticRunFailure) -> None:
+        with self._history_lock:
+            self._history.append(entry)
 
     def run(
         self,
@@ -80,6 +103,45 @@ class SemanticRunner:
         user_instruction: str | None = None,
         temperature: float = 0.1,
         max_tokens: int | None = None,
+    ) -> SemanticRunResult:
+        return self._run(
+            contract_name,
+            payload,
+            user_instruction=user_instruction,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            preserve_failure=False,
+        )
+
+    def run_with_failure(
+        self,
+        contract_name: str,
+        payload: dict[str, Any],
+        *,
+        user_instruction: str | None = None,
+        temperature: float = 0.1,
+        max_tokens: int | None = None,
+    ) -> SemanticRunResult:
+        """Run a contract while preserving per-call failure metrics for callers."""
+
+        return self._run(
+            contract_name,
+            payload,
+            user_instruction=user_instruction,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            preserve_failure=True,
+        )
+
+    def _run(
+        self,
+        contract_name: str,
+        payload: dict[str, Any],
+        *,
+        user_instruction: str | None,
+        temperature: float,
+        max_tokens: int | None,
+        preserve_failure: bool,
     ) -> SemanticRunResult:
         contract = load_semantic_contract(contract_name)
         prompt_package = build_semantic_prompt_package(contract, payload, user_instruction=user_instruction)
@@ -101,11 +163,13 @@ class SemanticRunner:
                     attempt=attempt,
                     max_attempts=attempts,
                 )
-            except Exception as exc:
-                last_error = exc
-                if attempt >= attempts or not self._should_retry(exc):
-                    raise
-                self._emit_retry_event(contract, exc, attempt=attempt, max_attempts=attempts)
+            except SemanticRunFailed as exc:
+                last_error = exc.cause
+                if attempt >= attempts or not self._should_retry(exc.cause):
+                    if preserve_failure:
+                        raise
+                    raise exc.cause from exc
+                self._emit_retry_event(contract, exc.cause, attempt=attempt, max_attempts=attempts)
                 self._sleep_before_retry()
         assert last_error is not None
         raise last_error
@@ -133,15 +197,14 @@ class SemanticRunner:
         except Exception as exc:
             elapsed = time.perf_counter() - started
             metrics = self._failure_metrics(exc, elapsed_seconds=elapsed)
-            self.history.append(
-                SemanticRunFailure(
-                    contract_name=contract.name,
-                    schema_version=contract.schema_version,
-                    provider=str(metrics.get("provider") or ""),
-                    model=str(metrics.get("model") or ""),
-                    metrics=metrics,
-                )
+            failure = SemanticRunFailure(
+                contract_name=contract.name,
+                schema_version=contract.schema_version,
+                provider=str(metrics.get("provider") or ""),
+                model=str(metrics.get("model") or ""),
+                metrics=metrics,
             )
+            self._record_history(failure)
             reporter.model_call_failed(
                 contract_name=contract.name,
                 schema_version=contract.schema_version,
@@ -150,7 +213,7 @@ class SemanticRunner:
                 error=exc,
                 elapsed_seconds=elapsed,
             )
-            raise
+            raise SemanticRunFailed(failure, exc) from exc
         reporter.model_call_finished(
             contract_name=contract.name,
             provider=response.provider,
@@ -188,15 +251,14 @@ class SemanticRunner:
             metrics["error_category"] = info["category"]
             metrics["error_retryable"] = info["retryable"]
             metrics["error_hint"] = info["hint"]
-            self.history.append(
-                SemanticRunFailure(
-                    contract_name=contract.name,
-                    schema_version=contract.schema_version,
-                    provider=response.provider,
-                    model=response.model,
-                    metrics=metrics,
-                )
+            failure = SemanticRunFailure(
+                contract_name=contract.name,
+                schema_version=contract.schema_version,
+                provider=response.provider,
+                model=response.model,
+                metrics=metrics,
             )
+            self._record_history(failure)
             reporter.model_output_invalid(
                 contract_name=contract.name,
                 schema_version=contract.schema_version,
@@ -204,7 +266,7 @@ class SemanticRunner:
                 max_attempts=max_attempts,
                 error=exc,
             )
-            raise
+            raise SemanticRunFailed(failure, exc) from exc
         result = SemanticRunResult(
             contract_name=contract.name,
             schema_version=contract.schema_version,
@@ -213,7 +275,7 @@ class SemanticRunner:
             output=parsed,
             metrics=metrics,
         )
-        self.history.append(result)
+        self._record_history(result)
         return result
 
     def _should_retry(self, exc: Exception) -> bool:
@@ -302,7 +364,10 @@ def parse_contract_output(contract: SemanticContract, text: str) -> BaseModel:
     output = _contract_payload(contract, data)
     if not isinstance(output, dict):
         raise ModelOutputError("Semantic contract output must contain an object field named output")
-    return contract.schema_model.model_validate(output)
+    try:
+        return contract.schema_model.model_validate(output)
+    except ValidationError as exc:
+        raise ModelOutputError(f"Semantic contract {contract.name} returned schema-invalid output: {exc}") from exc
 
 
 def _contract_payload(contract: SemanticContract, data: dict[str, Any]) -> dict[str, Any] | None:

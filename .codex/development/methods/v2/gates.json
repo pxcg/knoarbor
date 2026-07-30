@@ -1,0 +1,20 @@
+{
+  "schema_version": "knoarbor_development_method.v2",
+  "asset": "gates",
+  "gates": [
+    {"id":"affected-validation","severity":"hard","phases":["baseline","integration","acceptance"],"executor":"command","command":["uv","run","python","scripts/plan-affected-validation.py","--paths","{allowed_paths}","--run"],"condition":"always","timeout_seconds":900},
+    {"id":"artifact-consistency","severity":"hard","phases":["baseline","integration","acceptance"],"executor":"command","command":["uv","run","python","scripts/check-doc-governance.py"],"condition":"always","timeout_seconds":120},
+    {"id":"secret-scan","severity":"hard","phases":["baseline","integration","acceptance"],"executor":"internal_secret_scan","condition":"always","timeout_seconds":30},
+    {"id":"development-suite","severity":"hard","phases":["baseline","integration","acceptance"],"executor":"command","command":["bash","scripts/dev-check.sh"],"condition":"explicit","timeout_seconds":3600},
+    {"id":"full-chain-focused","severity":"hard","phases":["acceptance"],"executor":"external_acceptance","condition":"explicit","timeout_seconds":3600},
+    {"id":"renderer-interaction","severity":"soft","phases":["baseline","integration","acceptance"],"executor":"command","command":["npm","--prefix","renderer","run","test:e2e"],"condition":"renderer_scope","timeout_seconds":1200},
+    {"id":"desktop-contracts","severity":"hard","phases":["baseline","integration","acceptance"],"executor":"command","command":["npm","--prefix","desktop","run","test:smoke"],"condition":"desktop_scope","timeout_seconds":1200},
+    {"id":"live-model-local-observation","severity":"soft","phases":["acceptance"],"executor":"external_acceptance","condition":"explicit","timeout_seconds":3600},
+    {"id":"live-model-release","severity":"hard","phases":["acceptance"],"executor":"external_acceptance","condition":"release","timeout_seconds":3600}
+  ],
+  "profiles": {
+    "fast":["affected-validation","artifact-consistency","secret-scan"],
+    "standard":["affected-validation","artifact-consistency","secret-scan"],
+    "strict":["affected-validation","artifact-consistency","secret-scan"]
+  }
+}

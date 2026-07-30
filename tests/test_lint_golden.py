@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from knoarbor.audit.lint_report import build_lint_run_record, render_lint_run_report
 from knoarbor.core.schemas.maintenance import MaintenanceScope, MaintenanceScopeSource
 from knoarbor.core.schemas.wiki_lint import LintRunRequest, WikiScanRequest
-from knoarbor.pipelines import WikiLintPipeline
+from knoarbor.pipelines.lint import WikiLintPipeline
 
 from tests.harness.lint_cases import LintStructuralFixtureWorkflow, create_lint_fixture_vault
 from tests.harness.snapshot import assert_json_snapshot
@@ -45,7 +45,6 @@ class LintGoldenTests(unittest.TestCase):
                     ),
                     mode="semantic",
                     include_related=True,
-                    auto_apply_reviewed_changes=True,
                     write_report=False,
                     append_ledger=False,
                 )
@@ -86,22 +85,11 @@ def _stable_lint_run_result(response: Any) -> dict[str, object]:
         "deterministic_issues": [_stable_issue(issue) for issue in response.deterministic_lint.issues],
         "semantic_candidates": response.semantic_candidates,
         "maintenance_review": response.maintenance_review,
-        "queued_actions": response.queued_actions,
-        "deferred_retries": response.deferred_retries,
-        "applied_operations": [
-            {
-                "operation_id": item.get("operation_id"),
-                "action": item.get("action"),
-                "status": item.get("status"),
-                "target_page": item.get("target_page"),
-                "output_page": item.get("output_page"),
-                "details": item.get("details"),
-            }
-            for item in response.applied_operations
-        ],
-        "written_pages": response.written_pages,
-        "verifications": response.verifications,
-        "rescan_issues": [_stable_issue(issue) for issue in response.rescan.issues] if response.rescan else None,
+        "repair_plan": response.repair_plan,
+        "repair_results": response.repair_results,
+        "post_repair_issues": [_stable_issue(issue) for issue in response.post_repair_lint.issues]
+        if response.post_repair_lint
+        else None,
         "warnings": response.warnings,
     }
 

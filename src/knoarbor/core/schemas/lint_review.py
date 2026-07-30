@@ -10,10 +10,7 @@ LintReviewNecessity = Literal["necessary", "redundant", "incomplete", "unsupport
 LintReviewCorrectness = Literal["correct", "questionable", "incorrect"]
 LintReviewCompleteness = Literal["complete", "partial", "blocked"]
 LintReviewExecutorFit = Literal[
-    "supported_by_draft_write",
-    "supported_by_wiki_operation",
-    "supported_by_refresh_request",
-    "supported_by_report_only",
+    "supported_by_governance_request",
     "unsupported",
 ]
 LintReviewRiskLevel = Literal["safe", "low", "medium", "high"]

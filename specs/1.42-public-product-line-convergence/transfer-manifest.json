@@ -1,0 +1,71 @@
+{
+  "schema_version": "knoarbor.convergence_transfer.v1",
+  "public_parent": "18fde631ad6114a9b6814ba8788e811e28ba04da",
+  "reviewed_source": "53da106cab566d326c508c5f5f2f1825fd5c9c9b",
+  "slices": [
+    {
+      "id": "governance-product",
+      "classification": "adapt",
+      "owner": "specs/1.42-public-product-line-convergence",
+      "scope": ["spec registry", "development harness", "product identity"],
+      "excludes": ["SieArbor skills", "company release policy"],
+      "verification": ["documentation governance", "product drift", "public leakage"]
+    },
+    {
+      "id": "factual-ingest-storage",
+      "classification": "adapt",
+      "owner": "ingest, vault, provenance, and storage specifications",
+      "scope": ["immutable factual revisions", "active heads", "transactional ingest", "materialization"],
+      "excludes": ["company defaults", "private source policy"],
+      "verification": ["2.3.1 migration fixtures", "ingest recovery", "deterministic rebuild"]
+    },
+    {
+      "id": "query-evidence",
+      "classification": "adopt",
+      "owner": "machine index and query contracts",
+      "scope": ["active Raw retrieval", "graph closure", "query batches", "evidence reads"],
+      "excludes": [],
+      "verification": ["retrieval gold", "snapshot consistency", "active revision resolution"]
+    },
+    {
+      "id": "chat-editing",
+      "classification": "adapt",
+      "owner": "chat, evidence, and knowledge editing specifications",
+      "scope": ["retrieval planning", "answer decision", "composition", "citations", "Raw and projection editing"],
+      "excludes": ["private prompt identity"],
+      "verification": ["chat acceptance corpus", "citation spans", "stale revision protection"]
+    },
+    {
+      "id": "renderer",
+      "classification": "adapt",
+      "owner": "productized console and UI contract",
+      "scope": ["domain organization", "vault workflows", "Raw preview", "Markdown and image rendering"],
+      "excludes": ["private branding", "private help and provider copy"],
+      "verification": ["typecheck", "interaction tests", "production build"]
+    },
+    {
+      "id": "desktop-runtime",
+      "classification": "adapt",
+      "owner": "desktop app, desktop config IPC, and desktop-first specifications",
+      "scope": ["managed service", "persistence", "backup", "macOS and Windows packaging"],
+      "excludes": ["intranet update authority", "private installer identity", "private icons"],
+      "verification": ["desktop contract tests", "upgrade data preservation", "public artifact identity"]
+    },
+    {
+      "id": "intranet-update",
+      "classification": "reject",
+      "owner": "private product only",
+      "scope": ["differential update repository", "private update metadata and settings"],
+      "excludes": ["all public runtime and release paths"],
+      "verification": ["public leakage scan", "absence from public settings and packages"]
+    },
+    {
+      "id": "release-documentation",
+      "classification": "adapt",
+      "owner": "public release and documentation contracts",
+      "scope": ["KnoArbor docs", "public CI", "source and desktop releases"],
+      "excludes": ["SieArbor release notes", "company deployment and governance records"],
+      "verification": ["clean clone", "doc links", "source package", "public release readiness"]
+    }
+  ]
+}

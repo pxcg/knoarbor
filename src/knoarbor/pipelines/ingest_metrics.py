@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from knoarbor.core.schemas.ingest_pipeline import IngestSourceResult
 
 
@@ -124,6 +127,45 @@ def ingest_run_metrics(results: list[IngestSourceResult], elapsed_seconds: float
     }
 
 
+def semantic_attempt_metrics(events_path: Path | None) -> dict[str, int]:
+    """Summarize request attempts from the run event authority."""
+
+    if events_path is None or not events_path.is_file():
+        return {}
+    counts = {
+        "attempted_call_count": 0,
+        "response_call_count": 0,
+        "failed_call_count": 0,
+        "invalid_output_count": 0,
+        "retry_count": 0,
+        "observed_peak_in_flight": 0,
+    }
+    in_flight = 0
+    for line in events_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        event_type = str(event.get("event_type") or "")
+        if event_type == "model_call_started":
+            counts["attempted_call_count"] += 1
+            in_flight += 1
+            counts["observed_peak_in_flight"] = max(counts["observed_peak_in_flight"], in_flight)
+        elif event_type == "model_call_finished":
+            counts["response_call_count"] += 1
+            in_flight = max(0, in_flight - 1)
+        elif event_type == "model_call_failed":
+            counts["failed_call_count"] += 1
+            in_flight = max(0, in_flight - 1)
+        elif event_type == "model_output_invalid":
+            counts["invalid_output_count"] += 1
+        elif event_type == "model_call_retrying":
+            counts["retry_count"] += 1
+    return counts
+
+
 def semantic_metrics(result: IngestSourceResult) -> dict[str, object]:
     context_semantic = as_dict(result.context.get("semantic_metrics"))
     if context_semantic:
@@ -133,7 +175,7 @@ def semantic_metrics(result: IngestSourceResult) -> dict[str, object]:
 
 
 def source_processed(result: IngestSourceResult) -> bool:
-    return result.semantic_result is not None or any(as_dict(segment).get("page_plan_operations") for segment in result.segments)
+    return result.status in {"processed", "written"}
 
 
 def tokens_per_second(completion_tokens: int, elapsed_seconds: float) -> float | None:

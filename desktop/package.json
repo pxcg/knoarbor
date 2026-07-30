@@ -1,74 +1,46 @@
 {
   "name": "@knoarbor/desktop",
   "private": true,
-  "version": "2.3.1",
+  "version": "2.5.3",
   "description": "KnoArbor desktop app",
   "author": "pxcg",
   "license": "Apache-2.0",
   "type": "module",
   "main": "out/main/index.js",
-  "build": {
-    "appId": "ai.knoarbor.desktop",
-    "productName": "KnoArbor",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "out/**/*",
-      "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "resources/renderer",
-        "to": "renderer"
-      },
-      {
-        "from": "resources/service",
-        "to": "service"
-      }
-    ],
-    "mac": {
-      "category": "public.app-category.productivity",
-      "icon": "resources/icons/icon.icns",
-      "target": [
-        "dmg",
-        "zip"
-      ]
-    },
-    "win": {
-      "icon": "resources/icons/icon.ico",
-      "signAndEditExecutable": false,
-      "target": [
-        "nsis"
-      ]
-    },
-    "linux": {
-      "icon": "resources/icons/icon.png"
-    }
-  },
   "scripts": {
-    "build": "npm run prepare:renderer && electron-vite build && tsc -p tsconfig.json --noEmit",
+    "build": "electron-vite build --ignoreConfigWarning && tsc -p tsconfig.json --noEmit",
+    "build:renderer": "npm --prefix ../renderer run build",
     "build:service": "node scripts/build-service.mjs",
-    "dist:mac": "npm run build:service && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip",
-    "dist:win": "npm run build:service && npm run build && set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win nsis",
-    "dev": "npm run prepare:renderer && electron-vite dev",
-    "pack:mac": "npm run build:service && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir",
-    "pack:win": "npm run build:service && npm run build && set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win dir",
-    "prepare:renderer": "node scripts/prepare-renderer.mjs",
+    "check:renderer": "node scripts/check-renderer.mjs",
+    "clean:package": "node scripts/clean-package-artifacts.mjs",
+    "prepare:package": "npm run clean:package && npm run build:renderer && npm run build:service && npm run build",
+    "dist:mac": "npm run prepare:package && electron-builder --config electron-builder.config.cjs --mac dmg zip --publish never",
+    "dist:win": "node scripts/run-windows-builder.mjs verify-host && npm run prepare:package && npm run verify:icons && node scripts/run-windows-builder.mjs nsis",
+    "test": "node --test tests/*.test.mjs",
+    "dev": "npm run check:renderer && electron-vite dev",
+    "pack:mac": "npm run prepare:package && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.config.cjs --mac dir",
+    "pack:win": "node scripts/run-windows-builder.mjs verify-host && npm run prepare:package && npm run verify:icons && node scripts/run-windows-builder.mjs dir",
     "preview": "electron-vite preview",
-    "test:smoke": "npm run build && node --test tests/*.test.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "verify:icons": "node scripts/verify-icon-assets.mjs"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
     "electron-log": "^5.4.3"
   },
   "devDependencies": {
-    "@electron-toolkit/preload": "^3.0.2",
     "@types/node": "^24.0.0",
+    "7zip-bin": "5.2.0",
     "electron": "42.4.0",
-    "electron-builder": "^26.0.12",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vite": "^7.3.6",
+    "yaml": "^2.9.0"
+  },
+  "overrides": {
+    "vite": {
+      "esbuild": "0.28.1"
+    }
   }
 }

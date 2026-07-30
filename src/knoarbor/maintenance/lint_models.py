@@ -25,5 +25,5 @@ class LintPage:
         return self.role == "knowledge_page"
 
     @property
-    def is_source_digest(self) -> bool:
-        return self.role == "source_digest"
+    def is_source_record(self) -> bool:
+        return self.role == "source_record"

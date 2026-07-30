@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
 from typing import Any
 
 from knoarbor.core.markdown import extract_list_items, extract_section
@@ -19,7 +18,7 @@ from knoarbor.maintenance.lint_rules import is_deterministic_only_issue
 
 
 def scan_page(page: LintPage, max_chars_per_page: int) -> WikiScanPage:
-    preview = page.content[:max_chars_per_page] if max_chars_per_page else ""
+    preview = page.content[:max_chars_per_page] if max_chars_per_page else page.content
     metadata = page.metadata
     return WikiScanPage(
         path=page.relative_path,
@@ -80,63 +79,15 @@ def _quality_candidate_reasons(page: WikiScanPage, issues: list[WikiLintIssue]) 
     reasons: list[WikiLintCandidateReason] = []
     headings = {heading.strip().lower() for heading in page.headings}
 
-    if not page.summary.strip():
-        reasons.append(_candidate_reason("quality", "missing_summary", "medium", "Page has no Summary section content.", 1.4))
-    if "claims" not in headings:
-        reasons.append(_candidate_reason("quality", "missing_claims", "medium", "Page has no Claims section.", 1.0))
-    if "evidence" not in headings:
-        reasons.append(_candidate_reason("quality", "missing_evidence", "medium", "Page has no Evidence section.", 1.0))
-    if page.original_content_length < 900 and page.directory != "sources":
-        reasons.append(
-            _candidate_reason(
-                "quality",
-                "shallow_page",
-                "medium",
-                "Generated knowledge page is short enough to warrant completeness review.",
-                1.1,
-                {"original_content_length": page.original_content_length},
-            )
-        )
-    if page.original_content_length > 12000:
-        reasons.append(
-            _candidate_reason(
-                "quality",
-                "long_page",
-                "low",
-                "Page is long and may need structure or duplication review.",
-                0.6,
-                {"original_content_length": page.original_content_length},
-            )
-        )
-    if _recently_updated(page.updated):
-        reasons.append(
-            _candidate_reason(
-                "quality",
-                "recently_changed_page",
-                "low",
-                "Recently changed page is a useful low-cost candidate for quality spot review.",
-                0.35,
-                {"updated": page.updated},
-            )
-        )
-    if len(page.outgoing_links) >= 8:
-        reasons.append(
-            _candidate_reason(
-                "graph",
-                "central_page",
-                "low",
-                "Page links to many wiki pages and is worth reviewing as a graph hub.",
-                0.35,
-                {"outgoing_link_count": len(page.outgoing_links)},
-            )
-        )
-    if not page.outgoing_links and page.directory not in {"sources", "maintenance"}:
-        reasons.append(_candidate_reason("graph", "weak_graph_integration", "low", "Generated knowledge page has no outgoing wiki links.", 0.55))
+    if "claims" in headings and _section_is_placeholder(page.content_preview, "Claims"):
+        reasons.append(_candidate_reason("quality", "empty_claims", "high", "Claims projection contains only a placeholder.", 1.5))
+    if "synthesis" in headings and _section_is_placeholder(page.content_preview, "Synthesis"):
+        reasons.append(_candidate_reason("quality", "empty_synthesis", "medium", "Synthesis projection contains only a placeholder.", 1.0))
 
     for issue in issues:
         if is_deterministic_only_issue(issue.code):
             continue
-        if issue.code in {"knowledge_without_source_digest", "knowledge_missing_source_digest_link", "source_digest_missing_contribution_map"}:
+        if issue.code in {"knowledge_without_source_record", "knowledge_missing_source_record_link", "source_record_missing_contribution_map"}:
             reasons.append(_reason_from_issue(issue, "provenance", "medium", 1.6))
         elif issue.code in {"orphan_page", "duplicate_title", "duplicate_section_item", "path_alias_conflict", "weak_link_graph", "overdense_link_graph"}:
             reasons.append(_reason_from_issue(issue, "graph", "low", 0.9))
@@ -152,26 +103,14 @@ def _candidate_score(reasons: list[WikiLintCandidateReason]) -> float:
 
 def _freshness_candidate_reasons(page: WikiScanPage) -> list[WikiLintCandidateReason]:
     reasons: list[WikiLintCandidateReason] = []
-    updated = _parse_iso_date(page.updated)
-    if updated is None:
-        reasons.append(_candidate_reason("freshness", "missing_updated_date", "medium", "Page has no parseable updated or created date.", 1.5))
-    else:
-        age_days = (datetime.now() - updated).days
-        if age_days >= 180:
-            reasons.append(
-                _candidate_reason(
-                    "freshness",
-                    "possibly_stale_page",
-                    "medium",
-                    "Page has not been updated for at least 180 days.",
-                    1.3,
-                    {"age_days": age_days},
-                )
-            )
-
     if _contains_temporal_claim(page.content_preview):
         reasons.append(_candidate_reason("freshness", "temporal_claim", "low", "Page preview contains time-sensitive wording or year/version/ranking language.", 0.8))
     return reasons
+
+
+def _section_is_placeholder(content: str, heading: str) -> bool:
+    section = extract_section(content, heading).strip().lower()
+    return section in {"- 暂无内容", "暂无内容", "- none", "none", "- n/a", "n/a"}
 
 
 def _candidate_reason(
@@ -201,25 +140,6 @@ def _reason_from_issue(
     return _candidate_reason(source, issue.code, severity, issue.message, score, {"path": issue.path, "details": issue.details})
 
 
-def _parse_iso_date(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    text = value.strip()
-    for candidate in (text, text.replace("Z", "+00:00")):
-        try:
-            parsed = datetime.fromisoformat(candidate)
-            return parsed.replace(tzinfo=None)
-        except ValueError:
-            continue
-    match = re.search(r"\d{4}-\d{2}-\d{2}", text)
-    if not match:
-        return None
-    try:
-        return datetime.fromisoformat(match.group(0))
-    except ValueError:
-        return None
-
-
 def _contains_temporal_claim(content: str) -> bool:
     return bool(
         re.search(
@@ -227,10 +147,3 @@ def _contains_temporal_claim(content: str) -> bool:
             content,
         )
     )
-
-
-def _recently_updated(value: str | None, *, days: int = 14) -> bool:
-    updated = _parse_iso_date(value)
-    if updated is None:
-        return False
-    return 0 <= (datetime.now() - updated).days <= days

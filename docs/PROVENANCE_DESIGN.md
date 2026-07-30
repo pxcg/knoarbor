@@ -1,102 +1,77 @@
 # Provenance Design
 
-This document explains KnoArbor's source provenance model. The frozen field and
-directory contracts live in [Contracts](CONTRACTS.md); this page describes why
-raw sources, source digests, knowledge pages, lint maintenance, and query
-context share one meaning of "source".
+This document defines the stable provenance meaning shared by ingest,
+retrieval, Chat, projection, and maintenance. Field-level contracts live in
+[Contracts](CONTRACTS.md); factual authority is recorded by
+[ADR 0004](adr/0004-ingest-factual-authority.md).
+
+## Provenance Chain
 
 ```text
-raw source -> source digest -> wiki page -> query context
+raw source
+  -> normalized source units
+  -> immutable source revision
+  -> evidence-backed knowledge metadata
+  -> readable and machine projections
+  -> raw-grounded retrieval
 ```
 
-## Goals
+## Authority
 
-- Keep raw sources as immutable evidence.
-- Make every generated page traceable to one or more sources.
-- Use source digest pages as human-readable bridges between raw files and maintained knowledge pages.
-- Use structured page-body evidence as the canonical source provenance model for single-source and multi-source pages.
-- Let lint verify provenance chains with structured evidence rather than natural-language guessing.
-
-## Source Layers
-
-| Layer | Location / Field | Responsibility |
+| Layer | Role | Authority |
 | --- | --- | --- |
-| Raw Source | `raw/**` | Original input. It should not be rewritten by LLM workflows. |
-| Source Digest | `wiki/sources/*.md` | Source-level audit page connecting one raw source to generated knowledge pages. |
-| Knowledge Page | `wiki/pages/<slug>.md` | Reusable maintained knowledge page. Claims, relations, entities, synthesis, and evidence live in the page body and graph index. |
+| Raw source | User material or deterministic normalized derivative | Factual input |
+| Source unit | Stable evidence coordinate within a source revision | Answer-bearing evidence |
+| Source revision | Processing record, source units, knowledge atoms, manifest | Published factual record |
+| SQLite source head | Selects the active revision and session window | Publication authority |
+| Wiki source projection | Readable synthesis, claims, entities, and relations | Rebuildable locator |
+| Machine index | Search, graph, page, source, and link records | Rebuildable retrieval view |
+| Run/report artifacts | Execution, failure, token, and recovery diagnostics | Operational audit only |
 
-## Page-Body Source Evidence
+The active source heads in `.knoarbor/ingest.sqlite` and their reachable
+immutable revisions under `.knoarbor/facts/` jointly define the
+published factual state. Wiki Markdown and machine indexes do not redefine it.
 
-Current pages keep source provenance in dedicated body sections. A knowledge page uses `## Evidence`; a source digest uses `## Source Identity`, `## Source Units`, `## Contribution Map`, and `## Raw Source`.
-
-```markdown
 ## Evidence
 
-| Claim | Source | Range | Basis | Confidence |
-|---|---|---|---|---|
-| C1 | raw/inbox/notes/Agent.md | unit:0 | The source describes Agent Loop control. | high |
-```
+Every accepted entity, claim, or relation points to source evidence constructed
+from stable source units. Evidence records carry source, revision, unit,
+excerpt, and integrity information. Model-local array positions are transient
+request references and are not durable provenance.
 
-Responsibilities:
+Query and Chat may use wiki pages and atom metadata to locate relevant facts.
+Factual answers use raw evidence or source units, in line with
+[ADR 0003](adr/0003-raw-grounded-answering.md). A wiki page is useful navigation
+and synthesis, but its prose is not promoted to raw evidence merely because it
+was generated during ingest.
 
-- `## Evidence` binds each claim to source, range, basis, and confidence. It is
-  the knowledge page source of truth for raw source references.
-- A knowledge page has a matching source digest trace for each raw source it
-  relies on.
-- A source digest records generated knowledge pages through its Contribution Map
-  and machine index trace.
-- One raw source creates at most one source digest in a single ingest batch.
-  Long documents or chats can be segmented; duplicate source digest drafts are
-  merged before writing.
-- Ingest keeps broad navigation links out of page bodies. Topical similarity and
-  weak candidate matches remain retrieval/index signals.
+## Projection
 
-## Multi-Source Model
+Transactional ingest materializes one readable source projection under
+`wiki/pages/` for each active replaceable source, or one combined projection
+for an incremental session. These pages are marked as projection material and
+can be rebuilt without semantic extraction.
 
-Multi-source pages use multiple rows in `## Evidence`:
+`wiki/sources/` belongs to an earlier source-record Markdown design. Existing
+files remain readable historical material, but current ingest does not require
+or generate them as provenance authority.
 
-```markdown
-## Evidence
+## Maintenance Boundary
 
-| Claim | Source | Range | Basis | Confidence |
-|---|---|---|---|---|
-| C1 | raw/inbox/notes/Agent.md | unit:0 | Agent Loop control cycle. | high |
-| C2 | raw/inbox/chats/session_20260505_173432_47d596.json | turn:4-6 | Production memory discussion. | medium |
-```
+Maintenance may validate:
 
-Retrieval, lint, and relation logic read `## Evidence` and source digest trace sections as the source of truth.
+- revision and source-unit references;
+- evidence integrity and missing raw material;
+- projection freshness against the active fact generation;
+- broken user-facing source navigation;
+- machine-index generation consistency.
 
-## Lint Boundary
+Maintenance does not infer provenance from ordinary wiki links, rewrite raw
+sources, or treat run diagnostics as knowledge facts.
 
-Lint owns:
+## Recovery And Backup
 
-- checking whether source references are complete across `## Evidence` and
-  source digest trace sections;
-- checking whether raw sources exist;
-- checking whether source digests exist;
-- checking whether source digest traces and Contribution Maps are consistent
-  with generated pages;
-- creating maintenance candidates for missing source digests and missing trace
-  records.
-
-Out of scope for lint:
-
-- provenance guesses without structured Evidence, Source Identity, Raw Source,
-  or Contribution Map evidence;
-- network fact verification;
-- normal wiki links as provenance sources;
-- automatic multi-source merges outside operations that update structured
-  Evidence rows and pass review.
-
-## Migration Strategy
-
-1. Keep source provenance in page-body evidence sections.
-2. Validate source references from Evidence, Source Identity, Raw Source, and Contribution Map.
-3. Keep frontmatter limited to page identity metadata such as creation time, update time, and content hash.
-4. Verify that automatic provenance repair updates structured Evidence and source digest traces without mutating page identity metadata.
-
-## Future Work
-
-- Teach scanner to validate source completeness across Evidence, Source Identity, Raw Source, and Contribution Map.
-- Support multi-source digest relationships.
-- Expose source confidence and evidence ranges in query context packs.
+Backup protects raw material, `.knoarbor/ingest.sqlite`, and reachable source
+revision generations. Wiki projections and machine indexes are rebuildable.
+A factual commit that precedes a projection failure is recovered by
+materialization and does not repeat the model call.
