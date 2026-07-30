@@ -1,0 +1,20 @@
+{
+  "schema_version": "knoarbor_development_method.v2",
+  "asset": "workflow",
+  "rejection_limit": 3,
+  "stages": [
+    {"id":"initialization","owner":"controller","human":false,"required_by":["fast","standard","strict"],"skip_types":[],"rollback":[]},
+    {"id":"requirement_analysis","owner":"requirement","human":false,"required_by":["standard","strict"],"skip_types":["fast_route"],"rollback":["requirement_analysis"]},
+    {"id":"requirement_confirmation","owner":"controller","human":true,"required_by":["standard","strict"],"skip_types":["fast_route"],"rollback":["requirement_analysis"]},
+    {"id":"current_state_evidence","owner":"requirement","human":false,"required_by":["strict"],"skip_types":["fast_route","not_bugfix","existing_equivalent_evidence"],"rollback":["requirement_analysis","current_state_evidence"]},
+    {"id":"design","owner":"design","human":false,"required_by":["standard","strict"],"skip_types":["fast_route"],"rollback":["requirement_analysis","design"]},
+    {"id":"design_confirmation","owner":"controller","human":true,"required_by":["strict"],"skip_types":["fast_route","no_public_or_cross_owner_change"],"rollback":["requirement_analysis","design"]},
+    {"id":"independent_design_review","owner":"reviewer","human":false,"required_by":["strict"],"skip_types":["fast_route","no_public_or_cross_owner_change"],"rollback":["requirement_analysis","design"]},
+    {"id":"workspace_baseline","owner":"controller","human":false,"required_by":["fast","standard","strict"],"skip_types":[],"rollback":["design","workspace_baseline"]},
+    {"id":"implementation","owner":"implementer","human":false,"required_by":["fast","standard","strict"],"skip_types":[],"rollback":["design","implementation"]},
+    {"id":"integration","owner":"controller","human":false,"required_by":["fast","standard","strict"],"skip_types":[],"rollback":["implementation","integration"]},
+    {"id":"independent_code_review","owner":"reviewer","human":false,"required_by":["standard","strict"],"skip_types":["fast_route"],"rollback":["design","implementation"]},
+    {"id":"acceptance","owner":"controller","human":true,"required_by":["fast","standard","strict"],"skip_types":[],"rollback":["requirement_analysis","design","implementation","integration"]},
+    {"id":"closure","owner":"controller","human":false,"required_by":["fast","standard","strict"],"skip_types":[],"rollback":["acceptance"]}
+  ]
+}

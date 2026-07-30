@@ -9,7 +9,7 @@ Status: In Progress
 - [x] Establish the public spec registry and convergence owner.
 - [x] Record the public-upstream/private-downstream ADR.
 - [x] Add the classified transfer manifest.
-- [ ] Bootstrap the generic Initiative Harness for subsequent strict slices.
+- [x] Bootstrap the generic Initiative Harness for subsequent strict slices.
 
 ## Phase 1 — Product Identity Boundary
 
