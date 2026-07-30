@@ -61,14 +61,21 @@ target = Path(sys.argv[1])
 vault = Path(sys.argv[2])
 data = yaml.safe_load(Path("config.example.yaml").read_text(encoding="utf-8"))
 data["vault"]["path"] = str(vault)
+data["vaults"]["profiles"]["default"]["path"] = str(vault)
 data["connectors"]["markdown"]["settings"]["roots"] = [
-    str(vault / "raw" / "notes"),
-    str(vault / "raw" / "documents" / "markdown"),
+    str(vault / "raw" / "inbox" / "notes"),
+    str(vault / "raw" / "normalized" / "markdown"),
 ]
+data["models"]["default_provider"] = "release-smoke"
+data["models"]["providers"]["release-smoke"] = {
+    "base_url": "https://api.deepseek.com",
+    "api_key": "knoarbor-release-smoke-key",
+    "model": "deepseek-chat",
+}
 target.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
 PY
 uv run knoar --config "$TEMP_CONFIG" init --vault "$TEMP_VAULT" >/dev/null
-DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY:-knoarbor-release-smoke-key}" uv run knoar --config "$TEMP_CONFIG" doctor >/dev/null
+uv run knoar --config "$TEMP_CONFIG" doctor >/dev/null
 
 echo "14/14 Python package build"
 uv build
