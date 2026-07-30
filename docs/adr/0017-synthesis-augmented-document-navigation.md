@@ -54,4 +54,3 @@ decisions remain accepted.
 - no Raw, individual Claim/Entity/Relation row, attachment, storage path, or
   revision/evidence identity enters the outline;
 - selected regions still retrieve and cite only active Raw evidence.
-

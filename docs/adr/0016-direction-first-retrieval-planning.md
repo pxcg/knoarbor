@@ -91,4 +91,3 @@ Raw-authority boundary in this ADR remains accepted.
 - the fixed six-document retrieval suite records reachability, evidence count,
   packet size, latency, and planner usage without invoking candidate-level
   model judgment.
-

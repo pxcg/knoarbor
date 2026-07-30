@@ -114,4 +114,3 @@ dependencies can only raise it. R3 does not imply the full development gate.
   domain boundaries.
 - **Mechanical maximum-line rewrite**: lowers line counts while increasing
   indirection and is not an architecture improvement.
-

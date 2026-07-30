@@ -75,4 +75,3 @@ rsync -a "$ROOT_DIR/" "$STAGE_ROOT/" \
 
 ls -lh "$ARCHIVE_PATH"
 printf '%s\n' "$ARCHIVE_PATH"
-

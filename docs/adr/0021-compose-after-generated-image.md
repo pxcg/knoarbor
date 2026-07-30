@@ -107,4 +107,3 @@ and selected facts that are already owned by Answer Decision.
   existing warning.
 - Generated image Markdown and its non-evidence label render at the
   composer-selected item position.
-

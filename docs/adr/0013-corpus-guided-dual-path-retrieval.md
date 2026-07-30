@@ -144,4 +144,3 @@ remains the only local factual authority.
 - catalog payloads contain no Raw content, claim prose, revision IDs, evidence
   IDs, or projection prose;
 - Query evidence and citations resolve only to current Active Raw.
-

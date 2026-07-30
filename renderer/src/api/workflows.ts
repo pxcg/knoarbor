@@ -40,4 +40,3 @@ export async function ingestExcerpt(
 export async function runLint(body: Record<string, unknown>): Promise<unknown> {
   return requestJson("/lint", { method: "POST", body: { execution: "queued", ...body } });
 }
-

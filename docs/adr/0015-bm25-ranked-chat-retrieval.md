@@ -108,4 +108,3 @@ make model-free Query behavior provider-dependent.
   at least 95% lower-confidence-bound precision among emitted no-match results;
 - the frozen 42-point retrieval suite records expected-document reachability,
   Raw-anchor reachability, candidate count, evidence characters, and latency.
-

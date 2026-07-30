@@ -238,4 +238,3 @@ to be reproduced in full in the physical filename.
 - Serve arbitrary vault-relative paths through `/vault-assets`: rejected because
   it would expose raw inputs and runtime files beyond the intended rendering
   contract.
-

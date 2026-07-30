@@ -389,4 +389,3 @@ produce no-match.
   public evidence identity remain unchanged.
 - An unsupported v6 snapshot is rebuilt through the existing lifecycle owner;
   no v6 reader, dual schema, or query-time migration remains.
-

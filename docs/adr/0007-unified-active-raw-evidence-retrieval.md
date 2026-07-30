@@ -141,4 +141,3 @@ Progressive planning is an escalation within one retrieval session.
 - Specification 1.18 owns grounded and general synthesizer prompt contracts.
 - [ADR 0009](0009-complete-retrieval-enumeration.md) replaces fixed result-count
   limits with complete enumeration plus independent resource safety.
-

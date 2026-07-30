@@ -160,4 +160,3 @@ revision remains under verification.
   reader or query-time migration.
 - [x] Replace v6 with v7, removing synthesis rows and graph artifacts.
 - [x] Prove exact Raw hydration and focused Query behavior after normalization.
-

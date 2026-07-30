@@ -117,4 +117,3 @@ test("health probing uses a direct socket even when global fetch is unusable", a
     );
   }
 });
-

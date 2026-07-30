@@ -69,4 +69,3 @@ export function ExcerptIngestDialog({ context, draft, heading, error, submitting
     </Dialog>
   );
 }
-

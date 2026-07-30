@@ -37,4 +37,3 @@ export function userFacingError(error: unknown, language: Language, fallback?: s
   }
   return fallback || (zh ? "操作未能完成，请稍后重试。" : "The operation could not be completed. Try again shortly.");
 }
-

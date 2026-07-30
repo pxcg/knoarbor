@@ -34,4 +34,3 @@ export async function rerunFailedRun(selector: VaultSelector, runId: string, bod
 export async function rebuildIngestMaterialization(selector: VaultSelector): Promise<unknown> {
   return requestJson(`/ingest/materialization/rebuild?${singleVaultQuery(selector)}`, { method: "POST", body: {} });
 }
-

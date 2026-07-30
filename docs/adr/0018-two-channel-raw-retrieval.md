@@ -74,4 +74,3 @@ material. ADRs 0007, 0008, 0015, 0016, and 0017 otherwise remain in force.
 - schema replacement triggers a clean derived-index rebuild;
 - public Query, API, Chat consumers, desktop packaging metadata, dependencies,
   and documentation contain no graph retrieval contract.
-

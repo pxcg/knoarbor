@@ -29,4 +29,3 @@ export function PageVaultSwitcher({ activeVaultId, label, onChange, vaultOptions
     </label>
   );
 }
-

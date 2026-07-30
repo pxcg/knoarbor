@@ -130,4 +130,3 @@ become a second policy path before the product contract stabilizes.
   1.38 own unified locator retrieval, active Raw resolution, and the calibrated
   trustworthy no-match prerequisite.
 - Mixed-source answers and Web Search require separate accepted designs.
-

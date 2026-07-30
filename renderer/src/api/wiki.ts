@@ -39,4 +39,3 @@ export async function deletePage(selector: VaultSelector, path: string): Promise
     body: { path, ...selectorToBody(selector) },
   });
 }
-

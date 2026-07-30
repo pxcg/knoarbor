@@ -48,4 +48,3 @@ export async function sendQueryFeedback(
 export async function getQueryTrends(selector: VaultSelector, limit = 100): Promise<QueryTrendResponse> {
   return requestJson(`/query/trends?${singleVaultQuery(selector)}&limit=${limit}`);
 }
-

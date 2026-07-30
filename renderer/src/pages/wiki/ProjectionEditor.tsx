@@ -231,4 +231,3 @@ function objectIdentity(value: ProjectionRelationObjectEdit) {
 function commaList(value: string) {
   return value.split(/[,，]/).map((item) => item.trim()).filter(Boolean);
 }
-

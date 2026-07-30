@@ -135,4 +135,3 @@ mismatched graph generations, Raw evidence closure, unchanged direct-query
 behavior, and Chat citation integrity. Full tests, desktop packaging, and live
 model checks run only when the actual changed closure or a release checkpoint
 requires them.
-

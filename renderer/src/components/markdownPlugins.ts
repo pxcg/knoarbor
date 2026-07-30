@@ -4,4 +4,3 @@ import remarkMath from "remark-math";
 
 export const markdownRemarkPlugins = [remarkGfm, remarkMath];
 export const markdownRehypePlugins = [rehypeKatex];
-

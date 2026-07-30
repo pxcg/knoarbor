@@ -17,4 +17,3 @@ for (const artifact of artifacts) {
 }
 
 process.stdout.write("Removed generated desktop package artifacts.\n");
-

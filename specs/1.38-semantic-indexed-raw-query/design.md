@@ -578,4 +578,3 @@ vault-scoped handles, stable cursor, and trustworthy no-match.
 Rejected because per-request BM25 or a second postings scorer would make
 ranking and no-match depend on the runtime environment rather than one verified
 snapshot contract.
-

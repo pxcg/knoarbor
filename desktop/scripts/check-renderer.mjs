@@ -14,4 +14,3 @@ if (!existsSync(rendererIndex)) {
 }
 
 console.log(`Using KnoArbor renderer build output: ${rendererDist}`);
-

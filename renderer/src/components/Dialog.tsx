@@ -41,4 +41,3 @@ export function Dialog({ children, className, closeLabel, eyebrow, footer, isOpe
   );
   return createPortal(dialog, document.body);
 }
-

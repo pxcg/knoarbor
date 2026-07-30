@@ -135,4 +135,3 @@ gateway retries remain responsible only for malformed stage output.
   retain their accepted behavior.
 - Structural searches find no live unified Final Answer prompt, schema, or
   `final_answer` semantic phase.
-

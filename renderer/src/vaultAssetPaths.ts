@@ -40,4 +40,3 @@ export function vaultAssetPathFromApiSrc(src: string): string | null {
     return encoded;
   }
 }
-

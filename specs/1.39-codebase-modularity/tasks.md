@@ -53,4 +53,3 @@ Implemented
 - [x] Remove the obsolete QueryPipeline index-provider compatibility parameter.
 - [x] Add executable affected-validation planning without default full tests,
   desktop packaging, or `dev-check.sh` escalation.
-

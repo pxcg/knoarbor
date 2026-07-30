@@ -65,4 +65,3 @@ function approximateChangeRatio(before: string, after: string) {
   const changed = Math.max(before.length - prefix - suffix, after.length - prefix - suffix);
   return Math.min(1, changed / Math.max(1, before.length, after.length));
 }
-

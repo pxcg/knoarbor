@@ -210,4 +210,3 @@ export type ChatSessionWorkflowResponse = {
   status?: string | null;
   reason: string;
 };
-

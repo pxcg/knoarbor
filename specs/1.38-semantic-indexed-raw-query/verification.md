@@ -308,4 +308,3 @@ edges `1,822`; Raw metadata fell from `219,552,861` to `12,634,828` characters
 mechanically selected 490-test dependency closure, all 780 Python tests, Ruff,
 architecture governance, documentation governance/links, and diff whitespace
 validation passed.
-

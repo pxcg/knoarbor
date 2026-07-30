@@ -92,4 +92,3 @@ test("desktop still finishes quitting when service shutdown reports an error", a
   assert.equal(errors.length, 1);
   assert.equal(quitCalls, 1);
 });
-

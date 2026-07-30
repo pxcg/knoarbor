@@ -78,4 +78,3 @@ export type QueryTrendResponse = {
   low_confidence_count: number;
   repeated_gap_queries: Array<{ query: string; count: number }>;
 };
-

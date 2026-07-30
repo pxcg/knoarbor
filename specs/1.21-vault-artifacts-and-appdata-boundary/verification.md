@@ -55,4 +55,3 @@ After implementation, add or update tests to verify:
 - Generated attachment filenames remain within the declared segment bound and
   avoid Windows-reserved names.
 - Repeated service output produces bounded rotated log files.
-

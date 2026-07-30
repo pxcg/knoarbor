@@ -149,4 +149,3 @@ would require a new block-level public contract.
   `generated_image_prompt`; image wording never bypasses Final Answer.
 - Searches find no live general-routing gate, local-evidence regex, separate
   general prompt, or grounded/general synthesizer.
-

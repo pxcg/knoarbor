@@ -177,4 +177,3 @@ latency and behavior.
 - structural checks find no live dimension-coverage loop, model retrieval
   planner, Chat candidate frontier, or persisted retrieval continuation;
 - a real desktop comparison completes without recursive model-call exhaustion.
-

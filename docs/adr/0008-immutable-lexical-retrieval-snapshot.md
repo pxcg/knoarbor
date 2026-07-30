@@ -128,4 +128,3 @@ gap. It must still implement ADR 0007 identities and typed outcomes.
   active evidence resolution, and Query outcomes.
 - Specification 1.10 owns bounded progressive planning over the shared
   retrieval snapshot.
-

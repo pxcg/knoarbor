@@ -92,4 +92,3 @@ a plausible model answer.
   agree on policy-free provenance.
 - Searches find no live answer-policy selector, type, field, default, or
   persisted record outside superseded historical material.
-

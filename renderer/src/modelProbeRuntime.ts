@@ -29,4 +29,3 @@ export function currentModelProbeAssessment(
     status: discovery.available ? "ok" : discovery.status,
   };
 }
-

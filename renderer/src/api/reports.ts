@@ -12,4 +12,3 @@ export async function getReports(
 export async function getReport(selector: VaultSelector, path: string): Promise<ReportDetail> {
   return requestJson(`/reports/content?${singleVaultQuery(selector)}&path=${encodeURIComponent(path)}`);
 }
-

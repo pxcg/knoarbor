@@ -72,4 +72,3 @@ Final ownership closure verified 2026-07-17:
 - full Python discovery, desktop packaging, live-model checks, and
   `dev-check.sh` were not run because the actual dependency closure did not
   require those release-level gates.
-

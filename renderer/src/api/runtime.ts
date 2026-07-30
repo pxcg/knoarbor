@@ -34,4 +34,3 @@ export async function getGraph(vaultPath: string): Promise<GraphResponse> {
 export async function getTokenAnalysis(vaultPath: string, limit = 5000): Promise<TokenAnalysis> {
   return requestJson(`/tokens?vault_path=${encodeURIComponent(vaultPath)}&limit=${limit}`);
 }
-

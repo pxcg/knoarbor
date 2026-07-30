@@ -57,4 +57,3 @@ export const configCapabilities = (context: AppContext) => selectCapabilities(co
   "refreshAll", "setAppearanceMode", "setConfigContent", "setConfigExists",
   "setConfigPath", "setLanguage", "setModelProbeResults", "setSummary", "t",
 ] as const);
-

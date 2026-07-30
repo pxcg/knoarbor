@@ -65,4 +65,3 @@ imports or cross-layer policy leaks.
 - Frontend build and Playwright smoke pass after domain extraction.
 - Python tests and package builds pass without compatibility branches.
 - Targeted aggregation modules have coherent responsibility boundaries.
-

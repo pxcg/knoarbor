@@ -29,4 +29,3 @@
 - [ ] Add bounded service-log rotation.
 - [ ] Replace name-based backup exclusions with canonical root-aware selection.
 - [ ] Bound and sanitize generated source-attachment path segments for Windows.
-

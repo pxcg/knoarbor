@@ -32,4 +32,3 @@ export function submitExcerptDraft(configPath: VaultSelector["config_path"], dra
     excerpt_context: draft.context,
   });
 }
-

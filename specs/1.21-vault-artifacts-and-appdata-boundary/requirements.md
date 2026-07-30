@@ -80,4 +80,3 @@ the directories inside that root must have clear ownership.
   rebuilt or deleted.
 - A backup/restore fixture preserves a user directory named `Cache`, `logs`, or
   `tmp` when it is part of durable vault content.
-

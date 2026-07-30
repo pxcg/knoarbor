@@ -38,4 +38,3 @@ export function vaultListQuery(selector: VaultSelector, options: VaultScopedList
   for (const vaultId of options.vault_ids || []) params.append("vault_ids", vaultId);
   return params.toString();
 }
-

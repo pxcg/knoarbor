@@ -71,4 +71,3 @@ materialization remain unchanged.
 - Empty, invalid, or unavailable navigation falls back to one unscoped query.
 - Existing single-query, relation, Raw resolution, citation, and no-match
   contracts remain valid.
-

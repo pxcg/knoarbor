@@ -45,4 +45,3 @@
     RMDir /r "$LOCALAPPDATA\KnoArbor"
   ${EndIf}
 !macroend
-

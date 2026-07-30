@@ -50,4 +50,3 @@ assert.equal(windowsPng.readUInt32BE(20), 512, "The Windows runtime icon must be
 assert.equal(windowsPng[25], 6, "The Windows runtime icon must use RGBA color data.");
 
 console.log("Verified KnoArbor Windows icon assets and packaging configuration.");
-
