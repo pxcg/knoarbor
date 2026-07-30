@@ -148,21 +148,21 @@ Release helpers and their required order are documented in
 
 ## Branch And Release Model
 
-`KnoArbor` is the active integration and release branch of the company
-repository. Legacy `origin/main` and `origin/dev` retain upstream history but
-are not the default targets for current KnoArbor development.
+`main` is the public integration and release branch. Reusable behavior lands
+here first. The private `SieArbor` product line consumes accepted public changes
+downstream and is never merged back into public history.
 
-- Start focused work from `KnoArbor` and use `codex/*`, `feature/*`, `fix/*`, or
-  `docs/*` branches when isolation is needed.
+- Start focused work from the current `main` and use `codex/*`, `feature/*`,
+  `fix/*`, or `docs/*` branches for isolation.
 - Keep commits scoped to one owner or user-visible concern and merge them back
-  into `KnoArbor` only after affected validation passes.
-- Create production tags from a clean `KnoArbor` checkout using the
-  `knoarbor-vX.Y.Z` namespace.
+  into `main` only after affected validation passes.
+- Create production tags from a clean `main` checkout using the `vX.Y.Z`
+  namespace.
 - For a release candidate, run `scripts/release-check.sh`, prepare the changelog
   and `docs/releases/vX.Y.Z.md`, then build/sign/package through the desktop
   lifecycle and release procedures.
-- Urgent fixes branch from the released `KnoArbor` commit and return to
-  `KnoArbor` after the patch release.
+- Urgent fixes branch from the released `main` commit and return to `main`
+  after the patch release.
 
 Do not rewrite consumed release tags or push runtime vaults, private config,
 `.env`, local workflow exports, or maintainer-only notes. A dirty working tree

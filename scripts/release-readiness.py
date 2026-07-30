@@ -63,7 +63,7 @@ def main() -> int:
         "head": run(["git", "rev-parse", "--short", "HEAD"]).stdout.strip(),
     }
     ok = (
-        checks["branch"] in {"main", "dev"}
+        checks["branch"] == "main"
         and not checks["dirty_worktree"]
         and not checks["required_files"]
         and not checks["tracked_private_paths"]
