@@ -57,6 +57,21 @@ artifacts, and returned `dispatch_role: requirement` at Requirement analysis.
 The temporary repository and generated Initiative state were removed after the
 observation.
 
+## Upstream And Downstream Delivery
+
+The reusable boundary landed on public `main` through KnoArbor PRs
+[#4](https://github.com/pxcg/knoarbor/pull/4) and
+[#5](https://github.com/pxcg/knoarbor/pull/5). SieArbor then merged those
+public commits through enterprise PR
+[#3](https://github.com/pxcg/SieArbor/pull/3), retaining its product identity,
+enterprise specifications, objectives, specialist Skills, bilingual
+governance, and lifecycle checks while deleting the parallel Python Harness.
+
+Both repositories passed their complete CI jobs, including the new Harness
+contract job. The downstream integration used a separate clean worktree; the
+existing SieArbor worktree and its unrelated renderer changes were not
+modified.
+
 ## Adoption Review
 
 Keep lifecycle `Accepted` until five real Initiatives are reviewed for duration,
