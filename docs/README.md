@@ -15,6 +15,7 @@ intentional technical identifiers and are not alternate product names.
 - Contracts: frozen API, UI, report, provenance, and runtime boundaries.
 - Architecture: system boundaries, capability ownership, roadmap, and ADRs.
 - Maintainer operations: development, testing, release, and long-term governance.
+- Engineering standards: mutually exclusive development lanes, SDD, and code navigation.
 - Release history: changelog and version-specific release notes.
 
 See [Documentation Governance](DOCUMENTATION_GOVERNANCE.md) for ownership and cleanup rules.
@@ -59,6 +60,9 @@ See [Documentation Governance](DOCUMENTATION_GOVERNANCE.md) for ownership and cl
 - [Development](DEVELOPMENT.md): setup, tests, package layout, design rules, and release notes.
 - [Maintainer Guide](MAINTAINERS.md): long-term branch, architecture, fallback, compatibility, and release governance.
 - [Documentation Governance](DOCUMENTATION_GOVERNANCE.md): document classes, ownership, cleanup, and archival rules for maintainers.
+- [Development Workflow](standards/development-workflow.md): Architecture Discovery, Direct Maintenance, Direct SDD, and Patterned Harness admission.
+- [Spec-Driven Development](standards/spec-driven-development.md): spec levels, reference reuse, and workflow integration.
+- [Code Navigation Map](standards/code-navigation-map.md): formal hosts, contracts, and focused evidence.
 - [Feature Specs](../specs/README.md): implementation records for multi-step architecture or contract changes.
 - [Contributing](../CONTRIBUTING.md): contribution process, branch model, tests, and privacy rules.
 - [Security](../SECURITY.md): vulnerability reporting and secret handling.

@@ -54,6 +54,11 @@ KnoArbor 对影响架构、公开契约、来源 connector、语义契约、流�
 
 规格文件位于 [`specs/`](../../specs/README.md)。它们负责把路线图主题连接到实现、测试和发布说明。长期公开文档保留稳定的用户和贡献者视角：
 
+所有改动先按 [开发流程标准](../standards/development-workflow.md) 分类。Architecture
+Discovery、Direct Maintenance、Direct SDD 和 Patterned Harness 互斥；完整 Harness
+只用于已准入的多 owner 产品交付，不是普通高风险或跨包任务的通用包装。Harness 自身
+变更使用 Bootstrap Maintenance，不能由正在被替换的 runtime 自证。
+
 - `docs/ROADMAP.md` 负责产品方向和版本主题。
 - `docs/ARCHITECTURE.md` 负责稳定分层和边界。
 - `docs/API.md`、`docs/CLI.md` 和 `docs/CONFIGURATION.md` 负责公开契约。

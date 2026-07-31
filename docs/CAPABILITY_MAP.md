@@ -8,43 +8,47 @@ implementation state. It complements the roadmap and feature specs:
   verification.
 - this file owns the cross-feature capability state.
 
-## Status Legend
+## Maturity Dimensions
 
-| Status | Meaning |
-| --- | --- |
-| Frozen | The boundary is accepted; later work extends through this boundary. |
-| Implemented | The capability has a working baseline and tests or release checks. |
-| Partial | The main direction is accepted; implementation or verification is still incomplete. |
-| Planned | The capability is accepted for a future roadmap line. |
-| Deferred | The capability is useful, with a later product horizon. |
+Each capability has one stable ID and four independent maturity dimensions:
+
+- contract: `frozen`, `defined`, or `undefined`;
+- implementation: `complete`, `foundation`, `partial`, or `unimplemented`;
+- automated evidence: `broad`, `focused`, `mapped`, or `none`;
+- product acceptance: `scoped_pass`, `partial`, `pending`, or
+  `not_applicable`.
+
+These values are consumed mechanically by the Development Harness Adapter.
 
 ## Core Capabilities
 
-| Capability | Status | Current boundary | Owning docs/specs |
-| --- | --- | --- | --- |
-| Source connectors | Implemented | Connectors convert external material into `SourceDocument`; source-specific parsing stays in connector or document-processing code. | [1.3 Source Ecosystem](../specs/1.3-source-ecosystem/requirements.md), [Configuration](CONFIGURATION.md) |
-| Source catalog | Implemented | `/sources`, `knoar sources --catalog`, and the console expose connector metadata, settings schema, and runtime configuration state. | [1.3 Source Ecosystem](../specs/1.3-source-ecosystem/requirements.md), [API](API.md), [CLI](CLI.md) |
-| Document preprocessing | Partial | Rich documents are prepared into Markdown before shared ingest; MinerU-compatible services are an adapter behind document processing. | [Architecture](ARCHITECTURE.md), [Configuration](CONFIGURATION.md) |
-| Source segmentation | Implemented | Long sources are segmented after normalization and checkpoint windowing, then aggregated at source/window level before commit. | [Architecture](ARCHITECTURE.md), [1.3 Source Ecosystem](../specs/1.3-source-ecosystem/requirements.md) |
-| Ingest pipeline | Implemented | Ingest freezes normalized inputs, creates source units and immutable factual revisions, publishes active heads atomically, then materializes rebuildable wiki/index projections and reports. | [Architecture](ARCHITECTURE.md), [Concepts](CONCEPTS.md) |
-| Lint governance | Implemented | Lint owns deterministic scans, semantic candidates, reviewed operation execution, verification, and maintenance reports. | [1.5 Knowledge Governance](../specs/1.5-knowledge-governance/requirements.md), [Architecture](ARCHITECTURE.md) |
-| Query context retrieval | Implemented | Query ranks active knowledge atoms, selects answer-bearing claims, follows explicit evidence edges to complete active raw source units, and returns stable evidence identities, gaps, trace data, and optional projection locators without scoring raw text or treating pages as factual authority. | [1.38 Semantic Indexed Raw Query](../specs/1.38-semantic-indexed-raw-query/requirements.md), [API](API.md) |
-| Runtime execution and monitor | Implemented | Runtime owns persisted transactional task state, in-process scheduling, heartbeats, cancellation, recovery metadata, and active/recent run views; it does not depend on a separate persistent worker queue. | [Architecture](ARCHITECTURE.md), [API](API.md) |
-| Report and audit layer | Implemented | Audit owns ingest, lint, query, token, and failure reports plus machine-readable ledgers. | [Architecture](ARCHITECTURE.md), [Testing](TESTING.md) |
-| Model gateway | Implemented | Model calls pass through provider adapters, OpenAI-compatible or Ollama-native transport, structured-output handling, usage metrics, and endpoint checks. | [Architecture](ARCHITECTURE.md), [Configuration](CONFIGURATION.md) |
-| Multi-vault configuration | Implemented | Config supports named vaults and active vault selection; public APIs accept vault selection parameters where relevant. | [Configuration](CONFIGURATION.md), [API](API.md) |
-| Web console | Partial | The console provides local product workflows for sources, ingest, lint, query, wiki browsing, graph, reports, runs, settings, and token analysis. | [1.6 Productized Console](../specs/1.6-productized-console/requirements.md), [Showcase](SHOWCASE.md) |
-| Frontend i18n guardrails | Implemented | UI copy is centralized under `renderer/src/i18n/`; the frontend build checks Chinese/English key parity before bundling. | [Testing](TESTING.md) |
-| CLI surface | Implemented | CLI commands provide human-readable output and JSON output for automation. | [1.7 CLI/API/Skill Closure](../specs/1.7-cli-api-skill-closure/requirements.md), [CLI](CLI.md) |
-| Public API surface | Implemented | Public endpoint families cover health/doctor, vaults/config/models, sources, ingest/lint/query, chat, runs/reports, wiki pages, tokens, and runtime metadata through stable domain contracts. | [API](API.md), [API Compatibility](API_COMPATIBILITY.md) |
-| Host-AI skill | Implemented | The skill calls local APIs for query, page reading, source catalog, runs, reports, ingest, and lint operations. | [1.7 CLI/API/Skill Closure](../specs/1.7-cli-api-skill-closure/requirements.md) |
-| Machine index layer | Partial | Immutable index generations selected by `.knoarbor/index/CURRENT` support page and graph navigation. Default query reads active semantic atoms and explicit claim-evidence edges from factual storage; richer provider choices and freshness diagnostics remain incomplete. | [1.4 Machine Index Layer](../specs/1.4-machine-index-layer/requirements.md), [1.38 Semantic Indexed Raw Query](../specs/1.38-semantic-indexed-raw-query/requirements.md) |
-| Optional vector retrieval | Deferred | Vector retrieval remains an optional provider behind the index contract. | [1.4 Machine Index Layer](../specs/1.4-machine-index-layer/requirements.md) |
-| Hosted multi-user service | Deferred | Local-first single-user usage remains the active product baseline. | [Roadmap](ROADMAP.md) |
+| ID | Capability | Contract | Implementation | Automated evidence | Product acceptance | Current boundary | Active owner |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| CAP-SOURCE-CONNECTORS | Source connectors | frozen | complete | broad | scoped_pass | Connectors normalize external material into `SourceDocument`; source-specific parsing stays in connector or document-processing code. | `specs/1.3-source-ecosystem/requirements.md` |
+| CAP-SOURCE-CATALOG | Source catalog | defined | complete | focused | scoped_pass | API, CLI, and console expose connector metadata, settings schema, and runtime configuration state. | `specs/1.3-source-ecosystem/requirements.md` |
+| CAP-DOCUMENT-PREPROCESSING | Document preprocessing | defined | partial | focused | partial | Rich documents are prepared into Markdown behind the shared document-processing boundary. | `docs/ARCHITECTURE.md` |
+| CAP-SOURCE-SEGMENTATION | Source segmentation | frozen | complete | focused | scoped_pass | Segmentation follows normalization and checkpoint windowing before source/window aggregation. | `specs/1.3-source-ecosystem/requirements.md` |
+| CAP-INGEST | Ingest pipeline | frozen | complete | broad | scoped_pass | Ingest freezes inputs, creates source units and factual revisions, atomically publishes active heads, and materializes rebuildable projections. | `specs/1.26-raw-grounded-ingest-chain/requirements.md` |
+| CAP-LINT | Lint governance | defined | complete | focused | scoped_pass | Lint owns deterministic scans, semantic candidates, reviewed operation execution, verification, and reports. | `specs/1.5-knowledge-governance/requirements.md` |
+| CAP-QUERY | Query context retrieval | frozen | complete | broad | scoped_pass | Query selects claims and resolves complete active Raw evidence without treating projections as factual authority. | `specs/1.38-semantic-indexed-raw-query/requirements.md` |
+| CAP-RUNTIME | Runtime execution and monitor | frozen | complete | broad | scoped_pass | Runtime owns transactional task state, scheduling, heartbeats, cancellation, recovery, and run views. | `docs/ARCHITECTURE.md` |
+| CAP-AUDIT | Report and audit layer | defined | complete | focused | scoped_pass | Audit owns ingest, lint, query, token, and failure reports plus machine-readable ledgers. | `docs/REPORT_CONTRACT.md` |
+| CAP-MODEL-GATEWAY | Model gateway | defined | complete | focused | scoped_pass | Provider adapters own transport, structured output, usage metrics, and endpoint checks. | `docs/CONTRACTS.md` |
+| CAP-MULTI-VAULT | Multi-vault configuration | defined | complete | focused | scoped_pass | Named vaults and active selection flow through public API/config contracts. | `specs/1.9-vault-workspaces/requirements.md` |
+| CAP-WEB-CONSOLE | Web console | defined | partial | focused | partial | The console exposes local product workflows through typed API consumers. | `specs/1.6-productized-console/requirements.md` |
+| CAP-I18N | Frontend i18n guardrails | defined | complete | focused | scoped_pass | Renderer copy uses centralized Chinese/English keys with deterministic parity checks. | `docs/UI_CONTRACT.md` |
+| CAP-CLI | CLI surface | frozen | complete | broad | scoped_pass | CLI commands provide human and JSON output through stable domain contracts. | `docs/CLI.md` |
+| CAP-PUBLIC-API | Public API surface | frozen | complete | broad | scoped_pass | Stable endpoint families publish domain contracts for product adapters. | `docs/API.md` |
+| CAP-HOST-SKILL | Host-AI skill | defined | complete | focused | scoped_pass | The skill calls stable local APIs and does not own product truth. | `specs/1.7-cli-api-skill-closure/requirements.md` |
+| CAP-MACHINE-INDEX | Machine index layer | defined | partial | focused | partial | Immutable index generations support navigation while factual storage remains authority. | `specs/1.4-machine-index-layer/requirements.md` |
+| CAP-VECTOR-RETRIEVAL | Optional vector retrieval | defined | unimplemented | mapped | pending | Vector retrieval remains optional behind the index provider contract. | `specs/1.4-machine-index-layer/requirements.md` |
+| CAP-HOSTED-SERVICE | Hosted multi-user service | undefined | unimplemented | none | not_applicable | Local-first single-user use remains the active baseline. | `docs/ROADMAP.md` |
+| CAP-DEVELOPMENT-HARNESS | Development Harness | frozen | complete | broad | partial | Shared Core plus the KnoArbor Adapter provides Patterned Harness while direct lanes remain valid. | `specs/1.41-project-development-harness/requirements.md` |
 
 ## Capability Completion Rule
 
-A capability reaches `Implemented` when these conditions hold:
+A capability reaches `complete` implementation and `scoped_pass` acceptance
+when these conditions hold:
 
 - a public or internal contract is documented;
 - the owning layer is named in architecture or a feature spec;
@@ -53,5 +57,5 @@ A capability reaches `Implemented` when these conditions hold:
 - reports, ledgers, or traces expose enough evidence for later diagnosis when
   the capability mutates the vault or calls a model.
 
-`Frozen` is a boundary state, separate from feature completion. A frozen
-boundary can contain planned or partial capabilities.
+Contract maturity is separate from feature completion. A frozen contract can
+still have partial implementation or acceptance.

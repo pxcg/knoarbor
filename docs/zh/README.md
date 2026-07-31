@@ -60,6 +60,9 @@ KnoArbor 是产品与公司仓库名称。`knoarbor`（Python 包与本地数据
 - [测试与质量门禁](TESTING.md)：单元测试、前端冒烟、发布检查和真实模型冒烟边界。
 - [发布前审查清单](RELEASE_CHECKLIST.md)：公开发布前的仓库、隐私、测试、文档、UI 和发布门禁。
 - [文档治理规则](DOCUMENTATION_GOVERNANCE.md)：面向维护者的文档分类、归属、清理和归档规则。
+- [开发流程标准](../standards/development-workflow.md)：Architecture Discovery、Direct Maintenance、Direct SDD 与 Patterned Harness 的互斥入口。
+- [SDD 标准](../standards/spec-driven-development.md)：规格等级、外部参考复用和交付闭环。
+- [代码导航图](../standards/code-navigation-map.md)：Formal Host、契约与聚焦验证入口。
 - [功能规格](../../specs/README.md)：多步骤架构或契约变更的实现记录。
 - [贡献指南](../../CONTRIBUTING.md)：贡献流程、分支模型、测试和隐私规则。
 - [安全说明](../../SECURITY.md)：漏洞报告和密钥处理。

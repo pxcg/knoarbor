@@ -28,13 +28,12 @@ R3 does not automatically require full unit discovery, `dev-check.sh`, desktop
 packaging, or live-model tests. Those gates are selected only when the changed
 dependency closure reaches them or work enters a release/full-acceptance node.
 
-For an Initiative, the affected planner informs the fixed method gate catalog
-but does not own completion. `project-development-harness.py baseline` captures
-the workspace and baseline profile; `run-gates --phase integration` binds the
-integration stage to the same fixed checks; `acceptance` reruns their stable
-identities and enforces `gate-delta` plus `scope`. Selected full-chain or
-live-model gates use `record-external-gate` with a result, evidence ID, and
-SHA-256 digest—never raw output. An identical pre-existing
+For an admitted Patterned Harness Initiative, the affected planner informs the
+fixed Adapter Gate catalog but does not own completion. `pnpm harness --`
+captures the baseline, executes the fixed integration checks, compares stable
+Gate identities at acceptance, and enforces scope. Selected full-chain or
+live-model evidence is represented by bounded receipts—never raw output. An
+identical pre-existing
 failure stays visible without being
 attributed to the Initiative. A new or changed hard failure blocks acceptance;
 a soft failure requires a recorded owner, acknowledgement, and expiry/removal

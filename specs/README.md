@@ -51,7 +51,7 @@ and must not establish a second lifecycle policy.
 | 1.37.x | [Local-First Ingest Simplification](1.37-local-first-ingest-simplification/requirements.md) | Local operation ownership, source-level recovery, one materialization epoch, and removal of persistent worker machinery. |
 | 1.38.x | [Unified Active Raw Evidence Retrieval](1.38-semantic-indexed-raw-query/requirements.md) | Atom/claim and Raw-unit locator recall, unified active evidence identities, typed query outcomes, and raw-only factual context. |
 | 1.39.x | [Codebase Modularity](1.39-codebase-modularity/requirements.md) | Backend dependency direction, responsibility boundaries, frontend domain organization, and maintainability gates. |
-| 1.41.x | [Project Development Harness](1.41-project-development-harness/requirements.md) | Optional bounded-development tooling; ordinary SDD and repository gates remain valid delivery paths. |
+| 1.41.x | [Project Development Harness](1.41-project-development-harness/requirements.md) | Shared-Core Patterned Harness, project Adapter, workflow lanes, Skills, capability/host projections, and documentation governance; Direct Maintenance and Direct SDD remain first-class. |
 | 1.42.x | [Public Product Line Convergence](1.42-public-product-line-convergence/requirements.md) | Public-safe capability convergence, canonical product identity, compatibility classification, and upstream/downstream governance. |
 
 ## Spec Lifecycle

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Development Harness Controller"
+  short_description: "Operate admitted KnoArbor Harness initiatives safely"
+  default_prompt: "Use $development-harness-controller to operate this admitted KnoArbor initiative."

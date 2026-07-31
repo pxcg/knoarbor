@@ -18,6 +18,23 @@ report, and provenance rules belong to their linked owner documents.
 | Ingest semantic chain | specifications 1.26 and 1.27 |
 | Query retrieval and evidence resolution | specification 1.38 and ADR 0003 |
 
+## Formal Host Bindings
+
+These stable IDs allow development tooling to bind an accepted responsibility
+without inferring authority from file layout. The machine projection in
+`harness/rules/semantic-hosts.json` must match this table and cannot introduce
+new authority.
+
+| Host ID | Formal host | Responsibilities |
+| --- | --- | --- |
+| `HOST-INGEST-CONTROL` | `src/knoarbor/services/ingest_coordinator.py` | `RESP-INGEST-SUBMISSION`, `RESP-INGEST-RECOVERY` |
+| `HOST-FACTUAL-REVISION` | `src/knoarbor/storage/source_revisions.py` | `RESP-FACTUAL-TRUTH`, `RESP-FACTUAL-PUBLICATION` |
+| `HOST-QUERY-PIPELINE` | `src/knoarbor/pipelines/query.py` | `RESP-QUERY-EVIDENCE`, `RESP-QUERY-PUBLICATION` |
+| `HOST-CHAT-WORKFLOW` | `src/knoarbor/services/chat_session_workflow.py` | `RESP-CHAT-COORDINATION`, `RESP-CHAT-LIFECYCLE` |
+| `HOST-RUNTIME-TRANSACTION` | `src/knoarbor/runtime/transactional_ingest.py` | `RESP-RUNTIME-LIFECYCLE`, `RESP-RUNTIME-RECOVERY` |
+| `HOST-PUBLIC-API` | `src/knoarbor/entrypoints/api_contract.py` | `RESP-API-PUBLICATION` |
+| `HOST-WEB-CONSOLE` | `renderer/src/appRuntime.ts` | `RESP-WEB-CONSOLE-PROJECTION` |
+
 Feature specs explain implementation intent. This document and its linked
 contract owners describe the current supported boundary.
 

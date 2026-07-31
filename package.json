@@ -2,6 +2,7 @@
   "name": "knoarbor-workspace",
   "private": true,
   "version": "2.5.3",
+  "packageManager": "pnpm@11.1.3",
   "scripts": {
     "build:renderer": "npm --prefix renderer run build",
     "build:desktop": "npm --prefix desktop run build",
@@ -12,6 +13,17 @@
     "pack:win": "npm --prefix desktop run pack:win",
     "dist:mac": "npm --prefix desktop run dist:mac",
     "dist:win": "npm --prefix desktop run dist:win",
-    "typecheck:desktop": "npm --prefix desktop run typecheck"
+    "typecheck:desktop": "npm --prefix desktop run typecheck",
+    "harness": "tsx harness/src/cli.ts",
+    "harness:bootstrap": "node scripts/bootstrap-development-harness.mjs",
+    "harness:bootstrap:check": "node scripts/bootstrap-development-harness.mjs --check",
+    "harness:test": "pnpm --filter @knoarbor/development-harness test",
+    "harness:typecheck": "pnpm --filter @knoarbor/development-harness typecheck",
+    "check:documentation": "uv run python scripts/check-doc-governance.py && uv run python scripts/check-doc-links.py"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
   }
 }
