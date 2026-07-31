@@ -42,7 +42,7 @@ Accepted. The shared-Core migration is the current revision.
 - [x] Pass Core, Adapter, documentation, links, architecture, and affected
   validation.
 - [x] Run a temporary Patterned Harness journey and record the truthful result.
-- [ ] Commit the public upstream boundary and integrate it into private
+- [x] Commit the public upstream boundary and integrate it into private
   downstream without disturbing unrelated work.
 
 ## Adoption
