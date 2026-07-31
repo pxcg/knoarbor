@@ -3,3 +3,9 @@ packages:
 
 allowBuilds:
   esbuild: true
+
+# The shared Core is a reviewed, checksum-pinned local tarball rather than a
+# registry release. Exclude only this package from pnpm's registry-age lookup;
+# every registry dependency keeps pnpm 11's default supply-chain policy.
+minimumReleaseAgeExclude:
+  - "@development-harness/core@0.11.0"
