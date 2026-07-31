@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "knoarbor.semantic_hosts.v1",
+  "authority": "projection_of_active_contracts",
+  "hosts": [
+    {
+      "id": "HOST-INGEST-CONTROL",
+      "name": "Ingest coordination boundary",
+      "hostModule": "src/knoarbor/services/ingest_coordinator.py",
+      "ownerDocument": "docs/CONTRACTS.md",
+      "responsibilities": [
+        {"id": "RESP-INGEST-SUBMISSION", "kind": "coordination"},
+        {"id": "RESP-INGEST-RECOVERY", "kind": "recovery"}
+      ]
+    },
+    {
+      "id": "HOST-FACTUAL-REVISION",
+      "name": "Immutable factual revision authority",
+      "hostModule": "src/knoarbor/storage/source_revisions.py",
+      "ownerDocument": "docs/CONTRACTS.md",
+      "responsibilities": [
+        {"id": "RESP-FACTUAL-TRUTH", "kind": "truth"},
+        {"id": "RESP-FACTUAL-PUBLICATION", "kind": "boundary_publication"}
+      ]
+    },
+    {
+      "id": "HOST-QUERY-PIPELINE",
+      "name": "Raw-grounded query authority",
+      "hostModule": "src/knoarbor/pipelines/query.py",
+      "ownerDocument": "docs/CONTRACTS.md",
+      "responsibilities": [
+        {"id": "RESP-QUERY-EVIDENCE", "kind": "truth"},
+        {"id": "RESP-QUERY-PUBLICATION", "kind": "boundary_publication"}
+      ]
+    },
+    {
+      "id": "HOST-CHAT-WORKFLOW",
+      "name": "Chat answer workflow authority",
+      "hostModule": "src/knoarbor/services/chat_session_workflow.py",
+      "ownerDocument": "docs/CONTRACTS.md",
+      "responsibilities": [
+        {"id": "RESP-CHAT-COORDINATION", "kind": "coordination"},
+        {"id": "RESP-CHAT-LIFECYCLE", "kind": "lifecycle"}
+      ]
+    },
+    {
+      "id": "HOST-RUNTIME-TRANSACTION",
+      "name": "Transactional runtime authority",
+      "hostModule": "src/knoarbor/runtime/transactional_ingest.py",
+      "ownerDocument": "docs/ARCHITECTURE.md",
+      "responsibilities": [
+        {"id": "RESP-RUNTIME-LIFECYCLE", "kind": "lifecycle"},
+        {"id": "RESP-RUNTIME-RECOVERY", "kind": "recovery"}
+      ]
+    },
+    {
+      "id": "HOST-PUBLIC-API",
+      "name": "Public API contract publisher",
+      "hostModule": "src/knoarbor/entrypoints/api_contract.py",
+      "ownerDocument": "docs/API.md",
+      "responsibilities": [
+        {"id": "RESP-API-PUBLICATION", "kind": "boundary_publication"}
+      ]
+    },
+    {
+      "id": "HOST-WEB-CONSOLE",
+      "name": "Web console projection boundary",
+      "hostModule": "renderer/src/appRuntime.ts",
+      "ownerDocument": "specs/1.6-productized-console/requirements.md",
+      "responsibilities": [
+        {"id": "RESP-WEB-CONSOLE-PROJECTION", "kind": "boundary_publication"}
+      ]
+    }
+  ]
+}

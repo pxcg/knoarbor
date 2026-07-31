@@ -1,0 +1,97 @@
+{
+  "schema_version": "knoarbor_reference_reuse.v1",
+  "owner": "specs/1.41-project-development-harness",
+  "sources": [
+    "itpc-x repository Harness and documentation system",
+    "Codex task: 阅读AI工程化实战文档",
+    "Codex task: 了解文章阅读记录",
+    "从Vibe Coding到Harness—— 一套大仓AI工程化实战.pdf",
+    "万字长文：从Vibe Coding到Harness Engineering的实践与思考.pdf"
+  ],
+  "entries": [
+    {
+      "mechanism": "product-neutral fixed Harness Core",
+      "decision": "adopt",
+      "target_owner": "harness/core-source.json",
+      "verification": "pnpm harness:bootstrap",
+      "cleanup": "remove repository-local Python lifecycle runtime"
+    },
+    {
+      "mechanism": "project Adapter composition",
+      "decision": "adapt",
+      "target_owner": "harness/src/adapters/knoarbor",
+      "verification": "pnpm harness:typecheck && pnpm harness:test",
+      "cleanup": "Adapter contains no product-neutral lifecycle logic"
+    },
+    {
+      "mechanism": "four mutually exclusive development lanes",
+      "decision": "adopt",
+      "target_owner": "docs/standards/development-workflow.md",
+      "verification": "documentation governance and admission tests",
+      "cleanup": "remove prose that presents Harness as the universal route"
+    },
+    {
+      "mechanism": "four-axis capability maturity",
+      "decision": "adapt",
+      "target_owner": "docs/CAPABILITY_MAP.md",
+      "verification": "scripts/check-doc-governance.py and Adapter resolution",
+      "cleanup": "remove ambiguous single status as Harness input"
+    },
+    {
+      "mechanism": "semantic host and responsibility projection",
+      "decision": "adapt",
+      "target_owner": "docs/CONTRACTS.md",
+      "verification": "projection-to-contract governance check",
+      "cleanup": "JSON cannot contain undeclared authority"
+    },
+    {
+      "mechanism": "documentation Active/Supporting Contract lifecycle",
+      "decision": "adapt",
+      "target_owner": "docs/DOCUMENTATION_GOVERNANCE.md",
+      "verification": "documentation governance and link checks",
+      "cleanup": "keep established public flat paths"
+    },
+    {
+      "mechanism": "project workflow and review Skills",
+      "decision": "adapt",
+      "target_owner": ".codex/skills",
+      "verification": "skill quick validation and forward use",
+      "cleanup": "Skills own procedure only, never state or truth"
+    },
+    {
+      "mechanism": "thirteen stable lifecycle stages",
+      "decision": "adopt",
+      "target_owner": "@development-harness/core",
+      "verification": "Core check and temporary journey",
+      "cleanup": "stages apply only after Patterned Harness admission"
+    },
+    {
+      "mechanism": "Team Mode and persistent multi-Agent lifecycle",
+      "decision": "reject",
+      "target_owner": "none",
+      "verification": "Controller dispatch remains short-lived and synchronous",
+      "cleanup": "no Team state or mailbox assets"
+    },
+    {
+      "mechanism": "TAPD, messaging, and enterprise delivery MCPs",
+      "decision": "reject",
+      "target_owner": "none",
+      "verification": "Adapter declares only current Git/local delivery",
+      "cleanup": "no unused credentials or integration code"
+    },
+    {
+      "mechanism": "itpc-x benchmark and Claude Code parity archives",
+      "decision": "reject",
+      "target_owner": "none",
+      "verification": "no copied reference-parity documentation family",
+      "cleanup": "retain only bounded reuse decisions"
+    },
+    {
+      "mechanism": "published remote Core package",
+      "decision": "defer",
+      "target_owner": "@development-harness/core",
+      "verification": "separate release decision and package provenance",
+      "cleanup": "current local pin remains exact and explicit"
+    }
+  ]
+}

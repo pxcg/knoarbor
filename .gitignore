@@ -8,6 +8,7 @@ config.local.yaml
 vaults/
 .knoarbor/
 __pycache__/
+.codex/**/__pycache__/
 *.pyc
 
 # Generated presentation exports
@@ -36,6 +37,7 @@ dist/
 build/
 *.egg-info/
 renderer/node_modules/
+node_modules/
 renderer/dist/
 renderer/*.tsbuildinfo
 renderer/test-results/

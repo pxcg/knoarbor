@@ -1,0 +1,4 @@
+interface:
+  display_name: "Documentation Curation Review"
+  short_description: "Review KnoArbor documentation ownership and lifecycle"
+  default_prompt: "Use $documentation-curation-review to assess this KnoArbor documentation change."

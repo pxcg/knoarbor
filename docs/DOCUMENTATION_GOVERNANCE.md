@@ -1,67 +1,128 @@
 # Documentation Governance
 
-This file defines how KnoArbor documentation is classified and when documents
-should be merged, archived, or removed.
+This is the sole standard for KnoArbor document classes, sources of truth,
+required structure, lifecycle, and cleanup. `docs/README.md` is navigation only.
 
-## Document Classes
+## Purpose
 
-| Class | Current location | Owns | Should not contain |
-| --- | --- | --- | --- |
-| User guides | `docs/QUICKSTART.md`, `docs/INSTALLATION.md`, `docs/CONFIGURATION.md`, `docs/TROUBLESHOOTING.md`, `docs/BACKUP_AND_RECOVERY.md`, `docs/CONCEPTS.md` | First-run use, normal operation, recovery, setup decisions, stable concepts | Internal implementation debates or release process |
-| Product tour | `docs/SHOWCASE.md`, root `README.md` | What the product does and what to show in demos | Full API/CLI references |
-| Reference | `docs/API.md`, `docs/CLI.md`, `docs/ERROR_CODES.md` | Stable command, route, and error lookup | Architecture rationale or roadmap prose |
-| Contracts | `docs/CONTRACTS.md`, `docs/API_COMPATIBILITY.md`, `docs/UI_CONTRACT.md`, `docs/REPORT_CONTRACT.md`, `docs/PROVENANCE_DESIGN.md` | Frozen runtime, API, UI, report, and provenance boundaries | Temporary implementation notes |
-| Architecture | `docs/ARCHITECTURE.md`, `docs/CAPABILITY_MAP.md`, `docs/ROADMAP.md`, `docs/adr/` | Stable boundaries, accepted decisions, capability status, long-term direction | Sprint notes or unresolved experiments |
-| Maintainer operations | `docs/DEVELOPMENT.md`, `docs/MAINTAINERS.md`, `docs/TESTING.md`, `docs/RELEASE_CHECKLIST.md` | Local development, release gates, branch policy, quality gates | User onboarding content duplicated from guides |
-| Release history | `docs/releases/`, `CHANGELOG.md` | Version-specific changes | Current supported behavior unless explicitly marked historical |
-| Feature specs | `specs/<feature>/` | Feature requirements, accepted design, implementation status, and verification | Stable public contracts or duplicate roadmap prose |
-| Spec lifecycle registry | `specs/registry.json` | The lifecycle, owner domain, and successor of every spec directory | Design prose or task details |
+Tracked documentation retains:
 
-The root `docs/` directory remains intentionally flat for public English docs
-because many README, release, and package links point there. Use the document
-class above as the primary ownership boundary. Avoid moving stable public files
-unless the whole docs tree is migrated in one planned pass.
+1. current product, architecture, capability, operation, and verification
+   contracts;
+2. stable local detail still needed to understand those contracts;
+3. history with independent decision or audit value.
 
-## Cleanup Rules
+Task plans, RoleTasks, stage state, Gate output, progress logs, and ordinary
+handoffs remain in Harness/Git.
 
-- Current public prose uses **KnoArbor** as the product and company-repository
-  name. Preserve lowercase technical identifiers such as the `knoarbor` Python
-  package, `.knoarbor` data directory, schemas, and the `knoar` CLI. Do not
-  rename historical versioned release notes only to update branding.
-- Merge documents when two files answer the same reader question with the same
-  authority. Keep the more stable owner and link to it from the secondary file.
-- Delete documents when they describe removed scripts, removed UI surfaces, or
-  local runtime artifacts that are no longer part of the product.
-- Archive historical material only when it records a decision, migration, or
-  release state that remains useful for maintainers.
-- Keep release notes historically accurate. Do not rewrite old release notes to
-  match the current product, except for secrets or broken repository links.
-- Keep English and Chinese public docs aligned for user-visible behavior. It is
-  acceptable for internal governance notes to exist only in Chinese.
-- Specs under `specs/` are implementation bridges, not public docs. Promote only
-  accepted, stable behavior from specs into `docs/`.
-- `specs/registry.json` is the only authority for spec lifecycle and successor
-  relationships. Status prose inside a spec must agree with the registry.
-- Current specs in `Proposed`, `Accepted`, or `Implemented` lifecycle keep all
-  four core files. Historical and superseded records may retain their original
-  incomplete shape; maintainers do not invent missing historical documents.
-- A new spec is created only when no current spec owns the proposed contract.
-  Otherwise update the smallest current owner set.
-- Accepted ADRs are immutable except for lifecycle and successor links. A new
-  ADR supersedes a durable decision that changed.
-- English is authoritative for versioned release notes. Chinese public guides,
-  references, contracts, architecture, and maintainer documents remain paired.
+## Classes And Owners
 
-## Current Policy
+| Class | Owner | Sole responsibility |
+| --- | --- | --- |
+| User guides | `QUICKSTART.md`, `INSTALLATION.md`, `CONFIGURATION.md`, `TROUBLESHOOTING.md`, `BACKUP_AND_RECOVERY.md`, `CONCEPTS.md` | First use, normal operation, recovery, and stable concepts |
+| Product tour | root `README.md`, `SHOWCASE.md` | Product position and demonstrable outcomes |
+| Public reference | `API.md`, `CLI.md`, `ERROR_CODES.md` | Stable route, command, and error lookup |
+| Active contracts | `CONTRACTS.md`, `API_COMPATIBILITY.md`, `UI_CONTRACT.md`, `REPORT_CONTRACT.md`, `PROVENANCE_DESIGN.md` | Current public/runtime authority and typed boundaries |
+| Architecture/product | `ARCHITECTURE.md`, `CAPABILITY_MAP.md`, `ROADMAP.md`, `adr/` | Layers, formal hosts, capability maturity, direction, and durable decisions |
+| Engineering standards | `standards/` | Development classification, SDD, navigation, design, and documentation rules |
+| Maintainer operations | `DEVELOPMENT.md`, `MAINTAINERS.md`, `TESTING.md`, `RELEASE_CHECKLIST.md` | Local development, validation, branch, release, and maintenance operations |
+| Verification protocols | `TESTING.md`, Skill references, executable tests/fixtures | Repeatable inputs, commands, oracles, and evidence levels |
+| Feature specs | `specs/<feature>/` | Feature requirements, accepted design, tasks, and verification |
+| Lifecycle registry | `specs/registry.json` | Spec lifecycle, owner, and successor |
+| Release history | `releases/`, `CHANGELOG.md` | Version-specific historical behavior |
+| Evidence/archive | explicitly admitted records or archive paths | Independently useful audit evidence or historical explanation |
 
-The active documentation set follows these ownership rules:
+Public English docs remain flat to preserve established links. Directory shape
+does not establish authority; the class and owner above do.
 
-- keep public docs flat for now;
-- keep feature specs outside public docs;
-- delete one-off governance reviews after accepted conclusions move into the
-  owning contract, ADR, or maintainer rule;
-- remove docs for deleted product surfaces rather than preserving compatibility
-  prose for them;
-- prefer updating the owning document over duplicating explanations.
-- run `scripts/check-doc-governance.py` and `scripts/check-doc-links.py` in the
-  local and release gates.
+## Source-Of-Truth Order
+
+```text
+product outcome
+  -> Capability Map
+  -> Architecture / Active Contract
+  -> Supporting Contract
+  -> implementation and tests
+  -> Verification Protocol / Evidence
+```
+
+- `CAPABILITY_MAP.md` owns capability ID, four-axis maturity, boundary, and one
+  active owner.
+- `ARCHITECTURE.md` owns layer taxonomy, dependency direction, and formal-host
+  rules.
+- `CONTRACTS.md` and its specialized contract documents own current authority,
+  lifecycle, recovery, and publication boundaries.
+- `harness/rules/semantic-hosts.json` is a machine projection of those
+  contracts. It cannot introduce responsibility or override prose owners.
+- `specs/registry.json` alone owns spec lifecycle.
+- Harness/Git owns current development execution.
+
+Indexes and projections link to truth; they do not copy completion matrices or
+implementation narratives.
+
+## Active And Supporting Contracts
+
+An Active Contract declares its boundary, formal hosts, public/typed contract,
+authority, state/lifecycle/recovery, verification, and open boundaries. A
+semantic concern has only one Active Contract.
+
+A Supporting Contract is admitted only when it has one stable delegated
+responsibility, direct code/schema and verification anchors, and lowers
+discovery cost. It points directly to its Active Parent. Supporting-to-
+Supporting chains, second capability owners, and task-state copies are invalid.
+
+## Content Excluded From Long-Term Contracts
+
+- Initiative, stage, Gate, reviewer, or approval state;
+- TaskPlan, RoleTask, progress log, or completed-controller narration;
+- volatile test counts, durations, terminal output, temporary paths, or run IDs;
+- migration chronology after the target contract is current;
+- large copies of external articles, chats, repositories, or benchmark output;
+- duplicated capability maturity;
+- refactor plans justified only by file/helper/adapter size.
+
+Open architecture boundaries are allowed when they name the missing owner,
+behavior, or oracle rather than mutable task state.
+
+## Lifecycle
+
+| Action | Condition |
+| --- | --- |
+| Keep | Current unique owner with fresh, verifiable content |
+| Update | Correct owner with stale boundary, anchor, or evidence |
+| Merge | Content belongs to another owner or splitting increases discovery cost |
+| Archive | No longer current but still has independent explanatory/audit value |
+| Delete | Fully absorbed, duplicated, transient, or adequately retained by Git |
+
+Before deletion, preserve stable contract in its target owner, migrate valid
+code/test/verification anchors, update indexes and links, confirm no operation
+exists only in the deleted file, and rely on Git for ordinary history.
+
+## Change Process
+
+Before adding a document, declare its class, unique owner or Active Parent,
+audience, code/verification anchors, and deletion condition. If an existing
+owner can carry it, update that owner.
+
+For external references, the owning spec records `adopt`, `adapt`, `reject`, or
+`defer`, with target owner, verification, and cleanup. The reference is evidence
+and never a current-state documentation family.
+
+At Direct SDD or Harness closure, promote only delivered deltas:
+
+1. authority/host/state/recovery changes to the Active Contract;
+2. stable delegated detail to an admitted Supporting Contract;
+3. reusable acceptance to a Verification Protocol;
+4. true maturity changes to the Capability Map;
+5. mutable execution state stays in Harness/Git.
+
+## Automated Governance
+
+`scripts/check-doc-governance.py` validates registry integrity, required
+standards, capability rows, semantic-host projections, Skill metadata, stale
+Harness authorities, and forbidden current-document patterns.
+`scripts/check-doc-links.py` validates repository Markdown links.
+
+English is authoritative for current public and release documentation. Chinese
+public guides and contracts remain paired when user-visible behavior changes.
+Historical release notes remain historically accurate.

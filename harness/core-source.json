@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "development_harness.core_source.v1",
+  "package": "@development-harness/core",
+  "version": "0.11.0",
+  "path": "../development-harness",
+  "commit": "f10ede5736dc4f534cdbf3b6f389d25d4e6b96d5",
+  "artifact": "harness/vendor/development-harness-core-0.11.0.tgz",
+  "artifactSha256": "bbcd0544b15b5da84af9985b6027b2158e0e1b03e58ef1361abd8ad2052ea8a8"
+}

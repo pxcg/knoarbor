@@ -23,12 +23,10 @@ tests。检查公开、持久、语义、生命周期、打包或发布依赖闭
 R3 不自动要求全量单元测试、`dev-check.sh`、桌面打包或真实模型测试。只有改动影响到
 对应门禁，或进入发布/全链验收节点时才升级。
 
-对于 Initiative，affected planner 为固定方法门禁目录提供依据，但不负责宣告完成。
-`project-development-harness.py baseline` 冻结工作区并执行基线组合；
-`run-gates --phase integration` 把 integration 绑定到同一组固定检查；`acceptance` 以相同
-稳定 gate identity 重跑，并强制检查 `gate-delta` 与 `scope`。选中的 full-chain 或
-live-model gate 只通过 `record-external-gate` 记录结果、证据 ID 和 SHA-256 digest，绝不保存
-原始输出。完全相同的既有失败继续可见但不归因于本次
+对于已准入的 Patterned Harness Initiative，affected planner 为固定 Adapter 门禁目录
+提供依据，但不负责宣告完成。`pnpm harness --` 冻结工作区基线、执行固定集成门禁，
+在验收时比较稳定 Gate identity 并强制检查 scope。选中的 full-chain 或 live-model
+证据只保存有界 receipt，绝不保存原始输出。完全相同的既有失败继续可见但不归因于本次
 Initiative；新增或变化的硬门禁失败会阻断验收，软门禁失败必须记录 owner、确认和到期/
 移除条件。
 

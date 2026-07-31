@@ -275,11 +275,15 @@ def _is_release_governance_path(path: str) -> bool:
             ".github/workflows/",
             ".codex/skills/knoarbor-full-chain-acceptance/",
             ".codex/skills/knoarbor-sdd-delivery/",
+            ".codex/skills/development-harness-controller/",
+            ".codex/skills/development-workflow/",
+            "harness/",
             "specs/1.41-project-development-harness/",
         )
     ) or path in {
         ".github/pull_request_template.md",
-        "scripts/project-development-harness.py",
+        "pnpm-workspace.yaml",
+        "scripts/bootstrap-development-harness.mjs",
         "scripts/check-doc-governance.py",
         "scripts/dev-check.sh",
         "scripts/release-check.sh",

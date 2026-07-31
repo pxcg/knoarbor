@@ -1,0 +1,4 @@
+interface:
+  display_name: "Semantic Contract Review"
+  short_description: "Review KnoArbor ownership and contract integrity"
+  default_prompt: "Use $semantic-contract-review to inspect this KnoArbor change."

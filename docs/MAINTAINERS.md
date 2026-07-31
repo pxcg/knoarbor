@@ -66,6 +66,14 @@ KnoArbor uses lightweight spec-driven development for changes that affect
 architecture, public contracts, source connectors, semantic contracts,
 workflow behavior, or release-critical user experience.
 
+Classify every change through
+[Development Workflow](standards/development-workflow.md) before selecting a
+delivery mechanism. Architecture Discovery, Direct Maintenance, Direct SDD,
+and Patterned Harness are mutually exclusive. The full Harness is reserved for
+admitted multi-owner product delivery; it is not a wrapper for ordinary risky
+or cross-package work. Changes to the Harness itself use Bootstrap Maintenance
+and cannot be certified by the runtime under replacement.
+
 Specs live in [`specs/`](../specs/README.md). They connect roadmap themes to
 implementation, tests, and release notes. Long-term public documentation keeps
 the stable user and contributor view:

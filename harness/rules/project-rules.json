@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "knoarbor.project_rules.v1",
+  "rules": [
+    "Classify work before choosing Direct Maintenance, Direct SDD, Architecture Discovery, or Patterned Harness.",
+    "Keep product truth in the owning Python contract; renderer and desktop surfaces consume typed projections.",
+    "Reusable work lands on public main before private downstream integration.",
+    "Every compatibility bridge has one owner, retirement condition, and negative oracle.",
+    "Run focused owner evidence before an affected or release closure.",
+    "Keep credentials, raw subprocess output, source bodies, and private paths out of portable evidence."
+  ]
+}

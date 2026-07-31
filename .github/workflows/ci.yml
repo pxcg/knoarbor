@@ -123,10 +123,35 @@ jobs:
         working-directory: desktop
         run: npm audit --omit=dev --audit-level=high
 
+  harness:
+    name: Development Harness contracts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "11.1.3"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install Harness dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify vendored Core and KnoArbor Adapter
+        run: pnpm harness:bootstrap:check
+
   package:
     name: Package build
     runs-on: ubuntu-latest
-    needs: [test, frontend, desktop]
+    needs: [test, frontend, desktop, harness]
 
     steps:
       - name: Checkout

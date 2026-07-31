@@ -46,7 +46,7 @@ class AffectedValidationPlanTests(unittest.TestCase):
         self.assertTrue(any("release governance" in reason for reason in plan["review_required"]))
 
     def test_project_harness_change_sets_r3_governance_floor(self) -> None:
-        plan = PLAN_AFFECTED.build_plan(["scripts/project-development-harness.py"])
+        plan = PLAN_AFFECTED.build_plan(["harness/src/index.ts"])
 
         self.assertEqual(plan["risk_floor"], "R3")
         self.assertTrue(any("release governance" in reason for reason in plan["review_required"]))

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Development Workflow"
+  short_description: "Route KnoArbor work through the right delivery lane"
+  default_prompt: "Use $development-workflow to classify and execute this KnoArbor change."
