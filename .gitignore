@@ -55,7 +55,7 @@ knoarbor_logo_asset_kit/
 
 # Local repository-development Harness state. Durable conclusions belong in
 # specs, docs, tests, and Git rather than generated Initiative records.
-.codex/initiatives/
+.knoarbor/harness/
 
 # Internal maintainer planning docs are kept locally, not in public releases.
 docs/maintainer/

@@ -57,6 +57,7 @@ def main() -> int:
     _check_semantic_hosts(errors)
     _check_skills(errors)
     _check_reference_reuse(errors)
+    _check_generated_harness_state(errors)
     _check_retired_harness_authorities(errors)
     if errors:
         print("\n".join(errors))
@@ -198,6 +199,17 @@ def _check_reference_reuse(errors: list[str]) -> None:
                 errors.append(
                     f"{path.relative_to(ROOT)}: {mechanism!r} lacks {field}"
                 )
+
+
+def _check_generated_harness_state(errors: list[str]) -> None:
+    patterns = {
+        line.strip()
+        for line in (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+    }
+    if ".knoarbor/harness/" not in patterns:
+        errors.append(".gitignore: generated Harness state must be ignored")
+    if ".codex/initiatives/" in patterns:
+        errors.append(".gitignore: retired Initiative state path remains")
 
 
 def _check_retired_harness_authorities(errors: list[str]) -> None:
